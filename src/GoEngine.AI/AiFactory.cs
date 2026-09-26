@@ -36,7 +36,7 @@ public static class AiFactory
             var policy = new PlayoutPolicy(level.PlayoutConfig);
             var config = new MctsConfig(level.PlayoutBudget, level.Ucb1C);
 
-            return new MctsMoveSelector(random, policy, config);
+            return new MctsMoveSelector(random, policy, config, level.RandomnessPercent);
         }
 
         throw new AiException($"Уровень {level.Name} ссылается на неизвестный вид селектора {level.Kind.Name}.");

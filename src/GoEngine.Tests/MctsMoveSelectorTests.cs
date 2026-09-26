@@ -71,6 +71,20 @@ public sealed class MctsMoveSelectorTests
     }
 
     [Fact]
+    public void Mcts_Не_Нарушает_Суперко_В_Партии()
+    {
+        // Регрессия: поиск идёт по доске без истории, поэтому выбранный ход обязан
+        // проверяться на настоящей доске — иначе партия прервётся нарушением суперко.
+        var harness = new SelfPlayHarness();
+        var mcts = Selector(2);
+        var random = new RandomMoveSelector(new Random(Seed));
+
+        var result = harness.PlayGame(mcts, random, BoardSize.Size9, Komi.For9x9, Seed);
+
+        Assert.True(result.Result.Status.IsFinished);
+    }
+
+    [Fact]
     public void Mcts_Пас_Когда_Ходов_Нет()
     {
         var move = Selector(5).SelectMove(TestPositions.BoardWithoutLegalMoves(), StoneColor.Black, Komi.For9x9);

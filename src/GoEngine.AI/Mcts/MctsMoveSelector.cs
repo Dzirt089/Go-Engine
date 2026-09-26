@@ -15,25 +15,35 @@ public sealed class MctsMoveSelector : IMoveSelector
     /// <summary>Сколько пасов подряд завершают playout.</summary>
     private const int PassesToFinish = 2;
 
+    /// <summary>Шкала процентов: доля случайности задаётся в процентах.</summary>
+    private const int PercentScale = 100;
+
     private readonly Random _random;
     private readonly PlayoutPolicy _playoutPolicy;
     private readonly MctsConfig _config;
+    private readonly int _randomnessPercent;
 
     /// <summary>Создаёт селектор.</summary>
     /// <param name="random">Источник случайности; в тестах — с фиксированным seed.</param>
     /// <param name="playoutPolicy">Политика игры в playout'ах.</param>
     /// <param name="config">Настройки поиска.</param>
-    /// <exception cref="ArgumentOutOfRangeException">Бюджет не положительный или коэффициент UCB1 отрицательный.</exception>
-    public MctsMoveSelector(Random random, PlayoutPolicy playoutPolicy, MctsConfig config)
+    /// <param name="randomnessPercent">Доля случайных ходов в процентах: слабые уровни иногда
+    /// ходят наугад вместо поиска — это и делает их слабее.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Бюджет не положительный, коэффициент UCB1
+    /// отрицательный или доля случайности вне диапазона 0…100.</exception>
+    public MctsMoveSelector(Random random, PlayoutPolicy playoutPolicy, MctsConfig config, int randomnessPercent = 0)
     {
         ArgumentNullException.ThrowIfNull(random);
         ArgumentNullException.ThrowIfNull(playoutPolicy);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(config.PlayoutBudget);
         ArgumentOutOfRangeException.ThrowIfNegative(config.Ucb1C);
+        ArgumentOutOfRangeException.ThrowIfNegative(randomnessPercent);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(randomnessPercent, PercentScale);
 
         _random = random;
         _playoutPolicy = playoutPolicy;
         _config = config;
+        _randomnessPercent = randomnessPercent;
     }
 
     /// <summary>Создаёт селектор с коэффициентом исследования по умолчанию.</summary>
@@ -46,7 +56,7 @@ public sealed class MctsMoveSelector : IMoveSelector
     }
 
     /// <inheritdoc />
-    public string Name => $"MCTS ({_config.PlayoutBudget} playout'ов)";
+    public string Name => $"MCTS ({_config.PlayoutBudget} playout'ов, случайность {_randomnessPercent}%)";
 
     /// <inheritdoc />
     public Move SelectMove(GameState state)
@@ -56,6 +66,10 @@ public sealed class MctsMoveSelector : IMoveSelector
         return SelectMove(state.Board, state.ToMove, state.Komi);
     }
 
+    /// <summary>Проверяет, ходит ли селектор на этот раз наугад.</summary>
+    /// <returns><c>true</c>, если ход выбирается без поиска.</returns>
+    private bool Blunders() => _random.Next(PercentScale) < _randomnessPercent;
+
     /// <summary>Выбирает ход по позиции, минуя партию.</summary>
     /// <param name="board">Позиция.</param>
     /// <param name="color">Цвет, который ходит.</param>
@@ -63,24 +77,35 @@ public sealed class MctsMoveSelector : IMoveSelector
     /// <returns>Легальный ход или пас, если легальных ходов нет.</returns>
     public Move SelectMove(Board board, StoneColor color, Komi komi)
     {
-        var root = Search(board, color, komi);
+        ArgumentNullException.ThrowIfNull(board);
+        ArgumentNullException.ThrowIfNull(color);
 
-        if (root.Children.Count == 0)
+        if (Blunders())
         {
-            return Move.Pass(color);
+            var legalMoves = LegalMoves.For(board, color);
+
+            return legalMoves.Count == 0 ? Move.Pass(color) : legalMoves[_random.Next(legalMoves.Count)];
         }
 
-        var best = root.Children[0];
+        var root = Search(board, color, komi);
+        MctsNode? best = null;
 
         foreach (var child in root.Children)
         {
-            if (IsBetter(child, best))
+            // Поиск идёт по доске без истории, поэтому суперко проверяется здесь, на настоящей доске:
+            // ход, повторяющий позицию партии, играть нельзя (GO_RULES.md, п. 6).
+            if (!board.IsLegal(child.Move).IsSuccess)
+            {
+                continue;
+            }
+
+            if (best is null || IsBetter(child, best))
             {
                 best = child;
             }
         }
 
-        return best.Move;
+        return best is null ? Move.Pass(color) : best.Move;
     }
 
     /// <summary>Сравнивает ходы: сначала по числу посещений, при равенстве — по доле побед.</summary>

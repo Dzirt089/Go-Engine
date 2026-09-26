@@ -63,21 +63,21 @@ public sealed class DifficultyLevel : Enumeration
     public static DifficultyLevel Kyu20 { get; } =
         new(20, nameof(Kyu20), 20, SelectorKind.Heuristic, 0, Mcts.MctsConfig.DefaultUcb1C, 15, PlayoutConfig.Default);
 
-    /// <summary>15 кю: короткий поиск MCTS поверх эвристик.</summary>
+    /// <summary>15 кю: короткий поиск с заметной долей случайных ходов.</summary>
     public static DifficultyLevel Kyu15 { get; } =
-        new(15, nameof(Kyu15), 15, SelectorKind.Mcts, 4, Mcts.MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default);
+        new(15, nameof(Kyu15), 15, SelectorKind.Mcts, 6, Mcts.MctsConfig.DefaultUcb1C, 15, PlayoutConfig.Default);
 
-    /// <summary>10 кю: целевой уровень первой версии, поиск средней длины.</summary>
+    /// <summary>10 кю: целевой уровень первой версии — обычные playout'ы и короткий поиск.</summary>
     public static DifficultyLevel Kyu10 { get; } =
-        new(10, nameof(Kyu10), 10, SelectorKind.Mcts, 12, Mcts.MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default);
+        new(10, nameof(Kyu10), 10, SelectorKind.Mcts, 8, Mcts.MctsConfig.DefaultUcb1C, 8, PlayoutConfig.Default);
 
-    /// <summary>8 кю: более длинный поиск.</summary>
+    /// <summary>8 кю: поиск длиннее, playout'ы внимательнее к атари.</summary>
     public static DifficultyLevel Kyu8 { get; } =
-        new(8, nameof(Kyu8), 8, SelectorKind.Mcts, 24, Mcts.MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default);
+        new(8, nameof(Kyu8), 8, SelectorKind.Mcts, 10, Mcts.MctsConfig.DefaultUcb1C, 3, PlayoutConfig.Default);
 
-    /// <summary>5 кю: самый сильный уровень первой версии.</summary>
+    /// <summary>5 кю: самый сильный уровень первой версии — без случайности и с внимательными playout'ами.</summary>
     public static DifficultyLevel Kyu5 { get; } =
-        new(5, nameof(Kyu5), 5, SelectorKind.Mcts, 48, Mcts.MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default);
+        new(5, nameof(Kyu5), 5, SelectorKind.Mcts, 12, Mcts.MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default);
 
     /// <summary>Создаёт селектор этого уровня.</summary>
     /// <param name="random">Источник случайности; в тестах — с фиксированным seed.</param>

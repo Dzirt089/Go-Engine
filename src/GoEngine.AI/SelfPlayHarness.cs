@@ -17,15 +17,17 @@ public sealed class SelfPlayHarness
     /// <param name="komi">Коми партии.</param>
     /// <param name="seed">Зерно партии: селекторы должны быть созданы с тем же зерном,
     /// тогда партия воспроизводима.</param>
+    /// <param name="moveLimit">Лимит ходов партии; 0 — лимит по размеру доски. Урезанный лимит
+    /// нужен тестам силы: партия MCTS полной длины идёт минуты.</param>
     /// <returns>Итог партии, все её ходы и финальная доска.</returns>
     /// <exception cref="AiException">Селектор вернул ход, который партия не приняла.</exception>
-    public SelfPlayResult PlayGame(IMoveSelector black, IMoveSelector white, BoardSize size, Komi komi, int seed)
+    public SelfPlayResult PlayGame(IMoveSelector black, IMoveSelector white, BoardSize size, Komi komi, int seed, int moveLimit = 0)
     {
         ArgumentNullException.ThrowIfNull(black);
         ArgumentNullException.ThrowIfNull(white);
         ArgumentOutOfRangeException.ThrowIfNegative(seed);
 
-        var game = GameState.NewGame(size, komi);
+        var game = GameState.NewGame(size, komi, moveLimit);
 
         while (!game.Status.IsFinished)
         {
