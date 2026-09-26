@@ -227,8 +227,9 @@ public sealed class Board
     /// <param name="move">Ход типа <see cref="MoveType.Play"/>.</param>
     /// <returns>Успех, если ход легален; иначе причина отказа на русском языке.</returns>
     /// <remarks>
-    /// Самоубийство проверяется на копии доски: чтобы узнать, останутся ли у своей группы дамэ,
-    /// надо сначала снять чужие группы без дамэ, а исходную доску менять нельзя.
+    /// Самоубийство проверяется без изменения доски: у своей будущей группы считаются дамэ,
+    /// а у соседних групп противника — последнее дамэ. Копия доски нужна только тогда, когда
+    /// ведётся история партии: для проверки суперко позицию после хода надо построить целиком.
     /// </remarks>
     private Result<Unit> CheckPlay(Move move)
     {
@@ -242,20 +243,77 @@ public sealed class Board
             return Result<Unit>.Fail($"Точка {move.Point} уже занята.");
         }
 
-        var probe = PreviewMove(move);
-        var ownGroup = GroupTracker.FindGroup(probe, move.Point);
+        var suicide = CheckSuicide(move);
 
-        // GO_RULES.md, п. 5: ход разрешён, если у своей группы остались дамэ или если ход снял
-        // хотя бы один камень противника. Второе условие и есть исключение для захвата.
-        if (ownGroup.IsCaptured && !probe._lastCapture.HasCaptures)
+        if (!suicide.IsSuccess)
         {
-            return Result<Unit>.Fail($"Самоубийственный ход: у своей группы в точке {move.Point} не остаётся дамэ.");
+            return suicide;
         }
+
+        // Без истории партии проверять суперко нечем и незачем: анализ может обойтись без копии доски.
+        if (History is null)
+        {
+            return Result<Unit>.Ok(Unit.Value);
+        }
+
+        var probe = PreviewMove(move);
 
         // GO_RULES.md, п. 6: позиция после хода не должна встречаться в партии ни разу.
         return KoRule.ViolatesSuperko(History, probe, move)
             ? Result<Unit>.Fail($"Ход нарушает суперко: позиция после хода в точку {move.Point} уже встречалась в партии.")
             : Result<Unit>.Ok(Unit.Value);
+    }
+
+    /// <summary>Проверяет самоубийство, не меняя доску.</summary>
+    /// <param name="move">Ход типа <see cref="MoveType.Play"/> на пустую точку доски.</param>
+    /// <returns>Успех, если после хода у своей группы останутся дамэ.</returns>
+    /// <remarks>
+    /// Считается без копии доски: дамэ будущей своей группы — это пустые соседи точки хода плюс
+    /// дамэ соседних своих групп, кроме самой точки. Ход разрешён и тогда, когда своя группа
+    /// осталась бы без дамэ, но снимается хотя бы один камень противника
+    /// (<c>GO_RULES.md</c>, п. 5): группа противника снимается ровно тогда, когда её единственное
+    /// дамэ — точка хода.
+    /// </remarks>
+    private Result<Unit> CheckSuicide(Move move)
+    {
+        var color = move.Color;
+        HashSet<Point> liberties = [];
+        HashSet<Point> visited = [];
+        var captures = false;
+
+        foreach (var neighbor in move.Point.Neighbors(Size))
+        {
+            var neighborColor = _stones[IndexOf(neighbor)];
+
+            if (neighborColor == StoneColor.Empty)
+            {
+                liberties.Add(neighbor);
+                continue;
+            }
+
+            if (!visited.Add(neighbor))
+            {
+                continue;
+            }
+
+            var group = GroupTracker.FindGroup(this, neighbor);
+            visited.UnionWith(group.Stones);
+
+            if (neighborColor == color)
+            {
+                liberties.UnionWith(group.Liberties);
+                continue;
+            }
+
+            captures |= group.Liberties.Count == 1 && group.Liberties.Contains(move.Point);
+        }
+
+        // Сама точка хода перестаёт быть пустой, поэтому своим же дамэ она не считается.
+        liberties.Remove(move.Point);
+
+        return liberties.Count > 0 || captures
+            ? Result<Unit>.Ok(Unit.Value)
+            : Result<Unit>.Fail($"Самоубийственный ход: у своей группы в точке {move.Point} не остаётся дамэ.");
     }
 
     /// <summary>Снимает группы противника без дамэ, соседние с поставленным камнем.</summary>

@@ -10,16 +10,13 @@ using GoEngine.Core;
 /// </remarks>
 public sealed class MctsTree
 {
-    /// <summary>Коэффициент исследования UCB1 по умолчанию.</summary>
-    public const double DefaultUcb1C = 1.41;
-
     private readonly double _ucb1C;
 
     /// <summary>Создаёт дерево с корнем в текущей позиции партии.</summary>
     /// <param name="board">Позиция, из которой ищется ход.</param>
     /// <param name="toMove">Цвет, который ходит из этой позиции.</param>
     /// <param name="ucb1C">Коэффициент исследования UCB1.</param>
-    public MctsTree(Board board, StoneColor toMove, double ucb1C = DefaultUcb1C)
+    public MctsTree(Board board, StoneColor toMove, double ucb1C = MctsConfig.DefaultUcb1C)
     {
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(toMove);

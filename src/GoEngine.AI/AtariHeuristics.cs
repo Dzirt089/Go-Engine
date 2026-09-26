@@ -4,42 +4,87 @@ using GoEngine.Core;
 
 /// <summary>Эвристики атари, общие для селекторов и playout-политики.</summary>
 /// <remarks>
-/// Захват считается без копирования доски: группа противника снимается тогда и только тогда,
-/// когда её единственное дамэ — точка хода. Вынесено из <see cref="HeuristicMoveSelector"/>
-/// в отдельный класс, чтобы политика playout'ов не дублировала те же правила.
+/// Кандидаты берутся из групп на доске, а не перебором всех ходов: группы в атари находятся
+/// одним обходом (<see cref="GroupTracker.AllGroups"/>), после чего проверяется легальность
+/// одного хода. Для playout'ов это решающая экономия: перебор всех ходов на каждом ходу
+/// партии стоил бы сотни проверок правил.
 /// </remarks>
 internal static class AtariHeuristics
 {
-    /// <summary>Ищет ход, снимающий больше всего камней противника.</summary>
+    /// <summary>Ищет ход, снимающий группу противника в атари.</summary>
     /// <param name="board">Позиция.</param>
     /// <param name="color">Цвет, который ходит.</param>
-    /// <param name="legalMoves">Легальные ходы цвета.</param>
-    /// <returns>Ход с наибольшим захватом или <c>null</c>, если захватов нет.</returns>
-    internal static Move? FindCaptureMove(Board board, StoneColor color, IReadOnlyList<Move> legalMoves)
+    /// <returns>Легальный ход с наибольшим захватом или <c>null</c>, если захватов нет.</returns>
+    internal static Move? FindCapturingMove(Board board, StoneColor color)
     {
-        Move? best = null;
-        var bestCaptured = 0;
+        // Чем больше группа, тем ценнее захват: ищем самую крупную группу в атари за один проход,
+        // без сортировки — эта эвристика вызывается на каждом ходу playout'а.
+        Group? target = null;
 
-        foreach (var move in legalMoves)
+        foreach (var group in GroupTracker.AllGroups(board, color.Opponent()))
         {
-            var captured = CountCapturedStones(board, move.Point, color);
-
-            if (captured > bestCaptured)
+            if (group.IsInAtari && (target is null || group.Stones.Count > target.Value.Stones.Count))
             {
-                bestCaptured = captured;
-                best = move;
+                target = group;
             }
         }
 
-        return best;
+        if (target is null)
+        {
+            return null;
+        }
+
+        var move = Move.Play(target.Value.Liberties.First(), color);
+
+        return board.IsLegal(move).IsSuccess ? move : null;
+    }
+
+    /// <summary>Проверяет, остаётся ли своя группа после хода без дамэ или в атари.</summary>
+    /// <param name="board">Позиция до хода.</param>
+    /// <param name="move">Ход, легальность которого уже проверена.</param>
+    /// <returns><c>true</c>, если после хода у своей группы меньше двух дамэ.</returns>
+    /// <remarks>
+    /// Случайные playout'ы чаще всего губят свои группы тем, что сами закрывают их дамэ,
+    /// в том числе заполняют собственный глаз. Проверка считается без копии доски: дамэ будущей
+    /// группы — пустые соседи точки плюс дамэ соседних своих групп, кроме самой точки.
+    /// Захват противника в расчёт не берётся: ходы-захваты разбираются эвристиками атари раньше.
+    /// </remarks>
+    internal static bool LeavesOwnGroupInAtari(Board board, Move move)
+    {
+        var color = move.Color;
+        HashSet<Point> liberties = [];
+        HashSet<Point> visited = [];
+
+        foreach (var neighbor in move.Point.Neighbors(board.Size))
+        {
+            var neighborColor = board.At(neighbor);
+
+            if (neighborColor == StoneColor.Empty)
+            {
+                liberties.Add(neighbor);
+                continue;
+            }
+
+            if (neighborColor != color || !visited.Add(neighbor))
+            {
+                continue;
+            }
+
+            var group = GroupTracker.FindGroup(board, neighbor);
+            visited.UnionWith(group.Stones);
+            liberties.UnionWith(group.Liberties);
+        }
+
+        liberties.Remove(move.Point);
+
+        return liberties.Count <= 1;
     }
 
     /// <summary>Ищет ход, спасающий свою группу в атари.</summary>
     /// <param name="board">Позиция.</param>
     /// <param name="color">Цвет, который ходит.</param>
-    /// <param name="legalMoves">Легальные ходы цвета.</param>
-    /// <returns>Ход в последнее дамэ своей группы или <c>null</c>, если таких групп нет.</returns>
-    internal static Move? FindRescueMove(Board board, StoneColor color, IReadOnlyList<Move> legalMoves)
+    /// <returns>Легальный ход в последнее дамэ своей группы или <c>null</c>, если таких групп нет.</returns>
+    internal static Move? FindRescueMove(Board board, StoneColor color)
     {
         foreach (var group in GroupTracker.AllGroups(board, color))
         {
@@ -48,61 +93,14 @@ internal static class AtariHeuristics
                 continue;
             }
 
-            var rescue = FindMoveAt(legalMoves, group.Liberties.First());
+            var move = Move.Play(group.Liberties.First(), color);
 
-            if (rescue is not null)
-            {
-                return rescue;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>Ищет среди легальных ходов ход в указанную точку.</summary>
-    /// <param name="legalMoves">Легальные ходы.</param>
-    /// <param name="point">Нужная точка.</param>
-    /// <returns>Ход в точку или <c>null</c>, если такой ход нелегален.</returns>
-    internal static Move? FindMoveAt(IReadOnlyList<Move> legalMoves, Point point)
-    {
-        foreach (var move in legalMoves)
-        {
-            if (move.Point == point)
+            if (board.IsLegal(move).IsSuccess)
             {
                 return move;
             }
         }
 
         return null;
-    }
-
-    /// <summary>Считает, сколько камней противника снимет ход в точку.</summary>
-    /// <param name="board">Позиция.</param>
-    /// <param name="point">Точка хода.</param>
-    /// <param name="color">Цвет хода.</param>
-    /// <returns>Число камней, у которых этот ход — последнее дамэ; 0, если снятий нет.</returns>
-    private static int CountCapturedStones(Board board, Point point, StoneColor color)
-    {
-        var opponent = color.Opponent();
-        var captured = 0;
-        HashSet<Point> visited = [];
-
-        foreach (var neighbor in point.Neighbors(board.Size))
-        {
-            if (board.At(neighbor) != opponent || !visited.Add(neighbor))
-            {
-                continue;
-            }
-
-            var group = GroupTracker.FindGroup(board, neighbor);
-            visited.UnionWith(group.Stones);
-
-            if (group.Liberties.Count == 1 && group.Liberties.Contains(point))
-            {
-                captured += group.Stones.Count;
-            }
-        }
-
-        return captured;
     }
 }

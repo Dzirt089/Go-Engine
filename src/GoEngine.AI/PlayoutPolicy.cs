@@ -7,13 +7,17 @@ using GoEngine.Core;
 /// Порядок приоритетов: с вероятностью <see cref="PlayoutConfig.AtariProbability"/> — съесть
 /// группу противника в атари, затем спасти свою группу в атари; с вероятностью
 /// <see cref="PlayoutConfig.NeighborProbability"/> — ход рядом с существующими камнями;
-/// иначе — случайный легальный ход. MCTS внутри playout'а не вызывается: playout должен
-/// оставаться дешёвым (<c>DECISIONS.md</c>, D-003).
-/// Случайность приходит снаружи: политика своего <see cref="Random"/> не создаёт
-/// (<c>AGENTS_GO.md</c>, п. 7).
+/// иначе — случайный легальный ход. Ходы выбираются пробами случайных точек, а не перебором
+/// всех ходов: в середине партии почти любая пустая точка легальна, и полный перебор
+/// стоил бы сотни проверок правил на каждый ход playout'а.
+/// MCTS внутри playout'а не вызывается (<c>DECISIONS.md</c>, D-003), своего
+/// <see cref="Random"/> политика не создаёт (<c>AGENTS_GO.md</c>, п. 7).
 /// </remarks>
 public sealed class PlayoutPolicy
 {
+    /// <summary>Сколько случайных точек пробуется, прежде чем перебирать ходы целиком.</summary>
+    private const int RandomAttempts = 20;
+
     private readonly PlayoutConfig _config;
 
     /// <summary>Создаёт политику с настройками по умолчанию.</summary>
@@ -56,18 +60,10 @@ public sealed class PlayoutPolicy
         ArgumentNullException.ThrowIfNull(color);
         ArgumentNullException.ThrowIfNull(random);
 
-        var legalMoves = LegalMoves.For(board, color);
-
-        // Пас разрешён всегда: если ходить некуда, playout пропускает ход.
-        if (legalMoves.Count == 0)
-        {
-            return Move.Pass(color);
-        }
-
         if (random.NextDouble() < _config.AtariProbability)
         {
-            var atariMove = AtariHeuristics.FindCaptureMove(board, color, legalMoves)
-                ?? AtariHeuristics.FindRescueMove(board, color, legalMoves);
+            var atariMove = AtariHeuristics.FindCapturingMove(board, color)
+                ?? AtariHeuristics.FindRescueMove(board, color);
 
             if (atariMove is not null)
             {
@@ -77,7 +73,7 @@ public sealed class PlayoutPolicy
 
         if (random.NextDouble() < _config.NeighborProbability)
         {
-            var neighborMove = FindNeighborMove(board, legalMoves, random);
+            var neighborMove = FindRandomMove(board, color, random, point => HasNeighborStone(board, point) && IsSafe(board, color, point));
 
             if (neighborMove is not null)
             {
@@ -85,28 +81,67 @@ public sealed class PlayoutPolicy
             }
         }
 
-        return legalMoves[random.Next(legalMoves.Count)];
+        // Если остались только самоубийственные и атарийные ходы, playout пропускает ход:
+        // так он заканчивается на устоявшейся позиции, а не на доске, забитой камнями до отказа.
+        // Пас разрешён всегда (GO_RULES.md, п. 3).
+        return FindRandomMove(board, color, random, point => IsSafe(board, color, point)) ?? Move.Pass(color);
     }
 
-    /// <summary>Выбирает случайный легальный ход рядом с уже стоящими камнями.</summary>
+    /// <summary>Ищет случайный ход, подходящий под условие.</summary>
     /// <param name="board">Позиция.</param>
-    /// <param name="legalMoves">Легальные ходы.</param>
+    /// <param name="color">Цвет, который ходит.</param>
     /// <param name="random">Источник случайности.</param>
-    /// <returns>Ход рядом с камнем или <c>null</c>, если доска пуста.</returns>
-    private static Move? FindNeighborMove(Board board, IReadOnlyList<Move> legalMoves, Random random)
+    /// <param name="fits">Условие, которому должна удовлетворять точка хода.</param>
+    /// <returns>Легальный ход или <c>null</c>, если подходящих ходов нет.</returns>
+    /// <remarks>
+    /// Сначала пробуется несколько случайных точек: этого почти всегда достаточно. Если пробы
+    /// не удались (доска почти заполнена), ходы перебираются целиком — так пас выдаётся только
+    /// тогда, когда легальных ходов действительно нет.
+    /// </remarks>
+    private static Move? FindRandomMove(Board board, StoneColor color, Random random, Func<Point, bool> fits)
     {
-        List<Move> neighborMoves = [];
-
-        foreach (var move in legalMoves)
+        for (var attempt = 0; attempt < RandomAttempts; attempt++)
         {
-            if (HasNeighborStone(board, move.Point))
+            var index = random.Next(board.Size.Area);
+            var point = new Point((byte)(index % board.Size.Value), (byte)(index / board.Size.Value));
+
+            if (fits(point) && IsLegal(board, color, point))
             {
-                neighborMoves.Add(move);
+                return Move.Play(point, color);
             }
         }
 
-        return neighborMoves.Count == 0 ? null : neighborMoves[random.Next(neighborMoves.Count)];
+        foreach (var point in board.EmptyPoints())
+        {
+            if (fits(point) && IsLegal(board, color, point))
+            {
+                return Move.Play(point, color);
+            }
+        }
+
+        return null;
     }
+
+    /// <summary>Проверяет, что ход в точку легален.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="color">Цвет, который ходит.</param>
+    /// <param name="point">Точка хода.</param>
+    /// <returns><c>true</c>, если правила ход разрешают.</returns>
+    private static bool IsLegal(Board board, StoneColor color, Point point) =>
+        board.IsEmpty(point) && board.IsLegal(Move.Play(point, color)).IsSuccess;
+
+    /// <summary>Проверяет, что ход не губит свою группу.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="color">Цвет, который ходит.</param>
+    /// <param name="point">Точка хода.</param>
+    /// <returns><c>true</c>, если после хода у своей группы останется больше одного дамэ.</returns>
+    /// <remarks>
+    /// Без этой проверки случайный playout сам закрывает дамэ своих групп и теряет их:
+    /// партия заканчивается тем, что обе стороны убивают собственные живые группы.
+    /// </remarks>
+    private static bool IsSafe(Board board, StoneColor color, Point point) =>
+        board.IsEmpty(point)
+        && !AtariHeuristics.LeavesOwnGroupInAtari(board, Move.Play(point, color));
 
     /// <summary>Проверяет, стоит ли рядом с точкой камень.</summary>
     /// <param name="board">Позиция.</param>

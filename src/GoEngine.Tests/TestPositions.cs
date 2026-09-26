@@ -82,6 +82,89 @@ internal static class TestPositions
         return board;
     }
 
+    /// <summary>Строит цумэго: белый блок 3×3 в атари, у чёрных есть единственный выигрывающий ход.</summary>
+    /// <returns>Доска 9×9: белый блок (3,3)–(5,5) окружён чёрным кольцом с единственным дамэ (2,4).</returns>
+    /// <remarks>
+    /// Ход чёрных в (2,4) снимает девять белых камней — на 9×9 это решает партию. Любой другой ход
+    /// позволяет белым спастись, заняв то же дамэ.
+    /// </remarks>
+    public static Board BlockInAtari()
+    {
+        var board = new Board(BoardSize.Size9);
+        var liberty = new Point(2, 4);
+
+        for (var x = 3; x <= 5; x++)
+        {
+            for (var y = 3; y <= 5; y++)
+            {
+                board = board.ApplyMove(Move.Play(new Point((byte)x, (byte)y), StoneColor.White));
+            }
+        }
+
+        foreach (var point in RingAroundBlock())
+        {
+            if (point != liberty)
+            {
+                board = board.ApplyMove(Move.Play(point, StoneColor.Black));
+            }
+        }
+
+        return board;
+    }
+
+    /// <summary>Строит гонку захвата: у чёрных и белых одно общее дамэ (4,4).</summary>
+    /// <returns>Доска 9×9, где чёрные занимают x = 0…4, белые x = 5…8, а пуста только (4,4).</returns>
+    /// <remarks>
+    /// Единственная пустая точка — единственное дамэ обеих групп: кто ходит первым, тот снимает
+    /// 36 камней противника. Для чёрных это единственный легальный ход, и он решает партию.
+    /// </remarks>
+    public static Board CapturingRace()
+    {
+        var board = new Board(BoardSize.Size9);
+        var liberty = new Point(4, 4);
+        var middle = 4;
+
+        for (var x = 0; x <= middle; x++)
+        {
+            for (var y = 0; y < BoardSize.Size9.Value; y++)
+            {
+                var point = new Point((byte)x, (byte)y);
+
+                if (point != liberty)
+                {
+                    board = board.ApplyMove(Move.Play(point, StoneColor.Black));
+                }
+            }
+        }
+
+        for (var x = middle + 1; x < BoardSize.Size9.Value; x++)
+        {
+            for (var y = 0; y < BoardSize.Size9.Value; y++)
+            {
+                board = board.ApplyMove(Move.Play(new Point((byte)x, (byte)y), StoneColor.White));
+            }
+        }
+
+        return board;
+    }
+
+    /// <summary>Перечисляет точки, окружающие белый блок (3,3)–(5,5).</summary>
+    /// <returns>Двенадцать дамэ блока.</returns>
+    private static IEnumerable<Point> RingAroundBlock()
+    {
+        for (var x = 2; x <= 6; x++)
+        {
+            yield return new Point((byte)x, 2);
+            yield return new Point((byte)x, 6);
+        }
+
+        for (var y = 3; y <= 5; y++)
+        {
+            yield return new Point(2, (byte)y);
+            yield return new Point(6, (byte)y);
+        }
+    }
+
     /// <summary>Строит позицию сэки: две стены и общие дамэ между ними.</summary>
     /// <returns>Доска 9×9 с чёрной стеной (1,1)–(1,4) и белой (3,1)–(3,4).</returns>
     /// <remarks>

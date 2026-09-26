@@ -82,10 +82,10 @@ public sealed class HeuristicMoveSelector : IMoveSelector
     /// <returns>Ход эвристики или <c>null</c>, если ни одна эвристика не сработала.</returns>
     private static Move? FindHeuristicMove(Board board, StoneColor color, IReadOnlyList<Move> legalMoves)
     {
-        var capture = AtariHeuristics.FindCaptureMove(board, color, legalMoves);
+        var capture = AtariHeuristics.FindCapturingMove(board, color);
 
         return capture
-            ?? AtariHeuristics.FindRescueMove(board, color, legalMoves)
+            ?? AtariHeuristics.FindRescueMove(board, color)
             ?? FindOpeningMove(board, legalMoves);
     }
 
@@ -114,9 +114,26 @@ public sealed class HeuristicMoveSelector : IMoveSelector
 
         foreach (var corner in corners)
         {
-            var move = AtariHeuristics.FindMoveAt(legalMoves, corner);
+            var move = FindMoveAt(legalMoves, corner);
 
             if (move is not null)
+            {
+                return move;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Ищет среди легальных ходов ход в указанную точку.</summary>
+    /// <param name="legalMoves">Легальные ходы.</param>
+    /// <param name="point">Нужная точка.</param>
+    /// <returns>Ход в точку или <c>null</c>, если такой ход нелегален.</returns>
+    private static Move? FindMoveAt(IReadOnlyList<Move> legalMoves, Point point)
+    {
+        foreach (var move in legalMoves)
+        {
+            if (move.Point == point)
             {
                 return move;
             }
