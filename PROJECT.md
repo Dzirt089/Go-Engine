@@ -48,6 +48,8 @@ GoEngine.Tests      ← Core, AI, AI.Onnx, xUnit
 - Microsoft.ML.OnnxRuntime — нейросетевая оценка v2 (проект `GoEngine.AI.Onnx`)
 - `System.CommandLine` — не используется
 - Внешние пакеты — минимальны, только необходимые
+- Версия пакета объявлена один раз — в `src/Directory.Packages.props`; в проектах
+  `PackageReference` идёт без `Version` (Central Package Management)
 
 ## Что НЕ используется
 
@@ -62,6 +64,7 @@ GoEngine.Tests      ← Core, AI, AI.Onnx, xUnit
 ```
 src/
 ├── Directory.Build.props      общие свойства всех проектов
+├── Directory.Packages.props   версии пакетов в одном месте (Central Package Management)
 ├── .editorconfig              правила стиля для редактора и сборки
 ├── GoEngine.sln
 ├── GoEngine.Core/             правила игры: ничего, кроме System.*
@@ -91,6 +94,11 @@ src/
 Namespace у файлов один на проект (`GoEngine.Core`, `GoEngine.AI`, `GoEngine.App`): папки делят код
 по предметным областям, но не дробят пространство имён.
 
+В корне репозитория лежат документы-контракты (`GO_RULES.md`, `AGENTS.md`, `AGENTS_GO.md`,
+`PROJECT.md`, `STATE.md`, `DECISIONS.md`, `GIT.md`, папка `TASKS/`), скрипты проверки
+и сборки, а также `.gitattributes` (LF во всех текстовых файлах). Эти файлы не переезжают
+в подпапки: на них ссылаются правила проекта и стартовый брифинг сессии.
+
 ## Как проверять проект
 
 - `./check.ps1` (Windows) или `./check.sh` (Linux, macOS) — полная проверка: сборка решения,
@@ -108,7 +116,8 @@ Namespace у файлов один на проект (`GoEngine.Core`, `GoEngine
 ## Именование
 
 - Корневой namespace: `GoEngine`
-- Проекты: `GoEngine.Core`, `GoEngine.AI`, `GoEngine.App`, `GoEngine.Tests`
+- Проекты: `GoEngine.Core`, `GoEngine.AI`, `GoEngine.AI.Onnx`, `GoEngine.App`,
+  `GoEngine.Tests`, `GoEngine.App.Tests`
 - Файлы: `PascalCase.cs`
 - Тесты: `{Что}_{Условие}_{Ожидание}.cs` (например, `Board_После_захвата_снимает_группу.cs`)
 
@@ -118,9 +127,11 @@ Namespace у файлов один на проект (`GoEngine.Core`, `GoEngine
 
 ## Definition of Done для всего проекта
 
-- [ ] Правила игры реализованы полностью и покрыты тестами.
-- [ ] AI уровней 30 кю – 10 кю работает.
-- [ ] UI запускается на Windows, macOS, Linux.
-- [ ] Игра сохраняет и загружает SGF.
-- [ ] Игра работает без интернета.
-- [ ] Нет утечек памяти при долгой партии (10 000+ ходов).
+- [x] Правила игры реализованы полностью и покрыты тестами.
+- [x] Пакет уровней 30–5 кю реализован и запускается; замеренная сила — 20–15 кю,
+      10 кю без нейросети не достигается (`DECISIONS.md`, D-021; это цель v2).
+- [x] UI запускается на Windows, macOS, Linux (публикации под три системы, T-029).
+- [x] Игра сохраняет и загружает SGF.
+- [x] Игра работает без интернета.
+- [x] Нет утечек памяти при долгой партии (16 200 ходов, рост 0.6 МБ — режим `--stress`).
+- [ ] Уровни 5–10 кю: MCTS с нейросетевой оценкой (T-033, нужна модель KataGo).

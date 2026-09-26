@@ -3,7 +3,7 @@
   <!-- Общие свойства — в Directory.Build.props. Слой ONNX ссылается на Core и AI -->
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" />
   </ItemGroup>
 
   <ItemGroup>

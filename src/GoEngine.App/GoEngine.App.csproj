@@ -8,10 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.2.1" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.2.1" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.1" />
-    <PackageReference Include="SkiaSharp" Version="3.116.1" />
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="SkiaSharp" />
   </ItemGroup>
 
   <ItemGroup>

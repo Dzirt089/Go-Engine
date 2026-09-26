@@ -1,0 +1,30 @@
+<Project>
+
+  <!--
+    Центральное управление версиями пакетов (Central Package Management).
+    Версия пакета объявлена ровно в одном месте, а проекты ссылаются на пакет без Version.
+    Набор пакетов — из PROJECT.md; новых зависимостей здесь не появляется.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup Label="UI">
+    <PackageVersion Include="Avalonia" Version="11.2.1" />
+    <PackageVersion Include="Avalonia.Desktop" Version="11.2.1" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="11.2.1" />
+    <PackageVersion Include="SkiaSharp" Version="3.116.1" />
+  </ItemGroup>
+
+  <ItemGroup Label="Нейросеть (v2)">
+    <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
+  </ItemGroup>
+
+  <ItemGroup Label="Тесты">
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="9.0.0" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+</Project>
