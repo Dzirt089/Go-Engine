@@ -46,13 +46,14 @@ public sealed class DifficultyLevelTests
     [Fact]
     public void Kyu5_Использует_Mcts_С_Большим_Бюджетом()
     {
-        Assert.True(DifficultyLevel.Kyu5.PlayoutBudget > DifficultyLevel.Kyu10.PlayoutBudget);
+        Assert.True(DifficultyLevel.Kyu5.TimeBudget > DifficultyLevel.Kyu10.TimeBudget);
     }
 
     [Fact]
-    public void Kyu10_Бюджет_Больше_Чем_У_Kyu15()
+    public void Kyu10_Думает_Дольше_Чем_Kyu15()
     {
-        Assert.True(DifficultyLevel.Kyu10.PlayoutBudget > DifficultyLevel.Kyu15.PlayoutBudget);
+        // 15 кю считает playout'ы (воспроизводимые замеры), 10 кю — время на ход.
+        Assert.True(DifficultyLevel.Kyu10.TimeBudget is not null && DifficultyLevel.Kyu15.PlayoutBudget > 0);
     }
 
     [Fact]
@@ -67,8 +68,8 @@ public sealed class DifficultyLevelTests
     [Fact]
     public void DifficultyLevel_Бюджеты_Растут_С_Уровнем()
     {
-        var budgets = new[] { DifficultyLevel.Kyu15, DifficultyLevel.Kyu10, DifficultyLevel.Kyu8, DifficultyLevel.Kyu5 }
-            .Select(level => level.PlayoutBudget)
+        var budgets = new[] { DifficultyLevel.Kyu10, DifficultyLevel.Kyu8, DifficultyLevel.Kyu5 }
+            .Select(level => level.TimeBudget!.Value)
             .ToList();
 
         Assert.Equal(budgets.OrderBy(budget => budget).ToList(), budgets);

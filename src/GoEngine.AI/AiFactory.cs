@@ -34,7 +34,9 @@ public static class AiFactory
         if (level.Kind == SelectorKind.Mcts)
         {
             var policy = new PlayoutPolicy(level.PlayoutConfig);
-            var config = new MctsConfig(level.PlayoutBudget, level.Ucb1C);
+            var config = level.TimeBudget is { } time
+                ? new MctsConfig(time, level.Ucb1C)
+                : new MctsConfig(level.PlayoutBudget, level.Ucb1C);
 
             return new MctsMoveSelector(random, policy, config, level.RandomnessPercent);
         }

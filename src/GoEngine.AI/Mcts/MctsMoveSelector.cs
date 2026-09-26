@@ -22,6 +22,7 @@ public sealed class MctsMoveSelector : IMoveSelector
     private readonly PlayoutPolicy _playoutPolicy;
     private readonly MctsConfig _config;
     private readonly int _randomnessPercent;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>Создаёт селектор.</summary>
     /// <param name="random">Источник случайности; в тестах — с фиксированным seed.</param>
@@ -29,13 +30,18 @@ public sealed class MctsMoveSelector : IMoveSelector
     /// <param name="config">Настройки поиска.</param>
     /// <param name="randomnessPercent">Доля случайных ходов в процентах: слабые уровни иногда
     /// ходят наугад вместо поиска — это и делает их слабее.</param>
-    /// <exception cref="ArgumentOutOfRangeException">Бюджет не положительный, коэффициент UCB1
-    /// отрицательный или доля случайности вне диапазона 0…100.</exception>
-    public MctsMoveSelector(Random random, PlayoutPolicy playoutPolicy, MctsConfig config, int randomnessPercent = 0)
+    /// <param name="timeProvider">Источник времени; в тестах — <c>FakeTimeProvider</c>.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Доля случайности вне диапазона 0…100,
+    /// коэффициент UCB1 отрицательный, бюджет не положительный.</exception>
+    public MctsMoveSelector(
+        Random random,
+        PlayoutPolicy playoutPolicy,
+        MctsConfig config,
+        int randomnessPercent = 0,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(random);
         ArgumentNullException.ThrowIfNull(playoutPolicy);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(config.PlayoutBudget);
         ArgumentOutOfRangeException.ThrowIfNegative(config.Ucb1C);
         ArgumentOutOfRangeException.ThrowIfNegative(randomnessPercent);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(randomnessPercent, PercentScale);
@@ -44,6 +50,7 @@ public sealed class MctsMoveSelector : IMoveSelector
         _playoutPolicy = playoutPolicy;
         _config = config;
         _randomnessPercent = randomnessPercent;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>Создаёт селектор с коэффициентом исследования по умолчанию.</summary>
@@ -51,12 +58,22 @@ public sealed class MctsMoveSelector : IMoveSelector
     /// <param name="playoutPolicy">Политика игры в playout'ах.</param>
     /// <param name="playoutBudget">Бюджет playout'ов на ход.</param>
     public MctsMoveSelector(Random random, PlayoutPolicy playoutPolicy, int playoutBudget)
-        : this(random, playoutPolicy, new MctsConfig(playoutBudget, MctsConfig.DefaultUcb1C))
+        : this(random, playoutPolicy, new MctsConfig(playoutBudget, MctsConfig.DefaultUcb1C), 0, null)
     {
     }
 
     /// <inheritdoc />
-    public string Name => $"MCTS ({_config.PlayoutBudget} playout'ов, случайность {_randomnessPercent}%)";
+    public string Name
+    {
+        get
+        {
+            var budget = _config.TimeBudget is { } time
+                ? $"{time.TotalMilliseconds:F0} мс на ход"
+                : $"{_config.PlayoutBudget} playout'ов";
+
+            return $"MCTS ({budget}, случайность {_randomnessPercent}%)";
+        }
+    }
 
     /// <inheritdoc />
     public Move SelectMove(GameState state)
@@ -140,7 +157,12 @@ public sealed class MctsMoveSelector : IMoveSelector
 
         var tree = new MctsTree(board, color, _config.Ucb1C);
 
-        for (var playout = 0; playout < _config.PlayoutBudget; playout++)
+        // Бюджет по времени: сила не зависит от скорости машины. Отсчёт — только через TimeProvider
+        // (AGENTS.md, п. 6): DateTime.Now и Stopwatch в AI запрещены.
+        var startedAt = _timeProvider.GetUtcNow();
+        var playouts = 0;
+
+        while (HasBudget(startedAt, playouts))
         {
             var node = tree.Select();
 
@@ -150,10 +172,24 @@ public sealed class MctsMoveSelector : IMoveSelector
             }
 
             tree.Backpropagate(node, RunPlayout(node, komi));
+            playouts++;
         }
 
         return tree.Root;
     }
+
+    /// <summary>Проверяет, остался ли бюджет поиска.</summary>
+    /// <param name="startedAt">Момент начала поиска.</param>
+    /// <param name="playouts">Сколько playout'ов уже сделано.</param>
+    /// <returns><c>true</c>, если можно сделать ещё один playout.</returns>
+    /// <remarks>
+    /// Режим задаётся настройками: либо время на ход, либо число playout'ов.
+    /// Проверка стоит перед playout'ом, поэтому поиск всегда завершает начатую симуляцию.
+    /// </remarks>
+    private bool HasBudget(DateTimeOffset startedAt, int playouts) =>
+        _config.TimeBudget is { } time
+            ? _timeProvider.GetUtcNow() - startedAt < time
+            : playouts < _config.PlayoutBudget!.Value;
 
     /// <summary>Играет случайную партию из узла до конца.</summary>
     /// <param name="node">Узел, с которого начинается playout.</param>
