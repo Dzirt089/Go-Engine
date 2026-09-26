@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia;
 using GoEngine.AI;
 using GoEngine.App.Rendering;
@@ -24,6 +25,21 @@ internal static class Program
 
     /// <summary>Зерно проверок: они должны повторяться от запуска к запуску.</summary>
     private const int SeedForChecks = 20260926;
+
+    /// <summary>Аргумент проверки нагрузки: много партий подряд.</summary>
+    private const string StressArgument = "--stress";
+
+    /// <summary>Сколько партий играет проверка нагрузки.</summary>
+    private const int StressGames = 100;
+
+    /// <summary>Сколько ходов должна выдержать проверка нагрузки.</summary>
+    private const int StressMoves = 10000;
+
+    /// <summary>Аргумент финального smoke-теста: полный сценарий партии.</summary>
+    private const string EndToEndArgument = "--e2e";
+
+    /// <summary>Сколько ходов игрока играет финальный smoke-тест.</summary>
+    private const int SmokeMoves = 20;
 
     /// <summary>Аргумент проверки анимации камней.</summary>
     private const string AnimationArgument = "--animation";
@@ -64,6 +80,18 @@ internal static class Program
             // Проверка ввода без окна: попадание щелчка в точку доски считается той же
             // геометрией, что и на экране.
             return CheckPointMapping();
+        }
+
+        if (args.Contains(StressArgument))
+        {
+            // Проверка нагрузки: движок играет много партий подряд, память не растёт бесконтрольно.
+            return CheckStress();
+        }
+
+        if (args.Contains(EndToEndArgument))
+        {
+            // Финальный smoke-тест: игра, сохранение, загрузка, отмена, возврат, новый ход.
+            return CheckEndToEnd();
         }
 
         if (args.Contains(AnimationArgument))
@@ -143,6 +171,104 @@ internal static class Program
         Console.WriteLine(failures == 0
             ? "Go Engine: попадание щелчка в точку проверено на досках 9×9, 13×13 и 19×19."
             : $"Go Engine: ошибок попадания — {failures}.");
+
+        return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>Играет много партий подряд и смотрит на прирост памяти.</summary>
+    /// <returns>0, если движок выдержал нагрузку; иначе 1.</returns>
+    private static int CheckStress()
+    {
+        var random = new Random(SeedForChecks);
+        var moves = 0;
+
+        GC.Collect();
+        var before = GC.GetTotalMemory(forceFullCollection: true);
+
+        for (var number = 0; number < StressGames; number++)
+        {
+            var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+
+            while (game.Status == GameStatus.InProgress)
+            {
+                var legal = LegalMoves.For(game.Board, game.ToMove);
+                var move = legal.Count == 0 ? Move.Pass(game.ToMove) : legal[random.Next(legal.Count)];
+
+                if (!game.Play(move).IsSuccess)
+                {
+                    break;
+                }
+
+                moves++;
+            }
+        }
+
+        GC.Collect();
+        var growth = (GC.GetTotalMemory(forceFullCollection: true) - before) / (1024.0 * 1024.0);
+
+        Console.WriteLine($"Go Engine: {moves} ходов в {StressGames} партиях, прирост памяти {growth:F1} МБ.");
+
+        return moves >= StressMoves && growth < 100 ? 0 : 1;
+    }
+
+    /// <summary>Прогоняет полный сценарий партии без окна.</summary>
+    /// <returns>0, если все шаги сценария прошли; иначе 1.</returns>
+    private static int CheckEndToEnd()
+    {
+        var failures = 0;
+        var path = Path.Combine(Path.GetTempPath(), $"go-engine-smoke-{Guid.NewGuid():N}.sgf");
+
+        try
+        {
+            var settings = AppSettings.From(BoardSize.Size9, DifficultyLevel.Kyu10, StoneColor.Black, Komi.For9x9);
+            var model = new MainViewModel(settings, new Random(SeedForChecks));
+
+            failures += Expect(model.MoveNumber == "0", "новая партия 9×9 начата");
+            failures += Expect(model.Level == "10 кю", "соперник — 10 кю");
+
+            var played = 0;
+
+            foreach (var point in model.Board.AllPoints())
+            {
+                if (played >= SmokeMoves)
+                {
+                    break;
+                }
+
+                if (model.PlayMove(point))
+                {
+                    played++;
+                }
+            }
+
+            failures += Expect(played == SmokeMoves, $"сыграно ходов игрока: {played}");
+            failures += Expect(model.MoveNumber == (SmokeMoves * 2).ToString(CultureInfo.InvariantCulture), "AI ответил на каждый ход");
+
+            failures += Expect(SgfStore.Save(model.ToSgfGame(), path).IsSuccess, "партия сохранена");
+
+            var loaded = SgfStore.Load(path);
+            failures += Expect(loaded.IsSuccess, "партия прочитана");
+
+            var moves = model.MoveNumber;
+            failures += Expect(model.LoadGame(loaded.Value).IsSuccess, "партия загружена в игру");
+            failures += Expect(model.MoveNumber == moves, "после загрузки ходов столько же");
+
+            failures += Expect(model.Undo(), "ход отменён");
+            failures += Expect(model.Redo(), "ход возвращён");
+
+            failures += Expect(model.Undo() && model.PlayMove(model.Board.EmptyPoints().First()), "после отмены можно ходить снова");
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+
+        Console.WriteLine(failures == 0
+            ? "Go Engine: финальный smoke-тест пройден — v1 готова."
+            : $"Go Engine: ошибок smoke-теста — {failures}.");
 
         return failures == 0 ? 0 : 1;
     }
