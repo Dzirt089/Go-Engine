@@ -30,14 +30,23 @@ public sealed class Board
     /// <summary>Создаёт доску поверх готового массива камней. Вызывается только из <see cref="Clone"/>.</summary>
     /// <param name="size">Размер доски.</param>
     /// <param name="stones">Уже заполненный массив камней, который переходит во владение доски.</param>
-    private Board(BoardSize size, StoneColor[] stones)
+    /// <param name="history">История позиций партии или <c>null</c>, если история не ведётся.</param>
+    private Board(BoardSize size, StoneColor[] stones, PositionHistory? history)
     {
         Size = size;
         _stones = stones;
+        History = history;
     }
 
     /// <summary>Размер доски.</summary>
     public BoardSize Size { get; }
+
+    /// <summary>История позиций партии или <c>null</c>, если история не ведётся.</summary>
+    /// <remarks>
+    /// История одна на партию и передаётся копиям по ссылке: <see cref="Clone"/> и
+    /// <see cref="ApplyMove"/> продолжают ту же партию. Позиции добавляет проверка ко (T-005).
+    /// </remarks>
+    public PositionHistory? History { get; }
 
     /// <summary>Камни, снятые последним ходом этой доски.</summary>
     /// <remarks>
@@ -88,7 +97,21 @@ public sealed class Board
 
     /// <summary>Создаёт независимую копию доски.</summary>
     /// <returns>Копия, изменения которой не затрагивают исходную доску.</returns>
-    public Board Clone() => new(Size, (StoneColor[])_stones.Clone());
+    /// <remarks>
+    /// История позиций общая с исходной доской: копия продолжает ту же партию. Для анализа
+    /// без истории (например, в MCTS) доска создаётся без неё — <see cref="History"/> остаётся <c>null</c>.
+    /// </remarks>
+    public Board Clone() => new(Size, (StoneColor[])_stones.Clone(), History);
+
+    /// <summary>Привязывает к копии доски историю позиций партии.</summary>
+    /// <param name="history">История позиций.</param>
+    /// <returns>Новая доска с той же позицией и указанной историей; исходная доска не меняется.</returns>
+    public Board WithHistory(PositionHistory history)
+    {
+        ArgumentNullException.ThrowIfNull(history);
+
+        return new Board(Size, (StoneColor[])_stones.Clone(), history);
+    }
 
     /// <summary>Ставит камень прямо в этой доске: мутация на месте для MCTS.</summary>
     /// <param name="move">Ход типа <see cref="MoveType.Play"/> на пустую точку.</param>

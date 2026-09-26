@@ -5,20 +5,20 @@
 
 ## Текущая фаза
 
-**Фаза 1. Core: доска и ходы** — закрыта. Открыта **фаза 2. Core: ко и история**.
+**Фаза 2. Core: ко и история**
 
 ## Текущая задача
 
-**T-003. `Core.SuicideCheck`** — завершена
+**T-004. `Core.PositionHistory`** — завершена
 
 ## Статус
 
-`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (123 теста),
+`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (139 тестов),
 коммит и push в `origin/main` выполнены.
 
 ## Следующая задача
 
-**T-004. `Core.PositionHistory`** — `next`
+**T-005. `Core.KoRule`** (позиционное суперко) — `next`
 
 ## Дата начала фазы
 
@@ -26,7 +26,7 @@
 
 ## Последнее обновление
 
-2026-09-26T19:05:51Z
+2026-09-26T19:14:00Z
 
 ## Что сделано
 
@@ -40,10 +40,13 @@
       последнее дамэ противника, разрешён (`GO_RULES.md`, п. 5)
 - [x] **T-003.** `Result`, `Result<T>`, `Unit`, `MoveResult` — созданы здесь, потому что
       `IsLegal` без них не выразить; T-009 закроет их тестами и перенесёт на `GameState`
+- [x] **T-004.** `PositionHash` — Zobrist-хеш позиции, таблица на 2 цвета × 361 точку,
+      заполняется SplitMix64 от постоянного зерна (одинаков на любой машине и версии .NET)
+- [x] **T-004.** `PositionHistory` — `Add`, `Contains(Board)`, `Contains(PositionHash)`, `Count`,
+      `Hashes` (снимок); `Board.History`, `Board.WithHistory`; копии доски делят историю партии
 
 ## Что осталось
 
-- [ ] `Core.PositionHistory` — T-004
 - [ ] `Core.KoRule` (суперко) — T-005
 - [ ] Интеграционные тесты 8 позиций — T-006
 - [ ] `Core.Scorer` — T-007, `Core.GameState` — T-008, `Result` — T-009
@@ -69,6 +72,7 @@
 | 2026-09-26 | T-002 | Создан `GIT.md`; коммит `07cc594` и push в `origin/main` |
 | 2026-09-26 | T-003 | `Result`, `Result<T>`, `Unit`, `MoveResult`; `Board.IsLegal` |
 | 2026-09-26 | T-003 | Самоубийство отклоняется, захват последнего дамэ разрешён; 123 теста |
+| 2026-09-26 | T-004 | `PositionHash` (Zobrist), `PositionHistory`, `Board.History`/`WithHistory`; 139 тестов |
 
 ## Журнал сессии
 
@@ -77,6 +81,7 @@
 | 2026-09-26T18:45:04Z | T-001 | done | Board, Move и базовые типы; 66 тестов; коммит и push не выполнены (не было work tree) |
 | 2026-09-26T19:03:51Z | T-002 | done | Group, GroupTracker, CaptureResult, снятие групп в Board; 100 тестов |
 | 2026-09-26T19:05:51Z | T-003 | done | Result/Result<T>/Unit/MoveResult, IsLegal, запрет самоубийства; 123 теста |
+| 2026-09-26T19:14:00Z | T-004 | done | PositionHash (Zobrist, SplitMix64), PositionHistory, Board.History/WithHistory; 139 тестов |
 
 ## Заметки для следующей сессии
 
@@ -85,6 +90,8 @@
   `ApplyMove`/`MakeMove` бросают `DomainException`, `IsLegal` возвращает `Result<Unit>` — см. `DECISIONS.md` D-010.
 - `IsLegal` проверяет ход на копии доски: корректно, но аллоцирует. Если MCTS упрётся
   в скорость (T-015) — заменить на проверку без копии (считать дамэ гипотетической группы).
+- `Board.Clone` делит историю с исходной доской: это одна партия. Для анализа без суперко
+  (MCTS) доску создают без `WithHistory` — тогда `History` равно `null`.
 - Папки `samples/` в репозитории нет: стиль брался из `AGENTS.md` и `AGENTS_GO.md`.
 - .NET 8 SDK не установлен (SDK 10.0.400 и runtime 8.0.30): сборка `net8.0` проходит,
   targeting pack подтягивается из nuget.org. Для офлайн-сборки поставить .NET 8 SDK.
