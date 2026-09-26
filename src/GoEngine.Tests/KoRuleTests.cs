@@ -9,7 +9,7 @@ public sealed class KoRuleTests
     public void Ко_Немедленный_Обратный_Захват_Запрещён()
     {
         // GO_RULES.md, 13.5: белые снимают камень в ко, чёрные не могут отбить его сразу.
-        var board = KoShape(new PositionHistory())
+        var board = TestPositions.KoShape(new PositionHistory())
             .ApplyMove(Move.Play(new Point(2, 1), StoneColor.White));
 
         Assert.Throws<DomainException>(() => board.ApplyMove(Move.Play(new Point(2, 2), StoneColor.Black)));
@@ -19,7 +19,7 @@ public sealed class KoRuleTests
     public void Ко_Через_Ход_Разрешён()
     {
         // После хода в другом месте повторения позиции нет, отбить ко можно.
-        var board = KoShape(new PositionHistory())
+        var board = TestPositions.KoShape(new PositionHistory())
             .ApplyMove(Move.Play(new Point(2, 1), StoneColor.White))
             .ApplyMove(Move.Play(new Point(7, 7), StoneColor.Black))
             .ApplyMove(Move.Play(new Point(7, 8), StoneColor.White));
@@ -33,7 +33,7 @@ public sealed class KoRuleTests
     public void Суперко_Повторение_Через_Два_Хода_Запрещено()
     {
         // GO_RULES.md, 13.6: возврат в ко повторяет позицию, бывшую в партии два хода назад.
-        var board = KoShape(new PositionHistory())
+        var board = TestPositions.KoShape(new PositionHistory())
             .ApplyMove(Move.Play(new Point(2, 1), StoneColor.White));
 
         var result = board.IsLegal(Move.Play(new Point(2, 2), StoneColor.Black));
@@ -44,7 +44,7 @@ public sealed class KoRuleTests
     [Fact]
     public void Суперко_Без_Истории_Разрешает()
     {
-        var board = KoShape(null)
+        var board = TestPositions.KoShape(null)
             .ApplyMove(Move.Play(new Point(2, 1), StoneColor.White));
 
         Assert.True(board.IsLegal(Move.Play(new Point(2, 2), StoneColor.Black)).IsSuccess);
@@ -53,7 +53,7 @@ public sealed class KoRuleTests
     [Fact]
     public void IsLegal_Суперко_Возвращает_Result()
     {
-        var board = KoShape(new PositionHistory())
+        var board = TestPositions.KoShape(new PositionHistory())
             .ApplyMove(Move.Play(new Point(2, 1), StoneColor.White));
 
         Assert.False(board.IsLegal(Move.Play(new Point(2, 2), StoneColor.Black)).IsSuccess);
@@ -84,7 +84,7 @@ public sealed class KoRuleTests
     [Fact]
     public void Суперко_Пас_Разрешён()
     {
-        var board = KoShape(new PositionHistory())
+        var board = TestPositions.KoShape(new PositionHistory())
             .ApplyMove(Move.Play(new Point(2, 1), StoneColor.White));
 
         Assert.True(board.IsLegal(Move.Pass(StoneColor.Black)).IsSuccess);
@@ -93,7 +93,7 @@ public sealed class KoRuleTests
     [Fact]
     public void Суперко_Сдача_Разрешена()
     {
-        var board = KoShape(new PositionHistory())
+        var board = TestPositions.KoShape(new PositionHistory())
             .ApplyMove(Move.Play(new Point(2, 1), StoneColor.White));
 
         Assert.True(board.IsLegal(Move.Resign(StoneColor.Black)).IsSuccess);
@@ -102,7 +102,7 @@ public sealed class KoRuleTests
     [Fact]
     public void Суперко_Новая_Позиция_Разрешена()
     {
-        var board = KoShape(new PositionHistory())
+        var board = TestPositions.KoShape(new PositionHistory())
             .ApplyMove(Move.Play(new Point(2, 1), StoneColor.White));
 
         Assert.True(board.IsLegal(Move.Play(new Point(7, 7), StoneColor.Black)).IsSuccess);
@@ -138,7 +138,7 @@ public sealed class KoRuleTests
     [Fact]
     public void KoRule_Новая_Позиция_Не_Нарушает_Суперко()
     {
-        var board = KoShape(new PositionHistory());
+        var board = TestPositions.KoShape(new PositionHistory());
 
         Assert.False(KoRule.ViolatesSuperko(board, Move.Play(new Point(7, 7), StoneColor.Black)));
     }
@@ -147,35 +147,9 @@ public sealed class KoRuleTests
     public void Ко_Захваченный_Камень_Снимается_До_Проверки_Суперко()
     {
         // Ход белых в ко легален: он снимает камень, а такая позиция ещё не встречалась.
-        var board = KoShape(new PositionHistory());
+        var board = TestPositions.KoShape(new PositionHistory());
 
         Assert.True(board.IsLegal(Move.Play(new Point(2, 1), StoneColor.White)).IsSuccess);
     }
 
-    /// <summary>Строит классическую позицию ко на 9×9.</summary>
-    /// <param name="history">История партии или <c>null</c>, если история не ведётся.</param>
-    /// <returns>Доска, где белый ход в (2,1) снимает чёрный камень в (2,2).</returns>
-    /// <remarks>
-    /// Чёрный камень (2,2) в атари: его единственное дамэ — (2,1). Белые камни (1,2), (3,2), (2,3)
-    /// закрывают остальные дамэ, а чёрные (1,1), (3,1), (2,0) оставляют будущему белому камню (2,1)
-    /// ровно одно дамэ — (2,2). Это и есть ко: обратный захват повторяет позицию.
-    /// </remarks>
-    private static Board KoShape(PositionHistory? history)
-    {
-        var board = new Board(BoardSize.Size9);
-
-        if (history is not null)
-        {
-            board = board.WithHistory(history);
-        }
-
-        return board
-            .ApplyMove(Move.Play(new Point(2, 2), StoneColor.Black))
-            .ApplyMove(Move.Play(new Point(1, 2), StoneColor.White))
-            .ApplyMove(Move.Play(new Point(3, 2), StoneColor.White))
-            .ApplyMove(Move.Play(new Point(2, 3), StoneColor.White))
-            .ApplyMove(Move.Play(new Point(1, 1), StoneColor.Black))
-            .ApplyMove(Move.Play(new Point(3, 1), StoneColor.Black))
-            .ApplyMove(Move.Play(new Point(2, 0), StoneColor.Black));
-    }
 }
