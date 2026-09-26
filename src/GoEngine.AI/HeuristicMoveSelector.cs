@@ -58,7 +58,7 @@ public sealed class HeuristicMoveSelector : IMoveSelector
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(color);
 
-        var legalMoves = FindLegalMoves(board, color);
+        var legalMoves = LegalMoves.For(board, color);
 
         // Пас разрешён всегда: если ходить некуда, игрок пропускает ход.
         if (legalMoves.Count == 0)
@@ -75,33 +75,12 @@ public sealed class HeuristicMoveSelector : IMoveSelector
         return FindHeuristicMove(board, color, legalMoves) ?? legalMoves[_random.Next(legalMoves.Count)];
     }
 
-    /// <summary>Собирает все легальные ходы цвета в позиции.</summary>
-    /// <param name="board">Позиция.</param>
-    /// <param name="color">Цвет, который ходит.</param>
-    /// <returns>Легальные ходы; пустой список, если ходить некуда.</returns>
-    private static List<Move> FindLegalMoves(Board board, StoneColor color)
-    {
-        List<Move> moves = [];
-
-        foreach (var point in board.EmptyPoints())
-        {
-            var move = Move.Play(point, color);
-
-            if (board.IsLegal(move).IsSuccess)
-            {
-                moves.Add(move);
-            }
-        }
-
-        return moves;
-    }
-
     /// <summary>Выбирает ход по эвристикам.</summary>
     /// <param name="board">Позиция.</param>
     /// <param name="color">Цвет, который ходит.</param>
     /// <param name="legalMoves">Легальные ходы цвета.</param>
     /// <returns>Ход эвристики или <c>null</c>, если ни одна эвристика не сработала.</returns>
-    private static Move? FindHeuristicMove(Board board, StoneColor color, List<Move> legalMoves)
+    private static Move? FindHeuristicMove(Board board, StoneColor color, IReadOnlyList<Move> legalMoves)
     {
         var capture = FindCaptureMove(board, color, legalMoves);
 
@@ -113,7 +92,7 @@ public sealed class HeuristicMoveSelector : IMoveSelector
     /// <param name="color">Цвет, который ходит.</param>
     /// <param name="legalMoves">Легальные ходы цвета.</param>
     /// <returns>Ход с наибольшим захватом или <c>null</c>, если захватов нет.</returns>
-    private static Move? FindCaptureMove(Board board, StoneColor color, List<Move> legalMoves)
+    private static Move? FindCaptureMove(Board board, StoneColor color, IReadOnlyList<Move> legalMoves)
     {
         Move? best = null;
         var bestCaptured = 0;
@@ -137,7 +116,7 @@ public sealed class HeuristicMoveSelector : IMoveSelector
     /// <param name="color">Цвет, который ходит.</param>
     /// <param name="legalMoves">Легальные ходы цвета.</param>
     /// <returns>Ход в последнее дамэ своей группы или <c>null</c>, если таких групп нет.</returns>
-    private static Move? FindRescueMove(Board board, StoneColor color, List<Move> legalMoves)
+    private static Move? FindRescueMove(Board board, StoneColor color, IReadOnlyList<Move> legalMoves)
     {
         foreach (var group in GroupTracker.AllGroups(board, color))
         {
@@ -161,7 +140,7 @@ public sealed class HeuristicMoveSelector : IMoveSelector
     /// <param name="board">Позиция.</param>
     /// <param name="legalMoves">Легальные ходы цвета.</param>
     /// <returns>Ход в угловую точку или <c>null</c>, если партия уже не в начале.</returns>
-    private static Move? FindOpeningMove(Board board, List<Move> legalMoves)
+    private static Move? FindOpeningMove(Board board, IReadOnlyList<Move> legalMoves)
     {
         if (CountStones(board) > OpeningStoneLimit)
         {
@@ -231,7 +210,7 @@ public sealed class HeuristicMoveSelector : IMoveSelector
     /// <param name="legalMoves">Легальные ходы.</param>
     /// <param name="point">Нужная точка.</param>
     /// <returns>Ход в точку или <c>null</c>, если такой ход нелегален.</returns>
-    private static Move? FindMoveAt(List<Move> legalMoves, Point point)
+    private static Move? FindMoveAt(IReadOnlyList<Move> legalMoves, Point point)
     {
         foreach (var move in legalMoves)
         {

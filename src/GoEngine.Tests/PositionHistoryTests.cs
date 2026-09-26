@@ -152,6 +152,22 @@ public sealed class PositionHistoryTests
     }
 
     [Fact]
+    public void Board_WithoutHistory_Отвязывает_Историю()
+    {
+        var board = new Board(BoardSize.Size9).WithHistory(new PositionHistory());
+
+        Assert.Null(board.WithoutHistory().History);
+    }
+
+    [Fact]
+    public void Board_WithoutHistory_Сохраняет_Позицию()
+    {
+        var board = new Board(BoardSize.Size9).ApplyMove(Move.Play(new Point(4, 4), StoneColor.Black));
+
+        Assert.Equal(StoneColor.Black, board.WithoutHistory().At(new Point(4, 4)));
+    }
+
+    [Fact]
     public void Board_ApplyMove_Сохраняет_Историю()
     {
         var board = new Board(BoardSize.Size9).WithHistory(new PositionHistory());

@@ -5,20 +5,20 @@
 
 ## Текущая фаза
 
-**Фаза 4. AI: случайный**
+**Фаза 5. AI: MCTS**
 
 ## Текущая задача
 
-**T-012. AI уровней 30–20 кю** — завершена
+**T-013. `AI.MctsNode` + `AI.MctsTree`** — завершена
 
 ## Статус
 
-`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (252 теста),
+`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (272 теста),
 коммит и push в `origin/main` выполнены.
 
 ## Следующая задача
 
-**T-013. `AI.MctsNode` + `AI.MctsTree`** — `next`
+**T-014. `AI.PlayoutPolicy`** — `next`
 
 ## Дата начала фазы
 
@@ -26,7 +26,7 @@
 
 ## Последнее обновление
 
-2026-09-26T19:19:07Z
+2026-09-26T19:21:18Z
 
 ## Что сделано
 
@@ -78,10 +78,14 @@
 - [x] **T-012.** `DifficultyLevel` (`Kyu30`, `Kyu25`, `Kyu20`) с полями `RankKyu`,
       `PlayoutBudget`, `RandomnessPercent` и фабрикой `CreateSelector(Random)`
 - [x] **T-012.** Тест силы: Kyu20 выигрывает у Kyu30 не менее 55 партий из 100 на 9×9
+- [x] **T-013.** `LegalMoves` — общий перебор легальных ходов для всех селекторов (был продублирован)
+- [x] **T-013.** `Board.WithoutHistory` — копия доски без истории: анализ не пополняет историю партии
+- [x] **T-013.** `MctsNode` (ход, родитель, дети, визиты, победы, неразобранные ходы, `Ucb1`)
+      и `MctsTree` (`Select`, `Expand`, `Backpropagate`); узлы хранят позиции без истории
 
 ## Что осталось
 
-- [ ] MCTS: `MctsNode`/`MctsTree` — T-013, `PlayoutPolicy` — T-014, `MctsMoveSelector` — T-015
+- [ ] MCTS: `PlayoutPolicy` — T-014, `MctsMoveSelector` — T-015, цумэго — T-016
 - [ ] Полный `DifficultyLevel` (15–5 кю, MCTS) — T-017, `AiFactory` — T-018, тест силы — T-019
 - [ ] `MoveGenerator` (базовый) — отдельной задачи в `PLAN.md` нет, хотя генератор ходов
       указан в deliverable фазы 1
@@ -114,6 +118,7 @@
 | 2026-09-26 | T-010 | Проект `GoEngine.AI`, `IMoveSelector`, `RandomMoveSelector`, `AiException`; 231 тест |
 | 2026-09-26 | T-011 | `SelfPlayHarness`, `SelfPlayResult`; партия AI vs AI на 9×9; 240 тестов |
 | 2026-09-26 | T-012 | `HeuristicMoveSelector`, `DifficultyLevel` (30/25/20 кю), тест силы; 252 теста |
+| 2026-09-26 | T-013 | `LegalMoves`, `Board.WithoutHistory`, `MctsNode`, `MctsTree`; 272 теста |
 
 ## Журнал сессии
 
@@ -130,7 +135,8 @@
 | 2026-09-26T19:15:15Z | T-009 | done | Result/Result<T> в публичном API Core, тесты; 223 теста; фаза 3 закрыта |
 | 2026-09-26T19:16:40Z | T-010 | done | Проект GoEngine.AI, IMoveSelector, RandomMoveSelector, AiException; 231 тест |
 | 2026-09-26T19:19:07Z | T-011 | done | SelfPlayHarness и SelfPlayResult, партия AI vs AI на 9×9; 240 тестов |
-| 2026-09-26T19:19:07Z | T-012 | done | HeuristicMoveSelector и DifficultyLevel 30–20 кю, тест силы 100 партий; 252 теста |
+| 2026-09-26T19:21:18Z | T-012 | done | HeuristicMoveSelector и DifficultyLevel 30–20 кю, тест силы 100 партий; 252 теста |
+| 2026-09-26T19:21:18Z | T-013 | done | LegalMoves, Board.WithoutHistory, MctsNode, MctsTree; 272 теста; открыта фаза 5 |
 
 ## Заметки для следующей сессии
 
@@ -155,8 +161,11 @@
 - Сила уровня задаётся долей случайности: 30 кю — 100% (чистый случай), 25 кю — 60%,
   20 кю — 15%; остальное — эвристики. См. `DECISIONS.md` D-012.
 - Полный прогон тестов занимает ~14 с: тест силы играет 100 партий на 9×9.
-- Дальше фаза 5: MCTS — `MctsNode`/`MctsTree` (T-013), `PlayoutPolicy` (T-014),
-  `MctsMoveSelector` (T-015), цумэго (T-016).
+- Дерево MCTS работает на досках без истории (`Board.WithoutHistory`): варианты анализа
+  не попадают в историю партии — это проверено тестами.
+- `MctsNode.Wins` считается с точки зрения сделавшего ход: у корня `Move.None`, поэтому
+  его победы всегда 0, а ход выбирается по числу посещений.
+- Дальше: `PlayoutPolicy` (T-014), `MctsMoveSelector` (T-015), цумэго (T-016).
 - Для AI: `Board` без истории (MCTS и playout не должны засорять историю партии);
   проверка ходов — через `Board.IsLegal`; случайность — только с seed.
 - Папки `samples/` в репозитории нет: стиль брался из `AGENTS.md` и `AGENTS_GO.md`.

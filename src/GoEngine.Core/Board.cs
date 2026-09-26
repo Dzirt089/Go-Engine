@@ -104,6 +104,15 @@ public sealed class Board
     /// </remarks>
     public Board Clone() => new(Size, (StoneColor[])_stones.Clone(), History);
 
+    /// <summary>Возвращает копию доски без истории позиций.</summary>
+    /// <returns>Новая доска с той же позицией и <see cref="History"/> равным <c>null</c>.</returns>
+    /// <remarks>
+    /// Нужна анализу — MCTS, playout, разбор вариантов: его ходы не должны пополнять
+    /// историю настоящей партии, иначе суперко начнёт запрещать ходы из-за вариантов,
+    /// которые в партии не игрались.
+    /// </remarks>
+    public Board WithoutHistory() => new(Size, (StoneColor[])_stones.Clone(), null);
+
     /// <summary>Привязывает к копии доски историю позиций партии.</summary>
     /// <param name="history">История позиций.</param>
     /// <returns>Новая доска с той же позицией и указанной историей; исходная доска не меняется.</returns>

@@ -44,32 +44,11 @@ public sealed class RandomMoveSelector : IMoveSelector
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(color);
 
-        var legalMoves = FindLegalMoves(board, color);
+        var legalMoves = LegalMoves.For(board, color);
 
         // Пас разрешён всегда (GO_RULES.md, п. 3): если ходить некуда, игрок пропускает ход.
         return legalMoves.Count == 0
             ? Move.Pass(color)
             : legalMoves[_random.Next(legalMoves.Count)];
-    }
-
-    /// <summary>Собирает все легальные ходы цвета в позиции.</summary>
-    /// <param name="board">Позиция.</param>
-    /// <param name="color">Цвет, который ходит.</param>
-    /// <returns>Легальные ходы; пустой список, если ходить некуда.</returns>
-    private static List<Move> FindLegalMoves(Board board, StoneColor color)
-    {
-        List<Move> moves = [];
-
-        foreach (var point in board.EmptyPoints())
-        {
-            var move = Move.Play(point, color);
-
-            if (board.IsLegal(move).IsSuccess)
-            {
-                moves.Add(move);
-            }
-        }
-
-        return moves;
     }
 }
