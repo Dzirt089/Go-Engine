@@ -14,8 +14,8 @@
 
 ## Последний коммит
 
-- Хеш: `0edefba` — `feat(ai): T-015 — MctsMoveSelector`
-- Дата (UTC): 2026-09-26T19:30:41Z
+- Хеш: `9ffd4af` — `test(ai): T-018 — тесты фабрики селекторов`
+- Дата (UTC): 2026-09-26T19:34:05Z
 - Куда запушено: `origin/main`
 
 ## История push
@@ -37,7 +37,9 @@
 | 2026-09-26 | `36e8e6c` | T-012 feat(ai): эвристики и уровни 30–20 кю | ok | — | — |
 | 2026-09-26 | `a3dffb2` | T-013 feat(ai): MctsNode, MctsTree, LegalMoves | ok | — | — |
 | 2026-09-26 | `b3d6835` | T-014 feat(ai): PlayoutPolicy | ok | — | — |
-| 2026-09-26 | `0edefba` | T-015 feat(ai): MctsMoveSelector | ok | — | — | | — | — |
+| 2026-09-26 | `0edefba` | T-015 feat(ai): MctsMoveSelector | ok | — | — |
+| 2026-09-26 | `d734651` | T-016 test(ai): цумэго + T-017 feat(ai): уровни 30–5 кю | ok | — | — |
+| 2026-09-26 | `9ffd4af` | T-018 test(ai): фабрика селекторов | ok | — | — | | — | — |
 
 ## Ошибки push
 
