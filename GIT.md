@@ -14,8 +14,8 @@
 
 ## Последний коммит
 
-- Хеш: `31ced32` — `feat(core): T-008 — GameState, GameStatus и GameResult`
-- Дата (UTC): 2026-09-26T19:13:28Z
+- Хеш: `8af3413` — `test(core): T-009 — Result в публичном API и его тесты`
+- Дата (UTC): 2026-09-26T19:13:52Z
 - Куда запушено: `origin/main`
 
 ## История push
@@ -30,7 +30,8 @@
 | 2026-09-26 | `65164c761fd51c5b45230e71ab31164cce78f438` | T-005 feat(core): позиционное суперко
 | 2026-09-26 | `5f6da30` | T-006 test(core): 8 позиций правил | ok | — | — |
 | 2026-09-26 | `800876d` | T-007 feat(core): Scorer, Score, Komi | ok | — | — |
-| 2026-09-26 | `31ced32` | T-008 feat(core): GameState и правила завершения | ok | — | — | | — | — |
+| 2026-09-26 | `31ced32` | T-008 feat(core): GameState и правила завершения | ok | — | — |
+| 2026-09-26 | `8af3413` | T-009 test(core): Result в публичном API | ok | — | — | | — | — |
 
 ## Ошибки push
 
