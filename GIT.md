@@ -14,8 +14,8 @@
 
 ## Последний коммит
 
-- Хеш: `e74727b` — `feat(core): T-004 — PositionHash (Zobrist) и PositionHistory`
-- Дата (UTC): 2026-09-26T19:14:00Z
+- Хеш: `65164c761fd51c5b45230e71ab31164cce78f438` — `feat(core): T-005 — позиционное суперко и KoRule`
+- Дата (UTC): 2026-09-26T19:08:49Z
 - Куда запушено: `origin/main`
 
 ## История push
@@ -27,6 +27,7 @@
 | 2026-09-26 | `07cc594` | T-002 feat(core): GroupTracker и захват | ok | — | — |
 | 2026-09-26 | `f6c8342` | T-003 feat(core): запрет самоубийства, IsLegal | ok | — | — |
 | 2026-09-26 | `e74727b` | T-004 feat(core): PositionHash и PositionHistory | ok | — | — |
+| 2026-09-26 | `65164c761fd51c5b45230e71ab31164cce78f438` | T-005 feat(core): позиционное суперко | ok | — | — |
 
 ## Ошибки push
 
