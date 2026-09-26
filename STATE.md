@@ -9,16 +9,16 @@
 
 ## Текущая задача
 
-**T-010. `AI.IMoveSelector` + `AI.RandomMoveSelector`** — завершена
+**T-011. `AI.SelfPlayHarness`** — завершена
 
 ## Статус
 
-`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (231 тест),
+`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (240 тестов),
 коммит и push в `origin/main` выполнены.
 
 ## Следующая задача
 
-**T-011. `AI.SelfPlayHarness`** — `next`
+**T-012. AI уровней 30–20 кю** — `next`
 
 ## Дата начала фазы
 
@@ -26,7 +26,7 @@
 
 ## Последнее обновление
 
-2026-09-26T19:15:15Z
+2026-09-26T19:16:40Z
 
 ## Что сделано
 
@@ -68,10 +68,14 @@
 - [x] **T-010.** `IMoveSelector` (`Name`, `SelectMove(GameState)`), `AiException`,
       `RandomMoveSelector` — инжектированный `Random`, собирает легальные ходы, при их
       отсутствии пас; перегрузка `SelectMove(Board, StoneColor)` для анализа без партии
+- [x] **T-011.** `SelfPlayHarness.PlayGame` — партия до `GameStatus.IsFinished`;
+      нелегальный ход селектора — `AiException` (нарушение инварианта AI)
+- [x] **T-011.** `SelfPlayResult` — итог партии, все ходы и финальная доска;
+      партия двух случайных селекторов на 9×9 детерминирована при фиксированном зерне
 
 ## Что осталось
 
-- [ ] `SelfPlayHarness` — T-011, уровни 30–20 кю — T-012
+- [ ] `HeuristicMoveSelector` и `DifficultyLevel` (30–20 кю) — T-012
 - [ ] `MoveGenerator` (базовый) — отдельной задачи в `PLAN.md` нет, хотя генератор ходов
       указан в deliverable фазы 1
 
@@ -101,6 +105,7 @@
 | 2026-09-26 | T-008 | `GameStatus`, `GameResult`, `GameState`; `BoardSize.DefaultMoveLimit`; 215 тестов |
 | 2026-09-26 | T-009 | Тесты `Result`/`Result<T>` и их применения в `Core`; 223 теста; фаза 3 закрыта |
 | 2026-09-26 | T-010 | Проект `GoEngine.AI`, `IMoveSelector`, `RandomMoveSelector`, `AiException`; 231 тест |
+| 2026-09-26 | T-011 | `SelfPlayHarness`, `SelfPlayResult`; партия AI vs AI на 9×9; 240 тестов |
 
 ## Журнал сессии
 
@@ -115,7 +120,8 @@
 | 2026-09-26T19:13:28Z | T-007 | done | Komi, Score, Scorer (китайские правила), точный счёт позиций 7–8; 182 теста |
 | 2026-09-26T19:13:52Z | T-008 | done | GameStatus, GameResult, GameState (пас, сдача, лимит ходов, счёт); 215 тестов |
 | 2026-09-26T19:15:15Z | T-009 | done | Result/Result<T> в публичном API Core, тесты; 223 теста; фаза 3 закрыта |
-| 2026-09-26T19:15:15Z | T-010 | done | Проект GoEngine.AI, IMoveSelector, RandomMoveSelector, AiException; 231 тест |
+| 2026-09-26T19:16:40Z | T-010 | done | Проект GoEngine.AI, IMoveSelector, RandomMoveSelector, AiException; 231 тест |
+| 2026-09-26T19:16:40Z | T-011 | done | SelfPlayHarness и SelfPlayResult, партия AI vs AI на 9×9; 240 тестов |
 
 ## Заметки для следующей сессии
 
@@ -134,7 +140,10 @@
   ход легален. При отказе партия не меняется вообще.
 - `GoEngine.AI` зависит только от `Core`; публичный API AI синхронный, случайность — только
   через инжектированный `Random` (проверено тестом на детерминизм).
-- Дальше: `SelfPlayHarness` (T-011) — партия AI против AI до `GameStatus != InProgress`.
+- `SelfPlayHarness.PlayGame` принимает seed, но сам случайность не создаёт: за неё отвечают
+  селекторы, созданные вызывающим кодом с тем же зерном. Seed проверяется (не отрицательный)
+  и фиксирует партию в отчёте.
+- Дальше: `HeuristicMoveSelector` и `DifficultyLevel` (T-012) — уровни 30, 25, 20 кю.
 - Для AI: `Board` без истории (MCTS и playout не должны засорять историю партии);
   проверка ходов — через `Board.IsLegal`; случайность — только с seed.
 - Папки `samples/` в репозитории нет: стиль брался из `AGENTS.md` и `AGENTS_GO.md`.
