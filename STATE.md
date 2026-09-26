@@ -9,16 +9,16 @@
 
 ## Текущая задача
 
-**T-011. `AI.SelfPlayHarness`** — завершена
+**T-012. AI уровней 30–20 кю** — завершена
 
 ## Статус
 
-`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (240 тестов),
+`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (252 теста),
 коммит и push в `origin/main` выполнены.
 
 ## Следующая задача
 
-**T-012. AI уровней 30–20 кю** — `next`
+**T-013. `AI.MctsNode` + `AI.MctsTree`** — `next`
 
 ## Дата начала фазы
 
@@ -26,7 +26,7 @@
 
 ## Последнее обновление
 
-2026-09-26T19:16:40Z
+2026-09-26T19:19:07Z
 
 ## Что сделано
 
@@ -72,10 +72,17 @@
       нелегальный ход селектора — `AiException` (нарушение инварианта AI)
 - [x] **T-011.** `SelfPlayResult` — итог партии, все ходы и финальная доска;
       партия двух случайных селекторов на 9×9 детерминирована при фиксированном зерне
+- [x] **T-012.** `HeuristicMoveSelector` — эвристики по приоритету: съесть группу в атари,
+      спасти свою группу в атари, занять угол в начале, иначе случайный легальный ход;
+      доля случайности задаёт силу уровня
+- [x] **T-012.** `DifficultyLevel` (`Kyu30`, `Kyu25`, `Kyu20`) с полями `RankKyu`,
+      `PlayoutBudget`, `RandomnessPercent` и фабрикой `CreateSelector(Random)`
+- [x] **T-012.** Тест силы: Kyu20 выигрывает у Kyu30 не менее 55 партий из 100 на 9×9
 
 ## Что осталось
 
-- [ ] `HeuristicMoveSelector` и `DifficultyLevel` (30–20 кю) — T-012
+- [ ] MCTS: `MctsNode`/`MctsTree` — T-013, `PlayoutPolicy` — T-014, `MctsMoveSelector` — T-015
+- [ ] Полный `DifficultyLevel` (15–5 кю, MCTS) — T-017, `AiFactory` — T-018, тест силы — T-019
 - [ ] `MoveGenerator` (базовый) — отдельной задачи в `PLAN.md` нет, хотя генератор ходов
       указан в deliverable фазы 1
 
@@ -106,6 +113,7 @@
 | 2026-09-26 | T-009 | Тесты `Result`/`Result<T>` и их применения в `Core`; 223 теста; фаза 3 закрыта |
 | 2026-09-26 | T-010 | Проект `GoEngine.AI`, `IMoveSelector`, `RandomMoveSelector`, `AiException`; 231 тест |
 | 2026-09-26 | T-011 | `SelfPlayHarness`, `SelfPlayResult`; партия AI vs AI на 9×9; 240 тестов |
+| 2026-09-26 | T-012 | `HeuristicMoveSelector`, `DifficultyLevel` (30/25/20 кю), тест силы; 252 теста |
 
 ## Журнал сессии
 
@@ -121,7 +129,8 @@
 | 2026-09-26T19:13:52Z | T-008 | done | GameStatus, GameResult, GameState (пас, сдача, лимит ходов, счёт); 215 тестов |
 | 2026-09-26T19:15:15Z | T-009 | done | Result/Result<T> в публичном API Core, тесты; 223 теста; фаза 3 закрыта |
 | 2026-09-26T19:16:40Z | T-010 | done | Проект GoEngine.AI, IMoveSelector, RandomMoveSelector, AiException; 231 тест |
-| 2026-09-26T19:16:40Z | T-011 | done | SelfPlayHarness и SelfPlayResult, партия AI vs AI на 9×9; 240 тестов |
+| 2026-09-26T19:19:07Z | T-011 | done | SelfPlayHarness и SelfPlayResult, партия AI vs AI на 9×9; 240 тестов |
+| 2026-09-26T19:19:07Z | T-012 | done | HeuristicMoveSelector и DifficultyLevel 30–20 кю, тест силы 100 партий; 252 теста |
 
 ## Заметки для следующей сессии
 
@@ -143,7 +152,11 @@
 - `SelfPlayHarness.PlayGame` принимает seed, но сам случайность не создаёт: за неё отвечают
   селекторы, созданные вызывающим кодом с тем же зерном. Seed проверяется (не отрицательный)
   и фиксирует партию в отчёте.
-- Дальше: `HeuristicMoveSelector` и `DifficultyLevel` (T-012) — уровни 30, 25, 20 кю.
+- Сила уровня задаётся долей случайности: 30 кю — 100% (чистый случай), 25 кю — 60%,
+  20 кю — 15%; остальное — эвристики. См. `DECISIONS.md` D-012.
+- Полный прогон тестов занимает ~14 с: тест силы играет 100 партий на 9×9.
+- Дальше фаза 5: MCTS — `MctsNode`/`MctsTree` (T-013), `PlayoutPolicy` (T-014),
+  `MctsMoveSelector` (T-015), цумэго (T-016).
 - Для AI: `Board` без истории (MCTS и playout не должны засорять историю партии);
   проверка ходов — через `Board.IsLegal`; случайность — только с seed.
 - Папки `samples/` в репозитории нет: стиль брался из `AGENTS.md` и `AGENTS_GO.md`.
