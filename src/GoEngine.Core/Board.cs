@@ -7,8 +7,9 @@ namespace GoEngine.Core;
 /// наружу он не отдаётся никогда. Для MCTS есть <see cref="Clone"/> и <see cref="MakeMove"/>:
 /// быстрая копия и мутация на месте.
 /// Ход снимает группы противника без дамэ (<c>GO_RULES.md</c>, п. 4) и запоминает снятые камни
-/// в <see cref="CapturedStones"/>. Самоубийственный ход отклоняется (<c>GO_RULES.md</c>, п. 5).
-/// Проверка ко (T-005) здесь ещё не реализована.
+/// в <see cref="CapturedStones"/>. Самоубийственный ход отклоняется (<c>GO_RULES.md</c>, п. 5),
+/// позиция, повторяющая уже встречавшуюся, — тоже (<c>GO_RULES.md</c>, п. 6). Успешный ход
+/// пополняет <see cref="History"/> позицией после хода.
 /// <see cref="ApplyMove"/> и <see cref="MakeMove"/> сообщают об отказе исключением
 /// <see cref="DomainException"/> — так же, как о ходе в занятую точку; для проверки без исключений
 /// есть <see cref="IsLegal"/>.
@@ -124,15 +125,7 @@ public sealed class Board
     /// </remarks>
     public void MakeMove(Move move)
     {
-        if (move.IsNone)
-        {
-            throw new DomainException("Ход не задан.");
-        }
-
-        if (move.Type != MoveType.Play)
-        {
-            throw new DomainException($"MakeMove принимает только ход Play, получен {move.Type.Name}.");
-        }
+        EnsurePlayable(move);
 
         var legality = CheckPlay(move);
 
@@ -144,12 +137,56 @@ public sealed class Board
         PlaceStone(move);
     }
 
+    /// <summary>Строит позицию после хода, не меняя эту доску и историю партии.</summary>
+    /// <param name="move">Ход типа <see cref="MoveType.Play"/> на пустую точку.</param>
+    /// <returns>Копия доски без истории, в которой ход уже сделан.</returns>
+    /// <exception cref="DomainException">Ход не задан, не является <c>Play</c>, точка вне доски или занята.</exception>
+    /// <remarks>
+    /// Нужен проверке ко: чтобы сравнить позицию с историей, ход надо «примерить».
+    /// Правила (самоубийство, суперко) здесь не проверяются — это дело <see cref="IsLegal"/>.
+    /// Копия создаётся без истории, иначе предпросмотр пополнял бы историю партии.
+    /// </remarks>
+    internal Board PreviewMove(Move move)
+    {
+        EnsurePlayable(move);
+
+        var preview = new Board(Size, (StoneColor[])_stones.Clone(), null);
+        preview.PlaceStone(move);
+
+        return preview;
+    }
+
+    /// <summary>Проверяет, что ход можно поставить на доску: тип, границы, пустая точка.</summary>
+    /// <param name="move">Проверяемый ход.</param>
+    /// <exception cref="DomainException">Ход не задан, не является <c>Play</c>, точка вне доски или занята.</exception>
+    private void EnsurePlayable(Move move)
+    {
+        if (move.IsNone)
+        {
+            throw new DomainException("Ход не задан.");
+        }
+
+        if (move.Type != MoveType.Play)
+        {
+            throw new DomainException($"Ход должен быть типа Play, получен {move.Type.Name}.");
+        }
+
+        EnsureOnBoard(move.Point);
+
+        if (_stones[IndexOf(move.Point)] != StoneColor.Empty)
+        {
+            throw new DomainException($"Точка {move.Point} уже занята.");
+        }
+    }
+
     /// <summary>Проверяет, разрешён ли ход, не меняя доску.</summary>
     /// <param name="move">Проверяемый ход.</param>
     /// <returns>Успех, если ход легален; иначе причина отказа на русском языке.</returns>
     /// <remarks>
     /// Пас и сдача разрешены всегда (<c>GO_RULES.md</c>, п. 3). Метод не бросает исключений:
     /// ожидаемый отказ — это <see cref="Result{T}"/>, а не <see cref="DomainException"/>.
+    /// Проверяются самоубийство (<c>GO_RULES.md</c>, п. 5) и позиционное суперко (п. 6);
+    /// если у доски нет истории, ограничение суперко не действует.
     /// </remarks>
     public Result<Unit> IsLegal(Move move)
     {
@@ -172,6 +209,9 @@ public sealed class Board
         _stones[IndexOf(move.Point)] = move.Color;
 
         CaptureAdjacentOpponentGroups(move.Point, move.Color);
+
+        // В историю попадает позиция после хода: именно её сравнивает суперко.
+        History?.Add(this);
     }
 
     /// <summary>Проверяет ход постановки камня по правилам, не меняя эту доску.</summary>
@@ -193,14 +233,19 @@ public sealed class Board
             return Result<Unit>.Fail($"Точка {move.Point} уже занята.");
         }
 
-        var probe = Clone();
-        probe.PlaceStone(move);
+        var probe = PreviewMove(move);
         var ownGroup = GroupTracker.FindGroup(probe, move.Point);
 
         // GO_RULES.md, п. 5: ход разрешён, если у своей группы остались дамэ или если ход снял
         // хотя бы один камень противника. Второе условие и есть исключение для захвата.
-        return ownGroup.IsCaptured && !probe._lastCapture.HasCaptures
-            ? Result<Unit>.Fail($"Самоубийственный ход: у своей группы в точке {move.Point} не остаётся дамэ.")
+        if (ownGroup.IsCaptured && !probe._lastCapture.HasCaptures)
+        {
+            return Result<Unit>.Fail($"Самоубийственный ход: у своей группы в точке {move.Point} не остаётся дамэ.");
+        }
+
+        // GO_RULES.md, п. 6: позиция после хода не должна встречаться в партии ни разу.
+        return KoRule.ViolatesSuperko(History, probe, move)
+            ? Result<Unit>.Fail($"Ход нарушает суперко: позиция после хода в точку {move.Point} уже встречалась в партии.")
             : Result<Unit>.Ok(Unit.Value);
     }
 
