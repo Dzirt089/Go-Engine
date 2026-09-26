@@ -44,3 +44,8 @@ dotnet_diagnostic.CA1303.severity = suggestion
 dotnet_diagnostic.CA1707.severity = suggestion
 dotnet_diagnostic.CA1812.severity = suggestion
 dotnet_diagnostic.IDE0130.severity = none
+
+# CA1000: «не объявлять статические члены в универсальных типах».
+# Фабрики Result<T>.Ok и Result<T>.Fail — требование задачи T-009 и всего публичного API Core,
+# поэтому правило отключено осознанно, а не из-за неудобства.
+dotnet_diagnostic.CA1000.severity = none
