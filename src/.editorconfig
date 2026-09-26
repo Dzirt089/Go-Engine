@@ -49,3 +49,10 @@ dotnet_diagnostic.IDE0130.severity = none
 # Фабрики Result<T>.Ok и Result<T>.Fail — требование задачи T-009 и всего публичного API Core,
 # поэтому правило отключено осознанно, а не из-за неудобства.
 dotnet_diagnostic.CA1000.severity = none
+
+# CA1822 (сделать член статическим) и CA1859 (сузить тип поля до конкретного).
+# Формы API заданы задачами: MctsTree.Expand и SelfPlayHarness.PlayGame — методы экземпляра
+# (T-013, T-011), а таблица весов PatternWeights объявлена как IReadOnlyDictionary (T-019c).
+# Менять их ради анализатора — значит переписывать API; оставляем предложениями редактора.
+dotnet_diagnostic.CA1822.severity = suggestion
+dotnet_diagnostic.CA1859.severity = suggestion

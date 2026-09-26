@@ -14,6 +14,10 @@ namespace GoEngine.App.Services;
 /// </remarks>
 public sealed record AppSettings
 {
+    /// <summary>Параметры записи: отступы, чтобы файл настроек читался человеком.</summary>
+    /// <remarks>Экземпляр создаётся один раз: CA1869 и лишние аллокации при каждом сохранении.</remarks>
+    private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
+
     /// <summary>Сторона доски: 9, 13 или 19.</summary>
     [JsonPropertyName("boardSize")]
     public byte BoardSize { get; set; } = 9;
@@ -93,5 +97,5 @@ public sealed record AppSettings
 
     /// <summary>Превращает настройки в JSON.</summary>
     /// <returns>Текст файла настроек.</returns>
-    public string ToJson() => JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
+    public string ToJson() => JsonSerializer.Serialize(this, WriteOptions);
 }

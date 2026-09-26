@@ -5,6 +5,9 @@ namespace GoEngine.Tests;
 /// <summary>Тесты цвета камня.</summary>
 public sealed class StoneColorTests
 {
+    /// <summary>Ожидаемые идентификаторы: поле, а не аргумент-массив (CA1861).</summary>
+    private static readonly int[] ExpectedIds = [0, 1, 2];
+
     [Fact]
     public void StoneColor_Opponent_Возвращает_противоположный()
     {
@@ -29,7 +32,7 @@ public sealed class StoneColorTests
     {
         var ids = new[] { StoneColor.Empty, StoneColor.Black, StoneColor.White }.Select(static color => color.Id);
 
-        Assert.Equal(new[] { 0, 1, 2 }, ids);
+        Assert.Equal(ExpectedIds, ids);
     }
 
     [Fact]
