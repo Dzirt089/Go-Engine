@@ -15,12 +15,38 @@ public static class SettingsStore
     /// <summary>Имя папки настроек в профиле пользователя.</summary>
     private const string FolderName = "GoEngine";
 
-    /// <summary>Возвращает путь к файлу настроек в профиле пользователя.</summary>
+    /// <summary>Возвращает путь к файлу настроек в профиле пользователя для текущей системы.</summary>
     /// <returns>Полный путь к файлу.</returns>
-    public static string DefaultPath => Path.Combine(
+    /// <remarks>
+    /// Путь свой для каждой системы: Windows хранит настройки в <c>%AppData%</c>, Linux —
+    /// в <c>~/.config</c>, macOS — в <c>~/Library/Application Support</c>.
+    /// </remarks>
+    public static string DefaultPath => PathFor(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        FolderName,
-        FileName);
+        OperatingSystem.IsWindows(),
+        OperatingSystem.IsMacOS());
+
+    /// <summary>Строит путь к файлу настроек для заданной системы.</summary>
+    /// <param name="userProfile">Домашний каталог пользователя.</param>
+    /// <param name="applicationData">Каталог данных приложений (используется в Windows).</param>
+    /// <param name="isWindows">Система — Windows.</param>
+    /// <param name="isMacOs">Система — macOS.</param>
+    /// <returns>Полный путь к файлу настроек.</returns>
+    public static string PathFor(string userProfile, string applicationData, bool isWindows, bool isMacOs)
+    {
+        if (isWindows && !string.IsNullOrEmpty(applicationData))
+        {
+            return Path.Combine(applicationData, FolderName, FileName);
+        }
+
+        if (isMacOs)
+        {
+            return Path.Combine(userProfile, "Library", "Application Support", FolderName, FileName);
+        }
+
+        return Path.Combine(userProfile, ".config", FolderName.ToLowerInvariant(), FileName);
+    }
 
     /// <summary>Читает настройки из файла.</summary>
     /// <param name="path">Путь к файлу; <c>null</c> — путь по умолчанию.</param>

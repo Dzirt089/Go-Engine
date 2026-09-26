@@ -7,11 +7,12 @@ namespace GoEngine.App.Services;
 
 /// <summary>Настройки партии, сохраняемые в JSON.</summary>
 /// <remarks>
+/// Запись (<c>record</c>) даёт сравнение по значениям и <c>with</c> для точечных правок.
 /// В файле лежат простые значения (число, имя, ранг), а не доменные типы: так файл настроек
 /// не сломается при изменении внутреннего представления <c>Core</c> и <c>AI</c>.
 /// Настройки по умолчанию — доска 9×9, уровень 20 кю, игрок чёрными, коми 5.5.
 /// </remarks>
-public sealed class AppSettings
+public sealed record AppSettings
 {
     /// <summary>Сторона доски: 9, 13 или 19.</summary>
     [JsonPropertyName("boardSize")]
