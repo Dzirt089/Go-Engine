@@ -2,6 +2,7 @@ using Avalonia;
 using GoEngine.AI;
 using GoEngine.App.Rendering;
 using GoEngine.App.Services;
+using GoEngine.Core.Sgf;
 using GoEngine.App.ViewModels;
 using GoEngine.Core;
 using SkiaSharp;
@@ -23,6 +24,9 @@ internal static class Program
 
     /// <summary>Зерно проверок: они должны повторяться от запуска к запуску.</summary>
     private const int SeedForChecks = 20260926;
+
+    /// <summary>Аргумент проверки записи и чтения партии в SGF.</summary>
+    private const string SgfArgument = "--sgf";
 
     /// <summary>Аргумент проверки записи и чтения настроек.</summary>
     private const string SettingsArgument = "--settings";
@@ -54,6 +58,12 @@ internal static class Program
             // Проверка ввода без окна: попадание щелчка в точку доски считается той же
             // геометрией, что и на экране.
             return CheckPointMapping();
+        }
+
+        if (args.Contains(SgfArgument))
+        {
+            // Проверка формата без окна: партия записывается в файл и читается обратно.
+            return CheckSgf();
         }
 
         if (args.Contains(SettingsArgument))
@@ -114,6 +124,44 @@ internal static class Program
         Console.WriteLine(failures == 0
             ? "Go Engine: попадание щелчка в точку проверено на досках 9×9, 13×13 и 19×19."
             : $"Go Engine: ошибок попадания — {failures}.");
+
+        return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>Проверяет запись и чтение партии в SGF через файл.</summary>
+    /// <returns>0, если партия сохраняется и читается без потерь; иначе 1.</returns>
+    private static int CheckSgf()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"go-engine-game-{Guid.NewGuid():N}.sgf");
+        var failures = 0;
+
+        try
+        {
+            var model = new MainViewModel(AppSettings.Default, new Random(SeedForChecks));
+            _ = model.PlayMove(new GoPoint(4, 4));
+            var moves = model.ToSgfGame().Moves.Count;
+
+            failures += Expect(SgfStore.Save(model.ToSgfGame(), path).IsSuccess, "партия записана");
+
+            var loaded = SgfStore.Load(path);
+            failures += Expect(loaded.IsSuccess, "партия прочитана");
+            failures += Expect(loaded.Value.Moves.Count == moves, "число ходов совпало");
+            failures += Expect(loaded.Value.Size == BoardSize.Size9, "размер доски совпал");
+            failures += Expect(loaded.Value.Komi == Komi.For9x9, "коми совпало");
+            failures += Expect(model.LoadGame(loaded.Value).IsSuccess, "партия восстановлена в игре");
+            failures += Expect(!SgfStore.Load(path + ".missing").IsSuccess, "отсутствующий файл — отказ");
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+
+        Console.WriteLine(failures == 0
+            ? "Go Engine: партия сохраняется и читается в SGF."
+            : $"Go Engine: ошибок SGF — {failures}.");
 
         return failures == 0 ? 0 : 1;
     }

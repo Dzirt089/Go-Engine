@@ -17,6 +17,9 @@
         <MenuItem x:Name="NewGameItem" Header="Новая партия" />
         <MenuItem x:Name="SettingsItem" Header="Настройки…" />
         <Separator />
+        <MenuItem x:Name="SaveGameItem" Header="Сохранить партию…" />
+        <MenuItem x:Name="LoadGameItem" Header="Загрузить партию…" />
+        <Separator />
         <MenuItem x:Name="ExitItem" Header="Выход" />
       </MenuItem>
     </Menu>

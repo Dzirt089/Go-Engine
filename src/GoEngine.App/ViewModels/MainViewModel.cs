@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using GoEngine.AI;
 using GoEngine.App.Services;
 using GoEngine.Core;
+using GoEngine.Core.Sgf;
 
 namespace GoEngine.App.ViewModels;
 
@@ -93,6 +94,31 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ShowAiMoveIfNeeded();
 
         return true;
+    }
+
+    /// <summary>Возвращает партию для сохранения в SGF.</summary>
+    /// <returns>Данные партии: размер доски, коми и ходы.</returns>
+    public SgfGame ToSgfGame() => new(_game.Board.Size, _game.Komi, _game.Moves, null);
+
+    /// <summary>Загружает партию из SGF и продолжает её по текущим настройкам.</summary>
+    /// <param name="game">Прочитанная партия.</param>
+    /// <returns>Успех или причина отказа, если ходы не проходят по правилам.</returns>
+    public Result LoadGame(SgfGame game)
+    {
+        var restored = game.ToGameState();
+
+        if (!restored.IsSuccess)
+        {
+            return Result.Fail(restored.Error!);
+        }
+
+        _game = restored.Value!;
+        _settings = AppSettings.From(game.Size, _settings.ToDifficultyLevel(), _settings.ToPlayerColor(), game.Komi);
+
+        // После загрузки партия может стоять на ходе AI — он обязан ответить.
+        ShowAiMoveIfNeeded();
+
+        return Result.Ok();
     }
 
     /// <summary>Начинает новую партию по текущим настройкам.</summary>

@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Platform.Storage;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using GoEngine.App.Controls;
@@ -46,6 +47,8 @@ public sealed partial class MainWindow : Window
 
         Wire("NewGameItem", OnNewGameClick);
         Wire("SettingsItem", OnSettingsClick);
+        Wire("SaveGameItem", OnSaveGameClick);
+        Wire("LoadGameItem", OnLoadGameClick);
         Wire("ExitItem", OnExitClick);
     }
 
@@ -100,6 +103,64 @@ public sealed partial class MainWindow : Window
         // Неудачная запись настроек не мешает играть: значения уже применены к партии.
         _ = SettingsStore.Save(_settings);
     }
+
+    /// <summary>Сохраняет партию в SGF.</summary>
+    /// <param name="sender">Пункт меню.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnSaveGameClick(object? sender, RoutedEventArgs e) => _ = SaveGameAsync();
+
+    /// <summary>Загружает партию из SGF.</summary>
+    /// <param name="sender">Пункт меню.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnLoadGameClick(object? sender, RoutedEventArgs e) => _ = LoadGameAsync();
+
+    /// <summary>Спрашивает файл и записывает в него партию.</summary>
+    /// <returns>Задача сохранения.</returns>
+    private async Task SaveGameAsync()
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Сохранить партию",
+            SuggestedFileName = "game",
+            DefaultExtension = SgfStore.Extension,
+            FileTypeChoices = [SgfFileType]
+        });
+
+        if (file?.TryGetLocalPath() is { } path)
+        {
+            _ = SgfStore.Save(ViewModel.ToSgfGame(), path);
+        }
+    }
+
+    /// <summary>Спрашивает файл и загружает из него партию.</summary>
+    /// <returns>Задача загрузки.</returns>
+    private async Task LoadGameAsync()
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Загрузить партию",
+            AllowMultiple = false,
+            FileTypeFilter = [SgfFileType]
+        });
+
+        if (files.Count == 0 || files[0].TryGetLocalPath() is not { } path)
+        {
+            return;
+        }
+
+        var loaded = SgfStore.Load(path);
+
+        if (loaded.IsSuccess)
+        {
+            _ = ViewModel.LoadGame(loaded.Value);
+        }
+    }
+
+    /// <summary>Тип файла SGF для диалогов выбора файла.</summary>
+    private static FilePickerFileType SgfFileType => new("Партия Go (SGF)")
+    {
+        Patterns = [$"*.{SgfStore.Extension}"]
+    };
 
     /// <summary>Закрывает окно.</summary>
     /// <param name="sender">Пункт меню.</param>
