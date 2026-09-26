@@ -14,8 +14,8 @@
 
 ## Последний коммит
 
-- Хеш: `ae9f4f7` — `feat(ai): T-010 — проект GoEngine.AI, IMoveSelector и RandomMoveSelector`
-- Дата (UTC): 2026-09-26T19:15:15Z
+- Хеш: `e233e49` — `feat(ai): T-011 — SelfPlayHarness и SelfPlayResult`
+- Дата (UTC): 2026-09-26T19:16:40Z
 - Куда запушено: `origin/main`
 
 ## История push
@@ -32,7 +32,8 @@
 | 2026-09-26 | `800876d` | T-007 feat(core): Scorer, Score, Komi | ok | — | — |
 | 2026-09-26 | `31ced32` | T-008 feat(core): GameState и правила завершения | ok | — | — |
 | 2026-09-26 | `8af3413` | T-009 test(core): Result в публичном API | ok | — | — |
-| 2026-09-26 | `ae9f4f7` | T-010 feat(ai): проект AI и случайный селектор | ok | — | — | | — | — |
+| 2026-09-26 | `ae9f4f7` | T-010 feat(ai): проект AI и случайный селектор | ok | — | — |
+| 2026-09-26 | `e233e49` | T-011 feat(ai): SelfPlayHarness | ok | — | — | | — | — |
 
 ## Ошибки push
 
