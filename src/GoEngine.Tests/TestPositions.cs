@@ -59,6 +59,29 @@ internal static class TestPositions
             .ApplyMove(Move.Play(new Point(2, 0), StoneColor.Black));
     }
 
+    /// <summary>Строит позицию, в которой у чёрных нет ни одного легального хода.</summary>
+    /// <returns>Доска 9×9, полностью занятая белыми камнями, кроме (4,4) и (4,6).</returns>
+    /// <remarks>
+    /// Две пустые точки не соседние, поэтому белая группа сохраняет второе дамэ: чёрный ход
+    /// в любую из них не снимает белых и оставляет чёрный камень без дамэ — самоубийство.
+    /// </remarks>
+    public static Board BoardWithoutLegalMoves()
+    {
+        var board = new Board(BoardSize.Size9);
+        var first = new Point(4, 4);
+        var second = new Point(4, 6);
+
+        foreach (var point in board.AllPoints())
+        {
+            if (point != first && point != second)
+            {
+                board = board.ApplyMove(Move.Play(point, StoneColor.White));
+            }
+        }
+
+        return board;
+    }
+
     /// <summary>Строит позицию сэки: две стены и общие дамэ между ними.</summary>
     /// <returns>Доска 9×9 с чёрной стеной (1,1)–(1,4) и белой (3,1)–(3,4).</returns>
     /// <remarks>

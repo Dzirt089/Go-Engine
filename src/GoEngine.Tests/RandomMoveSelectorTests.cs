@@ -43,7 +43,7 @@ public sealed class RandomMoveSelectorTests
         // поэтому чёрный ход в любую из пустых точек — самоубийство без захвата.
         var selector = new RandomMoveSelector(new Random(Seed));
 
-        var move = selector.SelectMove(BoardWithoutLegalMoves(), StoneColor.Black);
+        var move = selector.SelectMove(TestPositions.BoardWithoutLegalMoves(), StoneColor.Black);
 
         Assert.Equal(MoveType.Pass, move.Type);
     }
@@ -53,7 +53,7 @@ public sealed class RandomMoveSelectorTests
     {
         var selector = new RandomMoveSelector(new Random(Seed));
 
-        var move = selector.SelectMove(BoardWithoutLegalMoves(), StoneColor.White);
+        var move = selector.SelectMove(TestPositions.BoardWithoutLegalMoves(), StoneColor.White);
 
         Assert.Equal(StoneColor.White, move.Color);
     }
@@ -86,7 +86,7 @@ public sealed class RandomMoveSelectorTests
     {
         var selector = new RandomMoveSelector(new Random(Seed));
 
-        var move = selector.SelectMove(BoardWithoutLegalMoves(), StoneColor.Black);
+        var move = selector.SelectMove(TestPositions.BoardWithoutLegalMoves(), StoneColor.Black);
 
         Assert.Equal(MoveType.Pass, move.Type);
     }
@@ -97,26 +97,4 @@ public sealed class RandomMoveSelectorTests
         Assert.False(string.IsNullOrWhiteSpace(new RandomMoveSelector(new Random(Seed)).Name));
     }
 
-    /// <summary>Строит позицию, в которой у чёрных нет ни одного легального хода.</summary>
-    /// <returns>Доска 9×9, полностью занятая белыми камнями, кроме (4,4) и (4,6).</returns>
-    /// <remarks>
-    /// Две пустые точки не соседние, поэтому белая группа сохраняет второе дамэ: чёрный ход
-    /// в любую из них не снимает белых и оставляет чёрный камень без дамэ — самоубийство.
-    /// </remarks>
-    private static Board BoardWithoutLegalMoves()
-    {
-        var board = new Board(BoardSize.Size9);
-        var first = new Point(4, 4);
-        var second = new Point(4, 6);
-
-        foreach (var point in board.AllPoints())
-        {
-            if (point != first && point != second)
-            {
-                board = board.ApplyMove(Move.Play(point, StoneColor.White));
-            }
-        }
-
-        return board;
-    }
 }

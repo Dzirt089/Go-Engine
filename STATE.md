@@ -9,16 +9,16 @@
 
 ## Текущая задача
 
-**T-013. `AI.MctsNode` + `AI.MctsTree`** — завершена
+**T-014. `AI.PlayoutPolicy`** — завершена
 
 ## Статус
 
-`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (272 теста),
+`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (283 теста),
 коммит и push в `origin/main` выполнены.
 
 ## Следующая задача
 
-**T-014. `AI.PlayoutPolicy`** — `next`
+**T-015. `AI.MctsMoveSelector`** — `next`
 
 ## Дата начала фазы
 
@@ -26,7 +26,7 @@
 
 ## Последнее обновление
 
-2026-09-26T19:21:18Z
+2026-09-26T19:22:29Z
 
 ## Что сделано
 
@@ -82,10 +82,13 @@
 - [x] **T-013.** `Board.WithoutHistory` — копия доски без истории: анализ не пополняет историю партии
 - [x] **T-013.** `MctsNode` (ход, родитель, дети, визиты, победы, неразобранные ходы, `Ucb1`)
       и `MctsTree` (`Select`, `Expand`, `Backpropagate`); узлы хранят позиции без истории
+- [x] **T-014.** `AtariHeuristics` — общие эвристики атари для селектора и playout'а (без дублирования)
+- [x] **T-014.** `PlayoutConfig` (0.9 атари / 0.5 соседний ход) и `PlayoutPolicy`:
+      захват атари → спасение атари → ход рядом с камнями → случайный ход
 
 ## Что осталось
 
-- [ ] MCTS: `PlayoutPolicy` — T-014, `MctsMoveSelector` — T-015, цумэго — T-016
+- [ ] `MctsMoveSelector` — T-015, цумэго — T-016
 - [ ] Полный `DifficultyLevel` (15–5 кю, MCTS) — T-017, `AiFactory` — T-018, тест силы — T-019
 - [ ] `MoveGenerator` (базовый) — отдельной задачи в `PLAN.md` нет, хотя генератор ходов
       указан в deliverable фазы 1
@@ -119,6 +122,7 @@
 | 2026-09-26 | T-011 | `SelfPlayHarness`, `SelfPlayResult`; партия AI vs AI на 9×9; 240 тестов |
 | 2026-09-26 | T-012 | `HeuristicMoveSelector`, `DifficultyLevel` (30/25/20 кю), тест силы; 252 теста |
 | 2026-09-26 | T-013 | `LegalMoves`, `Board.WithoutHistory`, `MctsNode`, `MctsTree`; 272 теста |
+| 2026-09-26 | T-014 | `AtariHeuristics`, `PlayoutConfig`, `PlayoutPolicy`; 283 теста |
 
 ## Журнал сессии
 
@@ -136,7 +140,8 @@
 | 2026-09-26T19:16:40Z | T-010 | done | Проект GoEngine.AI, IMoveSelector, RandomMoveSelector, AiException; 231 тест |
 | 2026-09-26T19:19:07Z | T-011 | done | SelfPlayHarness и SelfPlayResult, партия AI vs AI на 9×9; 240 тестов |
 | 2026-09-26T19:21:18Z | T-012 | done | HeuristicMoveSelector и DifficultyLevel 30–20 кю, тест силы 100 партий; 252 теста |
-| 2026-09-26T19:21:18Z | T-013 | done | LegalMoves, Board.WithoutHistory, MctsNode, MctsTree; 272 теста; открыта фаза 5 |
+| 2026-09-26T19:22:29Z | T-013 | done | LegalMoves, Board.WithoutHistory, MctsNode, MctsTree; 272 теста; открыта фаза 5 |
+| 2026-09-26T19:22:29Z | T-014 | done | AtariHeuristics, PlayoutConfig, PlayoutPolicy; 283 теста |
 
 ## Заметки для следующей сессии
 
@@ -165,7 +170,9 @@
   не попадают в историю партии — это проверено тестами.
 - `MctsNode.Wins` считается с точки зрения сделавшего ход: у корня `Move.None`, поэтому
   его победы всегда 0, а ход выбирается по числу посещений.
-- Дальше: `PlayoutPolicy` (T-014), `MctsMoveSelector` (T-015), цумэго (T-016).
+- Эвристики атари вынесены в `AtariHeuristics`: их используют и `HeuristicMoveSelector`,
+  и `PlayoutPolicy` — правила захвата описаны в одном месте.
+- Дальше: `MctsMoveSelector` (T-015) с бюджетом playout'ов, затем цумэго (T-016).
 - Для AI: `Board` без истории (MCTS и playout не должны засорять историю партии);
   проверка ходов — через `Board.IsLegal`; случайность — только с seed.
 - Папки `samples/` в репозитории нет: стиль брался из `AGENTS.md` и `AGENTS_GO.md`.
