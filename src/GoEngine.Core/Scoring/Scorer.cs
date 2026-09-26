@@ -19,47 +19,75 @@ public static class Scorer
     {
         ArgumentNullException.ThrowIfNull(board);
 
+        var ownership = Ownership(board);
         var black = 0.0;
         var white = 0.0;
 
-        // Каждый камень на доске приносит очко своему цвету.
-        foreach (var point in board.AllPoints())
+        foreach (var owner in ownership)
         {
-            var color = board.At(point);
-
-            if (color == StoneColor.Black)
+            if (owner == StoneColor.Black)
             {
                 black++;
             }
-            else if (color == StoneColor.White)
+            else if (owner == StoneColor.White)
             {
                 white++;
             }
         }
 
+        return new Score(black, white + komi.Value);
+    }
+
+    /// <summary>Определяет владельца каждой точки доски.</summary>
+    /// <param name="board">Позиция на момент подсчёта.</param>
+    /// <returns>
+    /// Владелец каждой точки в порядке обхода доски: камень — своему цвету, окружённая пустая
+    /// точка — цвету окружения, нейтральная — <see cref="StoneColor.Empty"/>.
+    /// </returns>
+    /// <remarks>
+    /// Нужна не только подсчёту очков, но и кодированию позиции для нейросети (v2):
+    /// там территория подаётся отдельными плоскостями.
+    /// </remarks>
+    public static IReadOnlyList<StoneColor> Ownership(Board board)
+    {
+        ArgumentNullException.ThrowIfNull(board);
+
+        var ownership = new StoneColor[board.Size.Area];
+        Array.Fill(ownership, StoneColor.Empty);
+
         HashSet<Point> visited = [];
 
-        foreach (var start in board.EmptyPoints())
+        foreach (var point in board.AllPoints())
         {
-            if (visited.Contains(start))
+            var color = board.At(point);
+
+            if (color != StoneColor.Empty)
+            {
+                ownership[(point.Y * board.Size.Value) + point.X] = color;
+                continue;
+            }
+
+            // Пустая точка, уже разобранная вместе со своей областью, свой цвет не меняет.
+            if (visited.Contains(point))
             {
                 continue;
             }
 
-            var region = FillRegion(board, start, visited);
+            var region = FillRegion(board, point, visited);
             var owner = FindOwner(board, region);
 
-            if (owner == StoneColor.Black)
+            if (owner is null)
             {
-                black += region.Count;
+                continue;
             }
-            else if (owner == StoneColor.White)
+
+            foreach (var owned in region)
             {
-                white += region.Count;
+                ownership[(owned.Y * board.Size.Value) + owned.X] = owner;
             }
         }
 
-        return new Score(black, white + komi.Value);
+        return ownership;
     }
 
     /// <summary>Собирает связную по стороне пустую область.</summary>
