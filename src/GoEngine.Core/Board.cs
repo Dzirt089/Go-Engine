@@ -6,12 +6,14 @@ namespace GoEngine.Core;
 /// Внутреннее представление — плоский массив <see cref="StoneColor"/> длиной <c>size * size</c>,
 /// наружу он не отдаётся никогда. Для MCTS есть <see cref="Clone"/> и <see cref="MakeMove"/>:
 /// быстрая копия и мутация на месте.
-/// Снятие групп (T-002), проверка самоубийства (T-003) и ко (T-005) здесь не реализуются:
-/// <see cref="ApplyMove"/> только ставит камень.
+/// Ход снимает группы противника без дамэ (<c>GO_RULES.md</c>, п. 4) и запоминает снятые камни
+/// в <see cref="CapturedStones"/>. Проверка самоубийства (T-003) и ко (T-005) здесь ещё не
+/// реализованы: после снятия чужих групп своя группа не проверяется.
 /// </remarks>
 public sealed class Board
 {
     private readonly StoneColor[] _stones;
+    private CaptureResult _lastCapture = CaptureResult.None;
 
     /// <summary>Создаёт пустую доску указанного размера.</summary>
     /// <param name="size">Размер доски.</param>
@@ -34,6 +36,13 @@ public sealed class Board
     /// <summary>Размер доски.</summary>
     public BoardSize Size { get; }
 
+    /// <summary>Камни, снятые последним ходом этой доски.</summary>
+    /// <remarks>
+    /// Внутренний массив наружу не отдаётся: возвращается список только для чтения.
+    /// Пас и сдача не снимают ничего, поэтому у свежей доски список пуст.
+    /// </remarks>
+    public IReadOnlyList<Point> CapturedStones => _lastCapture.CapturedStones;
+
     /// <summary>Возвращает цвет в точке.</summary>
     /// <param name="point">Точка доски.</param>
     /// <returns><see cref="StoneColor.Empty"/>, если в точке нет камня.</returns>
@@ -52,9 +61,10 @@ public sealed class Board
     public bool IsEmpty(Point point) => At(point) == StoneColor.Empty;
 
     /// <summary>Ставит камень и возвращает новую доску.</summary>
-    /// <param name="move">Ход. Пас и сдача позицию не меняют.</param>
+    /// <param name="move">Ход. Пас и сдача позицию не меняют и ничего не снимают.</param>
     /// <returns>Новая доска; исходная доска не меняется.</returns>
     /// <exception cref="DomainException">Ход не задан, точка вне доски или уже занята.</exception>
+    /// <remarks>Снятые ходом камни доступны у новой доски в <see cref="CapturedStones"/>.</remarks>
     public Board ApplyMove(Move move)
     {
         if (move.IsNone)
@@ -80,6 +90,10 @@ public sealed class Board
     /// <summary>Ставит камень прямо в этой доске: мутация на месте для MCTS.</summary>
     /// <param name="move">Ход типа <see cref="MoveType.Play"/> на пустую точку.</param>
     /// <exception cref="DomainException">Ход не задан, не является <c>Play</c>, точка вне доски или занята.</exception>
+    /// <remarks>
+    /// Порядок из <c>GO_RULES.md</c>, п. 4: сначала ставится камень, затем снимаются группы
+    /// противника без дамэ. Снятые камни записываются в <see cref="CapturedStones"/>.
+    /// </remarks>
     public void MakeMove(Move move)
     {
         if (move.IsNone)
@@ -101,7 +115,50 @@ public sealed class Board
             throw new DomainException($"Точка {move.Point} уже занята.");
         }
 
+        // Результат относится только к последнему ходу: предыдущий список снятых камней не накапливается.
+        _lastCapture = CaptureResult.None;
         _stones[index] = move.Color;
+
+        CaptureAdjacentOpponentGroups(move.Point, move.Color);
+    }
+
+    /// <summary>Снимает группы противника без дамэ, соседние с поставленным камнем.</summary>
+    /// <param name="point">Точка, в которую только что поставлен камень.</param>
+    /// <param name="color">Цвет поставленного камня.</param>
+    /// <remarks>
+    /// Перебираются только соседи хода: дамэ может потерять лишь группа, соседняя с новой точкой,
+    /// поэтому полный обход всех групп доски не нужен. Группа могла лишиться последней дамэ
+    /// одновременно с нескольких сторон, поэтому соседи отмечаются в <c>visited</c>.
+    /// </remarks>
+    private void CaptureAdjacentOpponentGroups(Point point, StoneColor color)
+    {
+        var opponent = color.Opponent();
+        List<Point> captured = [];
+        HashSet<Point> visited = [];
+
+        foreach (var neighbor in point.Neighbors(Size))
+        {
+            if (_stones[IndexOf(neighbor)] != opponent || !visited.Add(neighbor))
+            {
+                continue;
+            }
+
+            var group = GroupTracker.FindGroup(this, neighbor);
+            visited.UnionWith(group.Stones);
+
+            if (!group.IsCaptured)
+            {
+                continue;
+            }
+
+            foreach (var stone in group.Stones)
+            {
+                _stones[IndexOf(stone)] = StoneColor.Empty;
+                captured.Add(stone);
+            }
+        }
+
+        _lastCapture = new CaptureResult(captured.AsReadOnly());
     }
 
     /// <summary>Перечисляет все точки доски слева направо, сверху вниз.</summary>

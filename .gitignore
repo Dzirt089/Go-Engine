@@ -6,10 +6,13 @@ obj/
 .vs/
 .idea/
 *.DotSettings.user
+*.sln.docstates
 
 # Build outputs
 publish/
 artifacts/
+src/**/bin/
+src/**/obj/
 
 # Secrets
 .env
@@ -17,11 +20,18 @@ artifacts/
 *.pfx
 *.snk
 secrets.json
+appsettings.Production.json
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Test results
 TestResults/
 *.trx
+*.coverage
+coverage*.xml
+
+# Резервные копии миграции
+Work-1.bak/
