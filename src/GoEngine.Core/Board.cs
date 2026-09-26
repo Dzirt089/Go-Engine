@@ -7,8 +7,11 @@ namespace GoEngine.Core;
 /// наружу он не отдаётся никогда. Для MCTS есть <see cref="Clone"/> и <see cref="MakeMove"/>:
 /// быстрая копия и мутация на месте.
 /// Ход снимает группы противника без дамэ (<c>GO_RULES.md</c>, п. 4) и запоминает снятые камни
-/// в <see cref="CapturedStones"/>. Проверка самоубийства (T-003) и ко (T-005) здесь ещё не
-/// реализованы: после снятия чужих групп своя группа не проверяется.
+/// в <see cref="CapturedStones"/>. Самоубийственный ход отклоняется (<c>GO_RULES.md</c>, п. 5).
+/// Проверка ко (T-005) здесь ещё не реализована.
+/// <see cref="ApplyMove"/> и <see cref="MakeMove"/> сообщают об отказе исключением
+/// <see cref="DomainException"/> — так же, как о ходе в занятую точку; для проверки без исключений
+/// есть <see cref="IsLegal"/>.
 /// </remarks>
 public sealed class Board
 {
@@ -89,10 +92,12 @@ public sealed class Board
 
     /// <summary>Ставит камень прямо в этой доске: мутация на месте для MCTS.</summary>
     /// <param name="move">Ход типа <see cref="MoveType.Play"/> на пустую точку.</param>
-    /// <exception cref="DomainException">Ход не задан, не является <c>Play</c>, точка вне доски или занята.</exception>
+    /// <exception cref="DomainException">Ход не задан, не является <c>Play</c>, точка вне доски,
+    /// занята или ход самоубийственный.</exception>
     /// <remarks>
     /// Порядок из <c>GO_RULES.md</c>, п. 4: сначала ставится камень, затем снимаются группы
     /// противника без дамэ. Снятые камни записываются в <see cref="CapturedStones"/>.
+    /// Ход проверяется до мутации, поэтому при <see cref="DomainException"/> доска не меняется.
     /// </remarks>
     public void MakeMove(Move move)
     {
@@ -106,20 +111,74 @@ public sealed class Board
             throw new DomainException($"MakeMove принимает только ход Play, получен {move.Type.Name}.");
         }
 
-        EnsureOnBoard(move.Point);
+        var legality = CheckPlay(move);
 
-        var index = IndexOf(move.Point);
-
-        if (_stones[index] != StoneColor.Empty)
+        if (!legality.IsSuccess)
         {
-            throw new DomainException($"Точка {move.Point} уже занята.");
+            throw new DomainException(legality.Error!);
         }
 
+        PlaceStone(move);
+    }
+
+    /// <summary>Проверяет, разрешён ли ход, не меняя доску.</summary>
+    /// <param name="move">Проверяемый ход.</param>
+    /// <returns>Успех, если ход легален; иначе причина отказа на русском языке.</returns>
+    /// <remarks>
+    /// Пас и сдача разрешены всегда (<c>GO_RULES.md</c>, п. 3). Метод не бросает исключений:
+    /// ожидаемый отказ — это <see cref="Result{T}"/>, а не <see cref="DomainException"/>.
+    /// </remarks>
+    public Result<Unit> IsLegal(Move move)
+    {
+        if (move.IsNone)
+        {
+            return Result<Unit>.Fail("Ход не задан.");
+        }
+
+        return move.Type == MoveType.Play
+            ? CheckPlay(move)
+            : Result<Unit>.Ok(Unit.Value);
+    }
+
+    /// <summary>Ставит проверенный камень и снимает группы противника без дамэ.</summary>
+    /// <param name="move">Ход типа <see cref="MoveType.Play"/>, уже проверенный <see cref="IsLegal"/>.</param>
+    private void PlaceStone(Move move)
+    {
         // Результат относится только к последнему ходу: предыдущий список снятых камней не накапливается.
         _lastCapture = CaptureResult.None;
-        _stones[index] = move.Color;
+        _stones[IndexOf(move.Point)] = move.Color;
 
         CaptureAdjacentOpponentGroups(move.Point, move.Color);
+    }
+
+    /// <summary>Проверяет ход постановки камня по правилам, не меняя эту доску.</summary>
+    /// <param name="move">Ход типа <see cref="MoveType.Play"/>.</param>
+    /// <returns>Успех, если ход легален; иначе причина отказа на русском языке.</returns>
+    /// <remarks>
+    /// Самоубийство проверяется на копии доски: чтобы узнать, останутся ли у своей группы дамэ,
+    /// надо сначала снять чужие группы без дамэ, а исходную доску менять нельзя.
+    /// </remarks>
+    private Result<Unit> CheckPlay(Move move)
+    {
+        if (!move.Point.IsOnBoard(Size))
+        {
+            return Result<Unit>.Fail($"Точка {move.Point} находится вне доски {Size}.");
+        }
+
+        if (_stones[IndexOf(move.Point)] != StoneColor.Empty)
+        {
+            return Result<Unit>.Fail($"Точка {move.Point} уже занята.");
+        }
+
+        var probe = Clone();
+        probe.PlaceStone(move);
+        var ownGroup = GroupTracker.FindGroup(probe, move.Point);
+
+        // GO_RULES.md, п. 5: ход разрешён, если у своей группы остались дамэ или если ход снял
+        // хотя бы один камень противника. Второе условие и есть исключение для захвата.
+        return ownGroup.IsCaptured && !probe._lastCapture.HasCaptures
+            ? Result<Unit>.Fail($"Самоубийственный ход: у своей группы в точке {move.Point} не остаётся дамэ.")
+            : Result<Unit>.Ok(Unit.Value);
     }
 
     /// <summary>Снимает группы противника без дамэ, соседние с поставленным камнем.</summary>
