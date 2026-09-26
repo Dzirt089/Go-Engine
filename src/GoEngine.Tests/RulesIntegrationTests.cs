@@ -7,9 +7,8 @@ namespace GoEngine.Tests;
 /// на детерминированной позиции.
 /// </summary>
 /// <remarks>
-/// Позиции 7 (сэки) и 8 (подсчёт) проверяются здесь в объёме фазы 2: сами камни, дамэ и
-/// нейтральные точки. Точный счёт по китайским правилам добавляется вместе со <c>Scorer</c>
-/// в задаче T-007 — до неё подсчитывать нечем.
+/// Позиции 7 (сэки) и 8 (подсчёт) проверяются и по камням, и по точному счёту
+/// (<see cref="Scorer"/>, китайские правила).
 /// </remarks>
 public sealed class RulesIntegrationTests
 {
@@ -98,18 +97,27 @@ public sealed class RulesIntegrationTests
     }
 
     [Fact]
-    public void Позиция_8_Подсчёт_Территории_Доска_Делится_На_Камни_И_Пустые_Точки()
+    public void Позиция_7_Сэки_Счёт_Без_Территории()
     {
-        // GO_RULES.md, 13.8: пустая доска 9×9 после нескольких ходов. Точный подсчёт по китайским
-        // правилам — задача T-007; здесь проверяется основа счёта: доска делится на камни и пустые точки.
+        // GO_RULES.md, 13.7 и п. 9: у обеих сторон только камни, общие дамэ не считаются ни за кого.
+        var score = Scorer.Calculate(TestPositions.Seki(), Komi.For9x9);
+
+        Assert.Equal(new Score(4, 9.5), score);
+    }
+
+    [Fact]
+    public void Позиция_8_Подсчёт_Территории_Точный_Счёт()
+    {
+        // GO_RULES.md, 13.8: четыре камня в открытой позиции, территории нет ни у кого,
+        // у белых только коми 5.5.
         var board = new Board(BoardSize.Size9)
             .ApplyMove(Move.Play(new Point(2, 2), StoneColor.Black))
             .ApplyMove(Move.Play(new Point(6, 6), StoneColor.White))
             .ApplyMove(Move.Play(new Point(2, 6), StoneColor.Black))
             .ApplyMove(Move.Play(new Point(6, 2), StoneColor.White));
 
-        Assert.Equal(BoardSize.Size9.Area, board.OccupiedPoints(StoneColor.Black).Count()
-            + board.OccupiedPoints(StoneColor.White).Count()
-            + board.EmptyPoints().Count());
+        var score = Scorer.Calculate(board, Komi.For9x9);
+
+        Assert.Equal(new Score(2, 7.5), score);
     }
 }
