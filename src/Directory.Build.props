@@ -19,6 +19,9 @@
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
     <Product>Go Engine</Product>
     <Authors>Go Engine</Authors>
+
+    <!-- На сборочном агенте пути в сборке детерминированы (воспроизводимые артефакты). -->
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
 </Project>
