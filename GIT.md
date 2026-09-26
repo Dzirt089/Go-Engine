@@ -14,8 +14,8 @@
 
 ## Последний коммит
 
-- Хеш: `800876d` — `feat(core): T-007 — Scorer по китайским правилам, Score и Komi`
-- Дата (UTC): 2026-09-26T19:12:19Z
+- Хеш: `31ced32` — `feat(core): T-008 — GameState, GameStatus и GameResult`
+- Дата (UTC): 2026-09-26T19:13:28Z
 - Куда запушено: `origin/main`
 
 ## История push
@@ -29,7 +29,8 @@
 | 2026-09-26 | `e74727b` | T-004 feat(core): PositionHash и PositionHistory | ok | — | — |
 | 2026-09-26 | `65164c761fd51c5b45230e71ab31164cce78f438` | T-005 feat(core): позиционное суперко
 | 2026-09-26 | `5f6da30` | T-006 test(core): 8 позиций правил | ok | — | — |
-| 2026-09-26 | `800876d` | T-007 feat(core): Scorer, Score, Komi | ok | — | — | | — | — |
+| 2026-09-26 | `800876d` | T-007 feat(core): Scorer, Score, Komi | ok | — | — |
+| 2026-09-26 | `31ced32` | T-008 feat(core): GameState и правила завершения | ok | — | — | | — | — |
 
 ## Ошибки push
 
