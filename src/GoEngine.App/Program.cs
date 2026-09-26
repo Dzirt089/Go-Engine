@@ -3,7 +3,6 @@ using Avalonia;
 using GoEngine.AI;
 using GoEngine.App.Rendering;
 using GoEngine.App.Services;
-using GoEngine.Core.Sgf;
 using GoEngine.App.ViewModels;
 using GoEngine.Core;
 using SkiaSharp;

@@ -4,7 +4,6 @@ using System.Runtime.CompilerServices;
 using GoEngine.AI;
 using GoEngine.App.Services;
 using GoEngine.Core;
-using GoEngine.Core.Sgf;
 
 namespace GoEngine.App.ViewModels;
 

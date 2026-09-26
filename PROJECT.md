@@ -91,8 +91,10 @@ src/
 └── GoEngine.App.Tests/        тесты слоя App
 ```
 
-Namespace у файлов один на проект (`GoEngine.Core`, `GoEngine.AI`, `GoEngine.App`): папки делят код
-по предметным областям, но не дробят пространство имён.
+Пространства имён: у `Core` и `AI` — одно на проект (`GoEngine.Core`, `GoEngine.AI`): папки делят код
+по областям, но пространство имён не дробят. У `App` namespace повторяет папку (`GoEngine.App.Views`,
+`GoEngine.App.ViewModels`, …): на них ссылается XAML через `clr-namespace`. Правило закреплено
+тестами `LayerBoundaryTests` (границы слоёв) и `NamespaceConventionTests` (пространства имён).
 
 В `GoEngine.sln` проекты лежат двумя папками решения — `src` и `tests` — и идут по слоям
 (`Core` → `AI` → `AI.Onnx` → `App` → `Tests` → `App.Tests`). Конфигурации — только

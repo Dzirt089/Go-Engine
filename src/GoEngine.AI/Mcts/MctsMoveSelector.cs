@@ -1,4 +1,4 @@
-namespace GoEngine.AI.Mcts;
+namespace GoEngine.AI;
 
 using GoEngine.Core;
 

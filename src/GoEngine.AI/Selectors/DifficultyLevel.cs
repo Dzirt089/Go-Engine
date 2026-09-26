@@ -58,32 +58,32 @@ public sealed class DifficultyLevel : Enumeration
 
     /// <summary>30 кю: случайные ходы без эвристик.</summary>
     public static DifficultyLevel Kyu30 { get; } =
-        new(30, nameof(Kyu30), 30, SelectorKind.Random, 0, null, Mcts.MctsConfig.DefaultUcb1C, FullRandomness, PlayoutConfig.Default);
+        new(30, nameof(Kyu30), 30, SelectorKind.Random, 0, null, MctsConfig.DefaultUcb1C, FullRandomness, PlayoutConfig.Default);
 
     /// <summary>25 кю: эвристики, но больше половины ходов — наугад.</summary>
     public static DifficultyLevel Kyu25 { get; } =
-        new(25, nameof(Kyu25), 25, SelectorKind.Heuristic, 0, null, Mcts.MctsConfig.DefaultUcb1C, 60, PlayoutConfig.Default);
+        new(25, nameof(Kyu25), 25, SelectorKind.Heuristic, 0, null, MctsConfig.DefaultUcb1C, 60, PlayoutConfig.Default);
 
     /// <summary>20 кю: эвристики с небольшим случайным запасом.</summary>
     public static DifficultyLevel Kyu20 { get; } =
-        new(20, nameof(Kyu20), 20, SelectorKind.Heuristic, 0, null, Mcts.MctsConfig.DefaultUcb1C, 15, PlayoutConfig.Default);
+        new(20, nameof(Kyu20), 20, SelectorKind.Heuristic, 0, null, MctsConfig.DefaultUcb1C, 15, PlayoutConfig.Default);
 
     /// <summary>15 кю: короткий поиск с заметной долей случайных ходов; бюджет — по playout'ам,
     /// поэтому замеры на этом уровне воспроизводимы.</summary>
     public static DifficultyLevel Kyu15 { get; } =
-        new(15, nameof(Kyu15), 15, SelectorKind.Mcts, 6, null, Mcts.MctsConfig.DefaultUcb1C, 15, PlayoutConfig.Default);
+        new(15, nameof(Kyu15), 15, SelectorKind.Mcts, 6, null, MctsConfig.DefaultUcb1C, 15, PlayoutConfig.Default);
 
     /// <summary>10 кю: целевой уровень первой версии — секунда на ход.</summary>
     public static DifficultyLevel Kyu10 { get; } =
-        new(10, nameof(Kyu10), 10, SelectorKind.Mcts, 0, TimeSpan.FromMilliseconds(1000), Mcts.MctsConfig.DefaultUcb1C, 8, PlayoutConfig.Default);
+        new(10, nameof(Kyu10), 10, SelectorKind.Mcts, 0, TimeSpan.FromMilliseconds(1000), MctsConfig.DefaultUcb1C, 8, PlayoutConfig.Default);
 
     /// <summary>8 кю: две секунды на ход.</summary>
     public static DifficultyLevel Kyu8 { get; } =
-        new(8, nameof(Kyu8), 8, SelectorKind.Mcts, 0, TimeSpan.FromMilliseconds(2000), Mcts.MctsConfig.DefaultUcb1C, 3, PlayoutConfig.Default);
+        new(8, nameof(Kyu8), 8, SelectorKind.Mcts, 0, TimeSpan.FromMilliseconds(2000), MctsConfig.DefaultUcb1C, 3, PlayoutConfig.Default);
 
     /// <summary>5 кю: самый сильный уровень первой версии — три секунды на ход без случайности.</summary>
     public static DifficultyLevel Kyu5 { get; } =
-        new(5, nameof(Kyu5), 5, SelectorKind.Mcts, 0, TimeSpan.FromMilliseconds(3000), Mcts.MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default);
+        new(5, nameof(Kyu5), 5, SelectorKind.Mcts, 0, TimeSpan.FromMilliseconds(3000), MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default);
 
     /// <summary>Создаёт селектор этого уровня.</summary>
     /// <param name="random">Источник случайности; в тестах — с фиксированным seed.</param>

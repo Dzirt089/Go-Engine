@@ -1,4 +1,4 @@
-namespace GoEngine.Core.Sgf;
+namespace GoEngine.Core;
 
 using GoEngine.Core;
 

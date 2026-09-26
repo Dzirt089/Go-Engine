@@ -1,6 +1,5 @@
 namespace GoEngine.AI;
 
-using GoEngine.AI.Mcts;
 using GoEngine.Core;
 
 /// <summary>Единая точка входа: селектор по уровню сложности.</summary>

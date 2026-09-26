@@ -1,4 +1,4 @@
-namespace GoEngine.AI.Patterns;
+namespace GoEngine.AI;
 
 /// <summary>Веса окрестностей 3×3 для выбора хода в playout'е.</summary>
 /// <remarks>

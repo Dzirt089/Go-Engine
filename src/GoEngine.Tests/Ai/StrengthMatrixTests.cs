@@ -1,5 +1,4 @@
 using GoEngine.AI;
-using GoEngine.AI.Mcts;
 using GoEngine.Core;
 
 namespace GoEngine.Tests;

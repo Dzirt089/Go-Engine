@@ -1,4 +1,4 @@
-namespace GoEngine.AI.Patterns;
+namespace GoEngine.AI;
 
 using GoEngine.Core;
 

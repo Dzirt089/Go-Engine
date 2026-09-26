@@ -1,6 +1,5 @@
 namespace GoEngine.AI;
 
-using GoEngine.AI.Patterns;
 using GoEngine.Core;
 
 /// <summary>Политика игры в playout'ах MCTS: эвристики атари, фигуры и веса окрестностей 3×3.</summary>
