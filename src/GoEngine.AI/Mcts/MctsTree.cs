@@ -11,12 +11,14 @@ using GoEngine.Core;
 public sealed class MctsTree
 {
     private readonly double _ucb1C;
+    private readonly double _raveK;
 
     /// <summary>Создаёт дерево с корнем в текущей позиции партии.</summary>
     /// <param name="board">Позиция, из которой ищется ход.</param>
     /// <param name="toMove">Цвет, который ходит из этой позиции.</param>
     /// <param name="ucb1C">Коэффициент исследования UCB1.</param>
-    public MctsTree(Board board, StoneColor toMove, double ucb1C = MctsConfig.DefaultUcb1C)
+    /// <param name="raveK">Постоянная RAVE; 0 отключает поправку RAVE.</param>
+    public MctsTree(Board board, StoneColor toMove, double ucb1C = MctsConfig.DefaultUcb1C, double raveK = MctsConfig.DefaultRaveK)
     {
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(toMove);
@@ -24,6 +26,7 @@ public sealed class MctsTree
         var rootBoard = board.WithoutHistory();
         Root = new MctsNode(Move.None, null, rootBoard, toMove, LegalMoves.For(rootBoard, toMove));
         _ucb1C = ucb1C;
+        _raveK = raveK;
     }
 
     /// <summary>Корень дерева — позиция, для которой ищется ход.</summary>
@@ -69,16 +72,48 @@ public sealed class MctsTree
     /// <summary>Передаёт результат партии от узла к корню.</summary>
     /// <param name="node">Узел, с которого началась партия.</param>
     /// <param name="winner">Победитель партии.</param>
-    public void Backpropagate(MctsNode node, StoneColor winner)
+    public void Backpropagate(MctsNode node, StoneColor winner) =>
+        Backpropagate(node, winner, []);
+
+    /// <summary>Передаёт результат партии с обновлением статистики RAVE.</summary>
+    /// <param name="node">Узел, с которого началась симуляция.</param>
+    /// <param name="winner">Победитель партии.</param>
+    /// <param name="playedMoves">Ходы симуляции: по ним обновляется статистика «ход сыграл бы и здесь».</param>
+    /// <remarks>
+    /// Обычные посещения обновляются только по пути спуска, а RAVE — у всех детей этого пути,
+    /// чей ход встретился в симуляции: так оценка хода набирает статистику быстрее.
+    /// </remarks>
+    public void Backpropagate(MctsNode node, StoneColor winner, IReadOnlyCollection<Move> playedMoves)
     {
         ArgumentNullException.ThrowIfNull(node);
         ArgumentNullException.ThrowIfNull(winner);
+        ArgumentNullException.ThrowIfNull(playedMoves);
+
+        HashSet<Move> played = [.. playedMoves];
 
         for (var current = node; current is not null; current = current.Parent)
         {
             current.RegisterResult(winner);
+
+            if (_raveK <= 0)
+            {
+                continue;
+            }
+
+            foreach (var child in current.Children)
+            {
+                if (played.Contains(child.Move))
+                {
+                    child.RegisterRaveResult(winner);
+                }
+            }
         }
     }
+
+    /// <summary>Считает оценку ребёнка: UCB1 или UCB1 с поправкой RAVE.</summary>
+    /// <param name="node">Узел-ребёнок.</param>
+    /// <returns>Оценка для выбора.</returns>
+    private double Score(MctsNode node) => node.Ucb1Rave(_ucb1C, _raveK);
 
     /// <summary>Выбирает ребёнка с наибольшей оценкой UCB1.</summary>
     /// <param name="node">Узел, у которого есть дети.</param>
@@ -89,7 +124,7 @@ public sealed class MctsTree
 
         foreach (var child in node.Children)
         {
-            if (child.Ucb1(_ucb1C) > best.Ucb1(_ucb1C))
+            if (Score(child) > Score(best))
             {
                 best = child;
             }

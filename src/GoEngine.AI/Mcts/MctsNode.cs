@@ -54,6 +54,12 @@ public sealed class MctsNode
     /// <summary>Сколько playout'ов из узла выиграл игрок, сделавший <see cref="Move"/>.</summary>
     public double Wins { get; private set; }
 
+    /// <summary>Сколько симуляций видели ход этого узла где угодно (статистика RAVE).</summary>
+    public int RaveVisits { get; private set; }
+
+    /// <summary>Сколько RAVE-симуляций выиграл игрок, сделавший <see cref="Move"/>.</summary>
+    public double RaveWins { get; private set; }
+
     /// <summary>Ходы, которые из этой позиции ещё не пробовали.</summary>
     public IReadOnlyList<Move> UntriedMoves => _untriedMoves.AsReadOnly();
 
@@ -72,6 +78,48 @@ public sealed class MctsNode
         }
 
         return (Wins / Visits) + (c * Math.Sqrt(Math.Log(Parent.Visits) / Visits));
+    }
+
+    /// <summary>Считает вес доверия к статистике RAVE.</summary>
+    /// <param name="raveK">Постоянная RAVE.</param>
+    /// <returns>β от 1 при малом числе посещений до 0 при большом.</returns>
+    /// <remarks>Формула β = √(k / (3n + k)): пока посещений мало, верим RAVE, дальше — обычной статистике.</remarks>
+    public double RaveBeta(double raveK) => Math.Sqrt(raveK / ((3.0 * Visits) + raveK));
+
+    /// <summary>Считает оценку UCB1 с поправкой RAVE.</summary>
+    /// <param name="c">Коэффициент исследования.</param>
+    /// <param name="raveK">Постоянная RAVE; 0 отключает поправку.</param>
+    /// <returns>Оценка узла; у непосещённого узла — бесконечность.</returns>
+    public double Ucb1Rave(double c, double raveK)
+    {
+        if (raveK <= 0 || RaveVisits == 0)
+        {
+            return Ucb1(c);
+        }
+
+        if (Visits == 0 || Parent is null || Parent.Visits == 0)
+        {
+            return double.PositiveInfinity;
+        }
+
+        var beta = RaveBeta(raveK);
+        var own = Wins / Visits;
+        var rave = RaveWins / RaveVisits;
+        var mixed = ((1 - beta) * own) + (beta * rave);
+
+        return mixed + (c * Math.Sqrt(Math.Log(Parent.Visits) / Visits));
+    }
+
+    /// <summary>Учитывает результат симуляции, в которой ход узла игрался где угодно.</summary>
+    /// <param name="winner">Победитель партии.</param>
+    internal void RegisterRaveResult(StoneColor winner)
+    {
+        RaveVisits++;
+
+        if (Move.Color == winner)
+        {
+            RaveWins += 1;
+        }
     }
 
     /// <summary>Забирает очередной неразобранный ход.</summary>

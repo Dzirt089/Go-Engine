@@ -155,7 +155,7 @@ public sealed class MctsMoveSelector : IMoveSelector
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(color);
 
-        var tree = new MctsTree(board, color, _config.Ucb1C);
+        var tree = new MctsTree(board, color, _config.Ucb1C, _config.RaveK);
 
         // Бюджет по времени: сила не зависит от скорости машины. Отсчёт — только через TimeProvider
         // (AGENTS.md, п. 6): DateTime.Now и Stopwatch в AI запрещены.
@@ -171,7 +171,8 @@ public sealed class MctsMoveSelector : IMoveSelector
                 node = tree.Expand(node);
             }
 
-            tree.Backpropagate(node, RunPlayout(node, komi));
+            var (winner, played) = RunPlayout(node, komi);
+            tree.Backpropagate(node, winner, played);
             playouts++;
         }
 
@@ -194,23 +195,25 @@ public sealed class MctsMoveSelector : IMoveSelector
     /// <summary>Играет случайную партию из узла до конца.</summary>
     /// <param name="node">Узел, с которого начинается playout.</param>
     /// <param name="komi">Коми партии.</param>
-    /// <returns>Победитель партии.</returns>
+    /// <returns>Победитель партии и все сыгранные в ней ходы: ходы нужны статистике RAVE.</returns>
     /// <remarks>
     /// Позиция копируется один раз на playout и дальше меняется на месте: <see cref="Board.ApplyMove"/>
     /// создавал бы новую доску на каждом ходу playout'а, а это самый горячий цикл движка.
     /// </remarks>
-    private StoneColor RunPlayout(MctsNode node, Komi komi)
+    private (StoneColor Winner, List<Move> Played) RunPlayout(MctsNode node, Komi komi)
     {
         var board = node.Board.Clone();
         var limit = board.Size.DefaultMoveLimit;
         var toMove = node.ToMove;
         var passes = 0;
         var moves = 0;
+        List<Move> played = [];
 
         // Два паса завершают playout так же, как завершают партию (GO_RULES.md, п. 7).
         while (passes < PassesToFinish && moves < limit)
         {
             var move = _playoutPolicy.SelectMove(board, toMove, _random);
+            played.Add(move);
 
             if (move.Type == MoveType.Pass)
             {
@@ -226,6 +229,6 @@ public sealed class MctsMoveSelector : IMoveSelector
             moves++;
         }
 
-        return Scorer.Calculate(board, komi).Winner;
+        return (Scorer.Calculate(board, komi).Winner, played);
     }
 }

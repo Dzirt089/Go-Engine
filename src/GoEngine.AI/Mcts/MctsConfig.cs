@@ -17,6 +17,9 @@ public readonly record struct MctsConfig
     /// <summary>Коэффициент исследования UCB1 по умолчанию.</summary>
     public const double DefaultUcb1C = 1.41;
 
+    /// <summary>Постоянная RAVE по умолчанию.</summary>
+    public const double DefaultRaveK = 1000;
+
     /// <summary>Создаёт настройки с бюджетом по числу playout'ов.</summary>
     /// <param name="playoutBudget">Сколько playout'ов делает селектор на ход; должно быть положительным.</param>
     /// <param name="ucb1C">Коэффициент исследования UCB1.</param>
@@ -74,6 +77,10 @@ public readonly record struct MctsConfig
 
     /// <summary>Коэффициент исследования UCB1: больше — шире поиск.</summary>
     public double Ucb1C { get; }
+
+    /// <summary>Постоянная RAVE: больше — дольше доверяем статистике всех симуляций, а не пути.</summary>
+    /// <remarks>0 отключает RAVE и возвращает обычный UCB1.</remarks>
+    public double RaveK { get; init; } = DefaultRaveK;
 
     /// <summary>Настройки по умолчанию: 5000 playout'ов, UCB1 = 1.41.</summary>
     public static MctsConfig Default => new(DefaultPlayoutBudget, DefaultUcb1C);
