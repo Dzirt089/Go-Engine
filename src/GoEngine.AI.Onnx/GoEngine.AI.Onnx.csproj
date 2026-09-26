@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Общие свойства — в Directory.Build.props. Слой ONNX ссылается на Core и AI -->
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GoEngine.Core\GoEngine.Core.csproj" />
+    <ProjectReference Include="..\GoEngine.AI\GoEngine.AI.csproj" />
+  </ItemGroup>
+
+</Project>

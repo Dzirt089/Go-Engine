@@ -23,7 +23,8 @@ MCTS с чистыми случайными playout'ами не даёт зая�
 GoEngine.Core       ← ничего, кроме System.*
 GoEngine.AI         ← только Core
 GoEngine.App        ← Core, AI, Avalonia, SkiaSharp
-GoEngine.Tests      ← Core, AI, xUnit
+GoEngine.AI.Onnx    ← Core, AI, ONNX Runtime (v2)
+GoEngine.Tests      ← Core, AI, AI.Onnx, xUnit
 ```
 
 Строгое правило: **слой не может ссылаться на слой выше себя**.
@@ -33,7 +34,8 @@ GoEngine.Tests      ← Core, AI, xUnit
 | `Core` | `System.*` | Avalonia, AI, IO, БД |
 | `AI` | `Core`, `System.*` | Avalonia, IO, БД |
 | `App` | `Core`, `AI`, Avalonia, SkiaSharp | — |
-| `Tests` | `Core`, `AI`, xUnit | `App` |
+| `AI.Onnx` | `Core`, `AI`, ONNX Runtime | Avalonia, IO, БД |
+| `Tests` | `Core`, `AI`, `AI.Onnx`, xUnit | `App` |
 
 ## Технологический стек
 
@@ -43,6 +45,7 @@ GoEngine.Tests      ← Core, AI, xUnit
 - SkiaSharp
 - xUnit + Moq для тестов
 - Microsoft.Extensions.TimeProvider.Testing — `FakeTimeProvider` в тестах AI (только тесты)
+- Microsoft.ML.OnnxRuntime — нейросетевая оценка v2 (проект `GoEngine.AI.Onnx`)
 - `System.CommandLine` — не используется
 - Внешние пакеты — минимальны, только необходимые
 
@@ -80,6 +83,7 @@ src/
 │   ├── Services/              настройки и файлы партий
 │   ├── ViewModels/            состояние партии для окна
 │   └── Views/                 окна и диалоги
+├── GoEngine.AI.Onnx/          нейросеть v2: ONNX Runtime и признаки KataGo
 ├── GoEngine.Tests/            тесты Core и AI (папки повторяют области)
 └── GoEngine.App.Tests/        тесты слоя App
 ```

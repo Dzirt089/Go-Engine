@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoEngine.App", "GoEngine.Ap
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoEngine.App.Tests", "GoEngine.App.Tests\GoEngine.App.Tests.csproj", "{C9FA6BC3-DE98-460B-82C8-1D44A5D0E44C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoEngine.AI.Onnx", "GoEngine.AI.Onnx\GoEngine.AI.Onnx.csproj", "{6496F9AC-040B-4852-B7AC-77660E33730C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -83,6 +85,18 @@ Global
 		{C9FA6BC3-DE98-460B-82C8-1D44A5D0E44C}.Release|x64.Build.0 = Release|Any CPU
 		{C9FA6BC3-DE98-460B-82C8-1D44A5D0E44C}.Release|x86.ActiveCfg = Release|Any CPU
 		{C9FA6BC3-DE98-460B-82C8-1D44A5D0E44C}.Release|x86.Build.0 = Release|Any CPU
+		{6496F9AC-040B-4852-B7AC-77660E33730C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6496F9AC-040B-4852-B7AC-77660E33730C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6496F9AC-040B-4852-B7AC-77660E33730C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6496F9AC-040B-4852-B7AC-77660E33730C}.Debug|x64.Build.0 = Debug|Any CPU
+		{6496F9AC-040B-4852-B7AC-77660E33730C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6496F9AC-040B-4852-B7AC-77660E33730C}.Debug|x86.Build.0 = Debug|Any CPU
+		{6496F9AC-040B-4852-B7AC-77660E33730C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6496F9AC-040B-4852-B7AC-77660E33730C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6496F9AC-040B-4852-B7AC-77660E33730C}.Release|x64.ActiveCfg = Release|Any CPU
+		{6496F9AC-040B-4852-B7AC-77660E33730C}.Release|x64.Build.0 = Release|Any CPU
+		{6496F9AC-040B-4852-B7AC-77660E33730C}.Release|x86.ActiveCfg = Release|Any CPU
+		{6496F9AC-040B-4852-B7AC-77660E33730C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
