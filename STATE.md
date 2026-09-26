@@ -9,16 +9,16 @@
 
 ## Текущая задача
 
-**T-007. `Core.Scorer`** (китайские правила) — завершена
+**T-008. `Core.GameState`** — завершена
 
 ## Статус
 
-`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (182 теста),
+`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (215 тестов),
 коммит и push в `origin/main` выполнены.
 
 ## Следующая задача
 
-**T-008. `Core.GameState`** — `next`
+**T-009. `Core.Result`** — `next`
 
 ## Дата начала фазы
 
@@ -26,7 +26,7 @@
 
 ## Последнее обновление
 
-2026-09-26T19:12:19Z
+2026-09-26T19:13:28Z
 
 ## Что сделано
 
@@ -56,10 +56,15 @@
       `Score` (`Winner`, `Margin`), `Scorer.Calculate(Board, Komi)` — китайские правила:
       камни + пустые области, окружённые одним цветом; нейтральные не считаются ни за кого
 - [x] **T-007.** Позиции 7 и 8 в `RulesIntegrationTests` теперь проверяют и точный счёт
+- [x] **T-008.** `GameStatus` (`InProgress`, `FinishedByTwoPasses`, `FinishedByResign`,
+      `FinishedByMoveLimit`, `IsFinished`), `GameResult` (статус, счёт, победитель, причина)
+- [x] **T-008.** `GameState.NewGame` (лимит по умолчанию `BoardSize.DefaultMoveLimit` = 2 × площадь,
+      начальная позиция сразу в истории), `Play` → `Result<MoveResult>`, `Finish` → `Result<GameResult>`;
+      завершение двумя пасами, сдачей и по лимиту ходов
 
 ## Что осталось
 
-- [ ] `Core.GameState` — T-008, `Result` — T-009
+- [ ] `Core.Result` — T-009 (типы уже есть, нужны тесты и проверка публичного API)
 - [ ] `MoveGenerator` (базовый) — отдельной задачи в `PLAN.md` нет, хотя генератор ходов
       указан в deliverable фазы 1
 
@@ -86,6 +91,7 @@
 | 2026-09-26 | T-005 | `KoRule` (суперко), `Board.PreviewMove`, история пополняется ходом; 154 теста |
 | 2026-09-26 | T-006 | 8 позиций `GO_RULES.md` п. 13 в `RulesIntegrationTests`; 162 теста; фаза 2 закрыта |
 | 2026-09-26 | T-007 | `Komi`, `Score`, `Scorer` (китайские правила); 182 теста |
+| 2026-09-26 | T-008 | `GameStatus`, `GameResult`, `GameState`; `BoardSize.DefaultMoveLimit`; 215 тестов |
 
 ## Журнал сессии
 
@@ -97,7 +103,8 @@
 | 2026-09-26T19:14:00Z | T-004 | done | PositionHash (Zobrist, SplitMix64), PositionHistory, Board.History/WithHistory; 139 тестов |
 | 2026-09-26T19:30:00Z | T-005 | done | KoRule (суперко), PreviewMove, история пополняется после хода; 154 теста |
 | 2026-09-26T19:12:19Z | T-006 | done | 8 позиций правил из GO_RULES п. 13; 162 теста; фаза 2 закрыта, открыта фаза 3 |
-| 2026-09-26T19:12:19Z | T-007 | done | Komi, Score, Scorer (китайские правила), точный счёт позиций 7–8; 182 теста |
+| 2026-09-26T19:13:28Z | T-007 | done | Komi, Score, Scorer (китайские правила), точный счёт позиций 7–8; 182 теста |
+| 2026-09-26T19:13:28Z | T-008 | done | GameStatus, GameResult, GameState (пас, сдача, лимит ходов, счёт); 215 тестов |
 
 ## Заметки для следующей сессии
 
@@ -112,7 +119,10 @@
   `Board` этого не делает, поэтому суперко не мешает первому ходу.
 - `Scorer.Calculate` считает очки по площади: камни + пустые области, граничащие только с одним
   цветом. Область, граничащая с обоими цветами, нейтральна — так же ведёт себя сэки.
-- Дальше: `GameState` (T-008) и `Result`/`GameResult` (T-009).
+- `GameState.Play` сам проверяет: партия идёт, ход не пустой, цвет совпадает с `ToMove`,
+  ход легален. При отказе партия не меняется вообще.
+- Дальше: `Result`/`Result<T>` уже используются (`Board.IsLegal`, `GameState.Play`, `GameState.Finish`),
+  T-009 закрывает их тестами и DoD.
 - Папки `samples/` в репозитории нет: стиль брался из `AGENTS.md` и `AGENTS_GO.md`.
 - .NET 8 SDK не установлен (SDK 10.0.400 и runtime 8.0.30): сборка `net8.0` проходит,
   targeting pack подтягивается из nuget.org. Для офлайн-сборки поставить .NET 8 SDK.

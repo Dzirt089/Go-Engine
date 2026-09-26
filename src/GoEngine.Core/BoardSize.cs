@@ -46,6 +46,10 @@ public readonly record struct BoardSize
     /// <summary>Количество точек на доске.</summary>
     public int Area => Value * Value;
 
+    /// <summary>Лимит ходов партии по умолчанию: два хода на каждую точку доски.</summary>
+    /// <remarks>Для доски 9×9 это 162 хода — ограничение из <c>GO_RULES.md</c>, п. 8 для партий AI.</remarks>
+    public int DefaultMoveLimit => 2 * Area;
+
     /// <summary>Возвращает размер в виде «9×9».</summary>
     /// <returns>Сторона доски, повторённая дважды через знак умножения.</returns>
     public override string ToString() => $"{Value}×{Value}";
