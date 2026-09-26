@@ -1,0 +1,13 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:GoEngine.App.Controls"
+        x:Class="GoEngine.App.MainWindow"
+        Title="Go Engine"
+        Width="800"
+        Height="600"
+        MinWidth="480"
+        MinHeight="360">
+
+  <controls:BoardControl x:Name="Board" />
+
+</Window>
