@@ -1,25 +1,28 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using GoEngine.App.Controls;
+using GoEngine.App.ViewModels;
 using GoEngine.Core;
 
 namespace GoEngine.App;
 
 /// <summary>Главное окно партии.</summary>
 /// <remarks>
-/// Окно ведёт партию: щелчок по доске превращается в ход, партия проверяет его по правилам
-/// и возвращает новую позицию. Пока играют двое за одним столом — уровень AI и настройки
-/// появятся в T-024, панель статуса — в T-023.
+/// Окно связывает доску с моделью представления: щелчок по доске превращается в ход,
+/// который проверяет партия в <c>Core</c>. Пока играют двое за одним столом — уровень AI
+/// и настройки появятся в T-024.
 /// </remarks>
 public sealed partial class MainWindow : Window
 {
     private readonly BoardControl? _boardControl;
-    private GameState _game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
 
-    /// <summary>Создаёт окно партии и показывает пустую доску.</summary>
+    /// <summary>Создаёт окно партии и показывает пустую доску 9×9.</summary>
     public MainWindow()
     {
         AvaloniaXamlLoader.Load(this);
+
+        ViewModel = new MainViewModel(GameState.NewGame(BoardSize.Size9, Komi.For9x9));
+        DataContext = ViewModel;
 
         _boardControl = this.FindControl<BoardControl>("Board");
 
@@ -27,34 +30,13 @@ public sealed partial class MainWindow : Window
         {
             _boardControl.MoveRequested += OnMoveRequested;
         }
-
-        ShowPosition();
     }
 
-    /// <summary>Обрабатывает щелчок по доске: играет ход, если правила его разрешают.</summary>
+    /// <summary>Модель представления окна.</summary>
+    public MainViewModel ViewModel { get; }
+
+    /// <summary>Обрабатывает щелчок по доске.</summary>
     /// <param name="sender">Доска.</param>
     /// <param name="e">Точка хода.</param>
-    private void OnMoveRequested(object? sender, MoveRequestedEventArgs e)
-    {
-        var played = _game.Play(Move.Play(e.Point, _game.ToMove));
-
-        if (played.IsSuccess)
-        {
-            ShowPosition();
-        }
-    }
-
-    /// <summary>Показывает текущую позицию и последний ход.</summary>
-    private void ShowPosition()
-    {
-        if (_boardControl is null)
-        {
-            return;
-        }
-
-        var last = _game.Moves.LastOrDefault(move => move.Type == MoveType.Play);
-
-        _boardControl.Board = _game.Board;
-        _boardControl.LastMove = last.IsNone ? null : last.Point;
-    }
+    private void OnMoveRequested(object? sender, MoveRequestedEventArgs e) => ViewModel.PlayMove(e.Point);
 }

@@ -1,13 +1,42 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:GoEngine.App.Controls"
+        xmlns:vm="clr-namespace:GoEngine.App.ViewModels"
         x:Class="GoEngine.App.MainWindow"
+        x:DataType="vm:MainViewModel"
         Title="Go Engine"
-        Width="800"
-        Height="600"
-        MinWidth="480"
-        MinHeight="360">
+        Width="900"
+        Height="640"
+        MinWidth="560"
+        MinHeight="420">
 
-  <controls:BoardControl x:Name="Board" />
+  <Grid ColumnDefinitions="*,260">
+
+    <controls:BoardControl x:Name="Board"
+                           Grid.Column="0"
+                           Board="{Binding Board}"
+                           LastMove="{Binding LastMove}" />
+
+    <Border Grid.Column="1"
+            Background="#F2EFE9"
+            BorderBrush="#D8D2C6"
+            BorderThickness="1,0,0,0"
+            Padding="14">
+      <StackPanel Spacing="6">
+
+        <TextBlock Text="Партия" FontSize="18" FontWeight="SemiBold" />
+
+        <TextBlock Text="{Binding Status, StringFormat='Статус: {0}'}" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding ToMove, StringFormat='Ход: {0}'}" />
+        <TextBlock Text="{Binding MoveNumber, StringFormat='Номер хода: {0}'}" />
+        <TextBlock Text="{Binding Komi, StringFormat='Коми: {0}'}" />
+
+        <TextBlock Text="Счёт" FontSize="16" FontWeight="SemiBold" Margin="0,10,0,0" />
+        <TextBlock Text="{Binding Score}" TextWrapping="Wrap" />
+
+      </StackPanel>
+    </Border>
+
+  </Grid>
 
 </Window>

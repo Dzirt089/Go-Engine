@@ -1,5 +1,6 @@
 using Avalonia;
 using GoEngine.App.Rendering;
+using GoEngine.App.ViewModels;
 using GoEngine.Core;
 using SkiaSharp;
 using GoPoint = GoEngine.Core.Point;
@@ -17,6 +18,9 @@ internal static class Program
 
     /// <summary>Аргумент проверки попадания щелчка в точку доски.</summary>
     private const string CheckArgument = "--check";
+
+    /// <summary>Аргумент проверки данных панели статуса.</summary>
+    private const string StateArgument = "--state";
 
     /// <summary>Ширина проверочного рендера в пикселях.</summary>
     private const int RenderWidth = 600;
@@ -42,6 +46,12 @@ internal static class Program
             // Проверка ввода без окна: попадание щелчка в точку доски считается той же
             // геометрией, что и на экране.
             return CheckPointMapping();
+        }
+
+        if (args.Contains(StateArgument))
+        {
+            // Проверка панели статуса без окна: модель представления показывает данные партии.
+            return CheckViewModel();
         }
 
         if (args is [RenderArgument, var path, ..])
@@ -92,6 +102,47 @@ internal static class Program
             : $"Go Engine: ошибок попадания — {failures}.");
 
         return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>Проверяет, что панель статуса получает данные партии.</summary>
+    /// <returns>0, если все проверки прошли; иначе 1.</returns>
+    private static int CheckViewModel()
+    {
+        var model = new MainViewModel(GameState.NewGame(BoardSize.Size9, Komi.For9x9));
+        var failures = 0;
+
+        failures += Expect(model.ToMove == "Чёрные", "первыми ходят чёрные");
+        failures += Expect(model.MoveNumber == "0", "номер хода в начале равен нулю");
+        failures += Expect(model.Status == "Идёт", "партия идёт");
+        failures += Expect(model.LastMove is null, "последнего хода ещё нет");
+        failures += Expect(model.PlayMove(new GoPoint(4, 4)), "ход в центр принят");
+        failures += Expect(model.ToMove == "Белые", "после хода ходят белые");
+        failures += Expect(model.MoveNumber == "1", "номер хода стал единицей");
+        failures += Expect(model.LastMove == new GoPoint(4, 4), "последний ход виден");
+        failures += Expect(!model.PlayMove(new GoPoint(4, 4)), "ход в занятую точку отклонён");
+        failures += Expect(model.Score.Contains("Чёрные", StringComparison.Ordinal), "счёт посчитан");
+        failures += Expect(model.Board.At(new GoPoint(4, 4)) == StoneColor.Black, "камень стоит на доске");
+
+        Console.WriteLine(failures == 0
+            ? "Go Engine: панель статуса получает данные партии."
+            : $"Go Engine: ошибок панели статуса — {failures}.");
+
+        return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>Проверяет условие и сообщает о нарушении.</summary>
+    /// <param name="condition">Условие проверки.</param>
+    /// <param name="description">Что проверялось.</param>
+    /// <returns>0, если условие выполнено; иначе 1.</returns>
+    private static int Expect(bool condition, string description)
+    {
+        if (!condition)
+        {
+            Console.WriteLine($"не выполнено: {description}");
+            return 1;
+        }
+
+        return 0;
     }
 
     /// <summary>Рисует проверочную позицию в PNG-файл.</summary>
