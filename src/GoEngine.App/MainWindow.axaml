@@ -50,6 +50,11 @@
           <TextBlock Text="Счёт" FontSize="16" FontWeight="SemiBold" Margin="0,10,0,0" />
           <TextBlock Text="{Binding Score}" TextWrapping="Wrap" />
 
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+            <Button x:Name="UndoButton" Content="Отменить" />
+            <Button x:Name="RedoButton" Content="Вернуть" />
+          </StackPanel>
+
         </StackPanel>
       </Border>
 

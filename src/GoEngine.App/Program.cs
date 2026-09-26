@@ -222,6 +222,15 @@ internal static class Program
         failures += Expect(model.Score.Contains("Чёрные", StringComparison.Ordinal), "счёт посчитан");
         failures += Expect(model.Board.At(new GoPoint(4, 4)) == StoneColor.Black, "камень стоит на доске");
 
+        // Отмена убирает ход игрока вместе с ответом AI, возврат — восстанавливает.
+        failures += Expect(model.Undo(), "ход отменён");
+        failures += Expect(model.MoveNumber == "0", "после отмены ходов нет");
+        failures += Expect(model.Board.At(new GoPoint(4, 4)) == StoneColor.Empty, "доска очищена");
+        failures += Expect(model.Redo(), "ход возвращён");
+        failures += Expect(model.MoveNumber == "2", "после возврата ходов снова два");
+        failures += Expect(model.Board.At(new GoPoint(4, 4)) == StoneColor.Black, "камень снова на доске");
+        failures += Expect(!model.Undo() || !model.Undo(), "повторная отмена не ломает партию");
+
         // Игрок белыми: AI обязан открыть партию своим ходом.
         var asWhite = AppSettings.From(BoardSize.Size9, DifficultyLevel.Kyu20, StoneColor.White, Komi.For9x9);
         var whiteModel = new MainViewModel(asWhite, new Random(SeedForChecks));

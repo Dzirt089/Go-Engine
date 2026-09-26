@@ -42,6 +42,18 @@ public sealed class PositionHistory
         return _hashes.Contains(PositionHash.From(board));
     }
 
+    /// <summary>Создаёт независимую копию истории.</summary>
+    /// <returns>Копия, изменения которой не затрагивают исходную историю.</returns>
+    /// <remarks>Нужна откату ходов: вместе с позицией восстанавливается и история суперко.</remarks>
+    public PositionHistory CreateCopy()
+    {
+        var copy = new PositionHistory();
+
+        copy._hashes.UnionWith(_hashes);
+
+        return copy;
+    }
+
     /// <summary>Проверяет, встречался ли такой хеш позиции.</summary>
     /// <param name="hash">Хеш позиции.</param>
     /// <returns><c>true</c>, если позиция с таким хешем уже была.</returns>

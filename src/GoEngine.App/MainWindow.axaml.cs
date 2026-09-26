@@ -50,6 +50,8 @@ public sealed partial class MainWindow : Window
         Wire("SaveGameItem", OnSaveGameClick);
         Wire("LoadGameItem", OnLoadGameClick);
         Wire("ExitItem", OnExitClick);
+        WireButton("UndoButton", OnUndoClick);
+        WireButton("RedoButton", OnRedoClick);
     }
 
     /// <summary>Модель представления окна.</summary>
@@ -65,6 +67,27 @@ public sealed partial class MainWindow : Window
             item.Click += handler;
         }
     }
+
+    /// <summary>Подписывает кнопку на обработчик.</summary>
+    /// <param name="name">Имя кнопки.</param>
+    /// <param name="handler">Обработчик нажатия.</param>
+    private void WireButton(string name, EventHandler<RoutedEventArgs> handler)
+    {
+        if (this.FindControl<Button>(name) is { } button)
+        {
+            button.Click += handler;
+        }
+    }
+
+    /// <summary>Отменяет последний ход игрока вместе с ответом AI.</summary>
+    /// <param name="sender">Кнопка «Отменить».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnUndoClick(object? sender, RoutedEventArgs e) => ViewModel.Undo();
+
+    /// <summary>Возвращает отменённый ход.</summary>
+    /// <param name="sender">Кнопка «Вернуть».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnRedoClick(object? sender, RoutedEventArgs e) => ViewModel.Redo();
 
     /// <summary>Обрабатывает щелчок по доске.</summary>
     /// <param name="sender">Доска.</param>

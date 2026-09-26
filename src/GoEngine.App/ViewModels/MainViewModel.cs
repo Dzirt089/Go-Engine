@@ -96,6 +96,53 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return true;
     }
 
+    /// <summary>Отменяет ход игрока вместе с ответом AI.</summary>
+    /// <returns><c>true</c>, если ход отменён.</returns>
+    public bool Undo()
+    {
+        if (!_game.CanUndo)
+        {
+            return false;
+        }
+
+        var playerColor = _settings.ToPlayerColor();
+
+        _ = _game.Undo();
+
+        // Ответ AI отменяется вместе с ходом игрока: после отката снова ход игрока.
+        while (_game.CanUndo && _game.ToMove != playerColor)
+        {
+            _ = _game.Undo();
+        }
+
+        NotifyAll();
+
+        return true;
+    }
+
+    /// <summary>Возвращает отменённый ход вместе с ответом AI.</summary>
+    /// <returns><c>true</c>, если ход возвращён.</returns>
+    public bool Redo()
+    {
+        if (!_game.CanRedo)
+        {
+            return false;
+        }
+
+        var playerColor = _settings.ToPlayerColor();
+
+        _ = _game.Redo();
+
+        while (_game.CanRedo && _game.ToMove != playerColor)
+        {
+            _ = _game.Redo();
+        }
+
+        NotifyAll();
+
+        return true;
+    }
+
     /// <summary>Возвращает партию для сохранения в SGF.</summary>
     /// <returns>Данные партии: размер доски, коми и ходы.</returns>
     public SgfGame ToSgfGame() => new(_game.Board.Size, _game.Komi, _game.Moves, null);
