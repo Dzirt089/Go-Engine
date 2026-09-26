@@ -1,0 +1,27 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+*.DotSettings.user
+
+# Build outputs
+publish/
+artifacts/
+
+# Secrets
+.env
+.env.*
+*.pfx
+*.snk
+secrets.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test results
+TestResults/
+*.trx
