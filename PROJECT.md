@@ -82,6 +82,7 @@ src/
 │   └── SelfPlay/              партия AI против AI
 ├── GoEngine.App/              интерфейс: Avalonia + SkiaSharp
 │   ├── Controls/              элемент доски
+│   ├── Diagnostics/           проверочные режимы и аргументы командной строки
 │   ├── Rendering/             рендерер Skia, геометрия, анимация
 │   ├── Services/              настройки и файлы партий
 │   ├── ViewModels/            состояние партии для окна
