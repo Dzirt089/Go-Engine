@@ -1,27 +1,39 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using GoEngine.AI;
+using GoEngine.App.Services;
 using GoEngine.Core;
 
 namespace GoEngine.App.ViewModels;
 
-/// <summary>Состояние партии для окна: кто ходит, номер хода, коми, счёт и статус.</summary>
+/// <summary>Состояние партии для окна: доска, панель статуса и ход AI.</summary>
 /// <remarks>
 /// Модель представления ничего не рисует и не знает про Avalonia: она показывает данные
-/// <see cref="GameState"/> строками для панели статуса. Все правила (легальность хода,
-/// завершение партии, подсчёт) выполняет <c>Core</c>.
+/// <see cref="GameState"/> строками и играет за AI. Все правила (легальность хода, завершение
+/// партии, подсчёт) выполняет <c>Core</c>, выбор хода — <c>AI</c>.
+/// Ход AI считается синхронно: на слабых уровнях это доли миллисекунды, на сильных окно
+/// на время поиска не отвечает — вынос в фон запланирован на полировку (T-030).
 /// </remarks>
 public sealed class MainViewModel : INotifyPropertyChanged
 {
+    private readonly Random _random;
     private GameState _game;
+    private AppSettings _settings;
 
-    /// <summary>Создаёт модель представления для партии.</summary>
-    /// <param name="game">Партия.</param>
-    public MainViewModel(GameState game)
+    /// <summary>Создаёт модель представления по настройкам.</summary>
+    /// <param name="settings">Настройки партии.</param>
+    /// <param name="random">Источник случайности для AI; в тестах — с фиксированным seed.</param>
+    public MainViewModel(AppSettings settings, Random random)
     {
-        ArgumentNullException.ThrowIfNull(game);
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(random);
 
-        _game = game;
+        _settings = settings;
+        _random = random;
+        _game = CreateGame(settings);
+
+        ShowAiMoveIfNeeded();
     }
 
     /// <inheritdoc />
@@ -62,32 +74,74 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _ => "Идёт"
     };
 
-    /// <summary>Играет ход, если правила его разрешают.</summary>
+    /// <summary>Уровень AI словами.</summary>
+    public string Level => $"{_settings.ToDifficultyLevel().RankKyu} кю";
+
+    /// <summary>Цвет игрока словами.</summary>
+    public string PlayerColor => _settings.ToPlayerColor() == StoneColor.Black ? "Чёрные" : "Белые";
+
+    /// <summary>Играет ход игрока, затем ход AI, если очередь за ним.</summary>
     /// <param name="point">Точка хода.</param>
     /// <returns><c>true</c>, если ход принят.</returns>
     public bool PlayMove(Point point)
     {
-        var played = _game.Play(Move.Play(point, _game.ToMove));
-
-        if (!played.IsSuccess)
+        if (!TryPlay(Move.Play(point, _game.ToMove)))
         {
             return false;
         }
 
-        NotifyAll();
+        ShowAiMoveIfNeeded();
 
         return true;
     }
 
-    /// <summary>Начинает новую партию.</summary>
-    /// <param name="size">Размер доски.</param>
-    /// <param name="komi">Коми партии.</param>
-    public void StartNewGame(BoardSize size, Komi komi)
+    /// <summary>Начинает новую партию по текущим настройкам.</summary>
+    public void StartNewGame() => ApplySettings(_settings);
+
+    /// <summary>Применяет настройки и начинает новую партию.</summary>
+    /// <param name="settings">Новые настройки партии.</param>
+    public void ApplySettings(AppSettings settings)
     {
-        _game = GameState.NewGame(size, komi);
+        ArgumentNullException.ThrowIfNull(settings);
+
+        _settings = settings;
+        _game = CreateGame(settings);
+
+        ShowAiMoveIfNeeded();
+        NotifyAll();
+    }
+
+    /// <summary>Создаёт партию по настройкам.</summary>
+    /// <param name="settings">Настройки партии.</param>
+    /// <returns>Новая партия.</returns>
+    private static GameState CreateGame(AppSettings settings) =>
+        GameState.NewGame(settings.ToBoardSize(), settings.ToKomi());
+
+    /// <summary>Играет ход AI, пока очередь за ним.</summary>
+    private void ShowAiMoveIfNeeded()
+    {
+        var playerColor = _settings.ToPlayerColor();
+        var level = _settings.ToDifficultyLevel();
+
+        while (_game.Status == GameStatus.InProgress && _game.ToMove != playerColor)
+        {
+            var selector = AiFactory.Create(level, _random);
+
+            if (!TryPlay(selector.SelectMove(_game)))
+            {
+                // Селектор обязан возвращать легальный ход: если партия его не приняла,
+                // играть дальше нельзя — состояние партии остаётся как есть.
+                break;
+            }
+        }
 
         NotifyAll();
     }
+
+    /// <summary>Играет ход в партии.</summary>
+    /// <param name="move">Ход.</param>
+    /// <returns><c>true</c>, если правила его приняли.</returns>
+    private bool TryPlay(Move move) => _game.Play(move).IsSuccess;
 
     /// <summary>Сообщает об изменении всех свойств партии.</summary>
     /// <remarks>Свойства выводятся из одной партии, поэтому после хода меняются все сразу.</remarks>
@@ -101,7 +155,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(MoveNumber),
             nameof(Komi),
             nameof(Score),
-            nameof(Status)
+            nameof(Status),
+            nameof(Level),
+            nameof(PlayerColor)
         })
         {
             OnPropertyChanged(name);

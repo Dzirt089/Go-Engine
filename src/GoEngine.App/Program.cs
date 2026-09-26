@@ -1,5 +1,7 @@
 using Avalonia;
+using GoEngine.AI;
 using GoEngine.App.Rendering;
+using GoEngine.App.Services;
 using GoEngine.App.ViewModels;
 using GoEngine.Core;
 using SkiaSharp;
@@ -18,6 +20,12 @@ internal static class Program
 
     /// <summary>Аргумент проверки попадания щелчка в точку доски.</summary>
     private const string CheckArgument = "--check";
+
+    /// <summary>Зерно проверок: они должны повторяться от запуска к запуску.</summary>
+    private const int SeedForChecks = 20260926;
+
+    /// <summary>Аргумент проверки записи и чтения настроек.</summary>
+    private const string SettingsArgument = "--settings";
 
     /// <summary>Аргумент проверки данных панели статуса.</summary>
     private const string StateArgument = "--state";
@@ -46,6 +54,12 @@ internal static class Program
             // Проверка ввода без окна: попадание щелчка в точку доски считается той же
             // геометрией, что и на экране.
             return CheckPointMapping();
+        }
+
+        if (args.Contains(SettingsArgument))
+        {
+            // Проверка настроек без окна: запись в файл и чтение обратно.
+            return CheckSettings();
         }
 
         if (args.Contains(StateArgument))
@@ -104,24 +118,72 @@ internal static class Program
         return failures == 0 ? 0 : 1;
     }
 
+    /// <summary>Проверяет запись и чтение настроек партии.</summary>
+    /// <returns>0, если настройки сохраняются и читаются; иначе 1.</returns>
+    private static int CheckSettings()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"go-engine-settings-{Guid.NewGuid():N}.json");
+        var failures = 0;
+
+        try
+        {
+            var settings = AppSettings.From(BoardSize.Size13, DifficultyLevel.Kyu10, StoneColor.White, new Komi(5.5));
+            failures += Expect(SettingsStore.Save(settings, path).IsSuccess, "настройки записаны");
+
+            var loaded = SettingsStore.Load(path);
+            failures += Expect(loaded.ToBoardSize() == BoardSize.Size13, "размер доски прочитан");
+            failures += Expect(loaded.ToDifficultyLevel() == DifficultyLevel.Kyu10, "уровень AI прочитан");
+            failures += Expect(loaded.ToPlayerColor() == StoneColor.White, "цвет игрока прочитан");
+            failures += Expect(Math.Abs(loaded.ToKomi().Value - 5.5) < 0.001, "коми прочитано");
+
+            failures += Expect(SettingsStore.Load(path + ".missing") is not null, "отсутствующий файл даёт настройки по умолчанию");
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+
+        Console.WriteLine(failures == 0
+            ? "Go Engine: настройки сохраняются и читаются."
+            : $"Go Engine: ошибок настроек — {failures}.");
+
+        return failures == 0 ? 0 : 1;
+    }
+
     /// <summary>Проверяет, что панель статуса получает данные партии.</summary>
     /// <returns>0, если все проверки прошли; иначе 1.</returns>
     private static int CheckViewModel()
     {
-        var model = new MainViewModel(GameState.NewGame(BoardSize.Size9, Komi.For9x9));
+        var model = new MainViewModel(AppSettings.Default, new Random(SeedForChecks));
         var failures = 0;
 
-        failures += Expect(model.ToMove == "Чёрные", "первыми ходят чёрные");
+        failures += Expect(model.ToMove == "Чёрные", "игрок чёрными ходит первым");
         failures += Expect(model.MoveNumber == "0", "номер хода в начале равен нулю");
         failures += Expect(model.Status == "Идёт", "партия идёт");
         failures += Expect(model.LastMove is null, "последнего хода ещё нет");
-        failures += Expect(model.PlayMove(new GoPoint(4, 4)), "ход в центр принят");
-        failures += Expect(model.ToMove == "Белые", "после хода ходят белые");
-        failures += Expect(model.MoveNumber == "1", "номер хода стал единицей");
-        failures += Expect(model.LastMove == new GoPoint(4, 4), "последний ход виден");
+        failures += Expect(model.Level == "20 кю", "уровень AI из настроек");
+
+        failures += Expect(model.PlayMove(new GoPoint(4, 4)), "ход игрока принят");
+        failures += Expect(model.MoveNumber == "2", "AI ответил своим ходом");
+        failures += Expect(model.ToMove == "Чёрные", "после ответа AI снова ход игрока");
+        failures += Expect(model.LastMove is not null, "последний ход виден");
         failures += Expect(!model.PlayMove(new GoPoint(4, 4)), "ход в занятую точку отклонён");
         failures += Expect(model.Score.Contains("Чёрные", StringComparison.Ordinal), "счёт посчитан");
         failures += Expect(model.Board.At(new GoPoint(4, 4)) == StoneColor.Black, "камень стоит на доске");
+
+        // Игрок белыми: AI обязан открыть партию своим ходом.
+        var asWhite = AppSettings.From(BoardSize.Size9, DifficultyLevel.Kyu20, StoneColor.White, Komi.For9x9);
+        var whiteModel = new MainViewModel(asWhite, new Random(SeedForChecks));
+        failures += Expect(whiteModel.MoveNumber == "1", "AI открыл партию за чёрных");
+
+        // Смена настроек начинает новую партию с другим размером доски.
+        var on13 = AppSettings.From(BoardSize.Size13, DifficultyLevel.Kyu30, StoneColor.Black, Komi.For13x13);
+        model.ApplySettings(on13);
+        failures += Expect(model.Board.Size == BoardSize.Size13, "доска стала 13×13");
+        failures += Expect(model.MoveNumber == "0", "новая партия начата с нуля");
 
         Console.WriteLine(failures == 0
             ? "Go Engine: панель статуса получает данные партии."

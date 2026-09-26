@@ -42,6 +42,18 @@ public sealed class EnumerationTests
     }
 
     [Fact]
+    public void Enumeration_TryFromId_Возвращает_Элемент()
+    {
+        Assert.Equal(StoneColor.White, Enumeration.TryFromId<StoneColor>(StoneColor.White.Id));
+    }
+
+    [Fact]
+    public void Enumeration_TryFromId_Неизвестный_Идентификатор_Возвращает_Ноль()
+    {
+        Assert.Null(Enumeration.TryFromId<StoneColor>(999));
+    }
+
+    [Fact]
     public void Enumeration_ToString_Возвращает_Имя()
     {
         Assert.Equal("Empty", StoneColor.Empty.ToString());

@@ -47,6 +47,14 @@ public abstract class Enumeration : IEquatable<Enumeration>
             ? item
             : throw new DomainException($"Элемент перечисления {typeof(T).Name} с идентификатором {id} не найден.");
 
+    /// <summary>Возвращает элемент перечисления по идентификатору, если он есть.</summary>
+    /// <typeparam name="T">Тип перечисления.</typeparam>
+    /// <param name="id">Искомый идентификатор.</param>
+    /// <returns>Элемент перечисления или <c>null</c>, если такого идентификатора нет.</returns>
+    /// <remarks>Нужен разбору внешних данных (файл настроек): неизвестное значение — не ошибка движка.</remarks>
+    public static T? TryFromId<T>(int id) where T : Enumeration =>
+        Registry<T>.ById.TryGetValue(id, out var item) ? item : null;
+
     /// <summary>Возвращает элемент перечисления по имени. Регистр учитывается.</summary>
     /// <typeparam name="T">Тип перечисления.</typeparam>
     /// <param name="name">Искомое имя.</param>
