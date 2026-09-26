@@ -7,7 +7,8 @@ using GoEngine.Core;
 /// Порядок приоритетов: с вероятностью <see cref="PlayoutConfig.AtariProbability"/> — съесть
 /// группу противника в атари, затем спасти свою группу в атари; с вероятностью
 /// <see cref="PlayoutConfig.NeighborProbability"/> — ход рядом с существующими камнями;
-/// иначе — случайный легальный ход. Ходы выбираются пробами случайных точек, а не перебором
+/// иначе — случайный легальный ход. Свои глаза не заполняются, пока есть другие ходы
+/// (<see cref="EyeDetector"/>). Ходы выбираются пробами случайных точек, а не перебором
 /// всех ходов: в середине партии почти любая пустая точка легальна, и полный перебор
 /// стоил бы сотни проверок правил на каждый ход playout'а.
 /// MCTS внутри playout'а не вызывается (<c>DECISIONS.md</c>, D-003), своего
@@ -81,10 +82,24 @@ public sealed class PlayoutPolicy
             }
         }
 
-        // Если остались только самоубийственные и атарийные ходы, playout пропускает ход:
-        // так он заканчивается на устоявшейся позиции, а не на доске, забитой камнями до отказа.
-        // Пас разрешён всегда (GO_RULES.md, п. 3).
-        return FindRandomMove(board, color, random, point => IsSafe(board, color, point)) ?? Move.Pass(color);
+        var safeMove = FindRandomMove(board, color, random, point => IsSafe(board, color, point));
+
+        if (safeMove is not null)
+        {
+            return safeMove.Value;
+        }
+
+        // Вынужденный ход: кроме собственных глаз безопасных ходов не осталось. Заполняем глаз,
+        // чтобы playout дошёл до счёта, но не ход, оставляющий свою группу в атари: замеры T-019b
+        // показали, что такие ходы губят тактику (цумэго 5/5 → 3/5).
+        var forcedMove = FindRandomMove(
+            board,
+            color,
+            random,
+            point => !AtariHeuristics.LeavesOwnGroupInAtari(board, Move.Play(point, color)));
+
+        // Пас — последнее средство: он разрешён всегда (GO_RULES.md, п. 3).
+        return forcedMove ?? Move.Pass(color);
     }
 
     /// <summary>Ищет случайный ход, подходящий под условие.</summary>
@@ -130,17 +145,18 @@ public sealed class PlayoutPolicy
     private static bool IsLegal(Board board, StoneColor color, Point point) =>
         board.IsEmpty(point) && board.IsLegal(Move.Play(point, color)).IsSuccess;
 
-    /// <summary>Проверяет, что ход не губит свою группу.</summary>
+    /// <summary>Проверяет, что ход не губит свою группу и не заполняет свой глаз.</summary>
     /// <param name="board">Позиция.</param>
     /// <param name="color">Цвет, который ходит.</param>
     /// <param name="point">Точка хода.</param>
-    /// <returns><c>true</c>, если после хода у своей группы останется больше одного дамэ.</returns>
+    /// <returns><c>true</c>, если ход не глаз и после него у своей группы больше одного дамэ.</returns>
     /// <remarks>
-    /// Без этой проверки случайный playout сам закрывает дамэ своих групп и теряет их:
-    /// партия заканчивается тем, что обе стороны убивают собственные живые группы.
+    /// Без первой проверки playout заполняет собственные глаза и теряет живые группы; без второй —
+    /// сам закрывает дамэ своих групп. Вместе они дают playout'у дожить до счёта, не разрушив позицию.
     /// </remarks>
-    private static bool IsSafe(Board board, StoneColor color, Point point) =>
+    private bool IsSafe(Board board, StoneColor color, Point point) =>
         board.IsEmpty(point)
+        && !(_config.EyeSafe && EyeDetector.IsEye(board, point, color))
         && !AtariHeuristics.LeavesOwnGroupInAtari(board, Move.Play(point, color));
 
     /// <summary>Проверяет, стоит ли рядом с точкой камень.</summary>

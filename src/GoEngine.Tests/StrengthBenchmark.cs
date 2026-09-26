@@ -50,20 +50,27 @@ internal static class StrengthBenchmark
         return wins;
     }
 
-    /// <summary>Считает, сколько цумэго решает селектор.</summary>
-    /// <param name="selector">Фабрика MCTS-селектора по зерну: цумэго разбираются по позиции
-    /// без партии, поэтому нужен селектор с перегрузкой «доска и цвет».</param>
+    /// <summary>Сколько playout'ов отводится на разбор одной позиции цумэго.</summary>
+    internal const int TsumegoPlayouts = 10;
+
+    /// <summary>Считает, сколько цумэго решает политика.</summary>
+    /// <param name="policy">Политика playout'ов испытуемой версии.</param>
     /// <returns>Число решённых позиций из <see cref="TsumegoPositions"/>.</returns>
-    internal static int SolveTsumego(Func<Random, MctsMoveSelector> selector)
+    /// <remarks>
+    /// Бюджет разбора — <see cref="TsumegoPlayouts"/>: на шести playout'ах исход позиции
+    /// с двумя кандидатами почти случаен, и замер перестаёт что-либо показывать.
+    /// </remarks>
+    internal static int SolveTsumego(PlayoutPolicy policy)
     {
         var solved = 0;
 
         foreach (var (rows, color, expected) in TsumegoPositions.All)
         {
             var board = TsumegoBuilder.Build(rows);
-            var move = selector(new Random(Seed)).SelectMove(board, color, Komi.For9x9);
+            var config = new MctsConfig(TsumegoPlayouts, MctsConfig.DefaultUcb1C);
+            var selector = new MctsMoveSelector(new Random(Seed), policy, config);
 
-            if (move.Point == expected)
+            if (selector.SelectMove(board, color, Komi.For9x9).Point == expected)
             {
                 solved++;
             }
