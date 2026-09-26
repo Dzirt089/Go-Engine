@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GoEngine.Core\GoEngine.Core.csproj" />
+    <ProjectReference Include="..\GoEngine.AI\GoEngine.AI.csproj" />
   </ItemGroup>
 
   <ItemGroup>

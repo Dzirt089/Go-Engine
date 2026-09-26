@@ -5,20 +5,20 @@
 
 ## Текущая фаза
 
-**Фаза 3. Core: подсчёт и партия** — закрыта. Открыта **фаза 4. AI: случайный**
+**Фаза 4. AI: случайный**
 
 ## Текущая задача
 
-**T-009. `Core.Result`** — завершена
+**T-010. `AI.IMoveSelector` + `AI.RandomMoveSelector`** — завершена
 
 ## Статус
 
-`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (223 теста),
+`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (231 тест),
 коммит и push в `origin/main` выполнены.
 
 ## Следующая задача
 
-**T-010. `AI.IMoveSelector` + `AI.RandomMoveSelector`** — `next`
+**T-011. `AI.SelfPlayHarness`** — `next`
 
 ## Дата начала фазы
 
@@ -26,7 +26,7 @@
 
 ## Последнее обновление
 
-2026-09-26T19:13:52Z
+2026-09-26T19:15:15Z
 
 ## Что сделано
 
@@ -63,10 +63,15 @@
       завершение двумя пасами, сдачей и по лимиту ходов
 - [x] **T-009.** `Result` / `Result<T>` используются всем публичным API `Core`: `Board.IsLegal`,
       `GameState.Play`, `GameState.Finish`; тесты на `Result`, `Result<T>` и на их применение
+- [x] **T-010.** Создан проект `GoEngine.AI` (net8.0, C# 12, ссылка только на `Core`),
+      добавлен в решение и в ссылки тестов
+- [x] **T-010.** `IMoveSelector` (`Name`, `SelectMove(GameState)`), `AiException`,
+      `RandomMoveSelector` — инжектированный `Random`, собирает легальные ходы, при их
+      отсутствии пас; перегрузка `SelectMove(Board, StoneColor)` для анализа без партии
 
 ## Что осталось
 
-- [ ] Проект `GoEngine.AI` — с T-010
+- [ ] `SelfPlayHarness` — T-011, уровни 30–20 кю — T-012
 - [ ] `MoveGenerator` (базовый) — отдельной задачи в `PLAN.md` нет, хотя генератор ходов
       указан в deliverable фазы 1
 
@@ -95,6 +100,7 @@
 | 2026-09-26 | T-007 | `Komi`, `Score`, `Scorer` (китайские правила); 182 теста |
 | 2026-09-26 | T-008 | `GameStatus`, `GameResult`, `GameState`; `BoardSize.DefaultMoveLimit`; 215 тестов |
 | 2026-09-26 | T-009 | Тесты `Result`/`Result<T>` и их применения в `Core`; 223 теста; фаза 3 закрыта |
+| 2026-09-26 | T-010 | Проект `GoEngine.AI`, `IMoveSelector`, `RandomMoveSelector`, `AiException`; 231 тест |
 
 ## Журнал сессии
 
@@ -108,7 +114,8 @@
 | 2026-09-26T19:12:19Z | T-006 | done | 8 позиций правил из GO_RULES п. 13; 162 теста; фаза 2 закрыта, открыта фаза 3 |
 | 2026-09-26T19:13:28Z | T-007 | done | Komi, Score, Scorer (китайские правила), точный счёт позиций 7–8; 182 теста |
 | 2026-09-26T19:13:52Z | T-008 | done | GameStatus, GameResult, GameState (пас, сдача, лимит ходов, счёт); 215 тестов |
-| 2026-09-26T19:13:52Z | T-009 | done | Result/Result<T> в публичном API Core, тесты; 223 теста; фаза 3 закрыта |
+| 2026-09-26T19:15:15Z | T-009 | done | Result/Result<T> в публичном API Core, тесты; 223 теста; фаза 3 закрыта |
+| 2026-09-26T19:15:15Z | T-010 | done | Проект GoEngine.AI, IMoveSelector, RandomMoveSelector, AiException; 231 тест |
 
 ## Заметки для следующей сессии
 
@@ -125,8 +132,9 @@
   цветом. Область, граничащая с обоими цветами, нейтральна — так же ведёт себя сэки.
 - `GameState.Play` сам проверяет: партия идёт, ход не пустой, цвет совпадает с `ToMove`,
   ход легален. При отказе партия не меняется вообще.
-- Фаза 3 закрыта (T-009). Дальше фаза 4: проект `GoEngine.AI` — `IMoveSelector`, `RandomMoveSelector`
-  (T-010), `SelfPlayHarness` (T-011), уровни 30–20 кю (T-012).
+- `GoEngine.AI` зависит только от `Core`; публичный API AI синхронный, случайность — только
+  через инжектированный `Random` (проверено тестом на детерминизм).
+- Дальше: `SelfPlayHarness` (T-011) — партия AI против AI до `GameStatus != InProgress`.
 - Для AI: `Board` без истории (MCTS и playout не должны засорять историю партии);
   проверка ходов — через `Board.IsLegal`; случайность — только с seed.
 - Папки `samples/` в репозитории нет: стиль брался из `AGENTS.md` и `AGENTS_GO.md`.
