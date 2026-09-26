@@ -13,6 +13,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisMode>Recommended</AnalysisMode>
     <InvariantGlobalization>true</InvariantGlobalization>
     <NeutralLanguage>ru</NeutralLanguage>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
