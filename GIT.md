@@ -14,16 +14,16 @@
 
 ## Последний коммит
 
-- Хеш: `см. «История» ниже`
+- Хеш: `07cc594` — `feat(core): T-002 — GroupTracker, захват групп и CapturedStones`
 - Дата (UTC): 2026-09-26T19:03:51Z
-- Куда запушено: `origin/main`
+- Куда запушено: `origin/main` (push выполнен: `f9ab4cb..07cc594`)
 
 ## История push
 
 | Дата (UTC) | Commit | Задача | origin | github | gitlab |
 |---|---|---|---|---|---|
 | 2026-09-26 | `f9ab4cb` | chore: initial structure | ok | — | — |
-| 2026-09-26 | `T-002` | feat(core): GroupTracker и захват | ok | — | — |
+| 2026-09-26 | `07cc594` | T-002 feat(core): GroupTracker и захват | ok | — | — |
 
 ## Ошибки push
 
