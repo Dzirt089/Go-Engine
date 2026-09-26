@@ -54,6 +54,39 @@ GoEngine.Tests      ← Core, AI, xUnit
 - Newtonsoft.Json (только `System.Text.Json`)
 - Любые пакеты для Go — всё пишем сами
 
+## Структура репозитория
+
+```
+src/
+├── Directory.Build.props      общие свойства всех проектов
+├── .editorconfig              правила стиля для редактора и сборки
+├── GoEngine.sln
+├── GoEngine.Core/             правила игры: ничего, кроме System.*
+│   ├── Board/                 доска, точки, камни, группы, ходы
+│   ├── Common/                базовые типы: Enumeration, Result, DomainException
+│   ├── Game/                  партия, её состояние и итог
+│   ├── Rules/                 ко, история позиций
+│   ├── Scoring/               коми и подсчёт по китайским правилам
+│   └── Sgf/                   формат SGF (без файлового ввода-вывода)
+├── GoEngine.AI/               выбор хода: только Core
+│   ├── Selectors/             интерфейс селектора, уровни сложности, фабрика
+│   ├── Playouts/              политика playout'ов, эвристики, глаза, перебор ходов
+│   ├── Mcts/                  дерево MCTS и селектор
+│   ├── Patterns/              окрестности 3×3 и их веса
+│   └── SelfPlay/              партия AI против AI
+├── GoEngine.App/              интерфейс: Avalonia + SkiaSharp
+│   ├── Controls/              элемент доски
+│   ├── Rendering/             рендерер Skia, геометрия, анимация
+│   ├── Services/              настройки и файлы партий
+│   ├── ViewModels/            состояние партии для окна
+│   └── Views/                 окна и диалоги
+├── GoEngine.Tests/            тесты Core и AI (папки повторяют области)
+└── GoEngine.App.Tests/        тесты слоя App
+```
+
+Namespace у файлов один на проект (`GoEngine.Core`, `GoEngine.AI`, `GoEngine.App`): папки делят код
+по предметным областям, но не дробят пространство имён.
+
 ## Именование
 
 - Корневой namespace: `GoEngine`

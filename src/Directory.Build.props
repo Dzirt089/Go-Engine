@@ -1,0 +1,23 @@
+<Project>
+
+  <!--
+    Общие свойства всех проектов Go Engine.
+    Проекты задают только то, что у них особенное: OutputType, IsTestProject, пакеты и ссылки.
+    Правила игры и стиля — GO_RULES.md, AGENTS.md, AGENTS_GO.md.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <NeutralLanguage>ru</NeutralLanguage>
+    <RootNamespace>$(MSBuildProjectName)</RootNamespace>
+    <Product>Go Engine</Product>
+    <Authors>Go Engine</Authors>
+  </PropertyGroup>
+
+</Project>
