@@ -34,12 +34,26 @@ public static class BoardRenderer
     /// <summary>Радиус звёздной точки в пикселях.</summary>
     private const float StarRadius = 3f;
 
+    /// <summary>Цвет подсветки точки под курсором.</summary>
+    private static readonly SKColor HoverColor = new(0x40, 0x40, 0x40, 0x60);
+
+    /// <summary>Цвет маркера последнего хода.</summary>
+    private static readonly SKColor LastMoveColor = new(0xC0, 0x28, 0x18);
+
+    /// <summary>Толщина маркера последнего хода в пикселях.</summary>
+    private const float LastMoveStrokeWidth = 2f;
+
+    /// <summary>Доля радиуса камня, на которой рисуется маркер последнего хода.</summary>
+    private const float LastMoveRadiusRatio = 0.35f;
+
     /// <summary>Рисует доску целиком.</summary>
     /// <param name="canvas">Холст Skia.</param>
     /// <param name="board">Позиция.</param>
     /// <param name="width">Ширина области рисования в пикселях.</param>
     /// <param name="height">Высота области рисования в пикселях.</param>
-    public static void Draw(SKCanvas canvas, Board board, float width, float height)
+    /// <param name="lastMove">Точка последнего хода или <c>null</c>.</param>
+    /// <param name="hover">Точка под курсором или <c>null</c>.</param>
+    public static void Draw(SKCanvas canvas, Board board, float width, float height, Point? lastMove = null, Point? hover = null)
     {
         ArgumentNullException.ThrowIfNull(canvas);
         ArgumentNullException.ThrowIfNull(board);
@@ -51,6 +65,35 @@ public static class BoardRenderer
         DrawGrid(canvas, board.Size, geometry);
         DrawStarPoints(canvas, board.Size, geometry);
         DrawStones(canvas, board, geometry);
+        DrawMarkers(canvas, geometry, lastMove, hover);
+    }
+
+    /// <summary>Рисует подсветку наведения и маркер последнего хода.</summary>
+    /// <param name="canvas">Холст Skia.</param>
+    /// <param name="geometry">Геометрия доски.</param>
+    /// <param name="lastMove">Точка последнего хода или <c>null</c>.</param>
+    /// <param name="hover">Точка под курсором или <c>null</c>.</param>
+    private static void DrawMarkers(SKCanvas canvas, BoardGeometry geometry, Point? lastMove, Point? hover)
+    {
+        if (hover is { } hoverPoint)
+        {
+            using var hoverPaint = new SKPaint { Color = HoverColor, IsAntialias = true, Style = SKPaintStyle.Fill };
+
+            canvas.DrawCircle(geometry.Pixel(hoverPoint), geometry.StoneRadius, hoverPaint);
+        }
+
+        if (lastMove is { } last)
+        {
+            using var lastPaint = new SKPaint
+            {
+                Color = LastMoveColor,
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = LastMoveStrokeWidth
+            };
+
+            canvas.DrawCircle(geometry.Pixel(last), geometry.StoneRadius * LastMoveRadiusRatio, lastPaint);
+        }
     }
 
     /// <summary>Рисует сетку доски.</summary>

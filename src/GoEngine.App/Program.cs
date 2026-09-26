@@ -15,6 +15,9 @@ internal static class Program
     /// <summary>Аргумент проверочного рендера доски в PNG.</summary>
     private const string RenderArgument = "--render";
 
+    /// <summary>Аргумент проверки попадания щелчка в точку доски.</summary>
+    private const string CheckArgument = "--check";
+
     /// <summary>Ширина проверочного рендера в пикселях.</summary>
     private const int RenderWidth = 600;
 
@@ -32,6 +35,13 @@ internal static class Program
             // Проверка запуска без графической сессии: на сборочных агентах окно открыть нельзя.
             Console.WriteLine("Go Engine: приложение собрано, точка входа работает.");
             return 0;
+        }
+
+        if (args.Contains(CheckArgument))
+        {
+            // Проверка ввода без окна: попадание щелчка в точку доски считается той же
+            // геометрией, что и на экране.
+            return CheckPointMapping();
         }
 
         if (args is [RenderArgument, var path, ..])
@@ -54,6 +64,36 @@ internal static class Program
             .UsePlatformDetect()
             .LogToTrace();
 
+    /// <summary>Проверяет, что щелчок по центру точки попадает в неё на всех размерах доски.</summary>
+    /// <returns>0, если попадание точное; иначе 1.</returns>
+    private static int CheckPointMapping()
+    {
+        var failures = 0;
+
+        foreach (var size in new[] { BoardSize.Size9, BoardSize.Size13, BoardSize.Size19 })
+        {
+            var geometry = BoardGeometry.Fit(size, RenderWidth, RenderHeight);
+
+            foreach (var point in new Board(size).AllPoints())
+            {
+                var pixel = geometry.Pixel(point);
+                var back = geometry.PointAt(pixel.X, pixel.Y);
+
+                if (back != point)
+                {
+                    Console.WriteLine($"не совпало: {size} {point} → ({pixel.X:F1}, {pixel.Y:F1}) → {back}");
+                    failures++;
+                }
+            }
+        }
+
+        Console.WriteLine(failures == 0
+            ? "Go Engine: попадание щелчка в точку проверено на досках 9×9, 13×13 и 19×19."
+            : $"Go Engine: ошибок попадания — {failures}.");
+
+        return failures == 0 ? 0 : 1;
+    }
+
     /// <summary>Рисует проверочную позицию в PNG-файл.</summary>
     /// <param name="path">Путь к файлу PNG.</param>
     private static void RenderToPng(string path)
@@ -61,7 +101,7 @@ internal static class Program
         var board = DemoPosition();
 
         using var surface = SKSurface.Create(new SKImageInfo(RenderWidth, RenderHeight));
-        BoardRenderer.Draw(surface.Canvas, board, RenderWidth, RenderHeight);
+        BoardRenderer.Draw(surface.Canvas, board, RenderWidth, RenderHeight, new GoPoint(7, 7), new GoPoint(4, 6));
 
         using var image = surface.Snapshot();
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
