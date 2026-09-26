@@ -53,7 +53,15 @@ public static class BoardRenderer
     /// <param name="height">Высота области рисования в пикселях.</param>
     /// <param name="lastMove">Точка последнего хода или <c>null</c>.</param>
     /// <param name="hover">Точка под курсором или <c>null</c>.</param>
-    public static void Draw(SKCanvas canvas, Board board, float width, float height, Point? lastMove = null, Point? hover = null)
+    /// <param name="animation">Кадр анимации камней или <c>null</c>.</param>
+    public static void Draw(
+        SKCanvas canvas,
+        Board board,
+        float width,
+        float height,
+        Point? lastMove = null,
+        Point? hover = null,
+        StoneAnimation? animation = null)
     {
         ArgumentNullException.ThrowIfNull(canvas);
         ArgumentNullException.ThrowIfNull(board);
@@ -64,7 +72,7 @@ public static class BoardRenderer
 
         DrawGrid(canvas, board.Size, geometry);
         DrawStarPoints(canvas, board.Size, geometry);
-        DrawStones(canvas, board, geometry);
+        DrawStones(canvas, board, geometry, animation);
         DrawMarkers(canvas, geometry, lastMove, hover);
     }
 
@@ -146,7 +154,8 @@ public static class BoardRenderer
     /// <param name="canvas">Холст Skia.</param>
     /// <param name="board">Позиция.</param>
     /// <param name="geometry">Геометрия доски.</param>
-    private static void DrawStones(SKCanvas canvas, Board board, BoardGeometry geometry)
+    /// <param name="animation">Кадр анимации камней или <c>null</c>.</param>
+    private static void DrawStones(SKCanvas canvas, Board board, BoardGeometry geometry, StoneAnimation? animation)
     {
         using var black = new SKPaint { Color = BlackStoneColor, IsAntialias = true, Style = SKPaintStyle.Fill };
         using var white = new SKPaint { Color = WhiteStoneColor, IsAntialias = true, Style = SKPaintStyle.Fill };
@@ -158,16 +167,73 @@ public static class BoardRenderer
             StrokeWidth = GridStrokeWidth
         };
 
+        var appearing = animation is { IsActive: true } frame ? frame.Appearing : null;
+
         foreach (var point in board.OccupiedPoints(StoneColor.Black))
         {
-            canvas.DrawCircle(geometry.Pixel(point), geometry.StoneRadius, black);
+            if (point != appearing)
+            {
+                canvas.DrawCircle(geometry.Pixel(point), geometry.StoneRadius, black);
+            }
         }
 
         foreach (var point in board.OccupiedPoints(StoneColor.White))
         {
+            if (point == appearing)
+            {
+                continue;
+            }
+
             var center = geometry.Pixel(point);
             canvas.DrawCircle(center, geometry.StoneRadius, white);
             canvas.DrawCircle(center, geometry.StoneRadius, outline);
+        }
+
+        if (animation is { IsActive: true } current)
+        {
+            DrawAnimatedStones(canvas, board, geometry, current);
+        }
+    }
+
+    /// <summary>Рисует кадр анимации: растущий камень и исчезающие снятые.</summary>
+    /// <param name="canvas">Холст Skia.</param>
+    /// <param name="board">Позиция после хода.</param>
+    /// <param name="geometry">Геометрия доски.</param>
+    /// <param name="animation">Кадр анимации.</param>
+    private static void DrawAnimatedStones(SKCanvas canvas, Board board, BoardGeometry geometry, StoneAnimation animation)
+    {
+        if (animation.Appearing is { } point && board.At(point) != StoneColor.Empty)
+        {
+            var color = board.At(point);
+            var baseColor = color == StoneColor.Black ? BlackStoneColor : WhiteStoneColor;
+
+            using var paint = new SKPaint
+            {
+                Color = baseColor.WithAlpha(animation.AppearanceAlpha),
+                IsAntialias = true,
+                Style = SKPaintStyle.Fill
+            };
+
+            canvas.DrawCircle(geometry.Pixel(point), geometry.StoneRadius * (float)animation.AppearanceScale, paint);
+        }
+
+        if (animation.Disappearing.Count == 0)
+        {
+            return;
+        }
+
+        var ghostColor = animation.DisappearingColor == StoneColor.Black ? BlackStoneColor : WhiteStoneColor;
+
+        using var ghost = new SKPaint
+        {
+            Color = ghostColor.WithAlpha(animation.DisappearanceAlpha),
+            IsAntialias = true,
+            Style = SKPaintStyle.Fill
+        };
+
+        foreach (var ghostPoint in animation.Disappearing)
+        {
+            canvas.DrawCircle(geometry.Pixel(ghostPoint), geometry.StoneRadius, ghost);
         }
     }
 

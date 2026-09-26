@@ -25,6 +25,12 @@ internal static class Program
     /// <summary>Зерно проверок: они должны повторяться от запуска к запуску.</summary>
     private const int SeedForChecks = 20260926;
 
+    /// <summary>Аргумент проверки анимации камней.</summary>
+    private const string AnimationArgument = "--animation";
+
+    /// <summary>Аргумент проверочного рендера кадра анимации.</summary>
+    private const string RenderAnimationArgument = "--render-anim";
+
     /// <summary>Аргумент проверки записи и чтения партии в SGF.</summary>
     private const string SgfArgument = "--sgf";
 
@@ -58,6 +64,19 @@ internal static class Program
             // Проверка ввода без окна: попадание щелчка в точку доски считается той же
             // геометрией, что и на экране.
             return CheckPointMapping();
+        }
+
+        if (args.Contains(AnimationArgument))
+        {
+            // Проверка кадров анимации без окна: состояние считается той же арифметикой.
+            return CheckAnimation();
+        }
+
+        if (args is [RenderAnimationArgument, var framePath, ..])
+        {
+            RenderAnimationFrame(framePath);
+            Console.WriteLine($"Go Engine: кадр анимации отрисован в {framePath}.");
+            return 0;
         }
 
         if (args.Contains(SgfArgument))
@@ -126,6 +145,76 @@ internal static class Program
             : $"Go Engine: ошибок попадания — {failures}.");
 
         return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>Проверяет арифметику кадров анимации.</summary>
+    /// <returns>0, если кадры считаются верно; иначе 1.</returns>
+    private static int CheckAnimation()
+    {
+        var failures = 0;
+        var start = new StoneAnimation(new GoPoint(4, 4), [new GoPoint(0, 0)], StoneColor.Black, 0);
+
+        failures += Expect(start.IsActive, "анимация началась");
+        failures += Expect(start.AppearanceAlpha == 0, "камень появляется с нулевой прозрачности");
+        failures += Expect(start.DisappearanceAlpha == 255, "снятый камень сначала непрозрачен");
+
+        var middle = start.Advance(StoneAnimation.DurationSeconds / 2);
+        failures += Expect(middle.AppearanceAlpha > 100 && middle.AppearanceAlpha < 160, "к середине камень наполовину виден");
+        failures += Expect(middle.AppearanceScale < 1, "к середине камень меньше полного");
+
+        var finished = middle.Advance(StoneAnimation.DurationSeconds);
+        failures += Expect(!finished.IsActive, "анимация завершилась");
+        failures += Expect(finished.AppearanceAlpha == 255, "камень стал полностью виден");
+        failures += Expect(finished.DisappearanceAlpha == 0, "снятый камень исчез");
+        failures += Expect(!StoneAnimation.None.IsActive, "без хода анимации нет");
+
+        Console.WriteLine(failures == 0
+            ? "Go Engine: кадры анимации считаются верно."
+            : $"Go Engine: ошибок анимации — {failures}.");
+
+        return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>Рисует кадр анимации в PNG-файл.</summary>
+    /// <param name="path">Путь к файлу PNG.</param>
+    private static void RenderAnimationFrame(string path)
+    {
+        var board = DemoCapture();
+        var frame = new StoneAnimation(
+            new GoPoint(1, 1),
+            [new GoPoint(0, 0), new GoPoint(1, 0)],
+            StoneColor.Black,
+            0.6);
+
+        using var surface = SKSurface.Create(new SKImageInfo(RenderWidth, RenderHeight));
+        BoardRenderer.Draw(surface.Canvas, board, RenderWidth, RenderHeight, new GoPoint(1, 1), null, frame);
+
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using var file = File.Create(path);
+
+        data.SaveTo(file);
+    }
+
+    /// <summary>Строит позицию с только что снятыми камнями.</summary>
+    /// <returns>Доска 9×9, где белые сняли два чёрных камня.</returns>
+    private static Board DemoCapture()
+    {
+        var board = new Board(BoardSize.Size9);
+
+        foreach (var (x, y, color) in new (int X, int Y, StoneColor Color)[]
+        {
+            (0, 0, StoneColor.Black),
+            (1, 0, StoneColor.Black),
+            (2, 0, StoneColor.White),
+            (0, 1, StoneColor.White),
+            (1, 1, StoneColor.White)
+        })
+        {
+            board = board.ApplyMove(Move.Play(new GoPoint((byte)x, (byte)y), color));
+        }
+
+        return board;
     }
 
     /// <summary>Проверяет запись и чтение партии в SGF через файл.</summary>

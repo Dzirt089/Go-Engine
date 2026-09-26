@@ -75,6 +75,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _ => "Идёт"
     };
 
+    /// <summary>Камни, снятые последним ходом.</summary>
+    public IReadOnlyList<Point> LastCaptured => _game.Board.CapturedStones;
+
+    /// <summary>Цвет снятых камней: это цвет соперника сделавшего ход.</summary>
+    public StoneColor LastCapturedColor => LastCaptured.Count == 0 ? StoneColor.Empty : _game.ToMove;
+
     /// <summary>Уровень AI словами.</summary>
     public string Level => $"{_settings.ToDifficultyLevel().RankKyu} кю";
 
@@ -224,6 +230,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             nameof(Board),
             nameof(LastMove),
+            nameof(LastCaptured),
             nameof(ToMove),
             nameof(MoveNumber),
             nameof(Komi),

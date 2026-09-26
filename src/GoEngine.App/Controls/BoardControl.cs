@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Rendering.SceneGraph;
@@ -36,8 +37,43 @@ public sealed class BoardControl : Control
         AffectsRender<BoardControl>(BoardProperty, LastMoveProperty, HoverPointProperty);
     }
 
+    private static readonly TimeProvider Clock = TimeProvider.System;
+
+    private readonly DispatcherTimer _timer;
+
+    private StoneAnimation _animation = StoneAnimation.None;
+    private DateTimeOffset _lastFrame;
+
+    /// <summary>Создаёт доску и запускает таймер кадров анимации.</summary>
+    public BoardControl()
+    {
+        // Кадры двигает таймер: ход не блокирует интерфейс, доска просто перерисовывается.
+        _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        _timer.Tick += OnAnimationTick;
+    }
+
     /// <summary>Игрок щёлкнул по пустой точке доски.</summary>
     public event EventHandler<MoveRequestedEventArgs>? MoveRequested;
+
+    /// <summary>Запускает анимацию хода: появление камня и исчезновение снятых.</summary>
+    /// <param name="appearing">Точка поставленного камня или <c>null</c>.</param>
+    /// <param name="disappearing">Точки снятых камней.</param>
+    /// <param name="disappearingColor">Цвет снятых камней.</param>
+    public void Animate(GoPoint? appearing, IReadOnlyList<GoPoint> disappearing, StoneColor disappearingColor)
+    {
+        ArgumentNullException.ThrowIfNull(disappearing);
+
+        _animation = new StoneAnimation(appearing, disappearing, disappearingColor, 0);
+
+        if (!_animation.IsActive)
+        {
+            return;
+        }
+
+        _lastFrame = Clock.GetUtcNow();
+        _timer.Start();
+        InvalidateVisual();
+    }
 
     /// <summary>Позиция, которую рисует элемент.</summary>
     public Board? Board
@@ -70,7 +106,27 @@ public sealed class BoardControl : Control
             return;
         }
 
-        context.Custom(new BoardDrawOperation(board, new Rect(Bounds.Size), LastMove, HoverPoint));
+        var frame = _animation.IsActive ? _animation : (StoneAnimation?)null;
+
+        context.Custom(new BoardDrawOperation(board, new Rect(Bounds.Size), LastMove, HoverPoint, frame));
+    }
+
+    /// <summary>Продвигает кадр анимации.</summary>
+    /// <param name="sender">Таймер кадров.</param>
+    /// <param name="e">Событие таймера.</param>
+    private void OnAnimationTick(object? sender, EventArgs e)
+    {
+        var now = Clock.GetUtcNow();
+
+        _animation = _animation.Advance((now - _lastFrame).TotalSeconds);
+        _lastFrame = now;
+
+        if (!_animation.IsActive)
+        {
+            _timer.Stop();
+        }
+
+        InvalidateVisual();
     }
 
     /// <inheritdoc />
@@ -140,12 +196,14 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
     private readonly Board _board;
     private readonly GoPoint? _lastMove;
     private readonly GoPoint? _hover;
+    private readonly StoneAnimation? _animation;
 
-    internal BoardDrawOperation(Board board, Rect bounds, GoPoint? lastMove, GoPoint? hover)
+    internal BoardDrawOperation(Board board, Rect bounds, GoPoint? lastMove, GoPoint? hover, StoneAnimation? animation)
     {
         _board = board;
         _lastMove = lastMove;
         _hover = hover;
+        _animation = animation;
         Bounds = bounds;
     }
 
@@ -179,6 +237,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
             (float)Bounds.Width,
             (float)Bounds.Height,
             _lastMove,
-            _hover);
+            _hover,
+            _animation);
     }
 }

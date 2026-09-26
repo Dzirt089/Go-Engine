@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
@@ -45,6 +46,8 @@ public sealed partial class MainWindow : Window
             _boardControl.MoveRequested += OnMoveRequested;
         }
 
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+
         Wire("NewGameItem", OnNewGameClick);
         Wire("SettingsItem", OnSettingsClick);
         Wire("SaveGameItem", OnSaveGameClick);
@@ -56,6 +59,19 @@ public sealed partial class MainWindow : Window
 
     /// <summary>Модель представления окна.</summary>
     public MainViewModel ViewModel { get; }
+
+    /// <summary>Запускает анимацию, когда партия показала новый ход.</summary>
+    /// <param name="sender">Модель представления.</param>
+    /// <param name="e">Событие изменения свойства.</param>
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(MainViewModel.LastMove))
+        {
+            return;
+        }
+
+        _boardControl?.Animate(ViewModel.LastMove, ViewModel.LastCaptured, ViewModel.LastCapturedColor);
+    }
 
     /// <summary>Подписывает пункт меню на обработчик.</summary>
     /// <param name="name">Имя пункта меню.</param>
