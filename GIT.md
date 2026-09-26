@@ -14,16 +14,19 @@
 
 ## Последний коммит
 
-- Хеш: `07cc594` — `feat(core): T-002 — GroupTracker, захват групп и CapturedStones`
-- Дата (UTC): 2026-09-26T19:03:51Z
-- Куда запушено: `origin/main` (push выполнен: `f9ab4cb..07cc594`)
+- Хеш: `e74727b` — `feat(core): T-004 — PositionHash (Zobrist) и PositionHistory`
+- Дата (UTC): 2026-09-26T19:14:00Z
+- Куда запушено: `origin/main`
 
 ## История push
 
 | Дата (UTC) | Commit | Задача | origin | github | gitlab |
 |---|---|---|---|---|---|
 | 2026-09-26 | `f9ab4cb` | chore: initial structure | ok | — | — |
+| 2026-09-26 | `22d7d1c` | docs(git): T-002 + задачи T-019…T-033 в индекс | ok | — | — |
 | 2026-09-26 | `07cc594` | T-002 feat(core): GroupTracker и захват | ok | — | — |
+| 2026-09-26 | `f6c8342` | T-003 feat(core): запрет самоубийства, IsLegal | ok | — | — |
+| 2026-09-26 | `e74727b` | T-004 feat(core): PositionHash и PositionHistory | ok | — | — |
 
 ## Ошибки push
 
