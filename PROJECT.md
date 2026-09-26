@@ -87,8 +87,15 @@ src/
 │   ├── ViewModels/            состояние партии для окна
 │   └── Views/                 окна и диалоги
 ├── GoEngine.AI.Onnx/          нейросеть v2: ONNX Runtime и признаки KataGo
-├── GoEngine.Tests/            тесты Core и AI (папки повторяют области)
-└── GoEngine.App.Tests/        тесты слоя App
+├── GoEngine.Tests/            тесты движка: папки повторяют области исходников
+│   ├── Architecture/          границы слоёв и пространства имён
+│   ├── Core/                  доска, партия, подсчёт
+│   │   ├── Rules/             ко, захват, самоубийство, позиции из GO_RULES
+│   │   └── Sgf/               формат SGF
+│   ├── AI/                    селекторы, MCTS, playout'ы, сила уровней
+│   ├── Onnx/                  признаки KataGo и загрузка модели (v2)
+│   └── Support/               стенды, позиции и построители для тестов
+└── GoEngine.App.Tests/        тесты слоя App (Services, Rendering)
 ```
 
 Пространства имён: у `Core` и `AI` — одно на проект (`GoEngine.Core`, `GoEngine.AI`): папки делят код
