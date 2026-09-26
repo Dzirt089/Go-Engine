@@ -14,8 +14,8 @@
 
 ## Последний коммит
 
-- Хеш: `a3dffb2` — `feat(ai): T-013 — MctsNode, MctsTree и LegalMoves`
-- Дата (UTC): 2026-09-26T19:21:18Z
+- Хеш: `b3d6835` — `feat(ai): T-014 — PlayoutPolicy и PlayoutConfig`
+- Дата (UTC): 2026-09-26T19:22:29Z
 - Куда запушено: `origin/main`
 
 ## История push
@@ -35,7 +35,8 @@
 | 2026-09-26 | `ae9f4f7` | T-010 feat(ai): проект AI и случайный селектор | ok | — | — |
 | 2026-09-26 | `e233e49` | T-011 feat(ai): SelfPlayHarness | ok | — | — |
 | 2026-09-26 | `36e8e6c` | T-012 feat(ai): эвристики и уровни 30–20 кю | ok | — | — |
-| 2026-09-26 | `a3dffb2` | T-013 feat(ai): MctsNode, MctsTree, LegalMoves | ok | — | — | | — | — |
+| 2026-09-26 | `a3dffb2` | T-013 feat(ai): MctsNode, MctsTree, LegalMoves | ok | — | — |
+| 2026-09-26 | `b3d6835` | T-014 feat(ai): PlayoutPolicy | ok | — | — | | — | — |
 
 ## Ошибки push
 
