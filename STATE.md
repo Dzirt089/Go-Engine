@@ -9,16 +9,16 @@
 
 ## Текущая задача
 
-**T-017. `AI.DifficultyLevel` (полный набор)** — завершена
+**T-018. Маппинг уровень → селектор** — завершена
 
 ## Статус
 
-`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (314 тестов),
+`done` — `dotnet build` без ошибок и предупреждений, `dotnet test` зелёный (322 теста),
 коммит и push в `origin/main` выполнены.
 
 ## Следующая задача
 
-**T-018. Маппинг уровень → селектор** — `next`
+**T-019. Интеграционный тест силы AI** — `next`
 
 ## Дата начала фазы
 
@@ -98,10 +98,12 @@
 - [x] **T-017.** `SelectorKind` (Random / Heuristic / Mcts) и полный `DifficultyLevel`:
       `Kyu30`, `Kyu25`, `Kyu20`, `Kyu15`, `Kyu10`, `Kyu8`, `Kyu5` с полями `RankKyu`,
       `Kind`, `PlayoutBudget`, `Ucb1C`, `RandomnessPercent`, `PlayoutConfig`
+- [x] **T-018.** `AiFactory.Create(level, random)` — единственная точка создания селектора;
+      `DifficultyLevel.CreateSelector` делегирует ей, поэтому вид селектора описан в одном месте
 
 ## Что осталось
 
-- [ ] `AiFactory` — тесты в T-018, тест силы AI — T-019
+- [ ] Тест силы AI (10 + 10 партий) — T-019
 - [ ] `MoveGenerator` (базовый) — отдельной задачи в `PLAN.md` нет, хотя генератор ходов
       указан в deliverable фазы 1
 
@@ -138,6 +140,7 @@
 | 2026-09-26 | T-015 | `MctsConfig`, `MctsMoveSelector`, быстрый `IsLegal`, живучие playout'ы; 293 теста |
 | 2026-09-26 | T-016 | `TsumegoBuilder` и 5 цумэго на 9×9; 301 тест |
 | 2026-09-26 | T-017 | `SelectorKind`, полный `DifficultyLevel` (30–5 кю), `AiFactory`; 314 тестов |
+| 2026-09-26 | T-018 | Тесты `AiFactory`; 322 теста |
 
 ## Журнал сессии
 
@@ -160,6 +163,7 @@
 | 2026-09-26T19:34:05Z | T-015 | done | MctsConfig, MctsMoveSelector, быстрый IsLegal, живучие playout'ы; 293 теста |
 | 2026-09-26T19:34:05Z | T-016 | done | TsumegoBuilder и 5 цумэго на 9×9; 301 тест |
 | 2026-09-26T19:34:05Z | T-017 | done | SelectorKind, полный DifficultyLevel 30–5 кю, AiFactory; 314 тестов |
+| 2026-09-26T19:34:05Z | T-018 | done | AiFactory — единая точка создания селектора, тесты; 322 теста |
 
 ## Заметки для следующей сессии
 
