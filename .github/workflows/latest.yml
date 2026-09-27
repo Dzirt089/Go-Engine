@@ -83,8 +83,19 @@ jobs:
           notes="Версия ${{ needs.version.outputs.version }}, коммит ${{ github.sha }}. Прогон: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           mapfile -t files < <(find dist -type f | sort)
           printf 'файлов в выпуске: %s\n' "${#files[@]}"
+          # Ассеты удаляем явно: gh release upload --clobber на существующем релизе отдаёт
+          # «ReleaseAsset.name already exists» и роняет публикацию (проверено на latest).
+          delete_assets() {
+            local tag="$1"
+            local path name
+            for path in "${files[@]}"; do
+              name="$(basename "$path")"
+              gh release delete-asset "$tag" "$name" --yes >/dev/null 2>&1 || true
+            done
+          }
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "${files[@]}" --clobber
+            delete_assets "$TAG"
+            gh release upload "$TAG" "${files[@]}"
           else
             # latest=false: «самым свежим» остаётся плавающий релиз, у версии своя жизнь.
             gh release create "$TAG" "${files[@]}" \
@@ -103,7 +114,8 @@ jobs:
           printf 'файлов в релизе: %s\n' "${#files[@]}"
           if gh release view latest >/dev/null 2>&1; then
             # Релиз latest уже есть: обновляем файлы и заметки, чтобы ссылка осталась прежней.
-            gh release upload latest "${files[@]}" --clobber
+            delete_assets latest
+            gh release upload latest "${files[@]}"
             gh release edit latest --title "$title" --notes "$notes" --latest
           else
             gh release create latest "${files[@]}" --title "$title" --notes "$notes" --latest
