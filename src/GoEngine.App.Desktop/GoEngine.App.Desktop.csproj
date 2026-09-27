@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../GoEngine.App/GoEngine.App.csproj" />
+    <ProjectReference Include="../GoEngine.AI.Onnx/GoEngine.AI.Onnx.csproj" />
   </ItemGroup>
 
 </Project>

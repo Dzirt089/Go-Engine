@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using GoEngine.AI;
 using GoEngine.App.Controls;
 using GoEngine.App.Services;
 using GoEngine.App.ViewModels;
@@ -18,20 +19,21 @@ public sealed partial class BoardView : UserControl
 {
     private readonly BoardControl? _boardControl;
 
-    /// <summary>Создаёт вид с настройками из файла.</summary>
-    public BoardView() : this(SettingsStore.Load())
+    /// <summary>Создаёт вид с настройками из файла и оценкой сети, заданной головой.</summary>
+    public BoardView() : this(SettingsStore.Load(), global::GoEngine.App.App.Evaluator)
     {
     }
 
     /// <summary>Создаёт вид с готовыми настройками.</summary>
     /// <param name="settings">Настройки партии.</param>
-    public BoardView(AppSettings settings)
+    /// <param name="evaluator">Оценка позиции нейросетью для уровней Дан.</param>
+    public BoardView(AppSettings settings, IPositionEvaluator? evaluator = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
 
         AvaloniaXamlLoader.Load(this);
 
-        ViewModel = new MainViewModel(settings, Random.Shared);
+        ViewModel = new MainViewModel(settings, Random.Shared, evaluator);
         DataContext = ViewModel;
 
         _boardControl = this.FindControl<BoardControl>("Board");

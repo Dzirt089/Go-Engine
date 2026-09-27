@@ -1,4 +1,5 @@
 using Avalonia;
+using GoEngine.AI.Onnx;
 using GoEngine.App.Diagnostics;
 
 namespace GoEngine.App;
@@ -83,6 +84,8 @@ internal static class Program
             return 0;
         }
 
+        LoadNetwork();
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
 
         return 0;
@@ -94,4 +97,51 @@ internal static class Program
         AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .LogToTrace();
+
+    /// <summary>Имя файла модели KataGo в папке models.</summary>
+    private const string ModelFileName = "kata1-b28c512nbt-adam-s11165M-d5387M.uint8.onnx";
+
+    /// <summary>Загружает нейросеть, если файл модели найден, и отдаёт её интерфейсу.</summary>
+    /// <remarks>
+    /// Библиотека интерфейса не знает про ONNX (D-034), поэтому модель грузит голова.
+    /// Файла нет или модель не подошла — уровни Дан остаются недоступными, партия играется
+    /// уровнями кю: отказ сети не должен мешать запуску (D-038).
+    /// </remarks>
+    private static void LoadNetwork()
+    {
+        if (FindModel() is not { } path)
+        {
+            return;
+        }
+
+        var loaded = OnnxEvaluator.Load(path);
+
+        if (!loaded.IsSuccess)
+        {
+            Console.WriteLine($"Go Engine: модель не загружена — {loaded.Error ?? "без причины"}.");
+            return;
+        }
+
+        global::GoEngine.App.App.Evaluator = loaded.Value!;
+        Console.WriteLine($"Go Engine: нейросеть загружена ({Path.GetFileName(path)}).");
+    }
+
+    /// <summary>Ищет файл модели вверх от каталога сборки.</summary>
+    /// <returns>Путь к модели или <c>null</c>, если файла нет.</returns>
+    private static string? FindModel()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        for (var step = 0; step < 6 && directory is not null; step++, directory = directory.Parent)
+        {
+            var candidate = Path.Combine(directory.FullName, "models", ModelFileName);
+
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
 }

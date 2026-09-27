@@ -18,19 +18,22 @@ namespace GoEngine.App.ViewModels;
 public sealed class MainViewModel : INotifyPropertyChanged
 {
     private readonly Random _random;
+    private readonly IPositionEvaluator? _evaluator;
     private GameState _game;
     private AppSettings _settings;
 
     /// <summary>Создаёт модель представления по настройкам.</summary>
     /// <param name="settings">Настройки партии.</param>
     /// <param name="random">Источник случайности для AI; в тестах — с фиксированным seed.</param>
-    public MainViewModel(AppSettings settings, Random random)
+    /// <param name="evaluator">Оценка позиции нейросетью для уровней Дан; <c>null</c> — игра без сети.</param>
+    public MainViewModel(AppSettings settings, Random random, IPositionEvaluator? evaluator = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(random);
 
         _settings = settings;
         _random = random;
+        _evaluator = evaluator;
         _game = CreateGame(settings);
 
         ShowAiMoveIfNeeded();
@@ -200,10 +203,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         var playerColor = _settings.ToPlayerColor();
         var level = _settings.ToDifficultyLevel();
+        var size = _settings.ToBoardSize();
+
+        // Уровни Дан играют только с сетью и только на больших досках (D-038). Если модель
+        // не загружена или доска 9×9, уровень заменяется на 10 кю: партия не должна срываться
+        // из-за настроек, которые интерфейс и так не предлагает.
+        if (level.NeedsNetwork && (_evaluator is null || size == BoardSize.Size9))
+        {
+            level = DifficultyLevel.Kyu10;
+        }
 
         while (_game.Status == GameStatus.InProgress && _game.ToMove != playerColor)
         {
-            var selector = AiFactory.Create(level, _random);
+            var selector = AiFactory.Create(level, _random, size, _evaluator);
 
             if (!TryPlay(selector.SelectMove(_game)))
             {

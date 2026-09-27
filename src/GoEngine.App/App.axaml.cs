@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using GoEngine.AI;
 using GoEngine.App.Views;
 
 namespace GoEngine.App;
@@ -15,6 +16,14 @@ namespace GoEngine.App;
 /// </remarks>
 public sealed partial class App : Application
 {
+    /// <summary>Оценка позиции нейросетью для уровней Дан.</summary>
+    /// <remarks>
+    /// Головы задают её до запуска: библиотека интерфейса не знает про ONNX
+    /// (<c>DECISIONS.md</c>, D-034), а модель загружает та голова, у которой есть файл.
+    /// <c>null</c> — уровни Дан недоступны, играют уровни кю.
+    /// </remarks>
+    public static IPositionEvaluator? Evaluator { get; set; }
+
     /// <inheritdoc />
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
