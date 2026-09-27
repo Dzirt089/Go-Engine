@@ -60,6 +60,6 @@ public sealed class NeuralLevelFallbackTests
         }
 
         /// <inheritdoc />
-        public bool LoadModelForBoardSize(int boardSize, string modelsDirectory) => false;
+        public bool LoadModelForBoardSize(int boardSize, string modelsDirectory) => true;
     }
 }

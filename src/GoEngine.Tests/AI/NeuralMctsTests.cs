@@ -193,6 +193,6 @@ public sealed class NeuralMctsTests
         }
 
         /// <inheritdoc />
-        public bool LoadModelForBoardSize(int boardSize, string modelsDirectory) => false;
+        public bool LoadModelForBoardSize(int boardSize, string modelsDirectory) => true;
     }
 }

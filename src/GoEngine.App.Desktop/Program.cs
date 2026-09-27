@@ -109,7 +109,17 @@ internal static class Program
     /// </remarks>
     private static void LoadNetwork()
     {
-        if (FindModel() is not { } path)
+        if (FindModelsDirectory() is not { } directory)
+        {
+            return;
+        }
+
+        // Каталог моделей нужен и без основной модели: для 9×9 подойдёт специализированная (D-039).
+        global::GoEngine.App.App.ModelsDirectory = directory;
+
+        var path = Path.Combine(directory, ModelFileName);
+
+        if (!File.Exists(path))
         {
             return;
         }
@@ -126,17 +136,17 @@ internal static class Program
         Console.WriteLine($"Go Engine: нейросеть загружена ({Path.GetFileName(path)}).");
     }
 
-    /// <summary>Ищет файл модели вверх от каталога сборки.</summary>
-    /// <returns>Путь к модели или <c>null</c>, если файла нет.</returns>
-    private static string? FindModel()
+    /// <summary>Ищет каталог моделей вверх от каталога сборки.</summary>
+    /// <returns>Путь к каталогу <c>models</c> или <c>null</c>, если его нет.</returns>
+    private static string? FindModelsDirectory()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
         for (var step = 0; step < 6 && directory is not null; step++, directory = directory.Parent)
         {
-            var candidate = Path.Combine(directory.FullName, "models", ModelFileName);
+            var candidate = Path.Combine(directory.FullName, "models");
 
-            if (File.Exists(candidate))
+            if (Directory.Exists(candidate))
             {
                 return candidate;
             }

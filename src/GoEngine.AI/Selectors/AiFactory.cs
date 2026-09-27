@@ -27,14 +27,15 @@ public static class AiFactory
         DifficultyLevel level,
         Random random,
         BoardSize? boardSize = null,
-        IPositionEvaluator? evaluator = null)
+        IPositionEvaluator? evaluator = null,
+        string? modelsDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(level);
         ArgumentNullException.ThrowIfNull(random);
 
         if (level.NeedsNetwork)
         {
-            return CreateNeural(level, random, boardSize, evaluator);
+            return CreateNeural(level, random, boardSize, evaluator, modelsDirectory);
         }
 
         if (level.Kind == SelectorKind.Random)
@@ -65,27 +66,42 @@ public static class AiFactory
     /// <param name="random">Источник случайности.</param>
     /// <param name="boardSize">Размер доски партии.</param>
     /// <param name="evaluator">Оценка позиции нейросетью.</param>
+    /// <param name="modelsDirectory">Каталог с файлами моделей.</param>
     /// <returns>Селектор MCTS с оценкой сети.</returns>
-    /// <exception cref="DomainException">Доска 9×9, размер не указан или оценка не передана.</exception>
+    /// <exception cref="DomainException">Размер доски или каталог не указаны, оценка не передана
+    /// либо для размера нет модели.</exception>
+    /// <remarks>
+    /// Какую модель брать для какого размера, решает таблица профилей (D-039): основная сеть
+    /// годится для 13×13 и 19×19, для 9×9 нужна специализированная. Нет модели под размер —
+    /// уровень с сетью недоступен, и это ожидаемый отказ, а не ошибка программиста (D-038).
+    /// </remarks>
     private static IMoveSelector CreateNeural(
         DifficultyLevel level,
         Random random,
         BoardSize? boardSize,
-        IPositionEvaluator? evaluator)
+        IPositionEvaluator? evaluator,
+        string? modelsDirectory)
     {
         if (boardSize is null)
         {
             throw new DomainException($"Уровень {level.Name} играет с сетью: нужен размер доски партии (D-038).");
         }
 
-        if (boardSize == BoardSize.Size9)
-        {
-            throw new DomainException($"Уровень {level.Name} не играет на доске 9×9: сеть обучалась на 19×19, её оценка там неправдоподобна (D-038). Выберите 13×13 или 19×19 либо уровень кю.");
-        }
-
         if (evaluator is null)
         {
             throw new DomainException($"Уровню {level.Name} нужна загруженная модель нейросети.");
+        }
+
+        if (modelsDirectory is null)
+        {
+            throw new DomainException($"Уровню {level.Name} нужен каталог моделей нейросети.");
+        }
+
+        var size = boardSize.Value;
+
+        if (!evaluator.LoadModelForBoardSize(size.Value, modelsDirectory))
+        {
+            throw new DomainException($"Нет модели нейросети для доски {size}: выберите другую доску или уровень кю (D-039).");
         }
 
         var config = level.TimeBudget is { } time

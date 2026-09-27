@@ -3,14 +3,17 @@ using GoEngine.Core;
 
 namespace GoEngine.Tests;
 
-/// <summary>Тесты разделения зон ответственности AI по размеру доски — T-034, D-038.</summary>
+/// <summary>Тесты уровней с сетью и профилей моделей — T-034, T-035 (D-038, D-039).</summary>
 /// <remarks>
-/// Сеть обучалась на 19×19, на 9×9 её оценка неправдоподобна (D-034), а обычный MCTS на 19×19
-/// слаб из-за бюджета (D-021). Поэтому уровни Дан играют только на больших досках и только
-/// с загруженной моделью, а уровни кю — на любой доске.
+/// Уровни Дан играют только с загруженной моделью, и модель эта зависит от размера доски:
+/// для 13×13 и 19×19 — основная, для 9×9 — специализированная. Нет модели под размер —
+/// уровень недоступен, и это ожидаемый отказ, а не ошибка программиста.
 /// </remarks>
 public sealed class NeuralLevelTests
 {
+    /// <summary>Каталог моделей для тестов: файлов в нём нет, наличие модели решает подстановка.</summary>
+    private const string ModelsDirectory = "models";
+
     [Fact]
     public void Уровень_Дан_Требует_Сети()
     {
@@ -24,41 +27,52 @@ public sealed class NeuralLevelTests
     }
 
     [Fact]
-    public void Уровень_Дан_На_Доске_9x9_Отказ()
+    public void Уровень_Дан_Без_Модели_Отказ()
     {
-        Assert.Throws<DomainException>(() => DifficultyLevel.Dan5.CreateSelector(new Random(1), BoardSize.Size9, new FakeEvaluator()));
+        Assert.Throws<DomainException>(() =>
+            DifficultyLevel.Dan5.CreateSelector(new Random(1), BoardSize.Size19, null, ModelsDirectory));
     }
 
     [Fact]
     public void Уровень_Дан_Без_Размера_Доски_Отказ()
     {
-        Assert.Throws<DomainException>(() => DifficultyLevel.Dan5.CreateSelector(new Random(1), null, new FakeEvaluator()));
+        Assert.Throws<DomainException>(() =>
+            DifficultyLevel.Dan5.CreateSelector(new Random(1), null, new FakeEvaluator(true), ModelsDirectory));
     }
 
     [Fact]
-    public void Уровень_Дан_Без_Модели_Отказ()
+    public void Уровень_Дан_Без_Каталога_Моделей_Отказ()
     {
-        Assert.Throws<DomainException>(() => DifficultyLevel.Dan5.CreateSelector(new Random(1), BoardSize.Size19, null));
+        Assert.Throws<DomainException>(() =>
+            DifficultyLevel.Dan5.CreateSelector(new Random(1), BoardSize.Size19, new FakeEvaluator(true)));
+    }
+
+    [Fact]
+    public void Уровень_Дан_Без_Модели_Для_Размера_Отказ()
+    {
+        Assert.Throws<DomainException>(() =>
+            DifficultyLevel.Dan5.CreateSelector(new Random(1), BoardSize.Size9, new FakeEvaluator(false), ModelsDirectory));
     }
 
     [Fact]
     public void Уровень_Дан_На_Доске_19x19_Создаётся()
     {
-        var selector = DifficultyLevel.Dan5.CreateSelector(new Random(1), BoardSize.Size19, new FakeEvaluator());
+        var selector = DifficultyLevel.Dan5.CreateSelector(new Random(1), BoardSize.Size19, new FakeEvaluator(true), ModelsDirectory);
 
         Assert.IsType<MctsMoveSelector>(selector);
     }
 
     [Fact]
-    public void Уровень_Дан_На_Доске_13x13_Создаётся()
+    public void Уровень_Дан_На_Доске_9x9_С_Моделью_Создаётся()
     {
-        var selector = DifficultyLevel.Dan5.CreateSelector(new Random(1), BoardSize.Size13, new FakeEvaluator());
+        // Специализированная модель для 9×9 делает уровень доступным и на этой доске (D-039).
+        var selector = DifficultyLevel.Dan5.CreateSelector(new Random(1), BoardSize.Size9, new FakeEvaluator(true), ModelsDirectory);
 
         Assert.IsType<MctsMoveSelector>(selector);
     }
 
     [Fact]
-    public void Уровень_Кю_Работает_На_Доске_9x9()
+    public void Уровень_Кю_Работает_На_Доске_9x9_Без_Сети()
     {
         var selector = DifficultyLevel.Kyu10.CreateSelector(new Random(1), BoardSize.Size9);
 
@@ -73,7 +87,8 @@ public sealed class NeuralLevelTests
     }
 
     /// <summary>Подставная оценка позиции: тестам не нужна модель.</summary>
-    private sealed class FakeEvaluator : IPositionEvaluator
+    /// <param name="modelAvailable">Есть ли модель для запрошенного размера доски.</param>
+    private sealed class FakeEvaluator(bool modelAvailable) : IPositionEvaluator
     {
         /// <inheritdoc />
         public PositionEvaluation Evaluate(Board board, StoneColor toMove, Komi komi, IReadOnlyList<Move> moves)
@@ -86,6 +101,6 @@ public sealed class NeuralLevelTests
         }
 
         /// <inheritdoc />
-        public bool LoadModelForBoardSize(int boardSize, string modelsDirectory) => false;
+        public bool LoadModelForBoardSize(int boardSize, string modelsDirectory) => modelAvailable;
     }
 }

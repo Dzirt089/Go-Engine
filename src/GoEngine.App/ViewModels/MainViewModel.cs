@@ -208,14 +208,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         // Уровни Дан играют только с сетью и только на больших досках (D-038). Если модель
         // не загружена или доска 9×9, уровень заменяется на 10 кю: партия не должна срываться
         // из-за настроек, которые интерфейс и так не предлагает.
-        if (level.NeedsNetwork && (_evaluator is null || size == BoardSize.Size9))
+        var modelsDirectory = global::GoEngine.App.App.ModelsDirectory;
+
+        if (level.NeedsNetwork && (_evaluator is null || modelsDirectory is null))
         {
             level = DifficultyLevel.Kyu10;
         }
 
         while (_game.Status == GameStatus.InProgress && _game.ToMove != playerColor)
         {
-            var selector = AiFactory.Create(level, _random, size, _evaluator);
+            var selector = AiFactory.Create(level, _random, size, _evaluator, modelsDirectory);
 
             if (!TryPlay(selector.SelectMove(_game)))
             {

@@ -107,10 +107,14 @@ public sealed class DifficultyLevel : Enumeration
     /// Единственная точка создания селектора — <see cref="AiFactory.Create"/>; уровень лишь
     /// передаёт ему свои настройки.
     /// </remarks>
-    public IMoveSelector CreateSelector(Random random, BoardSize? boardSize = null, IPositionEvaluator? evaluator = null)
+    public IMoveSelector CreateSelector(
+        Random random,
+        BoardSize? boardSize = null,
+        IPositionEvaluator? evaluator = null,
+        string? modelsDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(random);
 
-        return AiFactory.Create(this, random, boardSize, evaluator);
+        return AiFactory.Create(this, random, boardSize, evaluator, modelsDirectory);
     }
 }

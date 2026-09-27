@@ -24,6 +24,10 @@ public sealed partial class App : Application
     /// </remarks>
     public static IPositionEvaluator? Evaluator { get; set; }
 
+    /// <summary>Каталог с файлами моделей: его задаёт голова, зная, где лежат файлы.</summary>
+    /// <remarks>Без каталога уровни Дан недоступны — как и без оценщика (D-039).</remarks>
+    public static string? ModelsDirectory { get; set; }
+
     /// <inheritdoc />
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
