@@ -53,3 +53,7 @@ coverage*.xml
 
 # Резервные копии миграции
 Work-1.bak/
+
+# Кэш Python: скрипты выпуска лежат в .github/scripts
+__pycache__/
+*.pyc
