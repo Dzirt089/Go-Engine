@@ -85,16 +85,11 @@ jobs:
           printf 'файлов в выпуске: %s\n' "${#files[@]}"
           # Ассеты удаляем явно: gh release upload --clobber на существующем релизе отдаёт
           # «ReleaseAsset.name already exists» и роняет публикацию (проверено на latest).
-          delete_assets() {
-            local tag="$1"
-            local path name
-            for path in "${files[@]}"; do
-              name="$(basename "$path")"
-              gh release delete-asset "$tag" "$name" --yes >/dev/null 2>&1 || true
-            done
-          }
+          # Цикл вписан в каждый шаг: shell у шагов свой, функция из соседнего шага не видна.
           if gh release view "$TAG" >/dev/null 2>&1; then
-            delete_assets "$TAG"
+            for path in "${files[@]}"; do
+              gh release delete-asset "$TAG" "$(basename "$path")" --yes >/dev/null 2>&1 || true
+            done
             gh release upload "$TAG" "${files[@]}"
           else
             # latest=false: «самым свежим» остаётся плавающий релиз, у версии своя жизнь.
@@ -114,7 +109,9 @@ jobs:
           printf 'файлов в релизе: %s\n' "${#files[@]}"
           if gh release view latest >/dev/null 2>&1; then
             # Релиз latest уже есть: обновляем файлы и заметки, чтобы ссылка осталась прежней.
-            delete_assets latest
+            for path in "${files[@]}"; do
+              gh release delete-asset latest "$(basename "$path")" --yes >/dev/null 2>&1 || true
+            done
             gh release upload latest "${files[@]}"
             gh release edit latest --title "$title" --notes "$notes" --latest
           else
