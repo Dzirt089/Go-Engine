@@ -10,7 +10,17 @@
     <RootNamespace>GoEngine.App</RootNamespace>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- Иконка exe и установщика: один файл с семью размерами, нарисован тем же кодом,
+         что и иконка окна (см. src/GoEngine.App/Assets). -->
+    <ApplicationIcon>../GoEngine.App/Assets/goengine.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- PNG-иконки кладём рядом с приложением: их берут ярлыки Linux и поставка macOS. -->
+    <None Include="../GoEngine.App/Assets/goengine-256.png" Link="goengine-256.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../GoEngine.App/Assets/goengine-512.png" Link="goengine-512.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" />

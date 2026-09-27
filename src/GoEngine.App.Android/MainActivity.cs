@@ -13,6 +13,7 @@ namespace GoEngine.App.Android;
 /// </remarks>
 [Activity(
     Label = "Go Engine",
+    Icon = "@mipmap/ic_launcher",
     Theme = "@style/MyTheme.NoActionBar",
     MainLauncher = true,
     ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.UiMode)]

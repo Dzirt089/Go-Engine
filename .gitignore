@@ -11,6 +11,11 @@ obj/
 # Build outputs
 publish/
 artifacts/
+
+# Сборка установщика Windows: результат компиляции и журнал Inno Setup
+dist-installer/
+installer-build*.log
+models-installer/
 src/**/bin/
 src/**/obj/
 

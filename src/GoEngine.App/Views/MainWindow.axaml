@@ -5,6 +5,7 @@
         x:Class="GoEngine.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Go Engine"
+        Icon="/Assets/goengine.ico"
         Width="920"
         Height="720"
         MinWidth="360"

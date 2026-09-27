@@ -18,6 +18,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Иконка одна на все платформы: окно берёт её отсюда, настольная голова — для exe,
+         Android — свои плотности из Resources (см. tools/make-icon в отчёте задачи). -->
+    <AvaloniaResource Include="Assets/**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../GoEngine.Core/GoEngine.Core.csproj" />
     <ProjectReference Include="../GoEngine.AI/GoEngine.AI.csproj" />
   </ItemGroup>
