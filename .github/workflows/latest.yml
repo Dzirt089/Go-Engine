@@ -1,0 +1,53 @@
+# Плавающий релиз latest: свежие сборки из main, доступные для скачивания без авторизации.
+#
+# Зачем: артефакты Actions требуют входа в GitHub и живут 7 дней, поэтому как канал раздачи
+# они не годятся. Здесь на каждый push в main собираются те же четыре настольные платформы и APK,
+# что и в версионированном релизе, и файлы кладутся в релиз с постоянным тегом latest.
+# Файлы обновляются через gh release upload --clobber, поэтому релиз один, а не по одному на push.
+#
+# Версионированные релизы (release.yml, тег v*) остаются вехами: latest — это «самое свежее».
+name: Latest build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Сборки
+    uses: ./.github/workflows/build.yml
+
+  publish:
+    name: Обновление релиза latest
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Сбор файлов
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Список файлов
+        run: find dist -type f | sort
+
+      - name: Создание или обновление релиза latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          title="Свежая сборка (main)"
+          notes="Сборка из ветки main, коммит ${{ github.sha }}. Прогон: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          mapfile -t files < <(find dist -type f | sort)
+          printf 'файлов в релизе: %s\n' "${#files[@]}"
+          if gh release view latest >/dev/null 2>&1; then
+            # Релиз latest уже есть: обновляем файлы и заметки, чтобы ссылка осталась прежней.
+            gh release upload latest "${files[@]}" --clobber
+            gh release edit latest --title "$title" --notes "$notes" --latest
+          else
+            gh release create latest "${files[@]}" --title "$title" --notes "$notes" --latest
+          fi

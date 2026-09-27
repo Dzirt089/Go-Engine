@@ -1,0 +1,129 @@
+# Общая сборка артефактов: четыре настольные платформы и APK для Android.
+#
+# Вызывается из двух мест, чтобы шаги сборки не дублировались:
+#   latest.yml  — на каждый push в main, файлы уходят в плавающий релиз latest;
+#   release.yml — по тегу или вручную, файлы уходят в версионированный релиз.
+# Вход suffix добавляет версию к именам архивов (например, -v0.1.0); для latest он пустой,
+# поэтому ссылки в плавающем релизе постоянные.
+name: Build artifacts
+
+on:
+  workflow_call:
+    inputs:
+      suffix:
+        description: 'Суффикс имени архива, например -v0.1.0. Пусто — имя без версии'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  desktop:
+    name: ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-latest
+            archive: zip
+          - rid: linux-x64
+            os: ubuntu-latest
+            archive: tar.gz
+          - rid: osx-x64
+            os: macos-latest
+            archive: tar.gz
+          - rid: osx-arm64
+            os: macos-latest
+            archive: tar.gz
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Публикация ${{ matrix.rid }}
+        run: >-
+          dotnet publish src/GoEngine.App.Desktop/GoEngine.App.Desktop.csproj
+          -c Release -r ${{ matrix.rid }} --self-contained true
+          -p:DebugType=none -p:DebugSymbols=false
+          -o publish/${{ matrix.rid }}
+
+      - name: Проверка запуска (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          # Приложение — GUI-процесс: PowerShell не ждёт его и не выставляет $LASTEXITCODE,
+          # поэтому запускаем через Start-Process и смотрим код возврата сами.
+          $process = Start-Process -FilePath "./publish/${{ matrix.rid }}/GoEngine.App.Desktop.exe" -ArgumentList '--smoke' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Проверочный режим не прошёл: код $($process.ExitCode)." }
+
+      - name: Проверка запуска (Linux, macOS)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          chmod +x ./publish/${{ matrix.rid }}/GoEngine.App.Desktop
+          ./publish/${{ matrix.rid }}/GoEngine.App.Desktop --smoke
+
+      - name: Упаковка (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $name = "go-engine-${{ matrix.rid }}${{ inputs.suffix }}"
+          Compress-Archive -Path "./publish/${{ matrix.rid }}/*" -DestinationPath "$name.zip"
+          Write-Host "собрано: $name.zip"
+
+      - name: Упаковка (Linux, macOS)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          name="go-engine-${{ matrix.rid }}${{ inputs.suffix }}"
+          tar -czf "$name.tar.gz" -C "publish/${{ matrix.rid }}" .
+          ls -lh "$name.tar.gz"
+
+      - name: Выгрузка сборки
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-engine-${{ matrix.rid }}
+          path: |
+            go-engine-${{ matrix.rid }}${{ inputs.suffix }}.zip
+            go-engine-${{ matrix.rid }}${{ inputs.suffix }}.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  android:
+    name: android (APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      # Работаем из папки головы: там свой global.json с SDK восьмой полосы. На машине сборки
+      # может стоять более новый SDK, а для него рабочая нагрузка net8.0-android объявлена
+      # вне поддержки — сборка падает, хотя сам проект в порядке.
+      - name: Установка рабочей нагрузки Android
+        working-directory: src/GoEngine.App.Android
+        run: dotnet workload install android
+      - name: Публикация APK
+        working-directory: src/GoEngine.App.Android
+        run: >-
+          dotnet publish GoEngine.App.Android.csproj
+          -c Release -f net8.0-android34.0 -o ../../publish/android
+      - name: Выгрузка APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-engine-android
+          path: publish/android/**/*.apk
+          if-no-files-found: warn
+          retention-days: 14

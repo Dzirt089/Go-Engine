@@ -2,6 +2,10 @@
 # Проверочные режимы приложения не открывают окно, поэтому агент без графической сессии
 # проходит их целиком. Две системы — потому что приложение настольное: сборка под Windows
 # и под Linux ломается по-разному.
+#
+# Здесь только проверки: они быстрые и должны падать раньше сборок. Сборка настольных
+# платформ и APK живёт в build.yml и запускается из latest.yml (плавающий релиз latest)
+# и из release.yml (версионированный релиз) — шаги сборки описаны в одном месте.
 name: CI
 
 on:
@@ -40,36 +44,3 @@ jobs:
       - name: Проверка проекта
         shell: pwsh
         run: ./check.ps1 -SkipStress
-
-  # Android собирается на каждый push, а не только в релизе: голова Android — самый хрупкий
-  # слой (рабочая нагрузка, отдельный TFM, общий вид интерфейса), и поломка в нём должна быть
-  # видна сразу, а не в день релиза. APK выкладывается артефактом, чтобы его можно было
-  # поставить на телефон руками.
-  android:
-    name: Android — сборка APK
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: '8.0.x'
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
-      - name: Установка рабочей нагрузки Android
-        working-directory: src/GoEngine.App.Android
-        run: dotnet workload install android
-      - name: Публикация APK
-        working-directory: src/GoEngine.App.Android
-        run: >-
-          dotnet publish GoEngine.App.Android.csproj
-          -c Release -f net8.0-android34.0 -o ../../publish/android
-      - name: Выгрузка APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: go-engine-android-ci
-          path: publish/android/**/*.apk
-          if-no-files-found: error
-          retention-days: 7
