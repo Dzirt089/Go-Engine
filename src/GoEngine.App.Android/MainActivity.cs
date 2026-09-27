@@ -16,6 +16,6 @@ namespace GoEngine.App.Android;
     Theme = "@style/MyTheme.NoActionBar",
     MainLauncher = true,
     ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.UiMode)]
-public sealed class MainActivity : AvaloniaMainActivity<App>
+public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App>
 {
 }
