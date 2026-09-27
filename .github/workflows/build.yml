@@ -56,6 +56,34 @@ jobs:
           -p:DebugType=none -p:DebugSymbols=false
           -o publish/${{ matrix.rid }}
 
+      # Модели кладём в сборку рядом с приложением: приложение ищет каталог models вверх от своего
+      # исполняемого файла, поэтому после распаковки архива уровни с нейросетью работают сразу.
+      # Файлы берём из нашего релиза models-v1 (он публичный), а не с внешнего хостинга: сборка
+      # не зависит от чужой доступности. Хеш проверяем — иначе в релиз уйдёт битая поставка.
+      - name: Модели нейросети в сборку
+        shell: pwsh
+        env:
+          MODELS_TAG: models-v1
+        run: |
+          $dir = "./publish/${{ matrix.rid }}/models"
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $models = @(
+            @{ Name = 'kata1-b28c512nbt-adam-s11165M-d5387M.uint8.onnx'; Sha = 'D9EA9DB19C59F3934EF566ABB8D296B3E94A22916A88352810499D02C88C5828' },
+            @{ Name = 'kata9x9-finetuned.uint8.onnx'; Sha = '4EF793FFC3CA9C4FDD5D95F186C3A411129F2A707977227A2262C9F599D3C163' }
+          )
+          foreach ($model in $models) {
+            $url = "https://github.com/Dzirt089/Go-Engine/releases/download/$env:MODELS_TAG/$($model.Name)"
+            $path = Join-Path $dir $model.Name
+            Write-Host "качаю модель: $($model.Name)"
+            Invoke-WebRequest -Uri $url -OutFile $path -UseBasicParsing
+            $hash = (Get-FileHash $path -Algorithm SHA256).Hash
+            if ($hash -ne $model.Sha) {
+              throw "SHA-256 не совпал: $($model.Name). Ожидался $($model.Sha), получен $hash"
+            }
+            $size = [math]::Round((Get-Item $path).Length / 1MB, 1)
+            Write-Host "модель на месте: $($model.Name), $size МБ, SHA-256 сходится"
+          }
+
       - name: Проверка запуска (Windows)
         if: matrix.archive == 'zip'
         shell: pwsh
