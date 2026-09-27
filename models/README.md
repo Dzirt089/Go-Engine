@@ -50,3 +50,36 @@ curl -L -o models/kata1-b28c512nbt-adam-s11165M-d5387M.uint8.onnx \
 На 9×9 её первый ход и оценка неправдоподобны (F4 и 87 % за чёрных при коми 5,5), поэтому
 играть с сетью и мерить её силу нужно на 19×19. Прежняя таблица силы на 9×9 (D-021) с сетью
 напрямую не сравнима.
+## Попытка конвертации модели для 9×9 (2026-09-27)
+
+Что сделано:
+
+- скачана специализированная модель `kata9x9-b18c384nbt-20231025.bin.gz` (93,3 МБ) из релиза
+  `v1.13.2-kata9x9` проекта lightvector/KataGo — формат `.bin.gz`, нативный для KataGo;
+- скачана сборка KataGo v1.15.3 для Windows (Eigen/CPU, AVX2) в `tools/katago`;
+- поставлен пайплайн конвертации `kaya-go/katago-onnx` в отдельное окружение `tools/venv`
+  (torch CPU, onnx, onnxruntime).
+
+Почему конвертация не выполнена:
+
+1. **Команды `dumponnx` в KataGo нет.** Проверено запуском `katago.exe` без аргументов: среди
+   подкоманд только gtp, benchmark, genconfig, contribute, match, version, analysis, tuner,
+   selfplay, gatekeeper, evalsgf, testgpuerror, runtests и отладочные `run*` — экспорта модели
+   в ONNX среди них нет. Сборка Eigen(CPU) ONNX-бэкенд не содержит.
+2. **Пайплайн `kaya-go/katago-onnx` принимает не `.bin.gz`, а PyTorch-чекпоинт `model.ckpt`**:
+   `download_and_extract_model` качает `media.katagotraining.org/uploaded/networks/zips/kata1/<имя>.zip`
+   и берёт из него `model.ckpt`, а затем `convert_katago_torch_to_onnx` экспортирует его через
+   `torch.onnx.export`. Для 9×9-модели PyTorch-чекпоинт найти не удалось: проверенные адреса на
+   `media.katagotraining.org` (в том числе `zips/kata9x9/…`) отвечают отказом.
+
+Что нужно, чтобы довести до конца (любой из путей):
+
+- **А.** PyTorch-чекпоинт 9×9-модели: тогда конвертация идёт готовым пайплайном за минуты.
+- **Б.** Читатель формата `.bin.gz` → `state_dict` (или сразу в ONNX): формат описан в исходниках
+  KataGo (`cpp/neuralnet/modelversion.cpp`, `neuralnet.cpp`), работа на 1–2 сессии; выход должен
+  совпасть по контракту с уже подключённой моделью (`bin_input`, `global_input`, `policy`, `value`).
+- **В.** Сборка KataGo с `USE_ONNX_BACKEND=1` (CMake + MSVC + ONNX Runtime) — тогда экспорт делает
+  сам движок через `OnnxModelBuilder`.
+
+Пока файла нет, профиль `Finetuned9x9` остаётся без файла: на 9×9 доступны уровни кю, уровень Дан
+там не предлагается (`DECISIONS.md`, D-039).
