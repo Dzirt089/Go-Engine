@@ -23,7 +23,7 @@ public sealed class HeuristicMoveSelector : IMoveSelector
 
     private readonly Random _random;
     private readonly int _randomnessPercent;
-    private readonly bool _tacticalGuard;
+    private readonly IMoveFilter _filter;
 
     /// <summary>Создаёт селектор.</summary>
     /// <param name="random">Источник случайности; в тестах — с фиксированным seed.</param>
@@ -38,7 +38,7 @@ public sealed class HeuristicMoveSelector : IMoveSelector
 
         _random = random;
         _randomnessPercent = randomnessPercent;
-        _tacticalGuard = tacticalGuard;
+        _filter = MoveFilters.Guarded(tacticalGuard);
     }
 
     /// <inheritdoc />
@@ -88,17 +88,10 @@ public sealed class HeuristicMoveSelector : IMoveSelector
     /// </remarks>
     private Move RandomMove(Board board, IReadOnlyList<Move> legalMoves)
     {
-        if (_tacticalGuard)
-        {
-            var safe = TacticalGuard.SafeMoves(board, legalMoves);
+        var allowed = _filter.Apply(board, legalMoves);
+        var pool = allowed.EverythingAllowed ? legalMoves : allowed.Moves;
 
-            if (safe.Count > 0)
-            {
-                return safe[_random.Next(safe.Count)];
-            }
-        }
-
-        return legalMoves[_random.Next(legalMoves.Count)];
+        return pool[_random.Next(pool.Count)];
     }
 
     /// <summary>Выбирает ход по эвристикам.</summary>
