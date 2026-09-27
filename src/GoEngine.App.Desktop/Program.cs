@@ -116,6 +116,7 @@ internal static class Program
 
         // Каталог моделей нужен и без основной модели: для 9×9 подойдёт специализированная (D-039).
         global::GoEngine.App.App.ModelsDirectory = directory;
+        global::GoEngine.App.App.ModelSizes = AvailableSizes(directory);
 
         var path = Path.Combine(directory, ModelFileName);
 
@@ -134,6 +135,33 @@ internal static class Program
 
         global::GoEngine.App.App.Evaluator = loaded.Value!;
         Console.WriteLine($"Go Engine: нейросеть загружена ({Path.GetFileName(path)}).");
+    }
+
+    /// <summary>Собирает стороны доски, для которых в каталоге есть модель.</summary>
+    /// <param name="directory">Каталог с файлами моделей.</param>
+    /// <returns>Стороны доски, обеспеченные моделью.</returns>
+    /// <remarks>
+    /// Таблица профилей — единственное место, где задано соответствие размера и файла (D-039);
+    /// здесь только проверяется, что файл на месте.
+    /// </remarks>
+    private static IReadOnlySet<int> AvailableSizes(string directory)
+    {
+        var sizes = new HashSet<int>();
+
+        foreach (var profile in ModelProfiles.All)
+        {
+            if (!File.Exists(Path.Combine(directory, profile.FileName)))
+            {
+                continue;
+            }
+
+            for (var size = profile.MinBoardSize; size <= profile.MaxBoardSize; size++)
+            {
+                _ = sizes.Add(size);
+            }
+        }
+
+        return sizes;
     }
 
     /// <summary>Ищет каталог моделей вверх от каталога сборки.</summary>

@@ -76,8 +76,11 @@ public sealed partial class SettingsWindow : Window
     /// <summary>Настройки, выбранные в диалоге.</summary>
     public AppSettings Selected { get; private set; }
 
-    /// <summary>Загружена ли модель нейросети: без неё уровни Дан не предлагаются.</summary>
-    private static bool NetworkAvailable => global::GoEngine.App.App.Evaluator is not null;
+    /// <summary>Есть ли модель для доски: без неё уровни Дан не предлагаются.</summary>
+    /// <param name="size">Размер доски.</param>
+    /// <returns><c>true</c>, если сеть загружена и для этого размера нашлась модель.</returns>
+    private static bool ModelAvailableFor(BoardSize size) =>
+        global::GoEngine.App.App.Evaluator is not null && global::GoEngine.App.App.ModelSizes.Contains(size.Value);
 
     /// <summary>Перестраивает список уровней при смене размера доски.</summary>
     /// <param name="sender">Список размеров.</param>
@@ -94,7 +97,7 @@ public sealed partial class SettingsWindow : Window
     /// <param name="preferred">Желаемый уровень; недоступный заменяется на уровень сброса.</param>
     private void FillLevels(BoardSize size, DifficultyLevel preferred)
     {
-        _levels = LevelChooser.Available(size, NetworkAvailable);
+        _levels = LevelChooser.Available(size, ModelAvailableFor(size));
 
         if (this.FindControl<ComboBox>("LevelBox") is not { } levelBox)
         {
@@ -102,7 +105,7 @@ public sealed partial class SettingsWindow : Window
         }
 
         levelBox.ItemsSource = _levels.Select(LevelChooser.Label).ToList();
-        levelBox.SelectedIndex = Math.Max(0, IndexOf(LevelChooser.Resolve(preferred, size, NetworkAvailable)));
+        levelBox.SelectedIndex = Math.Max(0, IndexOf(LevelChooser.Resolve(preferred, size, ModelAvailableFor(size))));
     }
 
     /// <summary>Возвращает выбранный сейчас уровень.</summary>
@@ -140,7 +143,7 @@ public sealed partial class SettingsWindow : Window
     private void OnStartClick(object? sender, RoutedEventArgs e)
     {
         var sizeValue = Sizes[Math.Clamp(SelectedIndex("SizeBox"), 0, Sizes.Length - 1)];
-        var level = LevelChooser.Resolve(CurrentLevel(), new BoardSize(sizeValue), NetworkAvailable);
+        var level = LevelChooser.Resolve(CurrentLevel(), new BoardSize(sizeValue), ModelAvailableFor(new BoardSize(sizeValue)));
         var color = SelectedIndex("ColorBox") == 1 ? StoneColor.White : StoneColor.Black;
         var komi = this.FindControl<NumericUpDown>("KomiBox")?.Value ?? (decimal)Selected.Komi;
 

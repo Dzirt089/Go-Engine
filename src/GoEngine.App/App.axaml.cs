@@ -28,6 +28,13 @@ public sealed partial class App : Application
     /// <remarks>Без каталога уровни Дан недоступны — как и без оценщика (D-039).</remarks>
     public static string? ModelsDirectory { get; set; }
 
+    /// <summary>Стороны доски, для которых нашлась модель.</summary>
+    /// <remarks>
+    /// Заполняет голова: она знает каталог и таблицу профилей (D-039). Пустое множество
+    /// означает, что уровни Дан недоступны ни на одной доске, и играют уровни кю.
+    /// </remarks>
+    public static IReadOnlySet<int> ModelSizes { get; set; } = new HashSet<int>();
+
     /// <inheritdoc />
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 

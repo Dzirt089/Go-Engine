@@ -5,8 +5,10 @@ namespace GoEngine.App.Services;
 
 /// <summary>Какие уровни AI предлагать для выбранной доски и что делать с выбором, ставшим недоступным.</summary>
 /// <remarks>
-/// Разделение зон ответственности — <c>DECISIONS.md</c>, D-038: уровни Дан играют только
-/// с загруженной сетью и только на досках 19×19 и 13×13, потому что сеть обучалась на 19×19.
+/// Уровни Дан показываются только тогда, когда для выбранной доски есть модель
+/// (<c>DECISIONS.md</c>, D-039): основная сеть годится для 13×13 и 19×19, для 9×9 нужна
+/// специализированная. Что именно доступно, решает голова — она знает каталог и профили,
+/// а сюда передаётся готовый ответ «есть ли модель для этого размера».
 /// Логика вынесена из диалога настроек: у окна её не проверить тестами, а здесь — можно.
 /// </remarks>
 public static class LevelChooser
@@ -28,37 +30,35 @@ public static class LevelChooser
 
     /// <summary>Перечисляет уровни, доступные для доски.</summary>
     /// <param name="size">Размер доски.</param>
-    /// <param name="networkAvailable">Загружена ли модель нейросети.</param>
+    /// <param name="modelAvailableForSize">Нашлась ли модель для этого размера доски.</param>
     /// <returns>Уровни в порядке списка выбора.</returns>
-    public static IReadOnlyList<DifficultyLevel> Available(BoardSize size, bool networkAvailable)
+    public static IReadOnlyList<DifficultyLevel> Available(BoardSize size, bool modelAvailableForSize)
     {
         ArgumentNullException.ThrowIfNull(size);
 
-        // Уровни Дан скрываются на 9×9 (оценка сети там неправдоподобна) и без модели.
-        return size == BoardSize.Size9 || !networkAvailable
-            ? KyuLevels
-            : [.. KyuLevels, DifficultyLevel.Dan5];
+        // Уровни Дан скрываются, если для этой доски нет модели: без неё уровень не создать.
+        return modelAvailableForSize ? [.. KyuLevels, DifficultyLevel.Dan5] : KyuLevels;
     }
 
     /// <summary>Проверяет, доступен ли уровень для доски.</summary>
     /// <param name="level">Уровень.</param>
     /// <param name="size">Размер доски.</param>
-    /// <param name="networkAvailable">Загружена ли модель нейросети.</param>
+    /// <param name="modelAvailableForSize">Нашлась ли модель для этого размера доски.</param>
     /// <returns><c>true</c>, если уровень можно предложить игроку.</returns>
-    public static bool IsAvailable(DifficultyLevel level, BoardSize size, bool networkAvailable)
+    public static bool IsAvailable(DifficultyLevel level, BoardSize size, bool modelAvailableForSize)
     {
         ArgumentNullException.ThrowIfNull(level);
 
-        return Available(size, networkAvailable).Contains(level);
+        return Available(size, modelAvailableForSize).Contains(level);
     }
 
     /// <summary>Возвращает уровень, если он доступен, иначе уровень сброса.</summary>
     /// <param name="selected">Выбранный уровень.</param>
     /// <param name="size">Размер доски.</param>
-    /// <param name="networkAvailable">Загружена ли модель нейросети.</param>
+    /// <param name="modelAvailableForSize">Нашлась ли модель для этого размера доски.</param>
     /// <returns>Уровень, который можно использовать для этой доски.</returns>
-    public static DifficultyLevel Resolve(DifficultyLevel selected, BoardSize size, bool networkAvailable) =>
-        IsAvailable(selected, size, networkAvailable) ? selected : Fallback;
+    public static DifficultyLevel Resolve(DifficultyLevel selected, BoardSize size, bool modelAvailableForSize) =>
+        IsAvailable(selected, size, modelAvailableForSize) ? selected : Fallback;
 
     /// <summary>Собирает подпись уровня для списка выбора.</summary>
     /// <param name="level">Уровень.</param>
