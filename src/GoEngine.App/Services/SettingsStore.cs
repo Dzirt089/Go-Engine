@@ -62,7 +62,17 @@ public static class SettingsStore
 
         try
         {
-            return AppSettings.Parse(File.ReadAllText(file)) ?? AppSettings.Default;
+            var settings = AppSettings.Parse(File.ReadAllText(file));
+
+            if (settings is null)
+            {
+                return AppSettings.Default;
+            }
+
+            // Настройки прошлых версий могли сохранить коми от другой доски (дефект D-051).
+            settings.RepairKomi();
+
+            return settings;
         }
         catch (IOException)
         {

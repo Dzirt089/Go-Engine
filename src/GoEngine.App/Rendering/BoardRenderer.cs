@@ -50,6 +50,15 @@ public static class BoardRenderer
     /// <summary>Доля клетки, которую занимает подпись координаты.</summary>
     private const float CoordinateSizeRatio = 0.42f;
 
+    /// <summary>Доля клетки, которую занимает знак территории.</summary>
+    private const float TerritorySizeRatio = 0.34f;
+
+    /// <summary>Цвет знака нейтральной точки: серый, полупрозрачный.</summary>
+    private static readonly SKColor NeutralColor = new(0x5A, 0x5A, 0x5A, 0x99);
+
+    /// <summary>Толщина линий знака нейтральной точки в пикселях.</summary>
+    private const float NeutralStrokeWidth = 1.4f;
+
     /// <summary>Сдвиг базовой линии подписи к её середине, в долях кегля.</summary>
     private const float CoordinateBaselineRatio = 0.35f;
 
@@ -64,6 +73,7 @@ public static class BoardRenderer
     /// <param name="lastMove">Точка последнего хода или <c>null</c>.</param>
     /// <param name="hover">Точка под курсором или <c>null</c>.</param>
     /// <param name="animation">Кадр анимации камней или <c>null</c>.</param>
+    /// <param name="territory">Владение точками для показа территории или <c>null</c>.</param>
     public static void Draw(
         SKCanvas canvas,
         Board board,
@@ -71,7 +81,8 @@ public static class BoardRenderer
         float height,
         Point? lastMove = null,
         Point? hover = null,
-        StoneAnimation? animation = null)
+        StoneAnimation? animation = null,
+        IReadOnlyList<StoneColor>? territory = null)
     {
         ArgumentNullException.ThrowIfNull(canvas);
         ArgumentNullException.ThrowIfNull(board);
@@ -84,8 +95,80 @@ public static class BoardRenderer
         DrawCoordinates(canvas, board.Size, geometry);
         DrawStarPoints(canvas, board.Size, geometry);
         DrawStones(canvas, board, geometry, animation);
+        DrawTerritory(canvas, board, geometry, territory);
         DrawMarkers(canvas, geometry, lastMove, hover);
     }
+
+    /// <summary>Рисует знаки территории на пустых пересечениях.</summary>
+    /// <param name="canvas">Холст Skia.</param>
+    /// <param name="board">Позиция.</param>
+    /// <param name="geometry">Геометрия доски.</param>
+    /// <param name="territory">Владение точками или <c>null</c>, если территорию не показываем.</param>
+    /// <remarks>
+    /// Знаки ставятся только на пустые точки: камни не закрашиваются, иначе позиция стала бы
+    /// нечитаемой. Свой знак у каждой стороны и у нейтральных точек — чёрный квадрат, белый
+    /// квадрат с обводкой и серый крест: цвет и форма различаются и на светлой доске, и при
+    /// плохом зрении. Нейтральные точки рисуются полупрозрачно: в начале партии их почти вся
+    /// доска, и плотный знак мешал бы смотреть позицию.
+    /// </remarks>
+    private static void DrawTerritory(SKCanvas canvas, Board board, BoardGeometry geometry, IReadOnlyList<StoneColor>? territory)
+    {
+        if (territory is null || territory.Count != board.Size.Area)
+        {
+            // Список от другой доски не рисуем: лучше пустая разметка, чем знаки не на тех точках.
+            return;
+        }
+
+        using var black = new SKPaint { Color = BlackStoneColor, IsAntialias = true, Style = SKPaintStyle.Fill };
+        using var white = new SKPaint { Color = WhiteStoneColor, IsAntialias = true, Style = SKPaintStyle.Fill };
+        using var outline = new SKPaint
+        {
+            Color = WhiteStoneOutline,
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = GridStrokeWidth
+        };
+        using var neutral = new SKPaint
+        {
+            Color = NeutralColor,
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = NeutralStrokeWidth
+        };
+
+        var half = geometry.Cell * TerritorySizeRatio / 2;
+        var size = board.Size.Value;
+
+        foreach (var point in board.EmptyPoints())
+        {
+            var center = geometry.Pixel(point);
+            var owner = territory[(point.Y * size) + point.X];
+
+            if (owner == StoneColor.Black)
+            {
+                canvas.DrawRect(Square(center, half), black);
+            }
+            else if (owner == StoneColor.White)
+            {
+                var square = Square(center, half);
+
+                canvas.DrawRect(square, white);
+                canvas.DrawRect(square, outline);
+            }
+            else
+            {
+                canvas.DrawLine(center.X - half, center.Y - half, center.X + half, center.Y + half, neutral);
+                canvas.DrawLine(center.X - half, center.Y + half, center.X + half, center.Y - half, neutral);
+            }
+        }
+    }
+
+    /// <summary>Строит квадрат знака вокруг точки.</summary>
+    /// <param name="center">Центр знака.</param>
+    /// <param name="half">Половина стороны квадрата.</param>
+    /// <returns>Прямоугольник знака.</returns>
+    private static SKRect Square(SKPoint center, float half) =>
+        new(center.X - half, center.Y - half, center.X + half, center.Y + half);
 
     /// <summary>Рисует подсветку наведения и маркер последнего хода.</summary>
     /// <param name="canvas">Холст Skia.</param>

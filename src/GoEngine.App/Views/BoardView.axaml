@@ -16,7 +16,8 @@
     <controls:BoardControl x:Name="Board"
                            Grid.Column="0"
                            Board="{Binding Board}"
-                           LastMove="{Binding LastMove}" />
+                           LastMove="{Binding LastMove}"
+                           Territory="{Binding Territory}" />
 
     <Border x:Name="Panel"
             Grid.Column="1"
@@ -47,6 +48,21 @@
 
           <TextBlock Text="{Binding Captures, StringFormat='Снято: {0}'}" TextWrapping="Wrap" />
 
+          <!-- Разметка территории: чёрный квадрат — территория чёрных, белый квадрат с обводкой —
+               белых, серый крест — нейтральные точки. В завершённой партии показывается сама,
+               во время партии включается переключателем. -->
+          <ToggleButton x:Name="TerritoryButton"
+                        Content="Территория"
+                        MinHeight="44"
+                        Margin="0,6,0,0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        ToolTip.Tip="Показать, кому принадлежат пустые точки"
+                        IsChecked="{Binding ShowTerritory}" />
+          <TextBlock Text="{Binding TerritorySummary}"
+                     TextWrapping="Wrap"
+                     IsVisible="{Binding HasTerritory}" />
+
           <TextBlock Text="Соперник" FontSize="14" FontWeight="SemiBold" Margin="0,6,0,0" />
           <TextBlock Text="{Binding LevelDescription}" TextWrapping="Wrap" />
           <TextBlock Text="{Binding LevelHint}"
@@ -65,8 +81,16 @@
           <!-- Кнопки не меньше 44 точек по высоте: это размер, по которому попадает палец. -->
           <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,8,0,0">
             <Button x:Name="PassButton" Content="Пас" Classes="accent" MinHeight="44" MinWidth="84" />
-            <Button x:Name="UndoButton" Content="Отменить" MinHeight="44" />
-            <Button x:Name="RedoButton" Content="Вернуть" MinHeight="44" />
+            <!-- Кнопки недоступны, когда действие невозможно: отмена обязана вернуть ход
+                 игроку (CanUndo), возврат — тоже (CanRedo). -->
+            <Button x:Name="UndoButton"
+                    Content="Отменить"
+                    MinHeight="44"
+                    IsEnabled="{Binding CanUndo}" />
+            <Button x:Name="RedoButton"
+                    Content="Вернуть"
+                    MinHeight="44"
+                    IsEnabled="{Binding CanRedo}" />
           </StackPanel>
 
           <Grid ColumnDefinitions="Auto,*" Margin="0,8,0,0">

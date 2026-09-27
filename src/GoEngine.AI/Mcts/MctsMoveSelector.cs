@@ -9,6 +9,9 @@ using GoEngine.Core;
 /// (<see cref="IMoveFilter"/>). Один ход — это <see cref="MctsConfig.PlayoutBudget"/> итераций
 /// «спуск → расширение → оценка → передача результата»; ход выбирается по числу посещений: чем чаще
 /// вариант приводил к победе, тем больше он исследован.
+/// Отбор идёт в два правила: тактический предохранитель не даёт подставлять свои группы,
+/// а <see cref="EndgamePolicy"/> не даёт доедать свою территорию — если играть нечего, селектор
+/// пасует, и партия заканчивается двумя пасами.
 /// Селектор детерминирован при фиксированном <see cref="Random"/> и своего генератора
 /// не создаёт (<c>AGENTS_GO.md</c>, п. 7). Логов нет: слой AI не логирует.
 /// </remarks>
@@ -100,9 +103,12 @@ public sealed class MctsMoveSelector : IMoveSelector
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(color);
 
+        // Пас соперника меняет правило отбора: играем только то, что приносит очки.
+        var opponentPassed = EndgamePolicy.OpponentPassed(history);
+
         if (Blunders())
         {
-            return RandomMove(board, color);
+            return RandomMove(board, color, opponentPassed);
         }
 
         var root = Search(board, color, komi, history);
@@ -119,6 +125,7 @@ public sealed class MctsMoveSelector : IMoveSelector
         }
 
         candidates = Allowed(candidates, board);
+        candidates = Endgame(candidates, board, color, opponentPassed);
 
         MctsNode? best = null;
 
@@ -165,6 +172,48 @@ public sealed class MctsMoveSelector : IMoveSelector
             : [.. candidates.Where(child => allowed.Moves.Contains(child.Move))];
     }
 
+    /// <summary>Оставляет ходы, которые разрешают правила конца партии.</summary>
+    /// <param name="candidates">Разобранные ходы поиска.</param>
+    /// <param name="board">Позиция до хода.</param>
+    /// <param name="color">Цвет, который ходит.</param>
+    /// <param name="opponentPassed">Соперник только что пропустил ход.</param>
+    /// <returns>Разрешённые ходы; пустой список означает пас.</returns>
+    /// <remarks>
+    /// Заполнение своей территории отсекается у корня, а не внутри поиска: доигрывание оценивает
+    /// «своё» очко так же, как полезный ход, поэтому отсекать его надо до выбора.
+    /// </remarks>
+    private static List<MctsNode> Endgame(List<MctsNode> candidates, Board board, StoneColor color, bool opponentPassed)
+    {
+        if (candidates.Count == 0)
+        {
+            return candidates;
+        }
+
+        var allowed = EndgamePool(board, color, [.. candidates.Select(child => child.Move)], opponentPassed);
+
+        return allowed.Count == candidates.Count
+            ? candidates
+            : [.. candidates.Where(child => allowed.Contains(child.Move))];
+    }
+
+    /// <summary>Применяет правила конца партии к списку ходов.</summary>
+    /// <param name="board">Позиция до хода.</param>
+    /// <param name="color">Цвет, который ходит.</param>
+    /// <param name="pool">Допустимые ходы после предохранителя.</param>
+    /// <param name="opponentPassed">Соперник только что пропустил ход.</param>
+    /// <returns>Ходы, которые правило разрешает; пустой список означает пас.</returns>
+    private static IReadOnlyList<Move> EndgamePool(Board board, StoneColor color, IReadOnlyList<Move> pool, bool opponentPassed)
+    {
+        if (pool.Count == 0)
+        {
+            return pool;
+        }
+
+        var allowed = EndgamePolicy.Instance.Apply(board, color, pool, opponentPassed);
+
+        return allowed.EverythingAllowed ? pool : allowed.Moves;
+    }
+
     /// <summary>Проверяет, ходит ли селектор на этот раз наугад.</summary>
     /// <returns><c>true</c>, если ход выбирается без поиска.</returns>
     private bool Blunders() => _random.Next(PercentScale) < _randomnessPercent;
@@ -172,12 +221,14 @@ public sealed class MctsMoveSelector : IMoveSelector
     /// <summary>Выбирает случайный допустимый ход: слабые уровни иногда ходят наугад.</summary>
     /// <param name="board">Позиция.</param>
     /// <param name="color">Цвет, который ходит.</param>
-    /// <returns>Легальный ход или пас, если ходить некуда.</returns>
+    /// <param name="opponentPassed">Соперник только что пропустил ход.</param>
+    /// <returns>Легальный ход или пас, если играть нечего.</returns>
     /// <remarks>
     /// Случайный ход — тоже ход: при включённом предохранителе он выбирается из тактически
-    /// безопасных. Иначе уровни кю подставляли свои группы под захват именно на «наугад» (T-037).
+    /// безопасных, а правила конца партии не дают «наугад» доедать свою территорию. Иначе уровни кю
+    /// подставляли свои группы под захват именно на «наугад» (T-037).
     /// </remarks>
-    private Move RandomMove(Board board, StoneColor color)
+    private Move RandomMove(Board board, StoneColor color, bool opponentPassed)
     {
         var legalMoves = LegalMoves.For(board, color);
 
@@ -187,9 +238,10 @@ public sealed class MctsMoveSelector : IMoveSelector
         }
 
         var allowed = _filter.Apply(board, legalMoves);
-        var pool = allowed.EverythingAllowed ? legalMoves : allowed.Moves;
+        var safe = allowed.EverythingAllowed ? legalMoves : allowed.Moves;
+        var pool = EndgamePool(board, color, safe, opponentPassed);
 
-        return pool[_random.Next(pool.Count)];
+        return pool.Count == 0 ? Move.Pass(color) : pool[_random.Next(pool.Count)];
     }
 
     /// <summary>Сравнивает ходы: сначала по числу посещений, при равенстве — по доле побед.</summary>

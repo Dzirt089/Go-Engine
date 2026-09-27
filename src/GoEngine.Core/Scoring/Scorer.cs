@@ -8,6 +8,12 @@ namespace GoEngine.Core;
 /// только с камнями цвета C. Область, граничащая с обоими цветами, — нейтральная и не считается
 /// ни за кого; сэки отдельной обработки не требует. Мёртвые камни не снимаются: считаем по факту
 /// расположения на доске.
+/// <para>
+/// Область, прижатая к краю доски, считается по своей границе: край не принадлежит никому и
+/// владения не отменяет (п. 69–70). Формулировка п. 71 про «все пути до края» — пояснение к
+/// окружённым областям; буквально она отрицала бы и угловую территорию, поэтому опорное
+/// определение — граница области.
+/// </para>
 /// </remarks>
 public static class Scorer
 {
@@ -19,23 +25,48 @@ public static class Scorer
     {
         ArgumentNullException.ThrowIfNull(board);
 
+        var area = Breakdown(board);
+
+        return new Score(area.Black, area.White + komi.Value);
+    }
+
+    /// <summary>Разбирает площадь доски: камни и территория каждого цвета, нейтральные точки.</summary>
+    /// <param name="board">Позиция на момент подсчёта.</param>
+    /// <returns>Разбор площади.</returns>
+    /// <remarks>
+    /// Очки и разбор считаются из одного источника — владения точками, поэтому панель партии
+    /// и счёт партии не могут разойтись. Камни попадают в разбор как камни, а не как территория:
+    /// интерфейсу важно показать их отдельно.
+    /// </remarks>
+    public static AreaBreakdown Breakdown(Board board)
+    {
+        ArgumentNullException.ThrowIfNull(board);
+
         var ownership = Ownership(board);
-        var black = 0.0;
-        var white = 0.0;
+        var blackOwned = 0;
+        var whiteOwned = 0;
 
         foreach (var owner in ownership)
         {
             if (owner == StoneColor.Black)
             {
-                black++;
+                blackOwned++;
             }
             else if (owner == StoneColor.White)
             {
-                white++;
+                whiteOwned++;
             }
         }
 
-        return new Score(black, white + komi.Value);
+        var blackStones = board.OccupiedPoints(StoneColor.Black).Count();
+        var whiteStones = board.OccupiedPoints(StoneColor.White).Count();
+
+        return new AreaBreakdown(
+            blackStones,
+            blackOwned - blackStones,
+            whiteStones,
+            whiteOwned - whiteStones,
+            board.Size.Area - blackOwned - whiteOwned);
     }
 
     /// <summary>Определяет владельца каждой точки доски.</summary>

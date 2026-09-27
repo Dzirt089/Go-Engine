@@ -5,7 +5,9 @@ using GoEngine.Core;
 /// <summary>Выбор хода по эвристикам: уровни 25 и 20 кю.</summary>
 /// <remarks>
 /// Порядок приоритетов: съесть группу противника в атари, спасти свою группу в атари,
-/// занять угол в начале партии, иначе — случайный легальный ход. Доля случайности
+/// занять угол в начале партии, иначе — случайный легальный ход. Ходы, заполняющие свою территорию
+/// в конце партии, отсекает <see cref="EndgamePolicy"/>: если играть нечего, селектор пасует.
+/// Доля случайности
 /// (<paramref name="randomnessPercent"/>) задаёт силу уровня: чем она больше, тем чаще
 /// селектор игнорирует эвристики и ходит наугад.
 /// Своего <see cref="Random"/> класс не создаёт (<c>AGENTS_GO.md</c>, п. 7).
@@ -49,14 +51,21 @@ public sealed class HeuristicMoveSelector : IMoveSelector
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        return SelectMove(state.Board, state.ToMove);
+        return SelectMove(state.Board, state.ToMove, state.Moves);
     }
 
     /// <summary>Выбирает ход по позиции и цвету, минуя партию.</summary>
     /// <param name="board">Позиция.</param>
     /// <param name="color">Цвет, который ходит.</param>
-    /// <returns>Легальный ход или пас, если легальных ходов нет.</returns>
-    public Move SelectMove(Board board, StoneColor color)
+    /// <param name="history">Ходы партии до этой позиции: по последнему видно, пропустил ли соперник ход.</param>
+    /// <returns>Легальный ход или пас, если ходить некуда или правила конца партии велят пасовать.</returns>
+    /// <remarks>
+    /// Правила конца партии применяются ко всем ходам, а не только к случайной ветке: уровни без сети
+    /// самые слабые, и именно они «доедали свои очки», не останавливаясь (жалоба пользователя).
+    /// Предохранитель по-прежнему трогает только случайную ветку — эвристики (съесть, спасти,
+    /// занять угол) проверены сами по себе.
+    /// </remarks>
+    public Move SelectMove(Board board, StoneColor color, IReadOnlyList<Move>? history = null)
     {
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(color);
@@ -69,13 +78,23 @@ public sealed class HeuristicMoveSelector : IMoveSelector
             return Move.Pass(color);
         }
 
+        var allowed = EndgamePolicy.Instance.Apply(board, color, legalMoves, EndgamePolicy.OpponentPassed(history));
+
+        // Правило отсекло всё, что можно было сыграть: движок останавливается и пасует.
+        if (!allowed.EverythingAllowed && allowed.Moves.Count == 0)
+        {
+            return Move.Pass(color);
+        }
+
+        var pool = allowed.EverythingAllowed ? legalMoves : allowed.Moves;
+
         // Слабые уровни чаще ходят наугад — это и есть их слабость.
         if (_random.Next(PercentScale) < _randomnessPercent)
         {
-            return RandomMove(board, legalMoves);
+            return RandomMove(board, pool);
         }
 
-        return FindHeuristicMove(board, color, legalMoves) ?? RandomMove(board, legalMoves);
+        return FindHeuristicMove(board, color, pool) ?? RandomMove(board, pool);
     }
 
     /// <summary>Выбирает случайный легальный ход.</summary>

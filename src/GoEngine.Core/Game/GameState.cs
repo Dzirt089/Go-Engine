@@ -59,6 +59,32 @@ public sealed class GameState
     /// <summary>Можно ли вернуть отменённый ход.</summary>
     public bool CanRedo => _redo.Count > 0;
 
+    /// <summary>Есть ли в истории отмены состояние, в котором ход был за этот цвет.</summary>
+    /// <param name="color">Цвет, который ходит.</param>
+    /// <returns><c>true</c>, если отмена (возможно, не одна) вернёт ход этому цвету.</returns>
+    /// <remarks>
+    /// Отмена идёт до тех пор, пока очередь не вернётся нужному цвету, поэтому одного состояния
+    /// в стеке достаточно. Нужна интерфейсу: кнопка «Отменить» должна быть недоступна, когда
+    /// отмена не вернёт ход игроку, — иначе партия оставалась бы ждать хода соперника, который
+    /// никто не делает.
+    /// </remarks>
+    public bool CanUndoTo(StoneColor color)
+    {
+        ArgumentNullException.ThrowIfNull(color);
+
+        return _undo.Any(snapshot => snapshot.ToMove == color);
+    }
+
+    /// <summary>Есть ли в истории возврата состояние, в котором ход был за этот цвет.</summary>
+    /// <param name="color">Цвет, который ходит.</param>
+    /// <returns><c>true</c>, если возврат (возможно, не один) вернёт ход этому цвету.</returns>
+    public bool CanRedoTo(StoneColor color)
+    {
+        ArgumentNullException.ThrowIfNull(color);
+
+        return _redo.Any(snapshot => snapshot.ToMove == color);
+    }
+
     /// <summary>Начинает новую партию.</summary>
     /// <param name="size">Размер доски.</param>
     /// <param name="komi">Коми партии.</param>

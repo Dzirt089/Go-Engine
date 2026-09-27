@@ -32,9 +32,13 @@ public sealed class BoardControl : Control
     public static readonly StyledProperty<GoPoint?> HoverPointProperty =
         AvaloniaProperty.Register<BoardControl, GoPoint?>(nameof(HoverPoint));
 
+    /// <summary>Свойство разметки территории: изменение перерисовывает доску.</summary>
+    public static readonly StyledProperty<IReadOnlyList<StoneColor>?> TerritoryProperty =
+        AvaloniaProperty.Register<BoardControl, IReadOnlyList<StoneColor>?>(nameof(Territory));
+
     static BoardControl()
     {
-        AffectsRender<BoardControl>(BoardProperty, LastMoveProperty, HoverPointProperty);
+        AffectsRender<BoardControl>(BoardProperty, LastMoveProperty, HoverPointProperty, TerritoryProperty);
     }
 
     private static readonly TimeProvider Clock = TimeProvider.System;
@@ -96,6 +100,13 @@ public sealed class BoardControl : Control
         set => SetValue(HoverPointProperty, value);
     }
 
+    /// <summary>Владение точками для показа территории или <c>null</c>, если её не показываем.</summary>
+    public IReadOnlyList<StoneColor>? Territory
+    {
+        get => GetValue(TerritoryProperty);
+        set => SetValue(TerritoryProperty, value);
+    }
+
     /// <inheritdoc />
     public override void Render(DrawingContext context)
     {
@@ -108,7 +119,7 @@ public sealed class BoardControl : Control
 
         var frame = _animation.IsActive ? _animation : (StoneAnimation?)null;
 
-        context.Custom(new BoardDrawOperation(board, new Rect(Bounds.Size), LastMove, HoverPoint, frame));
+        context.Custom(new BoardDrawOperation(board, new Rect(Bounds.Size), LastMove, HoverPoint, frame, Territory));
     }
 
     /// <summary>Продвигает кадр анимации.</summary>
@@ -197,13 +208,21 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
     private readonly GoPoint? _lastMove;
     private readonly GoPoint? _hover;
     private readonly StoneAnimation? _animation;
+    private readonly IReadOnlyList<StoneColor>? _territory;
 
-    internal BoardDrawOperation(Board board, Rect bounds, GoPoint? lastMove, GoPoint? hover, StoneAnimation? animation)
+    internal BoardDrawOperation(
+        Board board,
+        Rect bounds,
+        GoPoint? lastMove,
+        GoPoint? hover,
+        StoneAnimation? animation,
+        IReadOnlyList<StoneColor>? territory)
     {
         _board = board;
         _lastMove = lastMove;
         _hover = hover;
         _animation = animation;
+        _territory = territory;
         Bounds = bounds;
     }
 
@@ -238,6 +257,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
             (float)Bounds.Height,
             _lastMove,
             _hover,
-            _animation);
+            _animation,
+            _territory);
     }
 }

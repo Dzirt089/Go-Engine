@@ -24,6 +24,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private AppSettings _settings;
     private int _capturedBlack;
     private int _capturedWhite;
+    private bool _showTerritory;
 
     /// <summary>Подписи уровней. Список хранится полем намеренно: подмена <c>ItemsSource</c>
     /// на новом экземпляре заставляет список выбора сбросить выбранный индекс и вернуть его
@@ -168,6 +169,62 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     /// <summary>Показывать ли итог партии: он есть только у завершённой.</summary>
     public bool HasOutcome => Outcome.Length > 0;
+
+    /// <summary>Показывать ли разметку территории, пока партия идёт.</summary>
+    /// <remarks>
+    /// Завершённая партия показывает территорию независимо от переключателя: по ней видно,
+    /// как посчитан счёт (<c>GO_RULES.md</c>, п. 9). Переключатель нужен, чтобы посмотреть
+    /// разделение доски, не доводя партию до конца.
+    /// </remarks>
+    public bool ShowTerritory
+    {
+        get => _showTerritory;
+        set
+        {
+            if (_showTerritory == value)
+            {
+                return;
+            }
+
+            _showTerritory = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasTerritory));
+            OnPropertyChanged(nameof(Territory));
+            OnPropertyChanged(nameof(TerritorySummary));
+        }
+    }
+
+    /// <summary>Показывается ли разметка территории сейчас.</summary>
+    public bool HasTerritory => _showTerritory || _game.Status != GameStatus.InProgress;
+
+    /// <summary>Владение точками для разметки или <c>null</c>, если разметка выключена.</summary>
+    /// <remarks>
+    /// Считает <see cref="Scorer.Ownership"/>: камень — своему цвету, пустая область — цвету
+    /// окружения, спорная — нейтральна. Второго подсчёта территории в проекте нет.
+    /// </remarks>
+    public IReadOnlyList<StoneColor>? Territory => HasTerritory ? Scorer.Ownership(_game.Board) : null;
+
+    /// <summary>Расшифровка разметки: площадь сторон, нейтральные точки и коми.</summary>
+    /// <remarks>
+    /// Считает <see cref="Scorer.Breakdown"/>: разбор площади живёт в <c>Core</c> и используется
+    /// и подсчётом очков, и панелью партии — второго подсчёта в проекте нет.
+    /// </remarks>
+    public string TerritorySummary
+    {
+        get
+        {
+            if (!HasTerritory)
+            {
+                return string.Empty;
+            }
+
+            var area = Scorer.Breakdown(_game.Board);
+
+            return $"Площадь: чёрные {area.Black} (камни {area.BlackStones}, территория {area.BlackTerritory}), "
+                + $"белые {area.White} (камни {area.WhiteStones}, территория {area.WhiteTerritory}), "
+                + $"нейтрально {area.Neutral} · коми {_game.Komi} белым";
+        }
+    }
 
     /// <summary>Подписи сторон доски для списка выбора.</summary>
     /// <remarks>Список размеров и подписи собирает <see cref="BoardSizes"/> — один источник
@@ -333,23 +390,43 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return true;
     }
 
+    /// <summary>Можно ли отменить ход игрока: отмена обязана вернуть очередь игроку.</summary>
+    /// <remarks>Кнопка «Отменить» недоступна, когда отменять ход игрока нечего.</remarks>
+    public bool CanUndo => _game.CanUndoTo(_settings.ToPlayerColor());
+
+    /// <summary>Можно ли вернуть отменённый ход игрока.</summary>
+    public bool CanRedo => _game.CanRedoTo(_settings.ToPlayerColor());
+
     /// <summary>Отменяет ход игрока вместе с ответом AI.</summary>
     /// <returns><c>true</c>, если ход отменён.</returns>
+    /// <remarks>
+    /// Отмена идёт до тех пор, пока очередь не вернётся игроку. Если вернуть её не удалось
+    /// (например, в истории только ход соперника), отмена не делается вовсе: иначе партия
+    /// осталась бы ждать хода соперника, которого никто не делает, — ровно это ломало игру
+    /// после нажатия «Отменить» (регрессия захода 1).
+    /// </remarks>
     public bool Undo()
     {
-        if (!_game.CanUndo)
+        if (!CanUndo || !TryUndo())
         {
             return false;
         }
 
-        var playerColor = _settings.ToPlayerColor();
+        RecountCaptures();
+        ShowAiMoveIfNeeded();
+        NotifyAll();
 
-        _ = _game.Undo();
+        return true;
+    }
 
-        // Ответ AI отменяется вместе с ходом игрока: после отката снова ход игрока.
-        while (_game.CanUndo && _game.ToMove != playerColor)
+    /// <summary>Возвращает отменённый ход вместе с ответом AI.</summary>
+    /// <returns><c>true</c>, если ход возвращён.</returns>
+    /// <remarks>Если возврат не доводит очередь до игрока, состояние не меняется.</remarks>
+    public bool Redo()
+    {
+        if (!CanRedo || !TryRedo())
         {
-            _ = _game.Undo();
+            return false;
         }
 
         RecountCaptures();
@@ -358,28 +435,67 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return true;
     }
 
-    /// <summary>Возвращает отменённый ход вместе с ответом AI.</summary>
-    /// <returns><c>true</c>, если ход возвращён.</returns>
-    public bool Redo()
+    /// <summary>Отменяет ходы, пока очередь не вернётся игроку.</summary>
+    /// <returns><c>true</c>, если очередь у игрока; <c>false</c> — состояние возвращено как было.</returns>
+    private bool TryUndo()
     {
-        if (!_game.CanRedo)
+        var playerColor = _settings.ToPlayerColor();
+        var steps = 0;
+
+        do
         {
-            return false;
+            if (!_game.Undo().IsSuccess)
+            {
+                break;
+            }
+
+            steps++;
+        }
+        while (_game.CanUndo && _game.ToMove != playerColor);
+
+        if (_game.ToMove == playerColor)
+        {
+            return true;
         }
 
-        var playerColor = _settings.ToPlayerColor();
-
-        _ = _game.Redo();
-
-        while (_game.CanRedo && _game.ToMove != playerColor)
+        // Ход игрока вернуть не удалось: откатываем собственные отмены, партия не меняется.
+        for (var index = 0; index < steps; index++)
         {
             _ = _game.Redo();
         }
 
-        RecountCaptures();
-        NotifyAll();
+        return false;
+    }
 
-        return true;
+    /// <summary>Возвращает ходы, пока очередь не вернётся игроку.</summary>
+    /// <returns><c>true</c>, если очередь у игрока; <c>false</c> — состояние возвращено как было.</returns>
+    private bool TryRedo()
+    {
+        var playerColor = _settings.ToPlayerColor();
+        var steps = 0;
+
+        do
+        {
+            if (!_game.Redo().IsSuccess)
+            {
+                break;
+            }
+
+            steps++;
+        }
+        while (_game.CanRedo && _game.ToMove != playerColor);
+
+        if (_game.ToMove == playerColor)
+        {
+            return true;
+        }
+
+        for (var index = 0; index < steps; index++)
+        {
+            _ = _game.Undo();
+        }
+
+        return false;
     }
 
     /// <summary>Возвращает партию для сохранения в SGF.</summary>
@@ -453,12 +569,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             var selector = AiFactory.Create(level, _random, size, _evaluator, modelsDirectory);
 
-            if (!TryPlay(selector.SelectMove(_game)))
+            if (TryPlay(selector.SelectMove(_game)) || TryPlay(Move.Pass(_game.ToMove)))
             {
-                // Селектор обязан возвращать легальный ход: если партия его не приняла,
-                // играть дальше нельзя — состояние партии остаётся как есть.
-                break;
+                continue;
             }
+
+            // Партия не приняла ни ход селектора, ни пас: играть дальше нельзя (партия
+            // завершена или состояние не даёт ходить). Пас как запасной вариант не даёт
+            // партии остаться в состоянии «ходит соперник, но он не ходит».
+            break;
         }
 
         NotifyAll();
@@ -557,6 +676,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(Captures),
             nameof(Outcome),
             nameof(HasOutcome),
+            nameof(CanUndo),
+            nameof(CanRedo),
+            nameof(HasTerritory),
+            nameof(Territory),
+            nameof(TerritorySummary),
             nameof(CurrentLevel),
             nameof(SelectedLevelIndex),
             nameof(SelectedSizeIndex),
