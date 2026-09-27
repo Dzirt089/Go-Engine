@@ -139,7 +139,7 @@ jobs:
         working-directory: src/GoEngine.App.Android
         run: >-
           dotnet publish GoEngine.App.Android.csproj
-          -c Release -f net8.0-android -o ../../publish/android
+          -c Release -f net8.0-android34.0 -o ../../publish/android
       - name: Выгрузка APK
         uses: actions/upload-artifact@v4
         with:
