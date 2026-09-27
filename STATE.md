@@ -9,8 +9,8 @@
 
 ## Текущая задача
 
-**T-035. Профили моделей по размеру доски** — `in_progress`:
-для каждого размера доски своя ONNX-модель (19×19 и 13×13 — основная b28c512nbt, 9×9 — специализированная kata9x9-finetuned). Если файла модели для размера нет, нейросеть не используется и уровень откатывается на MCTS. План: `ModelProfile` и `ModelProfiles` в `AI.Onnx`, метод `LoadModelForBoardSize` в `IPositionEvaluator`, сменяемая сессия в `OnnxEvaluator`, `modelsDirectory` в `AiFactory`, фильтрация уровней в `LevelChooser`, передача каталога из головы Desktop. Решение — D-039.
+**T-035. Профили моделей по размеру доски** — `done`:
+у каждого размера доски своя ONNX-модель (19×19 и 13×13 — основная b28c512nbt, 9×9 — специализированная kata9x9-finetuned, файла пока нет). Реализовано: `ModelProfile`/`ModelProfiles`, `LoadModelForBoardSize` и сменяемая сессия в `OnnxEvaluator`, каталог моделей в `AiFactory` с отказами `DomainException`, фильтрация уровней по наличию модели в `LevelChooser`, передача каталога и размеров из головы Desktop. Тесты 472 + 24, `check.ps1` зелёный. Решение — D-039.
 ## Статус
 
 `in_progress` — модель `kata1-b28c512nbt-adam-s11165M-d5387M.uint8.onnx` скачана в `models/`,
@@ -350,6 +350,7 @@
 ## Журнал сессии
 
 | UTC timestamp | Задача | Статус | Что сделано |
+| 2026-09-27T21:00:00Z | T-035 | done | Профили моделей по размеру доски (D-039): ModelProfile/ModelProfiles, LoadModelForBoardSize со сменяемой сессией, каталог моделей в AiFactory с отказами DomainException, фильтрация уровней по наличию модели, каталог и размеры из головы Desktop. Жёсткий запрет 9×9 заменён правилом профилей. Тесты 472 + 24, check.ps1 зелёный. Коммиты 95dccc3, 2b9c589, c212227 |
 |---|---|---|---|
 | 2026-09-26T18:45:04Z | T-001 | done | Board, Move и базовые типы; 66 тестов; коммит и push не выполнены (не было work tree) |
 | 2026-09-26T19:03:51Z | T-002 | done | Group, GroupTracker, CaptureResult, снятие групп в Board; 100 тестов |
