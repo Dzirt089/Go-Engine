@@ -15,9 +15,9 @@ on:
         required: true
         default: 'v0.1.0'
       draft:
-        description: 'Черновик релиза (можно проверить файлы до публикации)'
+        description: 'Оставить черновиком (файлы не будут видны для скачивания до публикации)'
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: write
