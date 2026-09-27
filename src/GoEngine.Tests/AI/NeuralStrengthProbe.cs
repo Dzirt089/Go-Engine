@@ -8,7 +8,7 @@ namespace GoEngine.Tests;
 public sealed class NeuralStrengthProbe
 {
     /// <summary>Сколько партий играется в матче.</summary>
-    private const int Games = 4;
+    private const int Games = 10;
 
     /// <summary>Лимит ходов партии: полная партия двух MCTS на 19×19 идёт десятки минут.</summary>
     private const int MoveLimit = 200;
