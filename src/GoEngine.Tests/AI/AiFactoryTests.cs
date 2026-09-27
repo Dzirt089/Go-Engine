@@ -9,15 +9,24 @@ public sealed class AiFactoryTests
     private const int Seed = 20260926;
 
     [Fact]
-    public void Factory_Создаёт_Корректный_Селектор()
+    public void Factory_Создаёт_Mcts_Селектор_Для_20_Кю()
     {
-        Assert.IsType<HeuristicMoveSelector>(AiFactory.Create(DifficultyLevel.Kyu20, new Random(Seed)));
+        // Слабые уровни тоже играют поиском: эвристики выглядели «тупыми» рядом с 15 кю (D-054).
+        Assert.IsType<MctsMoveSelector>(AiFactory.Create(DifficultyLevel.Kyu20, new Random(Seed)));
     }
 
     [Fact]
-    public void Factory_Создаёт_Случайный_Селектор_Для_30_Кю()
+    public void Factory_Создаёт_Mcts_Селектор_Для_30_Кю()
     {
-        Assert.IsType<RandomMoveSelector>(AiFactory.Create(DifficultyLevel.Kyu30, new Random(Seed)));
+        Assert.IsType<MctsMoveSelector>(AiFactory.Create(DifficultyLevel.Kyu30, new Random(Seed)));
+    }
+
+    [Fact]
+    public void Factory_Создаёт_Случайный_Селектор_Напрямую()
+    {
+        // Сам селектор случайных ходов жив: его используют замеры и тесты, хотя в лестнице
+        // уровней без поиска больше нет (D-054).
+        Assert.IsType<RandomMoveSelector>(new RandomMoveSelector(new Random(Seed)));
     }
 
     [Fact]

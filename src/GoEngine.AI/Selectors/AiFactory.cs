@@ -54,8 +54,10 @@ public static class AiFactory
 
             // Уровни кю играют сетью, когда для размера доски есть модель: случайные доигрывания
             // при малом бюджете не видят тактику и подставляют группы (жалоба пользователя),
-            // а сеть даёт и приоритеты, и оценку. Нет модели — прежний MCTS с предохранителем.
-            if (level.NeuralBudget is { } neuralBudget
+            // а сеть даёт и приоритеты, и оценку. Нет модели — MCTS по playout'ам или по времени.
+            // Бюджет с сетью — в итерациях, а не во времени: так партия детерминирована, а время
+            // хода подстраивается под доску (D-054).
+            if (level.NeuralBudget is { } neuralIterations
                 && evaluator is not null
                 && modelsDirectory is not null
                 && boardSize is not null
@@ -64,7 +66,7 @@ public static class AiFactory
                 return new MctsMoveSelector(
                     random,
                     policy,
-                    new MctsConfig(neuralBudget, level.Ucb1C),
+                    new MctsConfig(neuralIterations.For(boardSize.Value), level.Ucb1C),
                     level.RandomnessPercent,
                     evaluator: evaluator);
             }
@@ -122,14 +124,15 @@ public static class AiFactory
             throw new DomainException($"Нет модели нейросети для доски {size}: выберите другую доску или уровень кю (D-039).");
         }
 
-        var config = level.TimeBudget is { } time
-            ? new MctsConfig(time, level.Ucb1C)
-            : new MctsConfig(level.PlayoutBudget, level.Ucb1C);
+        // Ступени с сетью задают бюджет в итерациях: один вызов сети на итерацию, поэтому время
+        // хода зависит от доски, а сила — нет (D-054).
+        var iterations = level.NeuralBudget
+            ?? throw new DomainException($"У уровня {level.Name} не задан бюджет итераций с сетью.");
 
         return new MctsMoveSelector(
             random,
             new PlayoutPolicy(level.PlayoutConfig),
-            config,
+            new MctsConfig(iterations.For(size), level.Ucb1C),
             level.RandomnessPercent,
             evaluator: evaluator);
     }

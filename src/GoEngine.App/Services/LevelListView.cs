@@ -5,10 +5,9 @@ namespace GoEngine.App.Services;
 
 /// <summary>Состав и подписи списка уровней: одно место на панель партии и экран настроек.</summary>
 /// <remarks>
-/// Состав зависит от размера доски и наличия модели (D-038, D-039). Подпись зависит от того,
-/// известен ли размер доски: на панели партии он известен, и подпись называет движок с размером
-/// доски (D-048); на экране настроек размер ещё выбирается, поэтому подпись короче — как в
-/// списке уровней без контекста доски.
+/// Состав зависит от размера доски и наличия модели (D-038, D-039). Подпись всегда называет
+/// фактический движок и точный бюджет для этой доски (D-048, D-054): и панель партии, и экран
+/// настроек знают выбранный размер, поэтому короткая подпись без доски здесь не нужна.
 /// </remarks>
 public sealed class LevelListView
 {
@@ -17,29 +16,27 @@ public sealed class LevelListView
     private readonly IReadOnlyList<DifficultyLevel> _levels;
     private readonly IReadOnlyList<string> _labels;
 
-    private LevelListView(BoardSize size, bool modelAvailable, bool withBoardSize)
+    private LevelListView(BoardSize size, bool modelAvailable)
     {
         _size = size;
         _modelAvailable = modelAvailable;
         _levels = LevelChooser.Available(size, modelAvailable);
-        _labels = [.. _levels.Select(level => withBoardSize
-            ? LevelChooser.Describe(level, size, modelAvailable)
-            : LevelChooser.Label(level))];
+        _labels = [.. _levels.Select(level => LevelChooser.Describe(level, size, modelAvailable))];
     }
 
-    /// <summary>Список для панели партии: подпись называет движок и размер доски.</summary>
+    /// <summary>Список для панели партии: подпись называет движок, размер доски и бюджет.</summary>
     /// <param name="size">Размер доски партии.</param>
     /// <param name="modelAvailable">Нашлась ли модель для этого размера.</param>
     /// <returns>Список уровней с подписями.</returns>
     public static LevelListView ForGame(BoardSize size, bool modelAvailable) =>
-        new(size, modelAvailable, withBoardSize: true);
+        new(size, modelAvailable);
 
-    /// <summary>Список для экрана настроек: размер доски ещё выбирается.</summary>
+    /// <summary>Список для экрана настроек: тот же состав и те же подписи, что и в партии.</summary>
     /// <param name="size">Размер доски, выбранный сейчас.</param>
     /// <param name="modelAvailable">Нашлась ли модель для этого размера.</param>
-    /// <returns>Список уровней с подписями без размера доски.</returns>
+    /// <returns>Список уровней с подписями для выбранной доски.</returns>
     public static LevelListView ForSettings(BoardSize size, bool modelAvailable) =>
-        new(size, modelAvailable, withBoardSize: false);
+        new(size, modelAvailable);
 
     /// <summary>Уровни в порядке списка.</summary>
     public IReadOnlyList<DifficultyLevel> Levels => _levels;

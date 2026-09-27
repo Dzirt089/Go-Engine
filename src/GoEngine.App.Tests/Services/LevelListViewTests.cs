@@ -6,8 +6,9 @@ namespace GoEngine.App.Tests;
 
 /// <summary>Тесты списка уровней: состав, подписи и замена недоступного выбора (D-038, D-039, D-048).</summary>
 /// <remarks>
-/// Список уровней собирается в одном месте для панели партии и экрана настроек. Подпись панели
-/// называет движок и размер доски, подпись настроек короче: там размер ещё выбирается.
+/// Список уровней собирается в одном месте для панели партии и экрана настроек. Оба списка
+/// называют фактический движок и точный бюджет для выбранной доски: экран настроек знает
+/// выбранный размер так же, как панель партии (D-048, D-054).
 /// </remarks>
 public sealed class LevelListViewTests
 {
@@ -34,13 +35,15 @@ public sealed class LevelListViewTests
     }
 
     [Fact]
-    public void Подпись_Экрана_Настроек_Идёт_Без_Размера_Доски()
+    public void Подпись_Экрана_Настроек_Тоже_Называет_Доску_И_Бюджет()
     {
         var view = LevelListView.ForSettings(BoardSize.Size13, modelAvailable: true);
 
         for (var index = 0; index < view.Levels.Count; index++)
         {
-            Assert.Equal(LevelChooser.Label(view.Levels[index]), view.Labels[index]);
+            Assert.Equal(
+                LevelChooser.Describe(view.Levels[index], BoardSize.Size13, true),
+                view.Labels[index]);
         }
     }
 

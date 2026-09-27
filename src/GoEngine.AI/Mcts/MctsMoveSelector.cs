@@ -77,7 +77,9 @@ public sealed class MctsMoveSelector : IMoveSelector
         {
             var budget = _search.TimeBudget is { } time
                 ? $"{time.TotalMilliseconds:F0} мс на ход"
-                : $"{_search.PlayoutBudget} playout'ов";
+                : _usesNetwork
+                    ? $"{_search.PlayoutBudget} итераций с сетью"
+                    : $"{_search.PlayoutBudget} playout'ов";
             var source = _usesNetwork ? "нейросеть" : "playout'ы";
 
             return $"MCTS ({budget}, {source}, случайность {_randomnessPercent}%)";

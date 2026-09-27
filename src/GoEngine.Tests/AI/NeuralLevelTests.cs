@@ -31,11 +31,20 @@ public sealed class NeuralLevelTests
     [Fact]
     public void Ступени_Лестницы_Идут_По_Возрастанию_Силы()
     {
-        // Ранги номинальные, но порядок обязан совпадать с бюджетом: больше времени — сильнее.
+        // Ранги номинальные, но порядок обязан совпадать с бюджетом: больше итераций — сильнее.
+        // Бюджет в итерациях, а не во времени: время хода зависит от доски и машины (D-054).
         Assert.True(DifficultyLevel.Kyu1.RankKyu > DifficultyLevel.Dan1.RankKyu);
         Assert.True(DifficultyLevel.Dan1.RankKyu > DifficultyLevel.Dan5.RankKyu);
-        Assert.True(DifficultyLevel.Dan5.TimeBudget > DifficultyLevel.Dan1.TimeBudget);
-        Assert.True(DifficultyLevel.Dan1.TimeBudget > DifficultyLevel.Kyu1.TimeBudget);
+
+        foreach (var size in new[] { BoardSize.Size9, BoardSize.Size13, BoardSize.Size19 })
+        {
+            Assert.True(
+                DifficultyLevel.Dan5.NeuralBudget!.Value.For(size)
+                > DifficultyLevel.Dan1.NeuralBudget!.Value.For(size));
+            Assert.True(
+                DifficultyLevel.Dan1.NeuralBudget!.Value.For(size)
+                > DifficultyLevel.Kyu1.NeuralBudget!.Value.For(size));
+        }
     }
 
     [Fact]

@@ -36,11 +36,19 @@ public sealed class LevelChooserTests
     }
 
     [Fact]
-    public void Ступени_Лестницы_Различаются_Бюджетом_Времени()
+    public void Ступени_Лестницы_Различаются_Бюджетом_Итераций()
     {
-        // Сила ступени с сетью задаётся временем на ход: чем больше бюджет, тем сильнее ступень.
-        Assert.True(DifficultyLevel.Dan5.TimeBudget > DifficultyLevel.Dan1.TimeBudget);
-        Assert.True(DifficultyLevel.Dan1.TimeBudget > DifficultyLevel.Kyu1.TimeBudget);
+        // Сила ступени с сетью задаётся числом итераций поиска: чем больше бюджет, тем сильнее
+        // ступень (D-054).
+        foreach (var size in new[] { BoardSize.Size9, BoardSize.Size13, BoardSize.Size19 })
+        {
+            Assert.True(
+                DifficultyLevel.Dan5.NeuralBudget!.Value.For(size)
+                > DifficultyLevel.Dan1.NeuralBudget!.Value.For(size));
+            Assert.True(
+                DifficultyLevel.Dan1.NeuralBudget!.Value.For(size)
+                > DifficultyLevel.Kyu1.NeuralBudget!.Value.For(size));
+        }
     }
 
     [Fact]
@@ -80,19 +88,19 @@ public sealed class LevelChooserTests
 
         Assert.StartsWith("5 дан", label, StringComparison.Ordinal);
         Assert.Contains("нейросеть", label, StringComparison.Ordinal);
-        Assert.Contains("с/ход", label, StringComparison.Ordinal);
+        Assert.Contains("итерац", label, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Подпись_Уровня_Кю_Читается_Как_Кю()
     {
         // Кю играют сетью, когда модель для доски есть (D-045): подпись обязана называть сеть,
-        // а не предпочтительный движок.
+        // а не предпочтительный движок. Бюджет в подписи без доски — бюджет уровня без сети (D-054).
         var label = LevelChooser.Label(DifficultyLevel.Kyu10);
 
         Assert.StartsWith("10 кю", label, StringComparison.Ordinal);
-        Assert.Contains("нейросеть", label, StringComparison.Ordinal);
-        Assert.Contains("мс/ход", label, StringComparison.Ordinal);
+        Assert.Contains("MCTS с сетью", label, StringComparison.Ordinal);
+        Assert.Contains("с/ход", label, StringComparison.Ordinal);
     }
 
     [Fact]

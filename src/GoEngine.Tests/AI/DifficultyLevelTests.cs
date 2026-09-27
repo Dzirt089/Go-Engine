@@ -25,15 +25,23 @@ public sealed class DifficultyLevelTests
     }
 
     [Fact]
-    public void Kyu30_Использует_Random()
+    public void Kyu30_Играет_Поиском()
     {
-        Assert.IsType<RandomMoveSelector>(DifficultyLevel.Kyu30.CreateSelector(new Random(Seed)));
+        // Слабые уровни тоже играют MCTS: эвристики и случайные ходы выглядели «тупыми»
+        // рядом с соседними ступенями (D-054).
+        Assert.IsType<MctsMoveSelector>(DifficultyLevel.Kyu30.CreateSelector(new Random(Seed)));
     }
 
     [Fact]
-    public void Kyu20_Использует_Эвристики()
+    public void Kyu20_Играет_Поиском()
     {
-        Assert.IsType<HeuristicMoveSelector>(DifficultyLevel.Kyu20.CreateSelector(new Random(Seed)));
+        Assert.IsType<MctsMoveSelector>(DifficultyLevel.Kyu20.CreateSelector(new Random(Seed)));
+    }
+
+    [Fact]
+    public void Kyu25_Играет_Поиском()
+    {
+        Assert.IsType<MctsMoveSelector>(DifficultyLevel.Kyu25.CreateSelector(new Random(Seed)));
     }
 
     [Fact]
@@ -43,16 +51,17 @@ public sealed class DifficultyLevelTests
     }
 
     [Fact]
-    public void Kyu5_Использует_Mcts_С_Большим_Бюджетом()
+    public void Kyu5_Ищет_Глубже_Чем_Kyu10()
     {
-        Assert.True(DifficultyLevel.Kyu5.TimeBudget > DifficultyLevel.Kyu10.TimeBudget);
+        Assert.True(
+            DifficultyLevel.Kyu5.NeuralBudget!.Value.For9x9 > DifficultyLevel.Kyu10.NeuralBudget!.Value.For9x9);
     }
 
     [Fact]
-    public void Kyu10_Думает_Дольше_Чем_Kyu15()
+    public void Kyu10_Ищет_Глубже_Чем_Kyu15()
     {
-        // 15 кю считает playout'ы (воспроизводимые замеры), 10 кю — время на ход.
-        Assert.True(DifficultyLevel.Kyu10.TimeBudget is not null && DifficultyLevel.Kyu15.PlayoutBudget > 0);
+        // Бюджеты в итерациях: время хода зависит от доски, а сравнение ступеней — нет (D-054).
+        Assert.True(DifficultyLevel.Kyu10.NeuralBudget is not null && DifficultyLevel.Kyu15.PlayoutBudget > 0);
     }
 
     [Fact]
@@ -65,11 +74,15 @@ public sealed class DifficultyLevelTests
     }
 
     [Fact]
-    public void DifficultyLevel_Бюджеты_Растут_С_Уровнем()
+    public void DifficultyLevel_Бюджеты_Сети_Растут_С_Уровнем()
     {
-        var budgets = new[] { DifficultyLevel.Kyu10, DifficultyLevel.Kyu8, DifficultyLevel.Kyu5 }
-            .Select(level => level.TimeBudget!.Value)
-            .ToList();
+        var budgets = new[]
+        {
+            DifficultyLevel.Kyu10, DifficultyLevel.Kyu8, DifficultyLevel.Kyu5,
+            DifficultyLevel.Kyu1, DifficultyLevel.Dan1, DifficultyLevel.Dan5
+        }
+        .Select(level => level.NeuralBudget!.Value.For9x9)
+        .ToList();
 
         Assert.Equal(budgets.OrderBy(budget => budget).ToList(), budgets);
     }
@@ -94,8 +107,17 @@ public sealed class DifficultyLevelTests
     }
 
     [Fact]
-    public void DifficultyLevel_Уровень_Без_Поиска_Имеет_Нулевой_Бюджет()
+    public void DifficultyLevel_Уровней_Без_Поиска_Больше_Нет()
     {
-        Assert.Equal(0, DifficultyLevel.Kyu20.PlayoutBudget);
+        // Уровни без поиска остались только как селекторы (эвристика и случайные ходы) —
+        // в лестнице их нет: все семь уровней кю играют MCTS (D-054).
+        var ladder = new[]
+        {
+            DifficultyLevel.Kyu30, DifficultyLevel.Kyu25, DifficultyLevel.Kyu20, DifficultyLevel.Kyu15,
+            DifficultyLevel.Kyu10, DifficultyLevel.Kyu8, DifficultyLevel.Kyu5
+        };
+
+        Assert.All(ladder, level => Assert.Equal(SelectorKind.Mcts, level.Kind));
+        Assert.All(ladder, level => Assert.True(level.PlayoutBudget > 0 || level.TimeBudget is not null));
     }
 }

@@ -73,7 +73,8 @@ public sealed class MainViewModelTests
     {
         var model = Create(level: DifficultyLevel.Kyu20);
 
-        Assert.Equal("20 кю · эвристики · без поиска", model.LevelDescription);
+        // 20 кю играет поиском и без модели считает playout'ы (D-054).
+        Assert.Equal("20 кю · MCTS без сети · 24 playout'а", model.LevelDescription);
     }
 
     [Fact]
@@ -81,7 +82,7 @@ public sealed class MainViewModelTests
     {
         var model = Create(level: DifficultyLevel.Dan5, modelSizes: new HashSet<int> { 9 });
 
-        Assert.Equal("5 дан · нейросеть 9×9 · 4 с/ход", model.LevelDescription);
+        Assert.Equal("5 дан · нейросеть 9×9 · 44 итерации", model.LevelDescription);
     }
 
     [Fact]
@@ -243,10 +244,10 @@ public sealed class MainViewModelTests
             Assert.Equal(LevelChooser.Describe(level, model.Board.Size, true), label);
             Assert.Contains(LevelChooser.Rank(level), label, StringComparison.Ordinal);
 
-            // Бюджет в подписи: у уровня кю с сетью поиск идёт по бюджету сети, у остальных —
-            // по бюджету уровня.
-            var budget = level.NeuralBudget is { } neural && !level.NeedsNetwork
-                ? $"{(int)neural.TotalMilliseconds} мс/ход"
+            // Бюджет в подписи: у уровня с сетью — итерации для этой доски, у остальных —
+            // бюджет уровня без сети (D-054).
+            var budget = level.NeuralBudget is { } neural
+                ? $"{neural.For(model.Board.Size)} итерац"
                 : LevelChooser.Budget(level);
 
             Assert.Contains(budget, label, StringComparison.Ordinal);
@@ -316,13 +317,13 @@ public sealed class MainViewModelTests
 
         Assert.Equal(19, model.Board.Size.Value);
         Assert.Equal(DifficultyLevel.Dan5, model.CurrentLevel);
-        Assert.Equal("5 дан · нейросеть 19×19 · 4 с/ход", model.LevelDescription);
+        Assert.Equal("5 дан · нейросеть 19×19 · 25 итераций", model.LevelDescription);
         Assert.Equal(model.SelectedLevelIndex, model.LevelOptions.ToList().IndexOf(DifficultyLevel.Dan5));
     }
 
     /// <summary>Создаёт модель представления для теста.</summary>
     /// <param name="color">Цвет игрока; по умолчанию чёрные.</param>
-    /// <param name="level">Уровень AI; по умолчанию 20 кю — эвристики без поиска.</param>
+    /// <param name="level">Уровень AI; по умолчанию 20 кю — поиск без сети.</param>
     /// <param name="modelSizes">Стороны доски, для которых есть модель.</param>
     /// <returns>Модель представления на доске 9×9.</returns>
     private static MainViewModel Create(

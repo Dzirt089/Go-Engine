@@ -13,7 +13,7 @@ namespace GoEngine.App.Services;
 /// </remarks>
 public static class LevelChooser
 {
-    /// <summary>Уровни кю: доступны на любой доске и без сети.</summary>
+    /// <summary>Уровни кю: доступны на любой доске, играют сетью, когда для доски есть модель.</summary>
     private static readonly DifficultyLevel[] KyuLevels =
     [
         DifficultyLevel.Kyu30,
@@ -63,12 +63,14 @@ public static class LevelChooser
     public static DifficultyLevel Resolve(DifficultyLevel selected, BoardSize size, bool modelAvailableForSize) =>
         IsAvailable(selected, size, modelAvailableForSize) ? selected : Fallback;
 
-    /// <summary>Собирает подпись уровня: ранг, движок и бюджет.</summary>
+    /// <summary>Собирает подпись уровня без контекста доски: ранг, движок и бюджет 9×9.</summary>
     /// <param name="level">Уровень.</param>
-    /// <returns>Например, «5 дан · нейросеть · 4 с/ход» или «20 кю · эвристики · без поиска».</returns>
+    /// <returns>Например, «5 дан · нейросеть · 44 итерации на 9×9».</returns>
     /// <remarks>
     /// Ранги номинальные — силу внешним соперником не мерили, поэтому подпись всегда называет
-    /// движок и бюджет: по ним видно, чем уровень играет на самом деле.
+    /// движок и бюджет: по ним видно, чем уровень играет на самом деле. Бюджет с сетью зависит
+    /// от доски, поэтому точную подпись для партии даёт <see cref="Describe"/> (D-054), а здесь
+    /// указана доска 9×9 — так подпись не врёт, а оговаривает доску.
     /// </remarks>
     public static string Label(DifficultyLevel level)
     {
@@ -77,11 +79,11 @@ public static class LevelChooser
         return $"{Rank(level)} · {Engine(level)} · {Budget(level)}";
     }
 
-    /// <summary>Собирает подпись уровня для панели партии: с размером доски, если играет сеть.</summary>
+    /// <summary>Собирает подпись уровня для выбранной доски: фактический движок и точный бюджет.</summary>
     /// <param name="level">Уровень.</param>
     /// <param name="size">Размер доски партии.</param>
     /// <param name="modelAvailableForSize">Есть ли модель для этого размера.</param>
-    /// <returns>Например, «5 дан · нейросеть 9×9 · 4 с/ход».</returns>
+    /// <returns>Например, «5 дан · нейросеть 19×19 · 25 итераций».</returns>
     public static string Describe(DifficultyLevel level, BoardSize size, bool modelAvailableForSize)
     {
         ArgumentNullException.ThrowIfNull(level);
@@ -90,20 +92,58 @@ public static class LevelChooser
         if (level.NeedsNetwork)
         {
             return modelAvailableForSize
-                ? $"{Rank(level)} · нейросеть {size.Value}×{size.Value} · {Budget(level)}"
+                ? $"{Rank(level)} · нейросеть {size.Value}×{size.Value} · {Iterations(level, size)}"
                 : $"{Rank(level)} · нейросеть недоступна";
         }
 
         // Уровни кю играют сетью, когда модель для доски есть, и MCTS — когда её нет: подпись
         // обязана называть фактический движок, а не тот, который предпочли бы (D-045).
-        if (level.NeuralBudget is { } neural)
+        if (level.NeuralBudget is not null)
         {
             return modelAvailableForSize
-                ? $"{Rank(level)} · нейросеть {size.Value}×{size.Value} · {(int)neural.TotalMilliseconds} мс/ход"
+                ? $"{Rank(level)} · MCTS с сетью {size.Value}×{size.Value} · {Iterations(level, size)}"
                 : $"{Rank(level)} · MCTS без сети · {Budget(level)}";
         }
 
         return Label(level);
+    }
+
+    /// <summary>Сколько итераций поиска делает уровень на этой доске.</summary>
+    /// <param name="level">Уровень.</param>
+    /// <param name="size">Размер доски.</param>
+    /// <returns>Например, «25 итераций».</returns>
+    private static string Iterations(DifficultyLevel level, BoardSize size) =>
+        Iterations(level.NeuralBudget!.Value.For(size));
+
+    /// <summary>Число итераций словами: «1 итерация», «3 итерации», «25 итераций».</summary>
+    /// <param name="count">Число итераций.</param>
+    /// <returns>Подпись с правильным падежом.</returns>
+    private static string Iterations(int count) => $"{count} {Plural(count, "итерация", "итерации", "итераций")}";
+
+    /// <summary>Число playout'ов словами: «1 playout», «3 playout'а», «25 playout'ов».</summary>
+    /// <param name="count">Число playout'ов.</param>
+    /// <returns>Подпись с правильным падежом.</returns>
+    private static string Playouts(int count) => $"{count} {Plural(count, "playout", "playout'а", "playout'ов")}";
+
+    /// <summary>Выбирает форму слова по числу: 1 — «итерация», 2–4 — «итерации», иначе «итераций».</summary>
+    /// <param name="count">Число.</param>
+    /// <param name="one">Форма для одного.</param>
+    /// <param name="few">Форма для двух–четырёх.</param>
+    /// <param name="many">Форма для остальных.</param>
+    /// <returns>Нужная форма слова.</returns>
+    private static string Plural(int count, string one, string few, string many)
+    {
+        if (count % 100 is >= 11 and <= 14)
+        {
+            return many;
+        }
+
+        return (count % 10) switch
+        {
+            1 => one,
+            >= 2 and <= 4 => few,
+            _ => many
+        };
     }
 
     /// <summary>Ранг уровня словами.</summary>
@@ -118,16 +158,23 @@ public static class LevelChooser
 
     /// <summary>Чем играет уровень.</summary>
     /// <param name="level">Уровень.</param>
-    /// <returns>«нейросеть», «MCTS без сети», «эвристики» или «случайные ходы».</returns>
+    /// <returns>«нейросеть», «MCTS с сетью», «MCTS без сети», «эвристики» или «случайные ходы».</returns>
+    /// <remarks>
+    /// Ветви про эвристики и случайные ходы остаются ради совместимости: уровней без поиска
+    /// в лестнице больше нет (D-054), но сами селекторы живы и используются тестами и замерами.
+    /// </remarks>
     public static string Engine(DifficultyLevel level)
     {
         ArgumentNullException.ThrowIfNull(level);
 
-        if (level.NeedsNetwork || level.NeuralBudget is not null)
+        if (level.NeedsNetwork)
         {
-            return level.NeuralBudget is { } neural && !level.NeedsNetwork
-                ? $"нейросеть ({(int)neural.TotalMilliseconds} мс/ход)"
-                : "нейросеть";
+            return "нейросеть";
+        }
+
+        if (level.NeuralBudget is not null)
+        {
+            return "MCTS с сетью";
         }
 
         if (level.Kind == SelectorKind.Random)
@@ -138,9 +185,14 @@ public static class LevelChooser
         return level.Kind == SelectorKind.Heuristic ? "эвристики" : "MCTS без сети";
     }
 
-    /// <summary>Бюджет уровня словами.</summary>
+    /// <summary>Бюджет уровня без сети словами.</summary>
     /// <param name="level">Уровень.</param>
-    /// <returns>«4 с/ход», «6 playout'ов» или «без поиска».</returns>
+    /// <returns>«4 с/ход», «48 playout'ов» или «44 итерации на 9×9» у уровней только с сетью.</returns>
+    /// <remarks>
+    /// Это бюджет пути без сети: он остаётся у уровней кю, которые играют сетью лишь тогда,
+    /// когда для доски нашлась модель. У ступеней, которым сеть нужна всегда, доски нет —
+    /// поэтому показывается бюджет 9×9, а точный даёт <see cref="Describe"/>.
+    /// </remarks>
     public static string Budget(DifficultyLevel level)
     {
         ArgumentNullException.ThrowIfNull(level);
@@ -150,6 +202,11 @@ public static class LevelChooser
             return $"{time.TotalSeconds:0.#} с/ход";
         }
 
-        return level.PlayoutBudget > 0 ? $"{level.PlayoutBudget} playout'ов" : "без поиска";
+        if (level.PlayoutBudget > 0)
+        {
+            return Playouts(level.PlayoutBudget);
+        }
+
+        return level.NeuralBudget is { } neural ? $"{Iterations(neural.For9x9)} на 9×9" : "без поиска";
     }
 }
