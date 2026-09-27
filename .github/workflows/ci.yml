@@ -1,22 +1,25 @@
-# Непрерывная проверка: та же команда, что и локально (check.sh).
+# Непрерывная проверка: та же команда, что и локально (check.sh / check.ps1).
 # Проверочные режимы приложения не открывают окно, поэтому агент без графической сессии
-# проходит их целиком. Публичное зеркало появится — workflow заработает без правок.
+# проходит их целиком. Две системы — потому что приложение настольное: сборка под Windows
+# и под Linux ломается по-разному.
 name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  check:
-    name: Сборка, тесты и режимы приложения
+  linux:
+    name: Linux — сборка, тесты, режимы
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
@@ -24,3 +27,16 @@ jobs:
         run: |
           chmod +x ./check.sh
           ./check.sh
+
+  windows:
+    name: Windows — сборка и тесты
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Проверка проекта
+        shell: pwsh
+        run: ./check.ps1 -SkipStress

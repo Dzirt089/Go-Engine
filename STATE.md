@@ -224,6 +224,16 @@
 - [x] **T-033 (шаг 4, тесты).** 9 тестов `NeuralMctsTests` на подставной оценке (вызов раз за
       итерацию, приоритеты ведут поиск, PUCT без бесконечности, разворот оценки по пути)
       и тест настоящей модели: сеть с бюджетом 8 итераций играет первый ход в углу
+- [x] **Публикация.** Репозиторий `github.com/Dzirt089/Go-Engine` подключён вторым remote
+      (`github`), вся история запушена; локальный `origin` остался рабочей копией истории
+- [x] **CI.** `.github/workflows/ci.yml`: Linux целиком (`check.sh`) и Windows
+      (`check.ps1 -SkipStress`) — приложение настольное, системы ломают его по-разному
+- [x] **CD.** `.github/workflows/release.yml`: по тегу `v*` или вручную — проверка проекта,
+      затем самодостаточные сборки `win-x64`, `linux-x64`, `osx-x64`, `osx-arm64` (каждая
+      проверяется запуском `--smoke`) и APK Android, всё уходит в релиз GitHub (`gh release create`)
+- [x] **Android.** Голова `GoEngine.App.Android` (вне `.sln`: нужна рабочая нагрузка android);
+      общий вид `Views/BoardView` используется и окном, и мобильной версией, `App` выбирает
+      вид по жизненному циклу — `DECISIONS.md` D-035
 - [x] **T-032.** `Scorer.Ownership` — карта владельца каждой точки (нужна плоскостям территории);
       `Scorer.Calculate` переведён на неё без изменения поведения
 - [x] **T-032.** 14 тестов кодировщика и 6 тестов ONNX-слоя; всего 430 тестов в `GoEngine.Tests`
@@ -329,6 +339,7 @@
 | 2026-09-26 | структура | Проверочные режимы вынесены из `Program.cs` в `GoEngine.App/Diagnostics/` (D-032) |
 | 2026-09-27 | T-033 | Модель KataGo в `models/`, `OnnxEvaluator.Evaluate`, раскладка признаков по контракту модели (D-033) |
 | 2026-09-27 | T-033 | MCTS с оценкой сети: PUCT, политика задаёт порядок разбора, оценка вместо playout'а (D-034) |
+| 2026-09-27 | CI/CD | Репозиторий на GitHub вторым remote, CI на Linux и Windows, релиз под Windows/Linux/macOS/Android, голова Android (D-035) |
 | 2026-09-26T21:12:30Z | T-020 | done | Проект GoEngine.App: окно Avalonia, режим --smoke |
 | 2026-09-26T21:12:30Z | T-021 | done | BoardRenderer, BoardGeometry, BoardControl; режим --render |
 
@@ -369,6 +380,7 @@
 | 2026-09-26T23:00:00Z | структура | done | Ступень 8: дерево тестов повторяет области исходников (`Onnx/` вместо ONNX-тестов в `Ai/`, `Core/Sgf/`, `Ai` → `AI`); 5 перемещений, код не менялся; D-031 |
 | 2026-09-26T23:15:00Z | структура | done | Ступень 9: `Diagnostics/` — `ModeArguments`, `CheckModes`, `RenderSamples`; `Program.cs` 515 → 97 строк, логика перенесена дословно, все 10 режимов проверены; D-032 |
 | 2026-09-27T01:05:00Z | T-033 | in_progress | MCTS с сетью: порт `IPositionEvaluator`, PUCT вместо UCB1+RAVE, порядок разбора по политике, вероятностный результат; 9 тестов `NeuralMctsTests`; D-034 |
+| 2026-09-27T10:30:00Z | CI/CD | done | GitHub-репозиторий и вся история запушены; `ci.yml` (Linux + Windows), `release.yml` (win/linux/macos×2/android → релиз); `Views/BoardView` общий для окна и Android; D-035 |
 | 2026-09-27T00:20:00Z | T-033 | in_progress | Скачана модель `kata1-b28c512nbt-adam-s11165M-d5387M.uint8.onnx` (72 МБ, sha256 зафиксирован), в индекс не попадает; `OnnxEvaluator.Evaluate` считает политику и исход; раскладка признаков исправлена (коми /20, индекс 14 и 18); 9 тестов модели; D-033 |
 
 ## Заметки для следующей сессии

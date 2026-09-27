@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Голова Android: тот же интерфейс, что и на настольных системах (BoardView), но без меню —
+    на Android жизненный цикл единственного вида. Проект не входит в GoEngine.sln: для его
+    сборки нужна рабочая нагрузка android (dotnet workload install android), которой нет
+    у того, кто собирает только настольную версию. Собирается в CI (.github/workflows/release.yml).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-android34.0</TargetFramework>
+    <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <ApplicationId>com.goengine.app</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+
+    <!-- Сборка Android SDK предупреждает о подписи, ресурсах и линковке: это не наш код.
+         Сборка релиза не должна из-за него падать; анализаторы остаются включёнными. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+    <!-- Проверку «срок поддержки цели» выключаем только здесь: на машине сборки может стоять
+         SDK новее восьмого, и тогда net8.0-android объявляется вне поддержки. В CI стоит SDK 8. -->
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Android" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..GoEngine.AppGoEngine.App.csproj" />
+  </ItemGroup>
+
+</Project>

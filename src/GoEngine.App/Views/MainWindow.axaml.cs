@@ -1,24 +1,22 @@
-using System.ComponentModel;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
-using GoEngine.App.Controls;
 using GoEngine.App.Services;
 using GoEngine.App.ViewModels;
-using GoEngine.App.Views;
+using GoEngine.Core;
 
-namespace GoEngine.App;
+namespace GoEngine.App.Views;
 
-/// <summary>Главное окно партии: доска, панель статуса и меню.</summary>
+/// <summary>Главное окно партии: доска с панелью статуса и меню.</summary>
 /// <remarks>
-/// Окно связывает доску с моделью представления: щелчок по доске превращается в ход игрока,
-/// после которого отвечает AI. Настройки читаются и пишутся через <see cref="SettingsStore"/>.
+/// Доска и панель живут в <see cref="BoardView"/>: тот же вид использует мобильная версия
+/// (`GoEngine.App.Android`). Здесь остаётся то, чего на Android нет, — меню, диалог настроек
+/// и выбор файлов партии.
 /// </remarks>
 public sealed partial class MainWindow : Window
 {
-    private readonly BoardControl? _boardControl;
     private AppSettings _settings;
 
     /// <summary>Создаёт окно партии.</summary>
@@ -36,42 +34,21 @@ public sealed partial class MainWindow : Window
 
         AvaloniaXamlLoader.Load(this);
 
-        ViewModel = new MainViewModel(settings, Random.Shared);
         DataContext = ViewModel;
-
-        _boardControl = this.FindControl<BoardControl>("Board");
-
-        if (_boardControl is not null)
-        {
-            _boardControl.MoveRequested += OnMoveRequested;
-        }
-
-        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
 
         Wire("NewGameItem", OnNewGameClick);
         Wire("SettingsItem", OnSettingsClick);
         Wire("SaveGameItem", OnSaveGameClick);
         Wire("LoadGameItem", OnLoadGameClick);
         Wire("ExitItem", OnExitClick);
-        WireButton("UndoButton", OnUndoClick);
-        WireButton("RedoButton", OnRedoClick);
     }
 
-    /// <summary>Модель представления окна.</summary>
-    public MainViewModel ViewModel { get; }
+    /// <summary>Модель представления партии.</summary>
+    public MainViewModel ViewModel => Board.ViewModel;
 
-    /// <summary>Запускает анимацию, когда партия показала новый ход.</summary>
-    /// <param name="sender">Модель представления.</param>
-    /// <param name="e">Событие изменения свойства.</param>
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName != nameof(MainViewModel.LastMove))
-        {
-            return;
-        }
-
-        _boardControl?.Animate(ViewModel.LastMove, ViewModel.LastCaptured, ViewModel.LastCapturedColor);
-    }
+    /// <summary>Доска с панелью статуса.</summary>
+    private BoardView Board => this.FindControl<BoardView>("BoardArea")
+        ?? throw new DomainException("В окне нет доски: разметка окна повреждена.");
 
     /// <summary>Подписывает пункт меню на обработчик.</summary>
     /// <param name="name">Имя пункта меню.</param>
@@ -83,32 +60,6 @@ public sealed partial class MainWindow : Window
             item.Click += handler;
         }
     }
-
-    /// <summary>Подписывает кнопку на обработчик.</summary>
-    /// <param name="name">Имя кнопки.</param>
-    /// <param name="handler">Обработчик нажатия.</param>
-    private void WireButton(string name, EventHandler<RoutedEventArgs> handler)
-    {
-        if (this.FindControl<Button>(name) is { } button)
-        {
-            button.Click += handler;
-        }
-    }
-
-    /// <summary>Отменяет последний ход игрока вместе с ответом AI.</summary>
-    /// <param name="sender">Кнопка «Отменить».</param>
-    /// <param name="e">Событие нажатия.</param>
-    private void OnUndoClick(object? sender, RoutedEventArgs e) => ViewModel.Undo();
-
-    /// <summary>Возвращает отменённый ход.</summary>
-    /// <param name="sender">Кнопка «Вернуть».</param>
-    /// <param name="e">Событие нажатия.</param>
-    private void OnRedoClick(object? sender, RoutedEventArgs e) => ViewModel.Redo();
-
-    /// <summary>Обрабатывает щелчок по доске.</summary>
-    /// <param name="sender">Доска.</param>
-    /// <param name="e">Точка хода.</param>
-    private void OnMoveRequested(object? sender, MoveRequestedEventArgs e) => ViewModel.PlayMove(e.Point);
 
     /// <summary>Начинает новую партию по текущим настройкам.</summary>
     /// <param name="sender">Пункт меню.</param>
