@@ -11,9 +11,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Тег релиза, например v1.0.0'
+        description: 'Тег релиза, например v0.2.0. Существующий релиз обновляется, новый создаётся'
         required: true
-        default: 'v0.1.0'
       draft:
         description: 'Оставить черновиком (файлы не будут видны для скачивания до публикации)'
         type: boolean
@@ -161,7 +160,7 @@ jobs:
           merge-multiple: true
       - name: Список файлов
         run: find dist -type f | sort
-      - name: Создание релиза
+      - name: Создание или обновление релиза
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -171,7 +170,13 @@ jobs:
           fi
           mapfile -t files < <(find dist -type f | sort)
           printf 'файлов в релизе: %s\n' "${#files[@]}"
-          gh release create "${TAG}" "${files[@]}" \
-            --title "Go Engine ${TAG}" \
-            --generate-notes \
-            $flags
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            # Релиз для этого тега уже есть: обновляем файлы, а не падаем с «already exists».
+            # Так повторный запуск на существующем теге безопасен и перезапускаем.
+            gh release upload "${TAG}" "${files[@]}" --clobber
+          else
+            gh release create "${TAG}" "${files[@]}" \
+              --title "Go Engine ${TAG}" \
+              --generate-notes \
+              $flags
+          fi
