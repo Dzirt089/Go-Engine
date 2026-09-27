@@ -229,13 +229,27 @@ public sealed class MainViewModelTests
     public void Подписи_Уровней_Называют_Движок_И_Бюджет()
     {
         var model = Create(modelSizes: new HashSet<int> { 9 });
+        var options = model.LevelOptions;
 
-        foreach (var level in model.LevelOptions)
+        Assert.Equal(options.Count, model.LevelLabels.Count);
+
+        for (var index = 0; index < options.Count; index++)
         {
-            var label = LevelChooser.Label(level);
+            var level = options[index];
+            var label = model.LevelLabels[index];
 
-            Assert.Contains(LevelChooser.Engine(level), label, StringComparison.Ordinal);
-            Assert.Contains(LevelChooser.Budget(level), label, StringComparison.Ordinal);
+            // Список выбора показывает ту же подпись, что и панель партии: движок, размер
+            // доски и бюджет (D-045).
+            Assert.Equal(LevelChooser.Describe(level, model.Board.Size, true), label);
+            Assert.Contains(LevelChooser.Rank(level), label, StringComparison.Ordinal);
+
+            // Бюджет в подписи: у уровня кю с сетью поиск идёт по бюджету сети, у остальных —
+            // по бюджету уровня.
+            var budget = level.NeuralBudget is { } neural && !level.NeedsNetwork
+                ? $"{(int)neural.TotalMilliseconds} мс/ход"
+                : LevelChooser.Budget(level);
+
+            Assert.Contains(budget, label, StringComparison.Ordinal);
         }
     }
 

@@ -86,7 +86,19 @@ public sealed class LevelChooserTests
     [Fact]
     public void Подпись_Уровня_Кю_Читается_Как_Кю()
     {
+        // Кю играют сетью, когда модель для доски есть (D-045): подпись обязана называть сеть,
+        // а не предпочтительный движок.
         var label = LevelChooser.Label(DifficultyLevel.Kyu10);
+
+        Assert.StartsWith("10 кю", label, StringComparison.Ordinal);
+        Assert.Contains("нейросеть", label, StringComparison.Ordinal);
+        Assert.Contains("мс/ход", label, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Без_Модели_Подпись_Уровня_Кю_Называет_MCTS()
+    {
+        var label = LevelChooser.Describe(DifficultyLevel.Kyu10, BoardSize.Size9, false);
 
         Assert.StartsWith("10 кю", label, StringComparison.Ordinal);
         Assert.Contains("MCTS без сети", label, StringComparison.Ordinal);

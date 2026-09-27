@@ -209,9 +209,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public IReadOnlyList<string> LevelLabels => _levelLabels;
 
     /// <summary>Пересобирает подписи уровней, если их состав изменился.</summary>
+    /// <remarks>
+    /// Подпись собирает <see cref="LevelChooser.Describe"/> с размером текущей доски: список
+    /// выбора обязан называть движок, который действительно сядет играть, а не тот, который
+    /// уровень предпочёл бы (D-045).
+    /// </remarks>
     private void RefreshLabels()
     {
-        var labels = LevelOptions.Select(LevelChooser.Label).ToArray();
+        var size = _settings.ToBoardSize();
+        var hasModel = HasModel(size);
+        var labels = LevelOptions.Select(level => LevelChooser.Describe(level, size, hasModel)).ToArray();
 
         if (_levelLabels.SequenceEqual(labels, StringComparer.Ordinal))
         {
