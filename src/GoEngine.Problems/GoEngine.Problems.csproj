@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Общие свойства — в Directory.Build.props. Слой задач ссылается на Core и AI (проверка глаз). -->
+  <PropertyGroup>
+    <!-- XML-документация обязательна: публичный член без <summary> ломает сборку. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!-- Задачи лежат встроенными ресурсами: набор доступен на всех платформах, включая Android,
+       без правок упаковки. Формат — SGF с вариантами (см. ProblemSgf). -->
+  <ItemGroup>
+    <EmbeddedResource Include="Problems/*.sgf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GoEngine.Core\GoEngine.Core.csproj" />
+    <ProjectReference Include="..\GoEngine.AI\GoEngine.AI.csproj" />
+  </ItemGroup>
+
+</Project>
