@@ -2,7 +2,7 @@ namespace GoEngine.AI;
 
 using GoEngine.Core;
 
-/// <summary>Уровень сложности AI: от 30 кю до 5 кю.</summary>
+/// <summary>Уровень сложности AI: от 30 кю до 5 кю и уровни Дан с нейросетью.</summary>
 /// <remarks>
 /// Уровень задаёт вид селектора и его настройки: долю случайности для эвристик, бюджет
 /// playout'ов и коэффициент исследования для MCTS. <see cref="Id"/> уровня равен его рангу
@@ -35,8 +35,15 @@ public sealed class DifficultyLevel : Enumeration
         PlayoutConfig = playoutConfig;
     }
 
-    /// <summary>Ранг в кю: больше — слабее.</summary>
+    /// <summary>Ранг в кю: больше — слабее. У уровней Дан ранг отрицательный.</summary>
     public int RankKyu { get; }
+
+    /// <summary>Нужна ли уровню оценка нейросети.</summary>
+    /// <remarks>
+    /// Уровни Дан играют только с сетью и только на досках 19×19 и 13×13: на 9×9 её оценка
+    /// неправдоподобна, поэтому запрос такого уровня для 9×9 — отказ (<c>DECISIONS.md</c>, D-038).
+    /// </remarks>
+    public bool NeedsNetwork => Kind == SelectorKind.Neural;
 
     /// <summary>Вид селектора уровня.</summary>
     public SelectorKind Kind { get; }
@@ -85,6 +92,14 @@ public sealed class DifficultyLevel : Enumeration
     public static DifficultyLevel Kyu5 { get; } =
         new(5, nameof(Kyu5), 5, SelectorKind.Mcts, 0, TimeSpan.FromMilliseconds(3000), MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default);
 
+    /// <summary>5 дан: сильнейший уровень — поиск с оценкой нейросети, две секунды на ход.</summary>
+    /// <remarks>
+    /// Ранг отрицательный, потому что Дан выше любого кю. Играет только на 19×19 и 13×13
+    /// и только с загруженной моделью (D-038).
+    /// </remarks>
+    public static DifficultyLevel Dan5 { get; } =
+        new(-5, nameof(Dan5), -5, SelectorKind.Neural, 0, TimeSpan.FromMilliseconds(2000), MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default);
+
     /// <summary>Создаёт селектор этого уровня.</summary>
     /// <param name="random">Источник случайности; в тестах — с фиксированным seed.</param>
     /// <returns>Селектор, играющий на уровне.</returns>
@@ -92,10 +107,10 @@ public sealed class DifficultyLevel : Enumeration
     /// Единственная точка создания селектора — <see cref="AiFactory.Create"/>; уровень лишь
     /// передаёт ему свои настройки.
     /// </remarks>
-    public IMoveSelector CreateSelector(Random random)
+    public IMoveSelector CreateSelector(Random random, BoardSize? boardSize = null, IPositionEvaluator? evaluator = null)
     {
         ArgumentNullException.ThrowIfNull(random);
 
-        return AiFactory.Create(this, random);
+        return AiFactory.Create(this, random, boardSize, evaluator);
     }
 }
