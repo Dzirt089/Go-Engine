@@ -31,6 +31,25 @@
 
   <ItemGroup>
     <ProjectReference Include="../GoEngine.App/GoEngine.App.csproj" />
+    <ProjectReference Include="../GoEngine.AI.Onnx/GoEngine.AI.Onnx.csproj" />
   </ItemGroup>
+
+  <!--
+    Модели нейросети лежат внутри пакета как assets/models. На Android приложение не может
+    читать файлы рядом с собой, поэтому при первом запуске они копируются в каталог приложения
+    (см. AndroidModelStartup). В git модели не коммитятся: их кладёт в models/ сборка, CI
+    скачивает их из релиза models-v1 с проверкой SHA-256.
+  -->
+  <ItemGroup>
+    <ModelAssetFile Include="../../models/*.onnx" />
+    <AndroidAsset Include="@(ModelAssetFile)" TargetPath="models/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- На сборочном агенте пустой каталог моделей — это ошибка: APK без моделей не даст
+       уровней с нейросетью, а заметить это на телефоне можно только вручную. -->
+  <Target Name="RequireModelAssets" BeforeTargets="Build" Condition="'$(CI)' == 'true'">
+    <Error Condition="'@(ModelAssetFile)' == ''"
+           Text="В APK не попадут модели: каталог models пуст. CI должен скачать их из релиза models-v1." />
+  </Target>
 
 </Project>

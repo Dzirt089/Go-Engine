@@ -172,6 +172,31 @@ jobs:
       # Работаем из папки головы: там свой global.json с SDK восьмой полосы. На машине сборки
       # может стоять более новый SDK, а для него рабочая нагрузка net8.0-android объявлена
       # вне поддержки — сборка падает, хотя сам проект в порядке.
+      # На Android каталог рядом с приложением недоступен, поэтому модели кладутся внутрь пакета
+      # как assets/models: при первом запуске приложение копирует их в свой файловый каталог
+      # (AndroidModelStartup). Файлы берём из нашего релиза models-v1 и сверяем SHA-256 —
+      # иначе в пакет уедет битая модель, и это выяснится только на телефоне.
+      - name: Модели нейросети в пакет
+        env:
+          MODELS_TAG: models-v1
+        run: |
+          mkdir -p models
+          declare -A hashes=(
+            ["kata1-b28c512nbt-adam-s11165M-d5387M.uint8.onnx"]="d9ea9db19c59f3934ef566abb8d296b3e94a22916a88352810499d02c88c5828"
+            ["kata9x9-finetuned.uint8.onnx"]="4ef793ffc3ca9c4fdd5d95f186c3a411129f2a707977227a2262c9f599d3c163"
+          )
+          for name in "${!hashes[@]}"; do
+            url="https://github.com/Dzirt089/Go-Engine/releases/download/${MODELS_TAG}/${name}"
+            echo "качаю модель: ${name}"
+            curl -L --fail --silent --show-error -o "models/${name}" "$url"
+            actual=$(sha256sum "models/${name}" | cut -d' ' -f1)
+            if [ "$actual" != "${hashes[$name]}" ]; then
+              echo "SHA-256 не совпал: ${name}: ожидался ${hashes[$name]}, получен ${actual}" >&2
+              exit 1
+            fi
+            echo "модель на месте: ${name}, $(du -h "models/${name}" | cut -f1)"
+          done
+
       - name: Установка рабочей нагрузки Android
         working-directory: src/GoEngine.App.Android
         run: dotnet workload install android
@@ -180,10 +205,23 @@ jobs:
         run: >-
           dotnet publish GoEngine.App.Android.csproj
           -c Release -f net8.0-android34.0 -o ../../publish/android
+      # Проверка «модели реально в пакете»: APK — это zip, смотрим список файлов.
+      - name: Проверка, что модели внутри APK
+        run: |
+          apk=$(find publish/android -name '*.apk' | head -n 1)
+          echo "пакет: ${apk} ($(du -h "${apk}" | cut -f1))"
+          listing=$(unzip -l "${apk}" | grep 'assets/models/' || true)
+          echo "${listing}"
+          count=$(echo "${listing}" | grep -c '\.onnx' || true)
+          if [ "${count}" -lt 2 ]; then
+            echo "в APK нет моделей: найдено ${count} файлов .onnx" >&2
+            exit 1
+          fi
+          echo "моделей в пакете: ${count}"
       - name: Выгрузка APK
         uses: actions/upload-artifact@v4
         with:
           name: go-engine-android
           path: publish/android/**/*.apk
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
