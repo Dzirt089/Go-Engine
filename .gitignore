@@ -14,6 +14,11 @@ artifacts/
 src/**/bin/
 src/**/obj/
 
+# Модели нейросети: десятки мегабайт, скачиваются отдельно (models/README.md)
+models/*.onnx
+models/*.bin
+models/*.bin.gz
+
 # Secrets
 .env
 .env.*

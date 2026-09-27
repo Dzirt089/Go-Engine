@@ -50,6 +50,9 @@ GoEngine.Tests      ← Core, AI, AI.Onnx, xUnit
 - Внешние пакеты — минимальны, только необходимые
 - Версия пакета объявлена один раз — в `src/Directory.Packages.props`; в проектах
   `PackageReference` идёт без `Version` (Central Package Management)
+- Модель KataGo лежит в `models/` и в индекс git не попадает (72 МБ): источник, лицензия,
+  SHA-256 и команда скачивания — в `models/README.md`; без файла тесты модели пропускаются
+  (`DECISIONS.md`, D-033)
 
 ## Что НЕ используется
 

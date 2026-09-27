@@ -29,11 +29,39 @@ public sealed class KataGoFeaturesTests
     }
 
     [Fact]
-    public void Кодировщик_Пустая_Доска_Даёт_Четырнадцать_Глобальных_Признаков()
+    public void Кодировщик_Пустая_Доска_Даёт_Девятнадцать_Глобальных_Признаков()
     {
         var global = KataGoFeatures.EncodeGlobal(new Board(BoardSize.Size19), Komi.For19x19, StoneColor.Black, []);
 
         Assert.Equal(KataGoFeatures.GlobalFeatures, global.Length);
+    }
+
+    [Fact]
+    public void Кодировщик_Коми_Делится_На_Двадцать()
+    {
+        // Раскладка модели (kaya-go/katago-onnx, features.py): признак 5 — selfKomi / 20.
+        var global = KataGoFeatures.EncodeGlobal(new Board(BoardSize.Size19), new Komi(10), StoneColor.White, []);
+
+        Assert.Equal(0.5f, global[5]);
+    }
+
+    [Fact]
+    public void Кодировщик_Пас_Завершает_Партию_Признак_Четырнадцать()
+    {
+        List<Move> moves = [Move.Pass(StoneColor.Black)];
+        var global = KataGoFeatures.EncodeGlobal(new Board(BoardSize.Size19), Komi.For19x19, StoneColor.White, moves);
+
+        Assert.Equal(1f, global[14]);
+    }
+
+    [Fact]
+    public void Кодировщик_Волна_Чётности_Коми_Признак_Восемнадцать()
+    {
+        // Коми 7,5 за белых на доске 19×19: до ближайшей границы, где ничьи возможны, пол-очка —
+        // это вершина волны.
+        var global = KataGoFeatures.EncodeGlobal(new Board(BoardSize.Size19), Komi.For19x19, StoneColor.White, []);
+
+        Assert.Equal(0.5f, global[18]);
     }
 
     [Fact]
