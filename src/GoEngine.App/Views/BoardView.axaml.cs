@@ -1,7 +1,10 @@
 using System.ComponentModel;
+using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform.Storage;
 using GoEngine.AI;
 using GoEngine.App.Controls;
 using GoEngine.App.Services;
@@ -12,15 +15,25 @@ namespace GoEngine.App.Views;
 /// <summary>Доска партии и панель управления — общая часть окна и мобильного вида.</summary>
 /// <remarks>
 /// Вид связывает доску с моделью представления: щелчок по доске превращается в ход игрока,
-/// после которого отвечает AI. Пас, отмена, возврат и новая партия не требуют окна и работают
-/// здесь же; диалог настроек и выбор файлов партии — события <see cref="SettingsRequested"/>,
-/// <see cref="SaveRequested"/> и <see cref="LoadRequested"/>, на которые подписывается окно
-/// (<see cref="MainWindow"/>): на Android их нет, поэтому кнопки скрыты до вызова
-/// <see cref="EnableDesktopActions"/>.
+/// после которого отвечает AI. Здесь же всё, что нужно и без окна: пас, отмена, возврат, новая
+/// партия, выбор доски и уровня, сохранение и загрузка партии, настройки.
+/// Раскладка выбирается по размеру вида (<see cref="BoardLayoutRules"/>): на телефоне доска
+/// сверху и управление снизу, на широком экране — как в настольной версии. Настройки на
+/// настольной системе показывает окно (<see cref="SettingsWindow"/>, подписка на
+/// <see cref="SettingsRequested"/>), а если окна нет — тот же <see cref="SettingsView"/>
+/// показывается поверх доски.
 /// </remarks>
 public sealed partial class BoardView : UserControl
 {
     private readonly BoardControl? _boardControl;
+    private readonly Grid? _layout;
+    private readonly Border? _panel;
+    private readonly Border? _overlay;
+    private readonly SettingsView? _settingsView;
+    private readonly TextBlock? _hint;
+
+    /// <summary>Настройки, с которыми играет вид: их показывает панель настроек.</summary>
+    private AppSettings _settings;
 
     /// <summary>Идёт обновление списков выбора: обратные записи от них в это время игнорируются.</summary>
     /// <remarks>
@@ -29,6 +42,9 @@ public sealed partial class BoardView : UserControl
     /// представления и пересоздавал партию с чужим уровнем.
     /// </remarks>
     private bool _syncingCombos;
+
+    /// <summary>Текущая раскладка: <c>null</c> — ещё не выбрана.</summary>
+    private bool? _narrow;
 
     /// <summary>Создаёт вид с настройками из файла и оценкой сети, заданной головой.</summary>
     public BoardView() : this(SettingsStore.Load(), global::GoEngine.App.App.Evaluator)
@@ -42,16 +58,29 @@ public sealed partial class BoardView : UserControl
     {
         ArgumentNullException.ThrowIfNull(settings);
 
+        _settings = settings;
+
         AvaloniaXamlLoader.Load(this);
 
         ViewModel = new MainViewModel(settings, Random.Shared, evaluator);
         DataContext = ViewModel;
 
         _boardControl = this.FindControl<BoardControl>("Board");
+        _layout = this.FindControl<Grid>("Layout");
+        _panel = this.FindControl<Border>("Panel");
+        _overlay = this.FindControl<Border>("SettingsOverlay");
+        _settingsView = this.FindControl<SettingsView>("SettingsArea");
+        _hint = this.FindControl<TextBlock>("Hint");
 
         if (_boardControl is not null)
         {
             _boardControl.MoveRequested += OnMoveRequested;
+        }
+
+        if (_settingsView is not null)
+        {
+            _settingsView.Accepted += OnSettingsAccepted;
+            _settingsView.Cancelled += OnSettingsCancelled;
         }
 
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -74,28 +103,226 @@ public sealed partial class BoardView : UserControl
             levelBox.SelectionChanged += OnLevelChanged;
         }
 
+        SizeChanged += OnViewSizeChanged;
+
         SyncCombos();
+        ApplyLayout(Bounds.Width, Bounds.Height);
     }
 
-    /// <summary>Запрошен диалог настроек: его показывает окно.</summary>
+    /// <summary>Запрошены настройки: окно, если оно есть, показывает диалог.</summary>
+    /// <remarks>Без подписчика (мобильный вид) настройки показываются поверх доски.</remarks>
     public event EventHandler? SettingsRequested;
-
-    /// <summary>Запрошено сохранение партии: файл выбирает окно.</summary>
-    public event EventHandler? SaveRequested;
-
-    /// <summary>Запрошена загрузка партии: файл выбирает окно.</summary>
-    public event EventHandler? LoadRequested;
 
     /// <summary>Модель представления партии.</summary>
     public MainViewModel ViewModel { get; }
 
-    /// <summary>Показывает кнопки, которым нужны окно и файловая система.</summary>
-    /// <remarks>Вызывает окно: на мобильном виде этих действий нет, и кнопки остаются скрытыми.</remarks>
-    public void EnableDesktopActions()
+    /// <summary>Показывает настройки: в окне, если окно есть, иначе поверх доски.</summary>
+    public void ShowSettings()
     {
-        SetVisible("SettingsButton");
-        SetVisible("SaveButton");
-        SetVisible("LoadButton");
+        if (SettingsRequested is not null)
+        {
+            SettingsRequested.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        _settingsView?.Initialize(_settings);
+
+        if (_overlay is not null)
+        {
+            _overlay.IsVisible = true;
+        }
+    }
+
+    /// <summary>Спрашивает файл и записывает в него партию.</summary>
+    /// <returns>Задача сохранения.</returns>
+    /// <remarks>
+    /// Пишем в поток, а не в путь: на телефоне у выбранного файла локального пути может не быть.
+    /// </remarks>
+    public async Task SaveGameAsync()
+    {
+        var file = await PickSaveFileAsync();
+
+        if (file is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await using var stream = await file.OpenWriteAsync();
+            var saved = SgfStore.Save(ViewModel.ToSgfGame(), stream);
+
+            ShowHint(saved.IsSuccess
+                ? $"Партия сохранена: {file.Name}"
+                : saved.Error ?? "Не удалось сохранить партию.");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            ShowHint($"Не удалось сохранить партию: {exception.Message}");
+        }
+    }
+
+    /// <summary>Спрашивает файл и загружает из него партию.</summary>
+    /// <returns>Задача загрузки.</returns>
+    public async Task LoadGameAsync()
+    {
+        var file = await PickOpenFileAsync();
+
+        if (file is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await using var stream = await file.OpenReadAsync();
+            var loaded = SgfStore.Load(stream);
+
+            if (!loaded.IsSuccess)
+            {
+                ShowHint(loaded.Error ?? "Не удалось прочитать партию.");
+                return;
+            }
+
+            _ = ViewModel.LoadGame(loaded.Value);
+            ShowHint($"Партия загружена: {file.Name}");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            ShowHint($"Не удалось прочитать партию: {exception.Message}");
+        }
+    }
+
+    /// <summary>Выбирает файл для сохранения партии.</summary>
+    /// <returns>Файл или <c>null</c>, если игрок отказался.</returns>
+    private async Task<IStorageFile?> PickSaveFileAsync()
+    {
+        if (TopLevel.GetTopLevel(this)?.StorageProvider is not { } provider)
+        {
+            ShowHint("Система не даёт сохранить файл: нет доступа к выбору файлов.");
+            return null;
+        }
+
+        return await provider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Сохранить партию",
+            SuggestedFileName = "game",
+            DefaultExtension = SgfStore.Extension,
+            FileTypeChoices = [SgfFileType]
+        });
+    }
+
+    /// <summary>Выбирает файл с партией для загрузки.</summary>
+    /// <returns>Файл или <c>null</c>, если игрок отказался.</returns>
+    private async Task<IStorageFile?> PickOpenFileAsync()
+    {
+        if (TopLevel.GetTopLevel(this)?.StorageProvider is not { } provider)
+        {
+            ShowHint("Система не даёт открыть файл: нет доступа к выбору файлов.");
+            return null;
+        }
+
+        var files = await provider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Загрузить партию",
+            AllowMultiple = false,
+            FileTypeFilter = [SgfFileType]
+        });
+
+        return files.Count > 0 ? files[0] : null;
+    }
+
+    /// <summary>Тип файла SGF для диалогов выбора файла.</summary>
+    private static FilePickerFileType SgfFileType => new("Партия Go (SGF)")
+    {
+        Patterns = [$"*.{SgfStore.Extension}"]
+    };
+
+    /// <summary>Показывает сообщение под панелью.</summary>
+    /// <param name="message">Текст сообщения.</param>
+    private void ShowHint(string message)
+    {
+        if (_hint is null)
+        {
+            return;
+        }
+
+        _hint.Text = message;
+        _hint.IsVisible = true;
+    }
+
+    /// <summary>Перестраивает раскладку при изменении размера вида.</summary>
+    /// <param name="sender">Вид.</param>
+    /// <param name="e">Новый размер.</param>
+    private void OnViewSizeChanged(object? sender, SizeChangedEventArgs e) =>
+        ApplyLayout(e.NewSize.Width, e.NewSize.Height);
+
+    /// <summary>Раскладывает доску и панель по размеру вида.</summary>
+    /// <param name="width">Ширина вида.</param>
+    /// <param name="height">Высота вида.</param>
+    /// <remarks>
+    /// Узкий экран (телефон в портрете) — доска сверху квадратом, управление снизу под прокруткой.
+    /// Широкий — как в настольной версии: доска слева, панель справа.
+    /// </remarks>
+    private void ApplyLayout(double width, double height)
+    {
+        if (_layout is null || _boardControl is null || _panel is null)
+        {
+            return;
+        }
+
+        var narrow = BoardLayoutRules.IsNarrow(width, height);
+
+        if (_narrow == narrow)
+        {
+            return;
+        }
+
+        _narrow = narrow;
+
+        _layout.ColumnDefinitions = new ColumnDefinitions(narrow ? "*" : "*,320");
+        _layout.RowDefinitions = new RowDefinitions(narrow ? "Auto,*" : "*");
+
+        Grid.SetColumn(_boardControl, 0);
+        Grid.SetRow(_boardControl, 0);
+        Grid.SetColumn(_panel, narrow ? 0 : 1);
+        Grid.SetRow(_panel, narrow ? 1 : 0);
+
+        _boardControl.Height = narrow ? BoardLayoutRules.BoardHeight(width, height) : double.NaN;
+        _panel.BorderThickness = narrow ? new Thickness(0, 1, 0, 0) : new Thickness(1, 0, 0, 0);
+    }
+
+    /// <summary>Применяет настройки, выбранные в панели настроек, и убирает её.</summary>
+    /// <param name="sender">Вид настроек.</param>
+    /// <param name="e">Событие согласия.</param>
+    private void OnSettingsAccepted(object? sender, EventArgs e)
+    {
+        if (_settingsView is null)
+        {
+            return;
+        }
+
+        _settings = _settingsView.Selected;
+        ViewModel.ApplySettings(_settings);
+
+        // Неудачная запись настроек не мешает играть: значения уже применены к партии.
+        _ = SettingsStore.Save(_settings);
+
+        HideSettings();
+    }
+
+    /// <summary>Убирает панель настроек без изменений.</summary>
+    /// <param name="sender">Вид настроек.</param>
+    /// <param name="e">Событие отказа.</param>
+    private void OnSettingsCancelled(object? sender, EventArgs e) => HideSettings();
+
+    /// <summary>Прячет панель настроек.</summary>
+    private void HideSettings()
+    {
+        if (_overlay is not null)
+        {
+            _overlay.IsVisible = false;
+        }
     }
 
     /// <summary>Запускает анимацию, когда партия показала новый ход.</summary>
@@ -192,16 +419,6 @@ public sealed partial class BoardView : UserControl
         }
     }
 
-    /// <summary>Показывает кнопку, если она есть в разметке.</summary>
-    /// <param name="name">Имя кнопки.</param>
-    private void SetVisible(string name)
-    {
-        if (this.FindControl<Button>(name) is { } button)
-        {
-            button.IsVisible = true;
-        }
-    }
-
     /// <summary>Обрабатывает щелчок по доске.</summary>
     /// <param name="sender">Доска.</param>
     /// <param name="e">Точка хода.</param>
@@ -227,18 +444,18 @@ public sealed partial class BoardView : UserControl
     /// <param name="e">Событие нажатия.</param>
     private void OnNewGameClick(object? sender, RoutedEventArgs e) => ViewModel.StartNewGame();
 
-    /// <summary>Просит окно показать настройки.</summary>
+    /// <summary>Показывает настройки.</summary>
     /// <param name="sender">Кнопка «Настройки».</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnSettingsClick(object? sender, RoutedEventArgs e) => SettingsRequested?.Invoke(this, EventArgs.Empty);
+    private void OnSettingsClick(object? sender, RoutedEventArgs e) => ShowSettings();
 
-    /// <summary>Просит окно сохранить партию.</summary>
-    /// <param name="sender">Кнопка «Сохранить партию».</param>
+    /// <summary>Сохраняет партию.</summary>
+    /// <param name="sender">Кнопка «Сохранить».</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnSaveClick(object? sender, RoutedEventArgs e) => SaveRequested?.Invoke(this, EventArgs.Empty);
+    private void OnSaveClick(object? sender, RoutedEventArgs e) => _ = SaveGameAsync();
 
-    /// <summary>Просит окно загрузить партию.</summary>
-    /// <param name="sender">Кнопка «Загрузить партию».</param>
+    /// <summary>Загружает партию.</summary>
+    /// <param name="sender">Кнопка «Загрузить».</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnLoadClick(object? sender, RoutedEventArgs e) => LoadRequested?.Invoke(this, EventArgs.Empty);
+    private void OnLoadClick(object? sender, RoutedEventArgs e) => _ = LoadGameAsync();
 }

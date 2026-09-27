@@ -42,14 +42,11 @@ public sealed partial class MainWindow : Window
         Wire("LoadGameItem", OnLoadGameClick);
         Wire("ExitItem", OnExitClick);
 
-        // Кнопки панели делают то же, что пункты меню: окно подписывается на них и показывает
-        // диалоги, которых у мобильного вида нет.
-        var board = Board;
-
-        board.SettingsRequested += (_, _) => _ = OpenSettingsAsync();
-        board.SaveRequested += (_, _) => _ = SaveGameAsync();
-        board.LoadRequested += (_, _) => _ = LoadGameAsync();
-        board.EnableDesktopActions();
+        // Кнопка «Настройки» в панели открывает окно: у мобильного вида подписчика нет,
+        // и он показывает тот же SettingsView поверх доски.
+        // Сохранение и загрузку панель делает сама (через потоки), поэтому пункты меню
+        // вызывают те же методы вида — второго пути для этих действий нет.
+        Board.SettingsRequested += (_, _) => _ = OpenSettingsAsync();
     }
 
     /// <summary>Модель представления партии.</summary>
@@ -106,60 +103,12 @@ public sealed partial class MainWindow : Window
     /// <summary>Сохраняет партию в SGF.</summary>
     /// <param name="sender">Пункт меню.</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnSaveGameClick(object? sender, RoutedEventArgs e) => _ = SaveGameAsync();
+    private void OnSaveGameClick(object? sender, RoutedEventArgs e) => _ = Board.SaveGameAsync();
 
     /// <summary>Загружает партию из SGF.</summary>
     /// <param name="sender">Пункт меню.</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnLoadGameClick(object? sender, RoutedEventArgs e) => _ = LoadGameAsync();
-
-    /// <summary>Спрашивает файл и записывает в него партию.</summary>
-    /// <returns>Задача сохранения.</returns>
-    private async Task SaveGameAsync()
-    {
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = "Сохранить партию",
-            SuggestedFileName = "game",
-            DefaultExtension = SgfStore.Extension,
-            FileTypeChoices = [SgfFileType]
-        });
-
-        if (file?.TryGetLocalPath() is { } path)
-        {
-            _ = SgfStore.Save(ViewModel.ToSgfGame(), path);
-        }
-    }
-
-    /// <summary>Спрашивает файл и загружает из него партию.</summary>
-    /// <returns>Задача загрузки.</returns>
-    private async Task LoadGameAsync()
-    {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Загрузить партию",
-            AllowMultiple = false,
-            FileTypeFilter = [SgfFileType]
-        });
-
-        if (files.Count == 0 || files[0].TryGetLocalPath() is not { } path)
-        {
-            return;
-        }
-
-        var loaded = SgfStore.Load(path);
-
-        if (loaded.IsSuccess)
-        {
-            _ = ViewModel.LoadGame(loaded.Value);
-        }
-    }
-
-    /// <summary>Тип файла SGF для диалогов выбора файла.</summary>
-    private static FilePickerFileType SgfFileType => new("Партия Go (SGF)")
-    {
-        Patterns = [$"*.{SgfStore.Extension}"]
-    };
+    private void OnLoadGameClick(object? sender, RoutedEventArgs e) => _ = Board.LoadGameAsync();
 
     /// <summary>Закрывает окно.</summary>
     /// <param name="sender">Пункт меню.</param>
