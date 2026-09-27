@@ -82,6 +82,14 @@ public readonly record struct MctsConfig
     /// <remarks>0 отключает RAVE и возвращает обычный UCB1.</remarks>
     public double RaveK { get; init; } = DefaultRaveK;
 
+    /// <summary>Тактический предохранитель: не играть ходы, подставляющие свою группу под захват.</summary>
+    /// <remarks>
+    /// Включён по умолчанию. Отключается только для замеров «до/после»: при случайных
+    /// доигрываниях движок считает подставку под атари выгодной, потому что случайный ответ
+    /// её редко наказывает.
+    /// </remarks>
+    public bool TacticalGuard { get; init; } = true;
+
     /// <summary>Настройки по умолчанию: 5000 playout'ов, UCB1 = 1.41.</summary>
     public static MctsConfig Default => new(DefaultPlayoutBudget, DefaultUcb1C);
 

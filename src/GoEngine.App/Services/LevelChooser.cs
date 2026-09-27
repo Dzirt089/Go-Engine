@@ -87,14 +87,23 @@ public static class LevelChooser
         ArgumentNullException.ThrowIfNull(level);
         ArgumentNullException.ThrowIfNull(size);
 
-        if (!level.NeedsNetwork)
+        if (level.NeedsNetwork)
         {
-            return Label(level);
+            return modelAvailableForSize
+                ? $"{Rank(level)} · нейросеть {size.Value}×{size.Value} · {Budget(level)}"
+                : $"{Rank(level)} · нейросеть недоступна";
         }
 
-        return modelAvailableForSize
-            ? $"{Rank(level)} · нейросеть {size.Value}×{size.Value} · {Budget(level)}"
-            : $"{Rank(level)} · нейросеть недоступна";
+        // Уровни кю играют сетью, когда модель для доски есть, и MCTS — когда её нет: подпись
+        // обязана называть фактический движок, а не тот, который предпочли бы (D-045).
+        if (level.NeuralBudget is { } neural)
+        {
+            return modelAvailableForSize
+                ? $"{Rank(level)} · нейросеть {size.Value}×{size.Value} · {(int)neural.TotalMilliseconds} мс/ход"
+                : $"{Rank(level)} · MCTS без сети · {Budget(level)}";
+        }
+
+        return Label(level);
     }
 
     /// <summary>Ранг уровня словами.</summary>
@@ -114,9 +123,11 @@ public static class LevelChooser
     {
         ArgumentNullException.ThrowIfNull(level);
 
-        if (level.NeedsNetwork)
+        if (level.NeedsNetwork || level.NeuralBudget is not null)
         {
-            return "нейросеть";
+            return level.NeuralBudget is { } neural && !level.NeedsNetwork
+                ? $"нейросеть ({(int)neural.TotalMilliseconds} мс/ход)"
+                : "нейросеть";
         }
 
         if (level.Kind == SelectorKind.Random)

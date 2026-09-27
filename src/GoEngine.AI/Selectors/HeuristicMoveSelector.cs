@@ -23,12 +23,14 @@ public sealed class HeuristicMoveSelector : IMoveSelector
 
     private readonly Random _random;
     private readonly int _randomnessPercent;
+    private readonly bool _tacticalGuard;
 
     /// <summary>Создаёт селектор.</summary>
     /// <param name="random">Источник случайности; в тестах — с фиксированным seed.</param>
     /// <param name="randomnessPercent">Доля случайных ходов в процентах: 0 — только эвристики, 100 — чистый случай.</param>
+    /// <param name="tacticalGuard">Отсекать ли случайные ходы, подставляющие свои группы под захват.</param>
     /// <exception cref="ArgumentOutOfRangeException">Доля случайности вне диапазона 0…100.</exception>
-    public HeuristicMoveSelector(Random random, int randomnessPercent = 0)
+    public HeuristicMoveSelector(Random random, int randomnessPercent = 0, bool tacticalGuard = true)
     {
         ArgumentNullException.ThrowIfNull(random);
         ArgumentOutOfRangeException.ThrowIfNegative(randomnessPercent);
@@ -36,6 +38,7 @@ public sealed class HeuristicMoveSelector : IMoveSelector
 
         _random = random;
         _randomnessPercent = randomnessPercent;
+        _tacticalGuard = tacticalGuard;
     }
 
     /// <inheritdoc />
@@ -69,10 +72,33 @@ public sealed class HeuristicMoveSelector : IMoveSelector
         // Слабые уровни чаще ходят наугад — это и есть их слабость.
         if (_random.Next(PercentScale) < _randomnessPercent)
         {
-            return legalMoves[_random.Next(legalMoves.Count)];
+            return RandomMove(board, legalMoves);
         }
 
-        return FindHeuristicMove(board, color, legalMoves) ?? legalMoves[_random.Next(legalMoves.Count)];
+        return FindHeuristicMove(board, color, legalMoves) ?? RandomMove(board, legalMoves);
+    }
+
+    /// <summary>Выбирает случайный легальный ход.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="legalMoves">Легальные ходы цвета.</param>
+    /// <returns>Легальный ход.</returns>
+    /// <remarks>
+    /// «Наугад» не значит «в самоатари»: при включённом предохранителе случайный ход берётся
+    /// из тактически безопасных. Именно случайная ветка подставляла группы кю-уровней (T-037).
+    /// </remarks>
+    private Move RandomMove(Board board, IReadOnlyList<Move> legalMoves)
+    {
+        if (_tacticalGuard)
+        {
+            var safe = TacticalGuard.SafeMoves(board, legalMoves);
+
+            if (safe.Count > 0)
+            {
+                return safe[_random.Next(safe.Count)];
+            }
+        }
+
+        return legalMoves[_random.Next(legalMoves.Count)];
     }
 
     /// <summary>Выбирает ход по эвристикам.</summary>

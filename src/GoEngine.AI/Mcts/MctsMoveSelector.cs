@@ -93,6 +93,36 @@ public sealed class MctsMoveSelector : IMoveSelector
     /// <returns><c>true</c>, если ход выбирается без поиска.</returns>
     private bool Blunders() => _random.Next(PercentScale) < _randomnessPercent;
 
+    /// <summary>Выбирает случайный легальный ход: слабые уровни иногда ходят наугад.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="color">Цвет, который ходит.</param>
+    /// <returns>Легальный ход или пас, если ходить некуда.</returns>
+    /// <remarks>
+    /// Случайный ход — тоже ход: при включённом предохранителе он выбирается из тактически
+    /// безопасных. Иначе уровни кю подставляли свои группы под захват именно на «наугад» (T-037).
+    /// </remarks>
+    private Move RandomMove(Board board, StoneColor color)
+    {
+        var legalMoves = LegalMoves.For(board, color);
+
+        if (legalMoves.Count == 0)
+        {
+            return Move.Pass(color);
+        }
+
+        if (_config.TacticalGuard)
+        {
+            var safe = TacticalGuard.SafeMoves(board, legalMoves);
+
+            if (safe.Count > 0)
+            {
+                return safe[_random.Next(safe.Count)];
+            }
+        }
+
+        return legalMoves[_random.Next(legalMoves.Count)];
+    }
+
     /// <summary>Выбирает ход по позиции, минуя партию.</summary>
     /// <param name="board">Позиция.</param>
     /// <param name="color">Цвет, который ходит.</param>
@@ -106,23 +136,38 @@ public sealed class MctsMoveSelector : IMoveSelector
 
         if (Blunders())
         {
-            var legalMoves = LegalMoves.For(board, color);
-
-            return legalMoves.Count == 0 ? Move.Pass(color) : legalMoves[_random.Next(legalMoves.Count)];
+            return RandomMove(board, color);
         }
 
         var root = Search(board, color, komi, history);
-        MctsNode? best = null;
+        List<MctsNode> candidates = [];
 
         foreach (var child in root.Children)
         {
             // Поиск идёт по доске без истории, поэтому суперко проверяется здесь, на настоящей доске:
             // ход, повторяющий позицию партии, играть нельзя (GO_RULES.md, п. 6).
-            if (!board.IsLegal(child.Move).IsSuccess)
+            if (board.IsLegal(child.Move).IsSuccess)
             {
-                continue;
+                candidates.Add(child);
             }
+        }
 
+        if (_config.TacticalGuard && candidates.Count > 0)
+        {
+            // Тактический предохранитель: не подставляем свои группы под захват. Если безопасных
+            // ходов не осталось, играем лучший из всех — любой ход лучше вынужденного паса.
+            var safe = candidates.Where(child => TacticalGuard.IsSafeMove(board, child.Move)).ToList();
+
+            if (safe.Count > 0)
+            {
+                candidates = safe;
+            }
+        }
+
+        MctsNode? best = null;
+
+        foreach (var child in candidates)
+        {
             if (best is null || IsBetter(child, best))
             {
                 best = child;

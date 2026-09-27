@@ -23,13 +23,15 @@ public sealed class DifficultyLevel : Enumeration
         TimeSpan? timeBudget,
         double ucb1C,
         int randomnessPercent,
-        PlayoutConfig playoutConfig)
+        PlayoutConfig playoutConfig,
+        TimeSpan? neuralBudget = null)
         : base(id, name)
     {
         RankKyu = rankKyu;
         Kind = kind;
         PlayoutBudget = playoutBudget;
         TimeBudget = timeBudget;
+        NeuralBudget = kind == SelectorKind.Neural ? timeBudget : neuralBudget;
         Ucb1C = ucb1C;
         RandomnessPercent = randomnessPercent;
         PlayoutConfig = playoutConfig;
@@ -53,6 +55,13 @@ public sealed class DifficultyLevel : Enumeration
 
     /// <summary>Бюджет времени на ход у уровней, которые думают по времени, или <c>null</c>.</summary>
     public TimeSpan? TimeBudget { get; }
+
+    /// <summary>Бюджет времени на ход, если уровень играет с сетью; иначе <c>null</c>.</summary>
+    /// <remarks>
+    /// Уровни кю играют сетью только тогда, когда для размера доски есть модель; без модели
+    /// они играют обычным MCTS. Бюджет сети меньше, чем у ступеней Дан: сеть дороже playout'а.
+    /// </remarks>
+    public TimeSpan? NeuralBudget { get; }
 
     /// <summary>Коэффициент исследования UCB1 для уровня.</summary>
     public double Ucb1C { get; }
@@ -78,19 +87,19 @@ public sealed class DifficultyLevel : Enumeration
     /// <summary>15 кю: короткий поиск с заметной долей случайных ходов; бюджет — по playout'ам,
     /// поэтому замеры на этом уровне воспроизводимы.</summary>
     public static DifficultyLevel Kyu15 { get; } =
-        new(15, nameof(Kyu15), 15, SelectorKind.Mcts, 6, null, MctsConfig.DefaultUcb1C, 15, PlayoutConfig.Default);
+        new(15, nameof(Kyu15), 15, SelectorKind.Mcts, 6, null, MctsConfig.DefaultUcb1C, 15, PlayoutConfig.Default, TimeSpan.FromMilliseconds(300));
 
     /// <summary>10 кю: целевой уровень первой версии — секунда на ход.</summary>
     public static DifficultyLevel Kyu10 { get; } =
-        new(10, nameof(Kyu10), 10, SelectorKind.Mcts, 0, TimeSpan.FromMilliseconds(1000), MctsConfig.DefaultUcb1C, 8, PlayoutConfig.Default);
+        new(10, nameof(Kyu10), 10, SelectorKind.Mcts, 0, TimeSpan.FromMilliseconds(1000), MctsConfig.DefaultUcb1C, 8, PlayoutConfig.Default, TimeSpan.FromMilliseconds(600));
 
     /// <summary>8 кю: две секунды на ход.</summary>
     public static DifficultyLevel Kyu8 { get; } =
-        new(8, nameof(Kyu8), 8, SelectorKind.Mcts, 0, TimeSpan.FromMilliseconds(2000), MctsConfig.DefaultUcb1C, 3, PlayoutConfig.Default);
+        new(8, nameof(Kyu8), 8, SelectorKind.Mcts, 0, TimeSpan.FromMilliseconds(2000), MctsConfig.DefaultUcb1C, 3, PlayoutConfig.Default, TimeSpan.FromMilliseconds(1200));
 
     /// <summary>5 кю: самый сильный уровень первой версии — три секунды на ход без случайности.</summary>
     public static DifficultyLevel Kyu5 { get; } =
-        new(5, nameof(Kyu5), 5, SelectorKind.Mcts, 0, TimeSpan.FromMilliseconds(3000), MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default);
+        new(5, nameof(Kyu5), 5, SelectorKind.Mcts, 0, TimeSpan.FromMilliseconds(3000), MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default, TimeSpan.FromMilliseconds(2000));
 
     /// <summary>Лестница с нейросетью: чем больше времени на ход, тем сильнее игра.</summary>
     /// <remarks>

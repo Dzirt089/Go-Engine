@@ -51,6 +51,24 @@ public static class AiFactory
         if (level.Kind == SelectorKind.Mcts)
         {
             var policy = new PlayoutPolicy(level.PlayoutConfig);
+
+            // Уровни кю играют сетью, когда для размера доски есть модель: случайные доигрывания
+            // при малом бюджете не видят тактику и подставляют группы (жалоба пользователя),
+            // а сеть даёт и приоритеты, и оценку. Нет модели — прежний MCTS с предохранителем.
+            if (level.NeuralBudget is { } neuralBudget
+                && evaluator is not null
+                && modelsDirectory is not null
+                && boardSize is not null
+                && evaluator.LoadModelForBoardSize(boardSize.Value.Value, modelsDirectory))
+            {
+                return new MctsMoveSelector(
+                    random,
+                    policy,
+                    new MctsConfig(neuralBudget, level.Ucb1C),
+                    level.RandomnessPercent,
+                    evaluator: evaluator);
+            }
+
             var config = level.TimeBudget is { } time
                 ? new MctsConfig(time, level.Ucb1C)
                 : new MctsConfig(level.PlayoutBudget, level.Ucb1C);
