@@ -9,8 +9,8 @@
 
 ## Текущая задача
 
-**T-035. Профили моделей по размеру доски** — `done`:
-у каждого размера доски своя ONNX-модель (19×19 и 13×13 — основная b28c512nbt, 9×9 — специализированная kata9x9-finetuned, файла пока нет). Реализовано: `ModelProfile`/`ModelProfiles`, `LoadModelForBoardSize` и сменяемая сессия в `OnnxEvaluator`, каталог моделей в `AiFactory` с отказами `DomainException`, фильтрация уровней по наличию модели в `LevelChooser`, передача каталога и размеров из головы Desktop. Тесты 472 + 24, `check.ps1` зелёный. Решение — D-039.
+**T-036. Конвертация специализированной модели 9×9 в ONNX** — `in_progress`:
+получить `models/kata9x9-finetuned.uint8.onnx` из нативной `kata9x9-b18c384nbt-20231025.bin.gz`, чтобы профиль `Finetuned9x9` заработал без правок кода. Приоритет 1 — сборка KataGo с `USE_ONNX_BACKEND=ON` и `katago dumponnx`; запасной путь — свой разбор `.bin.gz` в ONNX. Модель (93,3 МБ) и сборка KataGo v1.15.3 уже скачаны в `tools/`. Решение — D-040.
 ## Статус
 
 `in_progress` — модель `kata1-b28c512nbt-adam-s11165M-d5387M.uint8.onnx` скачана в `models/`,
