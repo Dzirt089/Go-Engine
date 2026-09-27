@@ -150,7 +150,7 @@ public sealed class OnnxEvaluator : IPositionEvaluator, IDisposable
     }
 
     /// <summary>Оценивает позицию: вероятности ходов и исход партии.</summary>
-    /// <param name="board">Позиция на доске 19×19.</param>
+    /// <param name="board">Позиция.</param>
     /// <param name="komi">Коми партии.</param>
     /// <param name="toMove">Цвет, который ходит.</param>
     /// <param name="moves">Сделанные ходы партии — для плоскостей истории.</param>
@@ -164,11 +164,6 @@ public sealed class OnnxEvaluator : IPositionEvaluator, IDisposable
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(toMove);
         ArgumentNullException.ThrowIfNull(moves);
-
-        if (board.Size != BoardSize.Size19)
-        {
-            return Result<OnnxEvaluation>.Fail($"Модель обучена на доске 19×19, получена {board.Size}.");
-        }
 
         try
         {

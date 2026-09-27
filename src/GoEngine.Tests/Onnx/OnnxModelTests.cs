@@ -117,13 +117,16 @@ public sealed class OnnxModelTests
     }
 
     [ModelFact]
-    public void Модель_Доска_9x9_Отказ()
+    public void Модель_Принимает_Размер_Доски_Динамически()
     {
         using var evaluator = Load();
 
+        // Оси высоты и ширины у модели динамические, поэтому 9×9 считается. Верить этой оценке
+        // нельзя: сеть обучена на 19×19, и на 9×9 первый ход у неё F4 при 87 % за чёрных
+        // (D-034). Тест держит контракт, а не качество игры на малой доске.
         var evaluation = evaluator.Evaluate(new Board(BoardSize.Size9), Komi.For9x9, StoneColor.Black, []);
 
-        Assert.False(evaluation.IsSuccess);
+        Assert.Equal((9 * 9) + 1, evaluation.Value.Policy.Count);
     }
 
     /// <summary>Загружает модель или сообщает, почему не вышло.</summary>

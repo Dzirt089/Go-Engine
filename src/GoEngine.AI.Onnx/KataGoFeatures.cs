@@ -44,17 +44,17 @@ public static class KataGoFeatures
     /// <param name="toMove">Цвет, который ходит.</param>
     /// <param name="moves">Сделанные ходы партии — для плоскостей истории.</param>
     /// <returns>Плоскости по порядку: <c>22 × size × size</c> значений.</returns>
-    /// <exception cref="DomainException">Размер доски не 19×19: модель KataGo обучалась на 19×19.</exception>
+    /// <remarks>
+    /// Размер доски модель принимает динамически (оси высоты и ширины объявлены как <c>−1</c>),
+    /// поэтому признаки считаются для любого размера. Ширина и высота на входе модели равны.
+    /// Верить оценке стоит только на 19×19: сеть обучена на этой доске, а на 9×9 её первый ход
+    /// и оценка неправдоподобны (`DECISIONS.md`, D-034).
+    /// </remarks>
     public static float[] EncodeSpatial(Board board, StoneColor toMove, IReadOnlyList<Move> moves)
     {
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(toMove);
         ArgumentNullException.ThrowIfNull(moves);
-
-        if (board.Size != BoardSize.Size19)
-        {
-            throw new DomainException($"Признаки KataGo считаются для доски 19×19, получена {board.Size}.");
-        }
 
         var side = board.Size.Value;
         var plane = side * side;
@@ -110,17 +110,11 @@ public static class KataGoFeatures
     /// <param name="toMove">Цвет, который ходит.</param>
     /// <param name="moves">Сделанные ходы партии — для признаков пасов.</param>
     /// <returns>Девятнадцать глобальных признаков в порядке модели.</returns>
-    /// <exception cref="DomainException">Размер доски не 19×19.</exception>
     public static float[] EncodeGlobal(Board board, Komi komi, StoneColor toMove, IReadOnlyList<Move> moves)
     {
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(toMove);
         ArgumentNullException.ThrowIfNull(moves);
-
-        if (board.Size != BoardSize.Size19)
-        {
-            throw new DomainException($"Признаки KataGo считаются для доски 19×19, получена {board.Size}.");
-        }
 
         var global = new float[GlobalFeatures];
         var area = board.Size.Area;

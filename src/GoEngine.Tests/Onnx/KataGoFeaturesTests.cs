@@ -185,9 +185,12 @@ public sealed class KataGoFeaturesTests
     }
 
     [Fact]
-    public void Кодировщик_Доска_Не_19_Бросает()
+    public void Кодировщик_Считает_Признаки_Для_Доски_9x9()
     {
-        Assert.Throws<DomainException>(() => KataGoFeatures.EncodeSpatial(new Board(BoardSize.Size9), StoneColor.Black, []));
+        // Размер доски модель принимает динамически, поэтому признаки считаются для любого размера.
+        var spatial = KataGoFeatures.EncodeSpatial(new Board(BoardSize.Size9), StoneColor.Black, []);
+
+        Assert.Equal(KataGoFeatures.SpatialPlanes * 9 * 9, spatial.Length);
     }
 
     /// <summary>Строит доску по ходам партии.</summary>
