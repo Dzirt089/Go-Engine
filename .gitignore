@@ -24,6 +24,9 @@ src/**/obj/
 tools/
 .venv-katago/
 
+# Копии моделей внутри проекта Android: их делает сборка из каталога models
+src/GoEngine.App.Android/Assets/models/
+
 # Модели нейросети: десятки мегабайт, скачиваются отдельно (models/README.md)
 models/*.onnx
 models/*.bin

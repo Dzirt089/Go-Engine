@@ -41,15 +41,27 @@
     скачивает их из релиза models-v1 с проверкой SHA-256.
   -->
   <ItemGroup>
-    <ModelAssetFile Include="../../models/*.onnx" />
-    <AndroidAsset Include="@(ModelAssetFile)" TargetPath="models/%(Filename)%(Extension)" />
+    <ModelAssetSource Include="../../models/*.onnx" />
   </ItemGroup>
 
-  <!-- На сборочном агенте пустой каталог моделей — это ошибка: APK без моделей не даст
-       уровней с нейросетью, а заметить это на телефоне можно только вручную. -->
-  <Target Name="RequireModelAssets" BeforeTargets="Build" Condition="'$(CI)' == 'true'">
-    <Error Condition="'@(ModelAssetFile)' == ''"
+  <!--
+    Файлы из каталога вне проекта Android SDK в пакет не кладёт (проверено: сборка проходила,
+    а внутри APK моделей не оказывалось). Поэтому перед сборкой модели копируются в каталог
+    Assets/models внутри проекта и уже оттуда попадают в пакет как assets/models. В git они
+    не коммитятся: файлы кладёт сборка, CI скачивает их из релиза models-v1 с проверкой SHA-256.
+    На сборочном агенте пустой источник — ошибка: APK без моделей не даст уровней с нейросетью,
+    а заметить это можно было бы только на телефоне.
+  -->
+  <Target Name="PrepareModelAssets" BeforeTargets="BeforeBuild">
+    <Error Condition="'@(ModelAssetSource)' == '' and '$(CI)' == 'true'"
            Text="В APK не попадут модели: каталог models пуст. CI должен скачать их из релиза models-v1." />
+    <Copy Condition="'@(ModelAssetSource)' != ''"
+          SourceFiles="@(ModelAssetSource)"
+          DestinationFolder="$(MSBuildProjectDirectory)/Assets/models"
+          SkipUnchangedFiles="true" />
+    <ItemGroup Condition="'@(ModelAssetSource)' != ''">
+      <AndroidAsset Include="$(MSBuildProjectDirectory)/Assets/models/*.onnx" />
+    </ItemGroup>
   </Target>
 
 </Project>
