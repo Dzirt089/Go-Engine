@@ -17,17 +17,8 @@ public sealed partial class SettingsWindow : Window
     /// <summary>Стороны доски в порядке списка выбора.</summary>
     private static readonly byte[] Sizes = [9, 13, 19];
 
-    /// <summary>Уровни AI в порядке списка выбора.</summary>
-    private static readonly DifficultyLevel[] Levels =
-    [
-        DifficultyLevel.Kyu30,
-        DifficultyLevel.Kyu25,
-        DifficultyLevel.Kyu20,
-        DifficultyLevel.Kyu15,
-        DifficultyLevel.Kyu10,
-        DifficultyLevel.Kyu8,
-        DifficultyLevel.Kyu5
-    ];
+    /// <summary>Уровни, показанные сейчас: зависят от доски и наличия модели (D-038).</summary>
+    private IReadOnlyList<DifficultyLevel> _levels = LevelChooser.Available(BoardSize.Size9, false);
 
     /// <summary>Создаёт диалог настроек.</summary>
     public SettingsWindow() : this(AppSettings.Default)
@@ -55,13 +46,10 @@ public sealed partial class SettingsWindow : Window
         {
             sizeBox.ItemsSource = Sizes.Select(size => $"{size}×{size}").ToList();
             sizeBox.SelectedIndex = Math.Max(0, Array.IndexOf(Sizes, current.ToBoardSize().Value));
+            sizeBox.SelectionChanged += OnSizeChanged;
         }
 
-        if (levelBox is not null)
-        {
-            levelBox.ItemsSource = Levels.Select(level => $"{level.RankKyu} кю").ToList();
-            levelBox.SelectedIndex = Math.Max(0, Array.IndexOf(Levels, current.ToDifficultyLevel()));
-        }
+        FillLevels(current.ToBoardSize(), current.ToDifficultyLevel());
 
         if (colorBox is not null)
         {
@@ -88,13 +76,71 @@ public sealed partial class SettingsWindow : Window
     /// <summary>Настройки, выбранные в диалоге.</summary>
     public AppSettings Selected { get; private set; }
 
+    /// <summary>Загружена ли модель нейросети: без неё уровни Дан не предлагаются.</summary>
+    private static bool NetworkAvailable => global::GoEngine.App.App.Evaluator is not null;
+
+    /// <summary>Перестраивает список уровней при смене размера доски.</summary>
+    /// <param name="sender">Список размеров.</param>
+    /// <param name="e">Событие смены выбора.</param>
+    /// <remarks>
+    /// Если выбранный уровень для новой доски недоступен (уровень Дан на 9×9), выбор
+    /// сбрасывается на 10 кю: партия не должна начинаться с уровня, который не сможет играть.
+    /// </remarks>
+    private void OnSizeChanged(object? sender, SelectionChangedEventArgs e) =>
+        FillLevels(SelectedSize(), CurrentLevel());
+
+    /// <summary>Заполняет список уровней для доски.</summary>
+    /// <param name="size">Размер доски.</param>
+    /// <param name="preferred">Желаемый уровень; недоступный заменяется на уровень сброса.</param>
+    private void FillLevels(BoardSize size, DifficultyLevel preferred)
+    {
+        _levels = LevelChooser.Available(size, NetworkAvailable);
+
+        if (this.FindControl<ComboBox>("LevelBox") is not { } levelBox)
+        {
+            return;
+        }
+
+        levelBox.ItemsSource = _levels.Select(LevelChooser.Label).ToList();
+        levelBox.SelectedIndex = Math.Max(0, IndexOf(LevelChooser.Resolve(preferred, size, NetworkAvailable)));
+    }
+
+    /// <summary>Возвращает выбранный сейчас уровень.</summary>
+    /// <returns>Уровень из списка или уровень сброса.</returns>
+    private DifficultyLevel CurrentLevel()
+    {
+        var index = SelectedIndex("LevelBox");
+
+        return index >= 0 && index < _levels.Count ? _levels[index] : LevelChooser.Fallback;
+    }
+
+    /// <summary>Возвращает выбранный размер доски.</summary>
+    /// <returns>Размер доски.</returns>
+    private BoardSize SelectedSize() => new(Sizes[Math.Clamp(SelectedIndex("SizeBox"), 0, Sizes.Length - 1)]);
+
+    /// <summary>Ищет уровень в текущем списке.</summary>
+    /// <param name="level">Уровень.</param>
+    /// <returns>Индекс уровня или 0.</returns>
+    private int IndexOf(DifficultyLevel level)
+    {
+        for (var index = 0; index < _levels.Count; index++)
+        {
+            if (_levels[index] == level)
+            {
+                return index;
+            }
+        }
+
+        return 0;
+    }
+
     /// <summary>Собирает настройки из полей и закрывает диалог.</summary>
     /// <param name="sender">Кнопка «Начать партию».</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnStartClick(object? sender, RoutedEventArgs e)
     {
         var sizeValue = Sizes[Math.Clamp(SelectedIndex("SizeBox"), 0, Sizes.Length - 1)];
-        var level = Levels[Math.Clamp(SelectedIndex("LevelBox"), 0, Levels.Length - 1)];
+        var level = LevelChooser.Resolve(CurrentLevel(), new BoardSize(sizeValue), NetworkAvailable);
         var color = SelectedIndex("ColorBox") == 1 ? StoneColor.White : StoneColor.Black;
         var komi = this.FindControl<NumericUpDown>("KomiBox")?.Value ?? (decimal)Selected.Komi;
 
