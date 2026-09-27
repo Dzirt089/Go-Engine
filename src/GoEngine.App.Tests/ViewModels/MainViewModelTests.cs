@@ -269,6 +269,44 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public void Смена_Доски_Откатывает_Недоступный_Уровень()
+    {
+        // Модель есть только для 19×19: на 9×9 уровень «5 дан» играть не сможет (D-038).
+        var model = Create(
+            modelSizes: new HashSet<int> { 19 },
+            size: BoardSize.Size19,
+            level: DifficultyLevel.Dan5);
+
+        model.SelectedSizeIndex = 0;
+
+        Assert.Equal(9, model.Board.Size.Value);
+        Assert.Equal(LevelChooser.Fallback, model.CurrentLevel);
+    }
+
+    [Fact]
+    public void Сброс_Индекса_Списком_Не_Меняет_Уровень_Партии()
+    {
+        // Регрессия: подмена ItemsSource сбрасывала индекс, и сброс уходил в модель как выбор.
+        var model = Create(modelSizes: new HashSet<int> { 9 });
+        var options = model.LevelOptions;
+        model.SelectedLevelIndex = options.Count - 1;
+        var chosen = model.CurrentLevel;
+        var state = new ComboState();
+
+        _ = state.BeginUpdate(model.LevelLabels, model.SelectedLevelIndex);
+
+        // Пока идёт обновление, список сообщает о сбросе индекса — в модель это не попадает.
+        if (state.TryAccept(0))
+        {
+            model.SelectedLevelIndex = 0;
+        }
+
+        state.EndUpdate();
+
+        Assert.Equal(chosen, model.CurrentLevel);
+    }
+
+    [Fact]
     public void Настройки_Из_Диалога_Применяются_Вместе_С_Уровнем()
     {
         // Сценарий жалобы: в диалоге выбрали «5 дан» и 19×19, а панель показывала другой уровень.

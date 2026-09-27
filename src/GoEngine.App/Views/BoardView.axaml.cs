@@ -35,13 +35,11 @@ public sealed partial class BoardView : UserControl
     /// <summary>Настройки, с которыми играет вид: их показывает панель настроек.</summary>
     private AppSettings _settings;
 
-    /// <summary>Идёт обновление списков выбора: обратные записи от них в это время игнорируются.</summary>
-    /// <remarks>
-    /// Список выбора сбрасывает <c>SelectedIndex</c>, когда меняется <c>ItemsSource</c>, и сообщает
-    /// об этом как о выборе пользователя. Без этого признака сброс попадал бы в модель
-    /// представления и пересоздавал партию с чужим уровнем.
-    /// </remarks>
-    private bool _syncingCombos;
+    /// <summary>Состояние списка размеров: программное обновление не считается выбором игрока.</summary>
+    private readonly ComboState _sizeCombo = new();
+
+    /// <summary>Состояние списка уровней: программное обновление не считается выбором игрока.</summary>
+    private readonly ComboState _levelCombo = new();
 
     /// <summary>Текущая раскладка: <c>null</c> — ещё не выбрана.</summary>
     private bool? _narrow;
@@ -346,37 +344,43 @@ public sealed partial class BoardView : UserControl
     }
 
     /// <summary>Показывает в списках выбора то, чем играет партия сейчас.</summary>
-    /// <remarks>На время обновления обратные записи от списков игнорируются: они сообщают
-    /// о сбросе индекса, а не о выборе игрока.</remarks>
     private void SyncCombos()
     {
-        _syncingCombos = true;
+        Sync(_sizeCombo, "SizeBox", ViewModel.SizeLabels, ViewModel.SelectedSizeIndex);
+        Sync(_levelCombo, "LevelBox", ViewModel.LevelLabels, ViewModel.SelectedLevelIndex);
+    }
+
+    /// <summary>Показывает в одном списке то, что показывает модель представления.</summary>
+    /// <param name="state">Состояние списка.</param>
+    /// <param name="name">Имя списка в разметке.</param>
+    /// <param name="labels">Подписи из модели представления.</param>
+    /// <param name="index">Выбранный индекс.</param>
+    /// <remarks>
+    /// На время обновления изменения списка игнорируются: он сообщает о сбросе индекса, а не
+    /// о выборе игрока. Подписи присваиваются только новым экземпляром: подмена того же самого
+    /// списка сбрасывала бы выбранный уровень.
+    /// </remarks>
+    private void Sync(ComboState state, string name, IReadOnlyList<string> labels, int index)
+    {
+        var replace = state.BeginUpdate(labels, index);
 
         try
         {
-            if (this.FindControl<ComboBox>("SizeBox") is { } sizeBox)
+            if (this.FindControl<ComboBox>(name) is not { } box)
             {
-                if (!ReferenceEquals(sizeBox.ItemsSource, ViewModel.SizeLabels))
-                {
-                    sizeBox.ItemsSource = ViewModel.SizeLabels;
-                }
-
-                sizeBox.SelectedIndex = ViewModel.SelectedSizeIndex;
+                return;
             }
 
-            if (this.FindControl<ComboBox>("LevelBox") is { } levelBox)
+            if (replace)
             {
-                if (!ReferenceEquals(levelBox.ItemsSource, ViewModel.LevelLabels))
-                {
-                    levelBox.ItemsSource = ViewModel.LevelLabels;
-                }
-
-                levelBox.SelectedIndex = ViewModel.SelectedLevelIndex;
+                box.ItemsSource = labels;
             }
+
+            box.SelectedIndex = index;
         }
         finally
         {
-            _syncingCombos = false;
+            state.EndUpdate();
         }
     }
 
@@ -385,7 +389,7 @@ public sealed partial class BoardView : UserControl
     /// <param name="e">Событие смены выбора.</param>
     private void OnSizeChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_syncingCombos || sender is not ComboBox box)
+        if (sender is not ComboBox box || !_sizeCombo.TryAccept(box.SelectedIndex))
         {
             return;
         }
@@ -399,7 +403,7 @@ public sealed partial class BoardView : UserControl
     /// <param name="e">Событие смены выбора.</param>
     private void OnLevelChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_syncingCombos || sender is not ComboBox box)
+        if (sender is not ComboBox box || !_levelCombo.TryAccept(box.SelectedIndex))
         {
             return;
         }

@@ -197,9 +197,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     /// <summary>Уровни, доступные для выбранной доски.</summary>
-    /// <remarks>Список считает <see cref="LevelChooser"/>: он знает про наличие модели (D-038, D-039).</remarks>
+    /// <remarks>Список собирает <see cref="LevelListView"/>, состав считает <see cref="LevelChooser"/>:
+    /// он знает про наличие модели (D-038, D-039).</remarks>
     public IReadOnlyList<DifficultyLevel> LevelOptions =>
-        LevelChooser.Available(_settings.ToBoardSize(), HasModel(_settings.ToBoardSize()));
+        LevelListView.ForGame(_settings.ToBoardSize(), HasModel(_settings.ToBoardSize())).Levels;
 
     /// <summary>Подписи доступных уровней.</summary>
     /// <remarks>
@@ -217,8 +218,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void RefreshLabels()
     {
         var size = _settings.ToBoardSize();
-        var hasModel = HasModel(size);
-        var labels = LevelOptions.Select(level => LevelChooser.Describe(level, size, hasModel)).ToArray();
+        var labels = LevelListView.ForGame(size, HasModel(size)).Labels;
 
         if (_levelLabels.SequenceEqual(labels, StringComparer.Ordinal))
         {

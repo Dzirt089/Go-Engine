@@ -20,7 +20,7 @@ public sealed partial class SettingsView : UserControl
     private static readonly byte[] Sizes = [9, 13, 19];
 
     /// <summary>Уровни, показанные сейчас: зависят от доски и наличия модели (D-038).</summary>
-    private IReadOnlyList<DifficultyLevel> _levels = LevelChooser.Available(BoardSize.Size9, false);
+    private LevelListView _levels = LevelListView.ForSettings(BoardSize.Size9, false);
 
     /// <summary>Создаёт вид настроек со значениями по умолчанию.</summary>
     public SettingsView() : this(AppSettings.Default)
@@ -115,45 +115,24 @@ public sealed partial class SettingsView : UserControl
     /// <param name="preferred">Желаемый уровень; недоступный заменяется на уровень сброса.</param>
     private void FillLevels(BoardSize size, DifficultyLevel preferred)
     {
-        _levels = LevelChooser.Available(size, ModelAvailableFor(size));
+        _levels = LevelListView.ForSettings(size, ModelAvailableFor(size));
 
         if (this.FindControl<ComboBox>("LevelBox") is not { } levelBox)
         {
             return;
         }
 
-        levelBox.ItemsSource = _levels.Select(LevelChooser.Label).ToList();
-        levelBox.SelectedIndex = Math.Max(0, IndexOf(LevelChooser.Resolve(preferred, size, ModelAvailableFor(size))));
+        levelBox.ItemsSource = _levels.Labels;
+        levelBox.SelectedIndex = _levels.IndexOfAvailable(preferred);
     }
 
     /// <summary>Возвращает выбранный сейчас уровень.</summary>
     /// <returns>Уровень из списка или уровень сброса.</returns>
-    private DifficultyLevel CurrentLevel()
-    {
-        var index = SelectedIndex("LevelBox");
-
-        return index >= 0 && index < _levels.Count ? _levels[index] : LevelChooser.Fallback;
-    }
+    private DifficultyLevel CurrentLevel() => _levels.At(SelectedIndex("LevelBox"));
 
     /// <summary>Возвращает выбранный размер доски.</summary>
     /// <returns>Размер доски.</returns>
     private BoardSize SelectedSize() => new(Sizes[Math.Clamp(SelectedIndex("SizeBox"), 0, Sizes.Length - 1)]);
-
-    /// <summary>Ищет уровень в текущем списке.</summary>
-    /// <param name="level">Уровень.</param>
-    /// <returns>Индекс уровня или 0.</returns>
-    private int IndexOf(DifficultyLevel level)
-    {
-        for (var index = 0; index < _levels.Count; index++)
-        {
-            if (_levels[index] == level)
-            {
-                return index;
-            }
-        }
-
-        return 0;
-    }
 
     /// <summary>Собирает настройки из полей и сообщает о согласии.</summary>
     /// <param name="sender">Кнопка «Начать партию».</param>
