@@ -90,7 +90,7 @@ public sealed class OnnxEvaluator : IPositionEvaluator, IDisposable
     /// <summary>Имя выхода с исходом партии.</summary>
     private const string ValueOutput = "value";
 
-    private readonly InferenceSession _session;
+    private InferenceSession _session;
 
     private OnnxEvaluator(string path, InferenceSession session, OnnxModelInfo info)
     {
@@ -100,10 +100,10 @@ public sealed class OnnxEvaluator : IPositionEvaluator, IDisposable
     }
 
     /// <summary>Путь к загруженной модели.</summary>
-    public string Path { get; }
+    public string Path { get; private set; }
 
     /// <summary>Описание модели: входы и выходы.</summary>
-    public OnnxModelInfo Info { get; }
+    public OnnxModelInfo Info { get; private set; }
 
     /// <summary>Загружает модель из файла.</summary>
     /// <param name="modelPath">Путь к файлу модели.</param>
@@ -207,8 +207,55 @@ public sealed class OnnxEvaluator : IPositionEvaluator, IDisposable
         return new PositionEvaluation(policy, Math.Clamp(value.WinProbability, 0.0, 1.0), value.BoardArea);
     }
 
+    /// <summary>Загружает модель, подходящую для размера доски, заменяя текущую.</summary>
+    /// <param name="boardSize">Сторона доски: 9, 13 или 19.</param>
+    /// <param name="modelsDirectory">Каталог с файлами моделей.</param>
+    /// <returns><c>true</c>, если модель для этого размера найдена и загружена.</returns>
+    /// <remarks>
+    /// Профили моделей — <c>DECISIONS.md</c>, D-039. Если профиля или файла нет, прежняя модель
+    /// остаётся на месте: оценщик продолжает работать с тем, что было, а уровни Дан для этого
+    /// размера интерфейс не предлагает.
+    /// </remarks>
+    public bool LoadModelForBoardSize(int boardSize, string modelsDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(modelsDirectory);
+
+        if (ModelProfiles.FindForBoardSize(boardSize) is not { } profile)
+        {
+            return false;
+        }
+
+        var path = System.IO.Path.Combine(modelsDirectory, profile.FileName);
+
+        return File.Exists(path) && Replace(path);
+    }
+
     /// <inheritdoc />
     public void Dispose() => _session.Dispose();
+
+    /// <summary>Заменяет сессию вывода моделью из файла.</summary>
+    /// <param name="path">Путь к файлу модели.</param>
+    /// <returns><c>true</c>, если модель загружена; иначе <c>false</c>.</returns>
+    private bool Replace(string path)
+    {
+        try
+        {
+            var session = new InferenceSession(path);
+            var info = Describe(path, session);
+
+            _session.Dispose();
+            _session = session;
+            Path = path;
+            Info = info;
+
+            return true;
+        }
+        catch (OnnxRuntimeException)
+        {
+            // Файл есть, но модель не подошла: прежняя сессия остаётся рабочей.
+            return false;
+        }
+    }
 
     /// <summary>Считает позицию и разбирает выходы сети.</summary>
     /// <param name="board">Позиция на доске 19×19.</param>

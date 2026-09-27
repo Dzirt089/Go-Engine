@@ -84,5 +84,8 @@ public sealed class NeuralLevelTests
 
             return new PositionEvaluation(policy, 0.5, area);
         }
+
+        /// <inheritdoc />
+        public bool LoadModelForBoardSize(int boardSize, string modelsDirectory) => false;
     }
 }

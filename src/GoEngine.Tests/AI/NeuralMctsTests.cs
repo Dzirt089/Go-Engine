@@ -191,5 +191,8 @@ public sealed class NeuralMctsTests
 
             return new PositionEvaluation(policy, win?.Invoke(board, toMove) ?? 0.5, area);
         }
+
+        /// <inheritdoc />
+        public bool LoadModelForBoardSize(int boardSize, string modelsDirectory) => false;
     }
 }
