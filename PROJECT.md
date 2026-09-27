@@ -80,7 +80,8 @@ src/
 ├── GoEngine.AI/               выбор хода: только Core
 │   ├── Selectors/             интерфейс селектора, уровни сложности, фабрика
 │   ├── Playouts/              политика playout'ов, эвристики, глаза, перебор ходов
-│   ├── Mcts/                  дерево MCTS и селектор
+│   ├── Evaluation/            порт оценки позиции: сеть в v2, подстановка в тестах
+│   ├── Mcts/                  дерево MCTS и селектор (UCB1 без сети, PUCT с сетью)
 │   ├── Patterns/              окрестности 3×3 и их веса
 │   └── SelfPlay/              партия AI против AI
 ├── GoEngine.App/              интерфейс: Avalonia + SkiaSharp
@@ -90,7 +91,7 @@ src/
 │   ├── Services/              настройки и файлы партий
 │   ├── ViewModels/            состояние партии для окна
 │   └── Views/                 окна и диалоги
-├── GoEngine.AI.Onnx/          нейросеть v2: ONNX Runtime и признаки KataGo
+├── GoEngine.AI.Onnx/          нейросеть v2: ONNX Runtime, признаки KataGo, оценка позиции
 ├── GoEngine.Tests/            тесты движка: папки повторяют области исходников
 │   ├── Architecture/          границы слоёв и пространства имён
 │   ├── Core/                  доска, партия, подсчёт

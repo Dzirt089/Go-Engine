@@ -1,3 +1,4 @@
+using GoEngine.AI;
 using GoEngine.Core;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
@@ -75,7 +76,7 @@ public readonly record struct OnnxEvaluation(IReadOnlyList<float> Policy, IReadO
 /// повреждён, рантайм не установлен — всё возвращается <see cref="Result{T}"/> с причиной.
 /// Вход сети готовит <see cref="KataGoFeatures"/>.
 /// </remarks>
-public sealed class OnnxEvaluator : IDisposable
+public sealed class OnnxEvaluator : IPositionEvaluator, IDisposable
 {
     /// <summary>Имя входа с плоскостями позиции.</summary>
     private const string SpatialInput = "bin_input";
@@ -177,6 +178,38 @@ public sealed class OnnxEvaluator : IDisposable
         {
             return Result<OnnxEvaluation>.Fail($"Сеть не посчитала позицию: {exception.Message}");
         }
+    }
+
+    /// <summary>Оценивает позицию для MCTS: вероятности ходов и шансы ходящего.</summary>
+    /// <param name="board">Позиция на доске 19×19.</param>
+    /// <param name="toMove">Цвет, который ходит.</param>
+    /// <param name="komi">Коми партии.</param>
+    /// <param name="moves">Ходы партии — для плоскостей истории.</param>
+    /// <returns>Оценка в терминах MCTS: вероятности и вероятность победы.</returns>
+    /// <exception cref="AiException">Сеть не смогла оценить позицию.</exception>
+    /// <remarks>
+    /// Порт <see cref="IPositionEvaluator"/> не возвращает <c>Result</c>: поиск идёт тысячами
+    /// итераций, и разбирать отказ на каждой — не выход. Отказ здесь означает, что модель
+    /// или позиция не подходят движку, то есть ошибку настройки, а не ожидаемый исход.
+    /// </remarks>
+    PositionEvaluation IPositionEvaluator.Evaluate(Board board, StoneColor toMove, Komi komi, IReadOnlyList<Move> moves)
+    {
+        var evaluation = Evaluate(board, komi, toMove, moves);
+
+        if (!evaluation.IsSuccess)
+        {
+            throw new AiException($"Сеть не оценила позицию: {evaluation.Error ?? "без причины"}");
+        }
+
+        var value = evaluation.Value;
+        var policy = new double[value.Policy.Count];
+
+        for (var index = 0; index < policy.Length; index++)
+        {
+            policy[index] = value.Policy[index];
+        }
+
+        return new PositionEvaluation(policy, Math.Clamp(value.WinProbability, 0.0, 1.0), value.BoardArea);
     }
 
     /// <inheritdoc />
