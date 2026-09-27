@@ -17,9 +17,6 @@ namespace GoEngine.App.ViewModels;
 /// </remarks>
 public sealed class MainViewModel : INotifyPropertyChanged
 {
-    /// <summary>Стороны доски в списке выбора — по возрастанию.</summary>
-    private static readonly BoardSize[] Sizes = [BoardSize.Size9, BoardSize.Size13, BoardSize.Size19];
-
     private readonly Random _random;
     private readonly IPositionEvaluator? _evaluator;
     private readonly IReadOnlySet<int> _modelSizes;
@@ -119,7 +116,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (level.NeedsNetwork)
             {
                 return HasModel(_settings.ToBoardSize())
-                    ? $"нейросеть {Describe(_settings.ToBoardSize())}"
+                    ? $"нейросеть {BoardSizes.Label(_settings.ToBoardSize())}"
                     : "нейросеть недоступна";
             }
 
@@ -173,7 +170,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool HasOutcome => Outcome.Length > 0;
 
     /// <summary>Подписи сторон доски для списка выбора.</summary>
-    public IReadOnlyList<string> SizeLabels { get; } = [.. Sizes.Select(Describe)];
+    /// <remarks>Список размеров и подписи собирает <see cref="BoardSizes"/> — один источник
+    /// для панели партии и экрана настроек (D-051).</remarks>
+    public IReadOnlyList<string> SizeLabels => BoardSizes.Labels;
 
     /// <summary>Выбранная сторона доски: смена начинает новую партию со стандартным коми.</summary>
     /// <remarks>
@@ -182,15 +181,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     public int SelectedSizeIndex
     {
-        get => Array.FindIndex(Sizes, size => size == _settings.ToBoardSize());
+        get => BoardSizes.IndexOf(_settings.ToBoardSize());
         set
         {
-            if (value < 0 || value >= Sizes.Length || value == SelectedSizeIndex)
+            if (value < 0 || value >= BoardSizes.All.Count || value == SelectedSizeIndex)
             {
                 return;
             }
 
-            var size = Sizes[value];
+            var size = BoardSizes.At(value);
 
             StartWith(size, LevelChooser.Resolve(_settings.ToDifficultyLevel(), size, HasModel(size)));
         }
@@ -283,7 +282,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             return _evaluator is null
                 ? "Модель нейросети не найдена: играют уровни кю"
-                : $"Для доски {Describe(size)} нет модели: играют уровни кю";
+                : $"Для доски {BoardSizes.Label(size)} нет модели: играют уровни кю";
         }
     }
 
@@ -300,11 +299,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <param name="level">Уровень AI.</param>
     private void StartWith(BoardSize size, DifficultyLevel level) =>
         ApplySettings(AppSettings.From(size, level, _settings.ToPlayerColor(), Core.Komi.For(size)));
-
-    /// <summary>Подпись стороны доски.</summary>
-    /// <param name="size">Сторона доски.</param>
-    /// <returns>Например, «9×9».</returns>
-    private static string Describe(BoardSize size) => $"{size.Value}×{size.Value}";
 
     /// <summary>Играет ход игрока, затем ход AI, если очередь за ним.</summary>
     /// <param name="point">Точка хода.</param>

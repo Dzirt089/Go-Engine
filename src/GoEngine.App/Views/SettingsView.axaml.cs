@@ -16,9 +16,6 @@ namespace GoEngine.App.Views;
 /// </remarks>
 public sealed partial class SettingsView : UserControl
 {
-    /// <summary>Стороны доски в порядке списка выбора.</summary>
-    private static readonly byte[] Sizes = [9, 13, 19];
-
     /// <summary>Уровни, показанные сейчас: зависят от доски и наличия модели (D-038).</summary>
     private LevelListView _levels = LevelListView.ForSettings(BoardSize.Size9, false);
 
@@ -76,8 +73,8 @@ public sealed partial class SettingsView : UserControl
 
         if (this.FindControl<ComboBox>("SizeBox") is { } sizeBox)
         {
-            sizeBox.ItemsSource = Sizes.Select(size => $"{size}×{size}").ToList();
-            sizeBox.SelectedIndex = Math.Max(0, Array.IndexOf(Sizes, current.ToBoardSize().Value));
+            sizeBox.ItemsSource = BoardSizes.Labels;
+            sizeBox.SelectedIndex = Math.Max(0, BoardSizes.IndexOf(current.ToBoardSize()));
         }
 
         FillLevels(current.ToBoardSize(), current.ToDifficultyLevel());
@@ -100,15 +97,37 @@ public sealed partial class SettingsView : UserControl
     private static bool ModelAvailableFor(BoardSize size) =>
         global::GoEngine.App.App.Evaluator is not null && global::GoEngine.App.App.ModelSizes.Contains(size.Value);
 
-    /// <summary>Перестраивает список уровней при смене размера доски.</summary>
+    /// <summary>Перестраивает список уровней и подставляет правило коми при смене размера доски.</summary>
     /// <param name="sender">Список размеров.</param>
     /// <param name="e">Событие смены выбора.</param>
     /// <remarks>
     /// Если выбранный уровень для новой доски недоступен (уровень Дан без модели), выбор
     /// сбрасывается на 10 кю: партия не должна начинаться с уровня, который не сможет играть.
+    /// Коми пересчитывается по правилу для новой доски: раньше смена размера его не трогала,
+    /// и в настройки уезжала пара «9×9 + 7.5» от 19×19 (D-051).
     /// </remarks>
-    private void OnSizeChanged(object? sender, SelectionChangedEventArgs e) =>
-        FillLevels(SelectedSize(), CurrentLevel());
+    private void OnSizeChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        var size = SelectedSize();
+
+        FillLevels(size, CurrentLevel());
+        ApplyKomiRule(size);
+    }
+
+    /// <summary>Подставляет правило коми для выбранного размера доски.</summary>
+    /// <param name="size">Размер доски.</param>
+    /// <remarks>
+    /// Вызывается только на смену размера игроком. При открытии окна поле коми заполняется
+    /// из сохранённых настроек (см. <see cref="Initialize"/>) — иначе осознанно выставленное
+    /// игроком значение затиралось бы правилом.
+    /// </remarks>
+    private void ApplyKomiRule(BoardSize size)
+    {
+        if (this.FindControl<NumericUpDown>("KomiBox") is { } komiBox)
+        {
+            komiBox.Value = (decimal)BoardSizes.KomiFor(size).Value;
+        }
+    }
 
     /// <summary>Заполняет список уровней для доски.</summary>
     /// <param name="size">Размер доски.</param>
@@ -132,7 +151,7 @@ public sealed partial class SettingsView : UserControl
 
     /// <summary>Возвращает выбранный размер доски.</summary>
     /// <returns>Размер доски.</returns>
-    private BoardSize SelectedSize() => new(Sizes[Math.Clamp(SelectedIndex("SizeBox"), 0, Sizes.Length - 1)]);
+    private BoardSize SelectedSize() => BoardSizes.At(SelectedIndex("SizeBox"));
 
     /// <summary>Собирает настройки из полей и сообщает о согласии.</summary>
     /// <param name="sender">Кнопка «Начать партию».</param>
