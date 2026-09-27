@@ -153,7 +153,7 @@ jobs:
           path: dist
           merge-multiple: true
       - name: Список файлов
-        run: ls -lh dist
+        run: find dist -type f | sort
       - name: Создание релиза
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -162,7 +162,9 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.draft }}" = "true" ]; then
             flags="--draft"
           fi
-          gh release create "${TAG}" dist/* \
+          mapfile -t files < <(find dist -type f | sort)
+          printf 'файлов в релизе: %s\n' "${#files[@]}"
+          gh release create "${TAG}" "${files[@]}" \
             --title "Go Engine ${TAG}" \
             --generate-notes \
             $flags
