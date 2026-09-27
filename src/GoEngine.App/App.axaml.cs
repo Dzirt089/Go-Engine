@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using GoEngine.AI;
+using GoEngine.App.Services.Updates;
 using GoEngine.App.Views;
 
 namespace GoEngine.App;
@@ -34,6 +35,25 @@ public sealed partial class App : Application
     /// означает, что уровни Дан недоступны ни на одной доске, и играют уровни кю.
     /// </remarks>
     public static IReadOnlySet<int> ModelSizes { get; set; } = new HashSet<int>();
+
+    /// <summary>Установщик обновлений платформы.</summary>
+    /// <remarks>
+    /// Задаёт голова: библиотека интерфейса не знает, чем ставить обновление — тихой установкой
+    /// Windows, системным установщиком Android или ничем на Linux и macOS. <c>null</c> — проверка
+    /// обновлений в приложении недоступна, и экран настроек честно об этом скажет.
+    /// </remarks>
+    public static IUpdateInstaller? UpdateInstaller { get; set; }
+
+    /// <summary>Каталог, куда складываются скачанные обновления.</summary>
+    /// <remarks>Задаёт голова: на Android это каталог приложения, на настольных системах — временный.</remarks>
+    public static string? UpdateDownloadDirectory { get; set; }
+
+    /// <summary>Создаёт службу обновления, если голова её настроила.</summary>
+    /// <returns>Служба обновления или <c>null</c>, если установщик или каталог не заданы.</returns>
+    public static UpdateService? CreateUpdateService() =>
+        UpdateInstaller is { } installer && !string.IsNullOrWhiteSpace(UpdateDownloadDirectory)
+            ? UpdateService.CreateDefault(installer, UpdateDownloadDirectory)
+            : null;
 
     /// <inheritdoc />
     public override void Initialize() => AvaloniaXamlLoader.Load(this);

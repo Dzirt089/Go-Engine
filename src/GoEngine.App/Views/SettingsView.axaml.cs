@@ -3,6 +3,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using GoEngine.AI;
 using GoEngine.App.Services;
+using GoEngine.App.Services.Updates;
 using GoEngine.Core;
 
 namespace GoEngine.App.Views;
@@ -18,6 +19,15 @@ public sealed partial class SettingsView : UserControl
 {
     /// <summary>Уровни, показанные сейчас: зависят от доски и наличия модели (D-038).</summary>
     private LevelListView _levels = LevelListView.ForSettings(BoardSize.Size9, false);
+
+    /// <summary>Служба обновления: создаётся один раз, <c>null</c> — голова её не настроила.</summary>
+    private readonly UpdateService? _updates = global::GoEngine.App.App.CreateUpdateService();
+
+    /// <summary>Найденное обновление: по нему работает кнопка установки.</summary>
+    private UpdateCheck? _available;
+
+    /// <summary>Кнопки, которые выключаются на время работы с обновлением.</summary>
+    private static readonly string[] UpdateButtons = ["CheckUpdatesButton", "InstallUpdateButton"];
 
     /// <summary>Создаёт вид настроек со значениями по умолчанию.</summary>
     public SettingsView() : this(AppSettings.Default)
@@ -45,6 +55,21 @@ public sealed partial class SettingsView : UserControl
         if (this.FindControl<Button>("CancelButton") is { } cancelButton)
         {
             cancelButton.Click += OnCancelClick;
+        }
+
+        if (this.FindControl<Button>("CheckUpdatesButton") is { } checkButton)
+        {
+            checkButton.Click += OnCheckUpdatesClick;
+        }
+
+        if (this.FindControl<Button>("InstallUpdateButton") is { } installButton)
+        {
+            installButton.Click += OnInstallUpdateClick;
+        }
+
+        if (this.FindControl<TextBlock>("VersionText") is { } versionText)
+        {
+            versionText.Text = $"Версия: {AppVersion.Current}";
         }
 
         Initialize(current);
@@ -172,6 +197,106 @@ public sealed partial class SettingsView : UserControl
     /// <param name="sender">Кнопка «Отмена».</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnCancelClick(object? sender, RoutedEventArgs e) => Cancelled?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>Запускает проверку обновления.</summary>
+    /// <param name="sender">Кнопка «Проверить обновления».</param>
+    /// <param name="e">Событие нажатия.</param>
+    /// <remarks>
+    /// Обработчик не <c>async void</c> (<c>AGENTS.md</c>, п. 11): задача запускается отдельно,
+    /// а все исходы приходят значениями <see cref="Result{T}"/>, поэтому исключений не бывает.
+    /// </remarks>
+    private void OnCheckUpdatesClick(object? sender, RoutedEventArgs e) => _ = CheckUpdatesAsync();
+
+    /// <summary>Проверяет обновление и показывает исход игроку.</summary>
+    /// <returns>Задача проверки.</returns>
+    private async Task CheckUpdatesAsync()
+    {
+        if (_updates is null)
+        {
+            ShowUpdateStatus("Проверка обновлений в этой сборке недоступна.");
+
+            return;
+        }
+
+        SetUpdateBusy(true, "Проверяю обновление…");
+
+        var result = await _updates.CheckAsync().ConfigureAwait(true);
+
+        SetUpdateBusy(false, null);
+
+        if (!result.IsSuccess)
+        {
+            _available = null;
+            ShowUpdateStatus(result.Error!);
+
+            return;
+        }
+
+        var check = result.Value;
+        _available = check.IsAvailable ? check : null;
+
+        if (this.FindControl<Button>("InstallUpdateButton") is { } installButton)
+        {
+            installButton.IsVisible = check.IsAvailable;
+        }
+
+        ShowUpdateStatus(check.IsAvailable
+            ? $"Доступна версия {check.Version}, установлена {_updates.Current}."
+            : $"Установлена самая свежая версия ({_updates.Current}).");
+    }
+
+    /// <summary>Скачивает и устанавливает найденное обновление.</summary>
+    /// <param name="sender">Кнопка «Скачать и установить».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnInstallUpdateClick(object? sender, RoutedEventArgs e) => _ = InstallUpdateAsync();
+
+    /// <summary>Скачивает обновление, проверяет его и передаёт установщику платформы.</summary>
+    /// <returns>Задача установки.</returns>
+    private async Task InstallUpdateAsync()
+    {
+        if (_updates is null || _available is not { } check)
+        {
+            ShowUpdateStatus("Сначала проверьте обновления.");
+
+            return;
+        }
+
+        SetUpdateBusy(true, $"Скачиваю обновление {check.Version}…");
+
+        var result = await _updates.DownloadAndInstallAsync(check).ConfigureAwait(true);
+
+        SetUpdateBusy(false, null);
+        ShowUpdateStatus(result.IsSuccess ? result.Value! : result.Error!);
+    }
+
+    /// <summary>Выключает кнопки обновления на время работы и показывает ход дела.</summary>
+    /// <param name="busy">Идёт работа.</param>
+    /// <param name="status">Строка состояния или <c>null</c>, чтобы оставить прежнюю.</param>
+    private void SetUpdateBusy(bool busy, string? status)
+    {
+        foreach (var name in UpdateButtons)
+        {
+            if (this.FindControl<Button>(name) is { } button)
+            {
+                button.IsEnabled = !busy;
+            }
+        }
+
+        if (status is not null)
+        {
+            ShowUpdateStatus(status);
+        }
+    }
+
+    /// <summary>Показывает строку состояния обновления.</summary>
+    /// <param name="text">Текст для игрока.</param>
+    private void ShowUpdateStatus(string text)
+    {
+        if (this.FindControl<TextBlock>("UpdateStatusText") is { } status)
+        {
+            status.Text = text;
+        }
+    }
 
     /// <summary>Возвращает выбранный индекс списка.</summary>
     /// <param name="name">Имя элемента управления.</param>

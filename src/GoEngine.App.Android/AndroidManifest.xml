@@ -1,5 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <uses-sdk />
-  <application android:label="Go Engine" />
+
+  <!-- Проверка обновлений ходит на GitHub за манифестом: без INTERNET в релизной сборке сети нет. -->
+  <uses-permission android:name="android.permission.INTERNET" />
+
+  <!-- Установка скачанного APK: без этого разрешения система отклоняет установку обновления. -->
+  <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+  <application android:label="Go Engine">
+    <!--
+      Скачанный APK отдаётся системному установщику через FileProvider: прямая ссылка file://
+      запрещена с Android 7. Имя поставщика совпадает с тем, что использует AndroidUpdateInstaller.
+    -->
+    <provider
+        android:name="androidx.core.content.FileProvider"
+        android:authorities="com.goengine.app.fileprovider"
+        android:exported="false"
+        android:grantUriPermissions="true">
+      <meta-data
+          android:name="android.support.FILE_PROVIDER_PATHS"
+          android:resource="@xml/file_paths" />
+    </provider>
+  </application>
 </manifest>

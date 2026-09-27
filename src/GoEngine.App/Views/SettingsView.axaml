@@ -24,6 +24,21 @@
                    MinHeight="44"
                    HorizontalAlignment="Stretch" />
 
+    <!-- Обновления: версия видна всегда, проверка и установка — по кнопке. Проверка ходит
+         за манифестом в плавающий релиз latest, установка отличается от системы к системе. -->
+    <TextBlock x:Name="VersionText" Margin="0,6,0,0" Foreground="#444444" />
+
+    <StackPanel Orientation="Horizontal" Spacing="8">
+      <Button x:Name="CheckUpdatesButton" Content="Проверить обновления" MinHeight="44" />
+      <Button x:Name="InstallUpdateButton"
+              Content="Скачать и установить"
+              MinHeight="44"
+              IsVisible="False"
+              Classes="accent" />
+    </StackPanel>
+
+    <TextBlock x:Name="UpdateStatusText" TextWrapping="Wrap" Foreground="#444444" />
+
     <StackPanel Orientation="Horizontal"
                 HorizontalAlignment="Right"
                 Spacing="8"

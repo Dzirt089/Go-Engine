@@ -25,7 +25,26 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         AndroidModelStartup.Prepare(this);
+        ConfigureUpdates();
 
         base.OnCreate(savedInstanceState);
+    }
+
+    /// <summary>Отдаёт интерфейсу установщик обновлений и каталог для скачанных пакетов.</summary>
+    /// <remarks>
+    /// Пакет скачивается в личные файлы приложения на внешнем носителе: этот каталог виден
+    /// <c>FileProvider</c>, а значит системный установщик сможет прочитать APK.
+    /// </remarks>
+    private void ConfigureUpdates()
+    {
+        var root = GetExternalFilesDir(null)?.AbsolutePath ?? FilesDir?.AbsolutePath ?? CacheDir?.AbsolutePath;
+
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return;
+        }
+
+        global::GoEngine.App.App.UpdateInstaller = new Updates.AndroidUpdateInstaller();
+        global::GoEngine.App.App.UpdateDownloadDirectory = Path.Combine(root, "updates");
     }
 }

@@ -15,6 +15,16 @@ on:
         type: string
         required: false
         default: ''
+      version:
+        description: 'Версия выпуска, например 0.2.15: попадает внутрь сборок. Пусто — версия по умолчанию'
+        type: string
+        required: false
+        default: ''
+      version_code:
+        description: 'Номер версии Android (versionCode), целое и только растущее. Пусто — значение проекта'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -49,11 +59,14 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      # Версия попадает внутрь сборки: приложение показывает её игроку и по ней решает,
+      # нужен ли выпуск из манифеста обновления.
       - name: Публикация ${{ matrix.rid }}
         run: >-
           dotnet publish src/GoEngine.App.Desktop/GoEngine.App.Desktop.csproj
           -c Release -r ${{ matrix.rid }} --self-contained true
           -p:DebugType=none -p:DebugSymbols=false
+          ${{ inputs.version != '' && format('-p:Version={0}', inputs.version) || '' }}
           -o publish/${{ matrix.rid }}
 
       # Модели кладём в сборку рядом с приложением: приложение ищет каталог models вверх от своего
@@ -111,8 +124,9 @@ jobs:
           if (-not $iscc) { throw 'ISCC.exe не найден: Inno Setup не установился' }
 
           $suffix = '${{ inputs.suffix }}'
-          # Для свежей сборки версия — номер прогона, для версии — сам тег без ведущих знаков.
-          $version = if ($suffix) { $suffix.TrimStart('-').TrimStart('v') } else { "0.1.${{ github.run_number }}" }
+          $given = '${{ inputs.version }}'
+          # Версию задаёт вызывающий (версионированный выпуск), иначе — тег или номер прогона.
+          $version = if ($given) { $given } elseif ($suffix) { $suffix.TrimStart('-').TrimStart('v') } else { "0.1.${{ github.run_number }}" }
 
           & $iscc "/DMyVersion=$version" "/DMySuffix=$suffix" "/DSourceDir=$PWD/publish/${{ matrix.rid }}" "/DModelsDir=$PWD/publish/${{ matrix.rid }}/models" installer/goengine.iss 2>&1 | Tee-Object -FilePath installer-build.log
           if ($LASTEXITCODE -ne 0) { throw 'Установщик не собрался' }
@@ -200,11 +214,15 @@ jobs:
       - name: Установка рабочей нагрузки Android
         working-directory: src/GoEngine.App.Android
         run: dotnet workload install android
+      # versionCode обязан расти от выпуска к выпуску: иначе Android откажется ставить обновление
+      # поверх установленного приложения, даже если версия в пакете новее.
       - name: Публикация APK
         working-directory: src/GoEngine.App.Android
         run: >-
           dotnet publish GoEngine.App.Android.csproj
           -c Release -f net8.0-android34.0 -o ../../publish/android
+          ${{ inputs.version != '' && format('-p:ApplicationDisplayVersion={0}', inputs.version) || '' }}
+          ${{ inputs.version_code != '' && format('-p:ApplicationVersion={0}', inputs.version_code) || '' }}
       # Проверка «модели реально в пакете»: APK — это zip, смотрим список файлов.
       - name: Проверка, что модели внутри APK
         run: |

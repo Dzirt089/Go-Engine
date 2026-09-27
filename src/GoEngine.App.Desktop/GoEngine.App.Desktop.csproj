@@ -26,6 +26,10 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="SkiaSharp" />
+    <!-- Нативная Skia для Linux обязана совпадать по версии с управляемой SkiaSharp: иначе в сборку
+         для Linux попадает библиотека 2.88 и приложение падает на старте (проверено на релизном
+         архиве: libSkiaSharp.so сообщал 88.1 при управляемой 3.116). -->
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
   </ItemGroup>
 
   <ItemGroup>

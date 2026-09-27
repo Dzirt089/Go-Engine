@@ -85,6 +85,7 @@ internal static class Program
         }
 
         LoadNetwork();
+        ConfigureUpdates();
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
 
@@ -135,6 +136,20 @@ internal static class Program
 
         global::GoEngine.App.App.Evaluator = loaded.Value!;
         Console.WriteLine($"Go Engine: нейросеть загружена ({Path.GetFileName(path)}).");
+    }
+
+    /// <summary>Отдаёт интерфейсу установщик обновлений и каталог для скачанных файлов.</summary>
+    /// <remarks>
+    /// Библиотека интерфейса не знает, чем ставить обновление: на Windows это тихий установщик,
+    /// на Linux и macOS — открытие папки с архивом. Скачанные файлы складываются во временный
+    /// каталог пользователя: он переживает перезапуск приложения, но чистится системой.
+    /// </remarks>
+    private static void ConfigureUpdates()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "GoEngine", "updates");
+
+        global::GoEngine.App.App.UpdateInstaller = new Updates.DesktopUpdateInstaller();
+        global::GoEngine.App.App.UpdateDownloadDirectory = directory;
     }
 
     /// <summary>Собирает стороны доски, для которых в каталоге есть модель.</summary>

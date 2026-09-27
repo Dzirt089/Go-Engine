@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Пути, которые FileProvider отдаёт системе при установке обновления. Каталог updates лежит
+  в личных файлах приложения на внешнем носителе: туда складывается скачанный APK.
+-->
+<paths>
+  <external-files-path name="updates" path="updates/" />
+</paths>

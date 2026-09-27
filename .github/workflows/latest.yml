@@ -1,11 +1,14 @@
-# Плавающий релиз latest: свежие сборки из main, доступные для скачивания без авторизации.
+# Версионированные выпуски и плавающий релиз latest: свежие сборки из main.
 #
-# Зачем: артефакты Actions требуют входа в GitHub и живут 7 дней, поэтому как канал раздачи
-# они не годятся. Здесь на каждый push в main собираются те же четыре настольные платформы и APK,
-# что и в версионированном релизе, и файлы кладутся в релиз с постоянным тегом latest.
-# Файлы обновляются через gh release upload --clobber, поэтому релиз один, а не по одному на push.
+# Два канала, потому что у них разные задачи:
+#   v<версия> — неизменяемый выпуск: по его ссылкам приложение скачивает обновление,
+#               и файл не подменится под руками у игрока;
+#   latest    — постоянные адреса: приложение знает заранее, где искать манифест обновления
+#               (releases/download/latest/update.json), а не переписывается под каждый выпуск.
 #
-# Версионированные релизы (release.yml, тег v*) остаются вехами: latest — это «самое свежее».
+# Версия — 0.2.<номер прогона>. Номер прогона в GitHub только растёт, поэтому тег не повторяется
+# и не понижается; повторный запуск на том же прогоне перезаписывает свои же файлы (--clobber),
+# то есть workflow идемпотентен.
 name: Latest build
 
 on:
@@ -17,15 +20,38 @@ permissions:
   contents: write
 
 jobs:
+  version:
+    name: Версия выпуска
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+      code: ${{ steps.v.outputs.code }}
+    steps:
+      - name: Вычисление версии
+        id: v
+        run: |
+          version="0.2.${{ github.run_number }}"
+          # versionCode для Android — тот же номер прогона: целое и только растущее.
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
+          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "выпуск: v${version}"
+
   build:
     name: Сборки
+    needs: [version]
     uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+      version_code: ${{ needs.version.outputs.code }}
 
   publish:
-    name: Обновление релиза latest
-    needs: [build]
+    name: Публикация выпуска и latest
+    needs: [build, version]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       # gh определяет репозиторий по git-каталогу, поэтому checkout здесь обязателен:
       # без него команды gh падают с «not a git repository», хотя файлы уже собраны.
@@ -37,15 +63,42 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Список файлов
-        run: find dist -type f | sort
+      - name: Манифест обновления
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          TAG: ${{ needs.version.outputs.tag }}
+          REPO: ${{ github.repository }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          find dist -type f | sort
+          python3 .github/scripts/make-update-manifest.py dist
+          echo "--- update.json ---"
+          cat dist/update.json
 
-      - name: Создание или обновление релиза latest
+      - name: Публикация версионированного выпуска
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          notes="Версия ${{ needs.version.outputs.version }}, коммит ${{ github.sha }}. Прогон: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          mapfile -t files < <(find dist -type f | sort)
+          printf 'файлов в выпуске: %s\n' "${#files[@]}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --clobber
+          else
+            # latest=false: «самым свежим» остаётся плавающий релиз, у версии своя жизнь.
+            gh release create "$TAG" "${files[@]}" \
+              --title "Go Engine $TAG" \
+              --notes "$notes" \
+              --latest=false
+          fi
+
+      - name: Обновление плавающего релиза latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          title="Свежая сборка (main)"
-          notes="Сборка из ветки main, коммит ${{ github.sha }}. Прогон: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          title="Свежая сборка (main), версия ${{ needs.version.outputs.version }}"
+          notes="Версия ${{ needs.version.outputs.version }}, коммит ${{ github.sha }}. Прогон: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           mapfile -t files < <(find dist -type f | sort)
           printf 'файлов в релизе: %s\n' "${#files[@]}"
           if gh release view latest >/dev/null 2>&1; then
