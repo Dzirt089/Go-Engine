@@ -29,6 +29,11 @@ GoEngine.Tests      ← Core, AI, AI.Onnx, xUnit
 
 Строгое правило: **слой не может ссылаться на слой выше себя**.
 
+Интерфейс разделён на библиотеку и головы: `GoEngine.App` — библиотека (виды, модель
+представления, сервисы, рисование), `GoEngine.App.Desktop` и `GoEngine.App.Android` — головы
+с точкой входа и платформенными пакетами. Голова ссылается на библиотеку, библиотека на головы
+не ссылается (`DECISIONS.md`, D-036).
+
 | Слой | Может ссылаться на | Запрещено |
 |---|---|---|
 | `Core` | `System.*` | Avalonia, AI, IO, БД |
@@ -41,7 +46,8 @@ GoEngine.Tests      ← Core, AI, AI.Onnx, xUnit
 
 - .NET 8 (LTS)
 - C# 12
-- Avalonia UI 11.x
+- Avalonia UI 11.x (библиотека интерфейса — `Avalonia`, `Avalonia.Skia`, `Avalonia.Themes.Fluent`;
+  `Avalonia.Desktop` — только в голове настольной версии, `Avalonia.Android` — только в голове Android)
 - SkiaSharp
 - xUnit + Moq для тестов
 - Microsoft.Extensions.TimeProvider.Testing — `FakeTimeProvider` в тестах AI (только тесты)
@@ -84,7 +90,8 @@ src/
 │   ├── Mcts/                  дерево MCTS и селектор (UCB1 без сети, PUCT с сетью)
 │   ├── Patterns/              окрестности 3×3 и их веса
 │   └── SelfPlay/              партия AI против AI
-├── GoEngine.App/              интерфейс: Avalonia + SkiaSharp (настольная версия)
+├── GoEngine.App/              библиотека интерфейса: виды, модель, сервисы, рисование
+├── GoEngine.App.Desktop/      голова настольной версии: точка входа и проверочные режимы
 │   ├── Controls/              элемент доски
 │   ├── Diagnostics/           проверочные режимы и аргументы командной строки
 │   ├── Rendering/             рендерер Skia, геометрия, анимация
@@ -135,7 +142,7 @@ src/
 - `.github/workflows/release.yml` — релиз по тегу `v*` или вручную из вкладки Actions:
   проверка проекта, затем самодостаточные сборки `win-x64`, `linux-x64`, `osx-x64`, `osx-arm64`
   и APK для Android, всё складывается в релиз на GitHub.
-- `dotnet run --project src/GoEngine.App` — запуск игры.
+- `dotnet run --project src/GoEngine.App.Desktop` — запуск игры.
 
 Проверочные режимы приложения не открывают окно, поэтому работают и на сборочном агенте:
 `--smoke` (точка входа), `--check` (попадание щелчка в точку), `--state` (панель статуса и ход AI),
