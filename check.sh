@@ -7,7 +7,7 @@ set -uo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 src="$root/src"
-app="$src/GoEngine.App/GoEngine.App.csproj"
+app="$src/GoEngine.App.Desktop/GoEngine.App.Desktop.csproj"
 failures=0
 
 step() {

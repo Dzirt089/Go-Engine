@@ -21,13 +21,13 @@ for rid in "${runtimes[@]}"; do
   output="$artifacts/$rid"
 
   echo "Go Engine: сборка $rid"
-  dotnet publish "$src/GoEngine.App/GoEngine.App.csproj" \
+  dotnet publish "$src/GoEngine.App.Desktop/GoEngine.App.Desktop.csproj" \
     -c Release -r "$rid" --self-contained true -o "$output" --nologo
 
   # Проверка запуска возможна только на своей системе: проверочный режим не открывает окно.
   if [ "$rid" = "$(dotnet --info | grep -o 'RID:.*' | awk '{print $2}')" ] || [ "$rid" = "linux-x64" ] && [ "$(uname -s)" = "Linux" ]; then
     echo "Go Engine: проверка $rid"
-    "$output/GoEngine.App" --smoke
+    "$output/GoEngine.App.Desktop" --smoke
   else
     echo "Go Engine: $rid собрана; запуск проверяется на целевой системе"
   fi

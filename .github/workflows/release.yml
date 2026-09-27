@@ -70,7 +70,7 @@ jobs:
 
       - name: Публикация ${{ matrix.rid }}
         run: >-
-          dotnet publish src/GoEngine.App/GoEngine.App.csproj
+          dotnet publish src/GoEngine.App.Desktop/GoEngine.App.Desktop.csproj
           -c Release -r ${{ matrix.rid }} --self-contained true
           -p:DebugType=none -p:DebugSymbols=false
           -o publish/${{ matrix.rid }}
@@ -81,14 +81,14 @@ jobs:
         run: |
           # Приложение — GUI-процесс: PowerShell не ждёт его и не выставляет $LASTEXITCODE,
           # поэтому запускаем через Start-Process и смотрим код возврата сами.
-          $process = Start-Process -FilePath "./publish/${{ matrix.rid }}/GoEngine.App.exe" -ArgumentList '--smoke' -Wait -PassThru
+          $process = Start-Process -FilePath "./publish/${{ matrix.rid }}/GoEngine.App.Desktop.exe" -ArgumentList '--smoke' -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Проверочный режим не прошёл: код $($process.ExitCode)." }
 
       - name: Проверка запуска (Linux, macOS)
         if: matrix.archive == 'tar.gz'
         run: |
-          chmod +x ./publish/${{ matrix.rid }}/GoEngine.App
-          ./publish/${{ matrix.rid }}/GoEngine.App --smoke
+          chmod +x ./publish/${{ matrix.rid }}/GoEngine.App.Desktop
+          ./publish/${{ matrix.rid }}/GoEngine.App.Desktop --smoke
 
       - name: Упаковка (Windows)
         if: matrix.archive == 'zip'

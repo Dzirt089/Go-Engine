@@ -1,22 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!--
+    Библиотека интерфейса: виды, модель представления, настройки, SGF, рисование.
+    Головы (GoEngine.App.Desktop, GoEngine.App.Android) добавляют точку входа и платформу;
+    так один и тот же BoardView работает и на настольных системах, и на телефоне.
+  -->
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <OutputType>Library</OutputType>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" />
-    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Skia" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="SkiaSharp" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\GoEngine.Core\GoEngine.Core.csproj" />
-    <ProjectReference Include="..\GoEngine.AI\GoEngine.AI.csproj" />
+    <ProjectReference Include="../GoEngine.Core/GoEngine.Core.csproj" />
+    <ProjectReference Include="../GoEngine.AI/GoEngine.AI.csproj" />
   </ItemGroup>
 
 </Project>

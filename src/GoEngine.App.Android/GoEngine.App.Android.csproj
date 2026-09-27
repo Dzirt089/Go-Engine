@@ -30,7 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..GoEngine.AppGoEngine.App.csproj" />
+    <ProjectReference Include="../GoEngine.App/GoEngine.App.csproj" />
   </ItemGroup>
 
 </Project>

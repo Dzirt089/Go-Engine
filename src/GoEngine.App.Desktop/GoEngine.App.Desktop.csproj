@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Голова настольной версии: точка входа и проверочные режимы. Интерфейс живёт в библиотеке
+    GoEngine.App — её же использует голова Android, поэтому логика и виды не дублируются.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>GoEngine.App.Desktop</AssemblyName>
+    <RootNamespace>GoEngine.App</RootNamespace>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../GoEngine.App/GoEngine.App.csproj" />
+  </ItemGroup>
+
+</Project>

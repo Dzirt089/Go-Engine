@@ -32,13 +32,13 @@ foreach ($rid in $Runtime) {
     $output = Join-Path $artifacts $rid
 
     Write-Host "Go Engine: сборка $rid"
-    dotnet publish (Join-Path $src 'GoEngine.App/GoEngine.App.csproj') `
+    dotnet publish (Join-Path $src 'GoEngine.App.Desktop/GoEngine.App.Desktop.csproj') `
         -c Release -r $rid --self-contained true -o $output --nologo
     if ($LASTEXITCODE -ne 0) { throw "Сборка $rid не удалась." }
 
     # Проверка, что приложение запускается: проверочный режим не открывает окно.
     Write-Host "Go Engine: проверка $rid"
-    $exe = if ($rid -like 'win-*') { Join-Path $output 'GoEngine.App.exe' } else { Join-Path $output 'GoEngine.App' }
+    $exe = if ($rid -like 'win-*') { Join-Path $output 'GoEngine.App.Desktop.exe' } else { Join-Path $output 'GoEngine.App.Desktop' }
 
     if ($rid -like 'win-*') {
         & $exe --smoke

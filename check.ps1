@@ -23,7 +23,7 @@ $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $src = Join-Path $root 'src'
-$app = Join-Path $src 'GoEngine.App/GoEngine.App.csproj'
+$app = Join-Path $src 'GoEngine.App.Desktop/GoEngine.App.Desktop.csproj'
 $failures = 0
 
 function Invoke-Step {
