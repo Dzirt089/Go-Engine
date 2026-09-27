@@ -11,4 +11,11 @@
     <ProjectReference Include="..\GoEngine.AI\GoEngine.AI.csproj" />
   </ItemGroup>
 
+  <!-- Сессия модели и разбор выходов — внутренние типы слоя (срез 3 фазы 11). Тестам нужен
+       доступ к ним, чтобы проверять математику и жизненный цикл по отдельности, а публичный
+       API слоя при этом не расширяется. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="GoEngine.Tests" />
+  </ItemGroup>
+
 </Project>

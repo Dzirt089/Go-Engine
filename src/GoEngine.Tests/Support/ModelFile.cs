@@ -18,8 +18,27 @@ internal static class ModelFile
     /// </remarks>
     public static string FullPath { get; } = System.IO.Path.Combine(Root(), "models", Name);
 
+    /// <summary>Имя специализированной модели 9×9 (T-036, <c>DECISIONS.md</c>, D-040).</summary>
+    public const string Finetuned9x9Name = "kata9x9-finetuned.uint8.onnx";
+
     /// <summary>Есть ли модель на диске.</summary>
     public static bool Exists => File.Exists(FullPath);
+
+    /// <summary>Полный путь к файлу модели по имени.</summary>
+    /// <param name="fileName">Имя файла в каталоге моделей.</param>
+    /// <returns>Путь к файлу модели.</returns>
+    public static string PathOf(string fileName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+
+        return System.IO.Path.Combine(System.IO.Path.GetDirectoryName(FullPath)!, fileName);
+    }
+
+    /// <summary>Полный путь к специализированной модели 9×9.</summary>
+    public static string Finetuned9x9Path { get; } = PathOf(Finetuned9x9Name);
+
+    /// <summary>Есть ли модель 9×9 на диске.</summary>
+    public static bool Finetuned9x9Exists => File.Exists(Finetuned9x9Path);
 
     /// <summary>Ищет корень репозитория вверх по каталогам.</summary>
     /// <returns>Каталог с `PROJECT.md` и `TASKS`, либо каталог сборки.</returns>

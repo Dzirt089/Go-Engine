@@ -64,6 +64,61 @@ public sealed class OnnxEvaluatorTests
         Assert.Equal("Input [1×22×19×19]", info.Inputs[0].ToString());
     }
 
+    [ModelFact]
+    public void Неудачная_Подмена_Оставляет_Прежнюю_Модель_Рабочей()
+    {
+        // Файл с именем модели 9×9 есть, но это не модель: подмена обязана отказать,
+        // а прежняя сессия — остаться рабочей (D-039, срез 3 фазы 11).
+        var directory = Path.Combine(Path.GetTempPath(), $"go-engine-models-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            File.WriteAllBytes(Path.Combine(directory, ModelFile.Finetuned9x9Name), [1, 2, 3, 4]);
+
+            var loaded = OnnxEvaluator.Load(ModelFile.FullPath);
+
+            Assert.True(loaded.IsSuccess, loaded.Error);
+
+            using var evaluator = loaded.Value!;
+
+            Assert.False(evaluator.LoadModelForBoardSize(9, directory));
+
+            var evaluation = evaluator.Evaluate(new Board(BoardSize.Size19), Komi.For19x19, StoneColor.Black, []);
+
+            Assert.True(evaluation.IsSuccess, evaluation.Error);
+            Assert.Equal(ModelFile.FullPath, evaluator.Path);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [ModelFact]
+    public void Размер_Без_Профиля_Модель_Не_Подменяет()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"go-engine-models-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            var loaded = OnnxEvaluator.Load(ModelFile.FullPath);
+
+            Assert.True(loaded.IsSuccess, loaded.Error);
+
+            using var evaluator = loaded.Value!;
+
+            // Профиля для 7×7 нет: подмены не происходит, прежняя модель на месте (D-039).
+            Assert.False(evaluator.LoadModelForBoardSize(7, directory));
+            Assert.Equal(ModelFile.FullPath, evaluator.Path);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Fact]
     public void Кодировщик_И_Оценщик_Согласованы_По_Размеру_Входа()
     {
