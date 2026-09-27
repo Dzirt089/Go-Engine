@@ -61,12 +61,13 @@
 
           <Grid ColumnDefinitions="Auto,*" Margin="0,8,0,0">
             <TextBlock Text="Доска" VerticalAlignment="Center" />
+            <!-- Списки заполняет код вида (BoardView.axaml.cs), а не привязка: список выбора
+                 сбрасывает индекс при подмене ItemsSource и вернул бы его в модель представления,
+                 из-за чего партия начиналась не с выбранным уровнем. -->
             <ComboBox x:Name="SizeBox"
                       Grid.Column="1"
                       Margin="8,0,0,0"
-                      HorizontalAlignment="Stretch"
-                      ItemsSource="{Binding SizeLabels}"
-                      SelectedIndex="{Binding SelectedSizeIndex, Mode=TwoWay}" />
+                      HorizontalAlignment="Stretch" />
           </Grid>
 
           <Grid ColumnDefinitions="Auto,*">
@@ -74,9 +75,7 @@
             <ComboBox x:Name="LevelBox"
                       Grid.Column="1"
                       Margin="8,0,0,0"
-                      HorizontalAlignment="Stretch"
-                      ItemsSource="{Binding LevelLabels}"
-                      SelectedIndex="{Binding SelectedLevelIndex, Mode=TwoWay}" />
+                      HorizontalAlignment="Stretch" />
           </Grid>
 
           <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" Margin="0,10,0,0">

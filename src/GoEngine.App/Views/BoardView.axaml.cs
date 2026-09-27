@@ -22,6 +22,14 @@ public sealed partial class BoardView : UserControl
 {
     private readonly BoardControl? _boardControl;
 
+    /// <summary>Идёт обновление списков выбора: обратные записи от них в это время игнорируются.</summary>
+    /// <remarks>
+    /// Список выбора сбрасывает <c>SelectedIndex</c>, когда меняется <c>ItemsSource</c>, и сообщает
+    /// об этом как о выборе пользователя. Без этого признака сброс попадал бы в модель
+    /// представления и пересоздавал партию с чужим уровнем.
+    /// </remarks>
+    private bool _syncingCombos;
+
     /// <summary>Создаёт вид с настройками из файла и оценкой сети, заданной головой.</summary>
     public BoardView() : this(SettingsStore.Load(), global::GoEngine.App.App.Evaluator)
     {
@@ -55,6 +63,18 @@ public sealed partial class BoardView : UserControl
         WireButton("SettingsButton", OnSettingsClick);
         WireButton("SaveButton", OnSaveClick);
         WireButton("LoadButton", OnLoadClick);
+
+        if (this.FindControl<ComboBox>("SizeBox") is { } sizeBox)
+        {
+            sizeBox.SelectionChanged += OnSizeChanged;
+        }
+
+        if (this.FindControl<ComboBox>("LevelBox") is { } levelBox)
+        {
+            levelBox.SelectionChanged += OnLevelChanged;
+        }
+
+        SyncCombos();
     }
 
     /// <summary>Запрошен диалог настроек: его показывает окно.</summary>
@@ -83,12 +103,82 @@ public sealed partial class BoardView : UserControl
     /// <param name="e">Событие изменения свойства.</param>
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(MainViewModel.LastMove))
+        if (e.PropertyName == nameof(MainViewModel.LastMove))
+        {
+            _boardControl?.Animate(ViewModel.LastMove, ViewModel.LastCaptured, ViewModel.LastCapturedColor);
+            return;
+        }
+
+        // Партия пересоздана (смена доски, уровня, настроек) — списки выбора должны это показать.
+        if (e.PropertyName is nameof(MainViewModel.LevelLabels)
+            or nameof(MainViewModel.SelectedLevelIndex)
+            or nameof(MainViewModel.SelectedSizeIndex))
+        {
+            SyncCombos();
+        }
+    }
+
+    /// <summary>Показывает в списках выбора то, чем играет партия сейчас.</summary>
+    /// <remarks>На время обновления обратные записи от списков игнорируются: они сообщают
+    /// о сбросе индекса, а не о выборе игрока.</remarks>
+    private void SyncCombos()
+    {
+        _syncingCombos = true;
+
+        try
+        {
+            if (this.FindControl<ComboBox>("SizeBox") is { } sizeBox)
+            {
+                if (!ReferenceEquals(sizeBox.ItemsSource, ViewModel.SizeLabels))
+                {
+                    sizeBox.ItemsSource = ViewModel.SizeLabels;
+                }
+
+                sizeBox.SelectedIndex = ViewModel.SelectedSizeIndex;
+            }
+
+            if (this.FindControl<ComboBox>("LevelBox") is { } levelBox)
+            {
+                if (!ReferenceEquals(levelBox.ItemsSource, ViewModel.LevelLabels))
+                {
+                    levelBox.ItemsSource = ViewModel.LevelLabels;
+                }
+
+                levelBox.SelectedIndex = ViewModel.SelectedLevelIndex;
+            }
+        }
+        finally
+        {
+            _syncingCombos = false;
+        }
+    }
+
+    /// <summary>Применяет выбранный размер доски.</summary>
+    /// <param name="sender">Список размеров.</param>
+    /// <param name="e">Событие смены выбора.</param>
+    private void OnSizeChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingCombos || sender is not ComboBox box)
         {
             return;
         }
 
-        _boardControl?.Animate(ViewModel.LastMove, ViewModel.LastCaptured, ViewModel.LastCapturedColor);
+        ViewModel.SelectedSizeIndex = box.SelectedIndex;
+        SyncCombos();
+    }
+
+    /// <summary>Применяет выбранный уровень.</summary>
+    /// <param name="sender">Список уровней.</param>
+    /// <param name="e">Событие смены выбора.</param>
+    private void OnLevelChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingCombos || sender is not ComboBox box)
+        {
+            return;
+        }
+
+        ViewModel.SelectedLevelIndex = box.SelectedIndex;
+        SyncCombos();
     }
 
     /// <summary>Подписывает кнопку на обработчик.</summary>

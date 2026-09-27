@@ -73,7 +73,7 @@ public sealed class MainViewModelTests
     {
         var model = Create(level: DifficultyLevel.Kyu20);
 
-        Assert.Equal("20 кю · эвристики", model.LevelDescription);
+        Assert.Equal("20 кю · эвристики · без поиска", model.LevelDescription);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class MainViewModelTests
     {
         var model = Create(level: DifficultyLevel.Dan5, modelSizes: new HashSet<int> { 9 });
 
-        Assert.Equal("5 дан · нейросеть 9×9", model.LevelDescription);
+        Assert.Equal("5 дан · нейросеть 9×9 · 4 с/ход", model.LevelDescription);
     }
 
     [Fact]
@@ -143,6 +143,131 @@ public sealed class MainViewModelTests
         Assert.Equal("0", model.MoveNumber);
     }
 
+    [Theory]
+    [InlineData(9)]
+    [InlineData(13)]
+    [InlineData(19)]
+    public void Выбор_Уровня_Создаёт_Партию_Именно_С_Этим_Уровнем(int side)
+    {
+        // Для каждого размера и каждого доступного уровня: выбор в модели представления
+        // обязан создать партию ровно с этим уровнем, а подпись — назвать его движок и бюджет.
+        var model = Create(size: new BoardSize((byte)side), modelSizes: new HashSet<int> { 9, 13, 19 });
+        var options = model.LevelOptions;
+
+        Assert.True(options.Count >= 10, $"уровней для {side}×{side}: {options.Count}");
+
+        for (var index = 0; index < options.Count; index++)
+        {
+            model.SelectedLevelIndex = index;
+
+            Assert.Equal(options[index], model.CurrentLevel);
+            Assert.Equal(LevelChooser.Describe(options[index], model.Board.Size, true), model.LevelDescription);
+        }
+    }
+
+    [Fact]
+    public void Список_Уровней_Не_Зависит_От_Прежнего_Выбора()
+    {
+        var model = Create(modelSizes: new HashSet<int> { 9 });
+        var before = model.LevelOptions.ToArray();
+
+        model.SelectedLevelIndex = 3;
+        var afterAnother = model.LevelOptions.ToArray();
+        model.SelectedLevelIndex = 0;
+
+        Assert.Equal(before, afterAnother);
+        Assert.Equal(before, model.LevelOptions.ToArray());
+    }
+
+    [Fact]
+    public void Повторный_Выбор_Того_Же_Уровня_Не_Начинает_Новую_Партию()
+    {
+        var model = Create(modelSizes: new HashSet<int> { 9 });
+        _ = model.PlayMove(new Point(4, 4));
+        var moves = model.MoveNumber;
+        var index = model.SelectedLevelIndex;
+
+        model.SelectedLevelIndex = index;
+
+        Assert.Equal(moves, model.MoveNumber);
+    }
+
+    [Fact]
+    public void Список_Подписей_Уровней_Не_Пересоздаётся_Без_Причин()
+    {
+        // Регрессия: подмена ItemsSource заставляла список выбора сбросить индекс и вернуть его
+        // в модель представления — партия начиналась не с выбранным уровнем.
+        var model = Create(modelSizes: new HashSet<int> { 9 });
+        var labels = model.LevelLabels;
+
+        _ = model.PlayMove(new Point(4, 4));
+
+        Assert.Same(labels, model.LevelLabels);
+    }
+
+    [Fact]
+    public void Лестница_Сети_Доступна_Для_Доски_С_Моделью()
+    {
+        var model = Create(modelSizes: new HashSet<int> { 9 });
+
+        Assert.Contains(DifficultyLevel.Kyu1, model.LevelOptions);
+        Assert.Contains(DifficultyLevel.Dan1, model.LevelOptions);
+        Assert.Contains(DifficultyLevel.Dan5, model.LevelOptions);
+    }
+
+    [Fact]
+    public void Без_Модели_Вся_Лестница_Сети_Скрыта()
+    {
+        var model = Create();
+
+        Assert.DoesNotContain(DifficultyLevel.Kyu1, model.LevelOptions);
+        Assert.DoesNotContain(DifficultyLevel.Dan1, model.LevelOptions);
+        Assert.DoesNotContain(DifficultyLevel.Dan5, model.LevelOptions);
+    }
+
+    [Fact]
+    public void Подписи_Уровней_Называют_Движок_И_Бюджет()
+    {
+        var model = Create(modelSizes: new HashSet<int> { 9 });
+
+        foreach (var level in model.LevelOptions)
+        {
+            var label = LevelChooser.Label(level);
+
+            Assert.Contains(LevelChooser.Engine(level), label, StringComparison.Ordinal);
+            Assert.Contains(LevelChooser.Budget(level), label, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Смена_Доски_Сохраняет_Уровень_Если_Он_Доступен()
+    {
+        var model = Create(modelSizes: new HashSet<int> { 9, 13, 19 });
+        var options = model.LevelOptions;
+        model.SelectedLevelIndex = options.Count - 1;
+
+        Assert.Equal(DifficultyLevel.Dan5, model.CurrentLevel);
+
+        model.SelectedSizeIndex = 2;
+
+        Assert.Equal(19, model.Board.Size.Value);
+        Assert.Equal(DifficultyLevel.Dan5, model.CurrentLevel);
+    }
+
+    [Fact]
+    public void Настройки_Из_Диалога_Применяются_Вместе_С_Уровнем()
+    {
+        // Сценарий жалобы: в диалоге выбрали «5 дан» и 19×19, а панель показывала другой уровень.
+        var model = Create(modelSizes: new HashSet<int> { 9, 13, 19 });
+
+        model.ApplySettings(AppSettings.From(BoardSize.Size19, DifficultyLevel.Dan5, StoneColor.Black, Komi.For19x19));
+
+        Assert.Equal(19, model.Board.Size.Value);
+        Assert.Equal(DifficultyLevel.Dan5, model.CurrentLevel);
+        Assert.Equal("5 дан · нейросеть 19×19 · 4 с/ход", model.LevelDescription);
+        Assert.Equal(model.SelectedLevelIndex, model.LevelOptions.ToList().IndexOf(DifficultyLevel.Dan5));
+    }
+
     /// <summary>Создаёт модель представления для теста.</summary>
     /// <param name="color">Цвет игрока; по умолчанию чёрные.</param>
     /// <param name="level">Уровень AI; по умолчанию 20 кю — эвристики без поиска.</param>
@@ -151,13 +276,14 @@ public sealed class MainViewModelTests
     private static MainViewModel Create(
         StoneColor? color = null,
         DifficultyLevel? level = null,
-        IReadOnlySet<int>? modelSizes = null)
+        IReadOnlySet<int>? modelSizes = null,
+        BoardSize? size = null)
     {
         var settings = AppSettings.From(
-            BoardSize.Size9,
+            size ?? BoardSize.Size9,
             level ?? DifficultyLevel.Kyu20,
             color ?? StoneColor.Black,
-            Komi.For9x9);
+            Komi.For(size ?? BoardSize.Size9));
 
         return modelSizes is null
             ? new MainViewModel(settings, new Random(Seed))

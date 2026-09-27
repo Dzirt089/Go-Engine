@@ -26,6 +26,24 @@ public sealed class LevelChooserTests
     }
 
     [Fact]
+    public void С_Моделью_Доступна_Вся_Лестница_Сети()
+    {
+        var options = LevelChooser.Available(BoardSize.Size13, true);
+
+        Assert.Contains(DifficultyLevel.Kyu1, options);
+        Assert.Contains(DifficultyLevel.Dan1, options);
+        Assert.Contains(DifficultyLevel.Dan5, options);
+    }
+
+    [Fact]
+    public void Ступени_Лестницы_Различаются_Бюджетом_Времени()
+    {
+        // Сила ступени с сетью задаётся временем на ход: чем больше бюджет, тем сильнее ступень.
+        Assert.True(DifficultyLevel.Dan5.TimeBudget > DifficultyLevel.Dan1.TimeBudget);
+        Assert.True(DifficultyLevel.Dan1.TimeBudget > DifficultyLevel.Kyu1.TimeBudget);
+    }
+
+    [Fact]
     public void Без_Модели_Для_Размера_Уровень_Дан_Скрыт()
     {
         Assert.DoesNotContain(DifficultyLevel.Dan5, LevelChooser.Available(BoardSize.Size9, false));
@@ -58,12 +76,20 @@ public sealed class LevelChooserTests
     [Fact]
     public void Подпись_Уровня_Дан_Читается_Как_Дан()
     {
-        Assert.Equal("5 дан", LevelChooser.Label(DifficultyLevel.Dan5));
+        var label = LevelChooser.Label(DifficultyLevel.Dan5);
+
+        Assert.StartsWith("5 дан", label, StringComparison.Ordinal);
+        Assert.Contains("нейросеть", label, StringComparison.Ordinal);
+        Assert.Contains("с/ход", label, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Подпись_Уровня_Кю_Читается_Как_Кю()
     {
-        Assert.Equal("10 кю", LevelChooser.Label(DifficultyLevel.Kyu10));
+        var label = LevelChooser.Label(DifficultyLevel.Kyu10);
+
+        Assert.StartsWith("10 кю", label, StringComparison.Ordinal);
+        Assert.Contains("MCTS без сети", label, StringComparison.Ordinal);
+        Assert.Contains("с/ход", label, StringComparison.Ordinal);
     }
 }

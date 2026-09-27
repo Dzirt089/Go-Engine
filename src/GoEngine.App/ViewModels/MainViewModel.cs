@@ -28,6 +28,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _capturedBlack;
     private int _capturedWhite;
 
+    /// <summary>Подписи уровней. Список хранится полем намеренно: подмена <c>ItemsSource</c>
+    /// на новом экземпляре заставляет список выбора сбросить выбранный индекс и вернуть его
+    /// в модель представления — из-за этого партия начиналась не с выбранным уровнем.</summary>
+    private IReadOnlyList<string> _levelLabels = [];
+
     /// <summary>Создаёт модель представления по настройкам.</summary>
     /// <param name="settings">Настройки партии.</param>
     /// <param name="random">Источник случайности для AI; в тестах — с фиксированным seed.</param>
@@ -49,6 +54,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _game = CreateGame(settings);
 
         RecountCaptures();
+        RefreshLabels();
         ShowAiMoveIfNeeded();
     }
 
@@ -96,8 +102,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Цвет снятых камней: это цвет соперника сделавшего ход.</summary>
     public StoneColor LastCapturedColor => LastCaptured.Count == 0 ? StoneColor.Empty : _game.ToMove;
 
-    /// <summary>Уровень AI словами: «20 кю» или «5 дан».</summary>
-    public string Level => LevelChooser.Label(_settings.ToDifficultyLevel());
+    /// <summary>Ранг уровня словами: «20 кю» или «5 дан».</summary>
+    /// <remarks>
+    /// Только ранг: по этой строке проверяют себя режимы приложения (<c>--state</c>, <c>--e2e</c>).
+    /// Движок и бюджет называет <see cref="LevelDescription"/>.
+    /// </remarks>
+    public string Level => LevelChooser.Rank(CurrentLevel);
 
     /// <summary>Чем играет AI: вид селектора и модель, если она нашлась.</summary>
     public string Engine
@@ -122,8 +132,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Уровень и движок одной строкой: «5 дан · нейросеть 9×9», «20 кю · эвристики».</summary>
-    public string LevelDescription => $"{Level} · {Engine}";
+    /// <summary>Уровень, движок и бюджет одной строкой: «5 дан · нейросеть 9×9 · 4 с/ход».</summary>
+    /// <remarks>Подпись собирает <see cref="LevelChooser.Describe"/>: ранг номинальный, поэтому
+    /// рядом всегда стоят движок и бюджет, а для сети — ещё и размер доски.</remarks>
+    public string LevelDescription =>
+        LevelChooser.Describe(CurrentLevel, _settings.ToBoardSize(), HasModel(_settings.ToBoardSize()));
+
+    /// <summary>Уровень, которым играет партия прямо сейчас.</summary>
+    public DifficultyLevel CurrentLevel => _settings.ToDifficultyLevel();
 
     /// <summary>Цвет игрока словами.</summary>
     public string PlayerColor => _settings.ToPlayerColor() == StoneColor.Black ? "Чёрные" : "Белые";
@@ -186,7 +202,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
         LevelChooser.Available(_settings.ToBoardSize(), HasModel(_settings.ToBoardSize()));
 
     /// <summary>Подписи доступных уровней.</summary>
-    public IReadOnlyList<string> LevelLabels => [.. LevelOptions.Select(LevelChooser.Label)];
+    /// <remarks>
+    /// Экземпляр списка меняется только вместе с содержимым: список выбора в интерфейсе подписан
+    /// на это свойство, и лишняя подмена сбрасывала бы выбранный уровень.
+    /// </remarks>
+    public IReadOnlyList<string> LevelLabels => _levelLabels;
+
+    /// <summary>Пересобирает подписи уровней, если их состав изменился.</summary>
+    private void RefreshLabels()
+    {
+        var labels = LevelOptions.Select(LevelChooser.Label).ToArray();
+
+        if (_levelLabels.SequenceEqual(labels, StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        _levelLabels = labels;
+        OnPropertyChanged(nameof(LevelLabels));
+    }
 
     /// <summary>Выбранный уровень: смена начинает новую партию.</summary>
     public int SelectedLevelIndex
@@ -210,12 +244,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             var options = LevelOptions;
 
-            if (value < 0 || value >= options.Count || value == SelectedLevelIndex)
+            if (value < 0 || value >= options.Count)
             {
                 return;
             }
 
-            StartWith(_settings.ToBoardSize(), options[value]);
+            // Сравниваем сами уровни, а не индексы: список мог быть пересобран, и тот же индекс
+            // теперь указывает на другой уровень. Совпал с текущим — партию не пересоздаём.
+            var level = options[value];
+
+            if (level == CurrentLevel)
+            {
+                return;
+            }
+
+            StartWith(_settings.ToBoardSize(), level);
         }
     }
 
@@ -492,6 +535,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <remarks>Свойства выводятся из одной партии, поэтому после хода меняются все сразу.</remarks>
     private void NotifyAll()
     {
+        RefreshLabels();
+
         foreach (var name in new[]
         {
             nameof(Board),
@@ -511,8 +556,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(Captures),
             nameof(Outcome),
             nameof(HasOutcome),
-            nameof(LevelOptions),
-            nameof(LevelLabels),
+            nameof(CurrentLevel),
             nameof(SelectedLevelIndex),
             nameof(SelectedSizeIndex),
             nameof(LevelHint),

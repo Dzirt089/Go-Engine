@@ -21,6 +21,35 @@ public sealed class NeuralLevelTests
     }
 
     [Fact]
+    public void Лестница_Сети_Состоит_Из_Трёх_Ступеней()
+    {
+        Assert.True(DifficultyLevel.Kyu1.NeedsNetwork);
+        Assert.True(DifficultyLevel.Dan1.NeedsNetwork);
+        Assert.True(DifficultyLevel.Dan5.NeedsNetwork);
+    }
+
+    [Fact]
+    public void Ступени_Лестницы_Идут_По_Возрастанию_Силы()
+    {
+        // Ранги номинальные, но порядок обязан совпадать с бюджетом: больше времени — сильнее.
+        Assert.True(DifficultyLevel.Kyu1.RankKyu > DifficultyLevel.Dan1.RankKyu);
+        Assert.True(DifficultyLevel.Dan1.RankKyu > DifficultyLevel.Dan5.RankKyu);
+        Assert.True(DifficultyLevel.Dan5.TimeBudget > DifficultyLevel.Dan1.TimeBudget);
+        Assert.True(DifficultyLevel.Dan1.TimeBudget > DifficultyLevel.Kyu1.TimeBudget);
+    }
+
+    [Fact]
+    public void Каждая_Ступень_Лестницы_Создаётся_На_Доске_С_Моделью()
+    {
+        foreach (var level in new[] { DifficultyLevel.Kyu1, DifficultyLevel.Dan1, DifficultyLevel.Dan5 })
+        {
+            var selector = level.CreateSelector(new Random(1), BoardSize.Size9, new FakeEvaluator(true), ModelsDirectory);
+
+            Assert.IsType<MctsMoveSelector>(selector);
+        }
+    }
+
+    [Fact]
     public void Уровень_Кю_Не_Требует_Сети()
     {
         Assert.False(DifficultyLevel.Kyu10.NeedsNetwork);

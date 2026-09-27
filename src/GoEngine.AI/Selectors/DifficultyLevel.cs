@@ -92,13 +92,23 @@ public sealed class DifficultyLevel : Enumeration
     public static DifficultyLevel Kyu5 { get; } =
         new(5, nameof(Kyu5), 5, SelectorKind.Mcts, 0, TimeSpan.FromMilliseconds(3000), MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default);
 
-    /// <summary>5 дан: сильнейший уровень — поиск с оценкой нейросети, две секунды на ход.</summary>
+    /// <summary>Лестница с нейросетью: чем больше времени на ход, тем сильнее игра.</summary>
     /// <remarks>
-    /// Ранг отрицательный, потому что Дан выше любого кю. Играет только на 19×19 и 13×13
-    /// и только с загруженной моделью (D-038).
+    /// Ранги номинальные: силу этих уровней внешним соперником не мерили, поэтому в интерфейсе
+    /// рядом с рангом всегда стоят движок и бюджет. Ступени различаются временем на ход —
+    /// сеть одна, а число просмотренных вариантов растёт с бюджетом. Играют только там, где есть
+    /// модель под размер доски (D-038, D-039).
     /// </remarks>
+    public static DifficultyLevel Kyu1 { get; } =
+        new(1, nameof(Kyu1), 1, SelectorKind.Neural, 0, TimeSpan.FromMilliseconds(600), MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default);
+
+    /// <summary>1 дан: средняя ступень лестницы с нейросетью.</summary>
+    public static DifficultyLevel Dan1 { get; } =
+        new(-1, nameof(Dan1), -1, SelectorKind.Neural, 0, TimeSpan.FromMilliseconds(1500), MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default);
+
+    /// <summary>5 дан: сильнейшая ступень — самый большой бюджет времени на ход.</summary>
     public static DifficultyLevel Dan5 { get; } =
-        new(-5, nameof(Dan5), -5, SelectorKind.Neural, 0, TimeSpan.FromMilliseconds(2000), MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default);
+        new(-5, nameof(Dan5), -5, SelectorKind.Neural, 0, TimeSpan.FromMilliseconds(4000), MctsConfig.DefaultUcb1C, 0, PlayoutConfig.Default);
 
     /// <summary>Создаёт селектор этого уровня.</summary>
     /// <param name="random">Источник случайности; в тестах — с фиксированным seed.</param>
