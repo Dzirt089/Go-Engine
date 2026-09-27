@@ -32,7 +32,7 @@ public interface IPositionEvaluator
     /// <param name="komi">Коми партии.</param>
     /// <param name="moves">Ходы партии — для плоскостей истории.</param>
     /// <returns>Вероятности ходов и шансы ходящего.</returns>
-    PositionEvaluation Evaluate(Board board, StoneColor toMove, Komi komi, IReadOnlyList<Move> moves);
+    public PositionEvaluation Evaluate(Board board, StoneColor toMove, Komi komi, IReadOnlyList<Move> moves);
 
     /// <summary>Загружает модель, подходящую для указанного размера доски.</summary>
     /// <param name="boardSize">Сторона доски: 9, 13 или 19.</param>
@@ -43,5 +43,5 @@ public interface IPositionEvaluator
     /// Возврат <c>false</c> — ожидаемый исход (профиля или файла нет), а не ошибка: решение
     /// об уровнях принимает вызывающий код.
     /// </remarks>
-    bool LoadModelForBoardSize(int boardSize, string modelsDirectory);
+    public bool LoadModelForBoardSize(int boardSize, string modelsDirectory);
 }

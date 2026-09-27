@@ -1,6 +1,8 @@
 using GoEngine.AI;
 using GoEngine.Core;
 
+using static GoEngine.Tests.TestPositions;
+
 namespace GoEngine.Tests;
 
 /// <summary>Тесты правил конца партии: движок не доедает свою территорию и вовремя пасует.</summary>
@@ -29,27 +31,6 @@ public sealed class EndgamePolicyTests
 
         return board.ApplyMove(Move.Play(new Point(8, 8), StoneColor.White));
     }
-
-    /// <summary>Строит позицию, где спасение своей группы возможно только внутри своей территории.</summary>
-    /// <returns>Доска: чёрный камень (4,4) в атари, его единственное дамэ (5,4) — своя территория.</returns>
-    private static Board RescuePosition() =>
-        new Board(BoardSize.Size9)
-            .ApplyMove(Move.Play(new Point(4, 4), StoneColor.Black))
-            .ApplyMove(Move.Play(new Point(4, 3), StoneColor.White))
-            .ApplyMove(Move.Play(new Point(4, 5), StoneColor.White))
-            .ApplyMove(Move.Play(new Point(3, 4), StoneColor.White))
-            .ApplyMove(Move.Play(new Point(5, 3), StoneColor.Black))
-            .ApplyMove(Move.Play(new Point(5, 5), StoneColor.Black))
-            .ApplyMove(Move.Play(new Point(6, 4), StoneColor.Black));
-
-    /// <summary>Строит позицию с захватом: чёрная группа в атари, у белых есть снимающий ход.</summary>
-    /// <returns>Доска: чёрные (0,0) и (1,0) в атари, белый ход (1,1) снимает группу.</returns>
-    private static Board CapturePosition() =>
-        new Board(BoardSize.Size9)
-            .ApplyMove(Move.Play(new Point(0, 0), StoneColor.Black))
-            .ApplyMove(Move.Play(new Point(1, 0), StoneColor.Black))
-            .ApplyMove(Move.Play(new Point(0, 1), StoneColor.White))
-            .ApplyMove(Move.Play(new Point(2, 0), StoneColor.White));
 
     /// <summary>Ход чёрных в (0,4): заполняет свою территорию и ничего не даёт.</summary>
     private static Move OwnTerritoryMove() => Move.Play(new Point(0, 4), StoneColor.Black);

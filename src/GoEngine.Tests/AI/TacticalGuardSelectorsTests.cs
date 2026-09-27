@@ -1,6 +1,8 @@
 using GoEngine.AI;
 using GoEngine.Core;
 
+using static GoEngine.Tests.TestPositions;
+
 namespace GoEngine.Tests;
 
 /// <summary>Тесты тактического предохранителя в селекторах: жалоба «кю подставляются под съедание».</summary>
@@ -14,24 +16,6 @@ public sealed class TacticalGuardSelectorsTests
     /// <summary>Сколько seeds проверяется: случайная ветка должна отсекать подстановку устойчиво.</summary>
     private const int Seeds = 30;
 
-    /// <summary>Позиция, где у чёрных есть ход в самоатари и безопасная альтернатива.</summary>
-    /// <returns>Доска: чёрные (2,2) и (3,2), белые вокруг.</returns>
-    private static Board SelfAtariPosition()
-    {
-        var board = new Board(BoardSize.Size9);
-
-        foreach (var point in new[] { (2, 2), (3, 2) })
-        {
-            board = board.ApplyMove(Move.Play(new Point((byte)point.Item1, (byte)point.Item2), StoneColor.Black));
-        }
-
-        foreach (var point in new[] { (1, 2), (2, 1), (3, 1), (4, 2), (3, 4), (4, 3) })
-        {
-            board = board.ApplyMove(Move.Play(new Point((byte)point.Item1, (byte)point.Item2), StoneColor.White));
-        }
-
-        return board;
-    }
 
     [Fact]
     public void Случайный_Ход_Mcts_Не_Подставляет_Группу()

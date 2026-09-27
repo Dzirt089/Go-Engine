@@ -20,6 +20,14 @@ public sealed partial class SettingsView : UserControl
     /// <summary>Уровни, показанные сейчас: зависят от доски и наличия модели (D-038).</summary>
     private LevelListView _levels = LevelListView.ForSettings(BoardSize.Size9, false);
 
+    /// <summary>Ответ на вопрос «есть ли модель для доски»: его даёт вызывающий.</summary>
+    /// <remarks>
+    /// По умолчанию читаются статические <c>App.Evaluator</c>/<c>App.ModelSizes</c> — так вид
+    /// работает, когда его создал XAML. Настольное окно и мобильный вид передают ответ модели
+    /// представления, чтобы наличие модели считалось в одном месте.
+    /// </remarks>
+    private Func<BoardSize, bool> _modelAvailable = DefaultModelAvailable;
+
     /// <summary>Служба обновления: создаётся один раз, <c>null</c> — голова её не настроила.</summary>
     private readonly UpdateService? _updates = global::GoEngine.App.App.CreateUpdateService();
 
@@ -86,14 +94,18 @@ public sealed partial class SettingsView : UserControl
 
     /// <summary>Заполняет поля значениями настроек.</summary>
     /// <param name="current">Настройки партии.</param>
+    /// <param name="modelAvailable">
+    /// Ответ на вопрос «есть ли модель для доски»; <c>null</c> — оставить прежний источник.
+    /// </param>
     /// <remarks>
     /// Нужен и конструктору, и тому, кто показывает уже созданный вид повторно: XAML создаёт
     /// <see cref="SettingsView"/> без аргументов, поэтому настройки передаются отдельно.
     /// </remarks>
-    public void Initialize(AppSettings current)
+    public void Initialize(AppSettings current, Func<BoardSize, bool>? modelAvailable = null)
     {
         ArgumentNullException.ThrowIfNull(current);
 
+        _modelAvailable = modelAvailable ?? _modelAvailable;
         Selected = current;
 
         if (this.FindControl<ComboBox>("SizeBox") is { } sizeBox)
@@ -106,8 +118,8 @@ public sealed partial class SettingsView : UserControl
 
         if (this.FindControl<ComboBox>("ColorBox") is { } colorBox)
         {
-            colorBox.ItemsSource = new List<string> { "Чёрные", "Белые" };
-            colorBox.SelectedIndex = current.ToPlayerColor() == StoneColor.Black ? 0 : 1;
+            colorBox.ItemsSource = StoneColorLabels.All;
+            colorBox.SelectedIndex = StoneColorLabels.IndexOf(current.ToPlayerColor());
         }
 
         if (this.FindControl<NumericUpDown>("KomiBox") is { } komiBox)
@@ -116,10 +128,10 @@ public sealed partial class SettingsView : UserControl
         }
     }
 
-    /// <summary>Есть ли модель для доски: без неё уровни Дан не предлагаются.</summary>
+    /// <summary>Наличие модели по статическим данным приложения: запасной источник ответа.</summary>
     /// <param name="size">Размер доски.</param>
     /// <returns><c>true</c>, если сеть загружена и для этого размера нашлась модель.</returns>
-    private static bool ModelAvailableFor(BoardSize size) =>
+    private static bool DefaultModelAvailable(BoardSize size) =>
         global::GoEngine.App.App.Evaluator is not null && global::GoEngine.App.App.ModelSizes.Contains(size.Value);
 
     /// <summary>Перестраивает список уровней и подставляет правило коми при смене размера доски.</summary>
@@ -159,7 +171,7 @@ public sealed partial class SettingsView : UserControl
     /// <param name="preferred">Желаемый уровень; недоступный заменяется на уровень сброса.</param>
     private void FillLevels(BoardSize size, DifficultyLevel preferred)
     {
-        _levels = LevelListView.ForSettings(size, ModelAvailableFor(size));
+        _levels = LevelListView.ForSettings(size, _modelAvailable(size));
 
         if (this.FindControl<ComboBox>("LevelBox") is not { } levelBox)
         {
@@ -184,8 +196,8 @@ public sealed partial class SettingsView : UserControl
     private void OnStartClick(object? sender, RoutedEventArgs e)
     {
         var size = SelectedSize();
-        var level = LevelChooser.Resolve(CurrentLevel(), size, ModelAvailableFor(size));
-        var color = SelectedIndex("ColorBox") == 1 ? StoneColor.White : StoneColor.Black;
+        var level = LevelChooser.Resolve(CurrentLevel(), size, _modelAvailable(size));
+        var color = StoneColorLabels.At(SelectedIndex("ColorBox"));
         var komi = this.FindControl<NumericUpDown>("KomiBox")?.Value ?? (decimal)Selected.Komi;
 
         Selected = AppSettings.From(size, level, color, new Komi((double)komi));

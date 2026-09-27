@@ -92,7 +92,7 @@ public static class LevelChooser
         if (level.NeedsNetwork)
         {
             return modelAvailableForSize
-                ? $"{Rank(level)} · нейросеть {size.Value}×{size.Value} · {Iterations(level, size)}"
+                ? $"{Rank(level)} · нейросеть {BoardSizes.Label(size)} · {Iterations(level, size)}"
                 : $"{Rank(level)} · нейросеть недоступна";
         }
 
@@ -101,7 +101,7 @@ public static class LevelChooser
         if (level.NeuralBudget is not null)
         {
             return modelAvailableForSize
-                ? $"{Rank(level)} · MCTS с сетью {size.Value}×{size.Value} · {Iterations(level, size)}"
+                ? $"{Rank(level)} · MCTS с сетью {BoardSizes.Label(size)} · {Iterations(level, size)}"
                 : $"{Rank(level)} · MCTS без сети · {Budget(level)}";
         }
 

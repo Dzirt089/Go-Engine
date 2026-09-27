@@ -8,6 +8,8 @@
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+      <!-- XML-документация обязательна: публичный член без <summary> ломает сборку. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

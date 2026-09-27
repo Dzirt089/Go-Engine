@@ -32,42 +32,8 @@ internal static class EvaluationReader
                 $"Сеть вернула политику короче доски: {raw.PolicyLogits.Length} значений на {count} ходов.");
         }
 
-        var policy = Softmax(raw.PolicyLogits, count);
+        var policy = Softmax.Over(raw.PolicyLogits, count);
 
         return new OnnxEvaluation(policy.AsReadOnly(), raw.ValueLogits.AsReadOnly(), raw.BoardArea);
-    }
-
-    /// <summary>Превращает логиты в вероятности.</summary>
-    /// <param name="logits">Логиты ходов всех каналов политики.</param>
-    /// <param name="count">Сколько значений брать из первого канала.</param>
-    /// <returns>Вероятности ходов: сумма равна единице с точностью float.</returns>
-    private static float[] Softmax(float[] logits, int count)
-    {
-        var probabilities = new float[count];
-        var max = float.NegativeInfinity;
-
-        for (var index = 0; index < count && index < logits.Length; index++)
-        {
-            max = Math.Max(max, logits[index]);
-        }
-
-        var sum = 0.0;
-
-        for (var index = 0; index < count && index < logits.Length; index++)
-        {
-            var value = Math.Exp(logits[index] - max);
-            probabilities[index] = (float)value;
-            sum += value;
-        }
-
-        if (sum > 0)
-        {
-            for (var index = 0; index < count; index++)
-            {
-                probabilities[index] = (float)(probabilities[index] / sum);
-            }
-        }
-
-        return probabilities;
     }
 }

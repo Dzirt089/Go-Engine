@@ -11,13 +11,13 @@ public interface IModelSource
     /// <summary>Есть ли файл в источнике.</summary>
     /// <param name="fileName">Имя файла модели.</param>
     /// <returns><c>true</c>, если файл доступен.</returns>
-    bool Contains(string fileName);
+    public bool Contains(string fileName);
 
     /// <summary>Открывает файл модели на чтение.</summary>
     /// <param name="fileName">Имя файла модели.</param>
     /// <returns>Поток с содержимым файла.</returns>
     /// <exception cref="FileNotFoundException">Файла в источнике нет.</exception>
-    Stream Open(string fileName);
+    public Stream Open(string fileName);
 
     /// <summary>Возвращает длину файла, если источник её знает.</summary>
     /// <param name="fileName">Имя файла модели.</param>
@@ -27,5 +27,5 @@ public interface IModelSource
     /// и его размер совпадает, копирование пропускается. Неизвестная длина означает
     /// «копировать всегда» — это медленнее, но никогда не оставит битую модель.
     /// </remarks>
-    long Length(string fileName);
+    public long Length(string fileName);
 }

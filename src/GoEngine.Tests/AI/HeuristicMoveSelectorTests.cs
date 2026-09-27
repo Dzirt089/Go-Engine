@@ -1,6 +1,8 @@
 using GoEngine.AI;
 using GoEngine.Core;
 
+using static GoEngine.Tests.TestPositions;
+
 namespace GoEngine.Tests;
 
 /// <summary>Тесты эвристического селектора и уровней 30–20 кю — <c>AGENTS_GO.md</c>, п. 7.</summary>
@@ -151,33 +153,4 @@ public sealed class HeuristicMoveSelectorTests
         Assert.True(wins >= Games / 2, $"Kyu20 победил в {wins} партиях из {Games}.");
     }
 
-    /// <summary>Строит позицию, где чёрная группа в атари и чёрные спасают её ходом в (1,2).</summary>
-    /// <returns>Партия, в которой ход чёрных.</returns>
-    private static GameState AtariToRescue()
-    {
-        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
-        _ = game.Play(Move.Play(new Point(1, 1), StoneColor.Black));
-        _ = game.Play(Move.Play(new Point(0, 1), StoneColor.White));
-        _ = game.Play(Move.Play(new Point(5, 5), StoneColor.Black));
-        _ = game.Play(Move.Play(new Point(2, 1), StoneColor.White));
-        _ = game.Play(Move.Play(new Point(5, 6), StoneColor.Black));
-        _ = game.Play(Move.Play(new Point(1, 0), StoneColor.White));
-
-        return game;
-    }
-
-    /// <summary>Строит позицию, где белый камень в атари и чёрные снимают его ходом в (1,2).</summary>
-    /// <returns>Партия, в которой ход чёрных.</returns>
-    private static GameState AtariToCapture()
-    {
-        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
-        _ = game.Play(Move.Play(new Point(0, 1), StoneColor.Black));
-        _ = game.Play(Move.Play(new Point(1, 1), StoneColor.White));
-        _ = game.Play(Move.Play(new Point(2, 1), StoneColor.Black));
-        _ = game.Play(Move.Play(new Point(5, 5), StoneColor.White));
-        _ = game.Play(Move.Play(new Point(1, 0), StoneColor.Black));
-        _ = game.Play(Move.Play(new Point(5, 6), StoneColor.White));
-
-        return game;
-    }
 }

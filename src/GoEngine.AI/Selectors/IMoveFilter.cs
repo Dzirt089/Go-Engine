@@ -14,7 +14,7 @@ public interface IMoveFilter
     /// <param name="moves">Ходы-кандидаты.</param>
     /// <returns>Допустимые ходы и признак, что ограничений нет.</returns>
     /// <exception cref="ArgumentNullException">Позиция или список ходов не заданы.</exception>
-    MoveFilterResult Apply(Board board, IReadOnlyList<Move> moves);
+    public MoveFilterResult Apply(Board board, IReadOnlyList<Move> moves);
 }
 
 /// <summary>Что вернул фильтр ходов: какие ходы допустимы.</summary>

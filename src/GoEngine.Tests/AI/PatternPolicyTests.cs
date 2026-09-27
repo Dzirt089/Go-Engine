@@ -1,6 +1,8 @@
 using GoEngine.AI;
 using GoEngine.Core;
 
+using static GoEngine.Tests.TestPositions;
+
 namespace GoEngine.Tests;
 
 /// <summary>Тесты паттерновой политики playout'ов — <c>DECISIONS.md</c> D-019.</summary>
@@ -183,21 +185,6 @@ public sealed class PatternPolicyTests
         Assert.Equal(
             pattern.SelectMove(board, StoneColor.Black, new Random(Seed)),
             playout.SelectMove(board, StoneColor.Black, new Random(Seed)));
-    }
-
-    /// <summary>Строит позицию из перечисленных камней.</summary>
-    /// <param name="stones">Точки и цвета камней.</param>
-    /// <returns>Доска 9×9 с этими камнями.</returns>
-    private static Board StoneGrid(params (int X, int Y, StoneColor Color)[] stones)
-    {
-        var board = new Board(BoardSize.Size9);
-
-        foreach (var (x, y, color) in stones)
-        {
-            board = board.ApplyMove(Move.Play(new Point((byte)x, (byte)y), color));
-        }
-
-        return board;
     }
 
     /// <summary>Строит позицию, где белый камень в атари и чёрные снимают его ходом в (1,2).</summary>

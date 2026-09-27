@@ -1,6 +1,8 @@
 using GoEngine.AI;
 using GoEngine.Core;
 
+using static GoEngine.Tests.TestPositions;
+
 namespace GoEngine.Tests;
 
 /// <summary>Тесты фильтра ходов: тактический предохранитель вынесен из селекторов — D-051.</summary>
@@ -10,24 +12,6 @@ namespace GoEngine.Tests;
 /// </remarks>
 public sealed class MoveFilterTests
 {
-    /// <summary>Позиция, где у чёрных есть ход в самоатари и безопасная альтернатива.</summary>
-    /// <returns>Доска: чёрные (2,2) и (3,2), белые вокруг.</returns>
-    private static Board SelfAtariPosition()
-    {
-        var board = new Board(BoardSize.Size9);
-
-        foreach (var point in new[] { (2, 2), (3, 2) })
-        {
-            board = board.ApplyMove(Move.Play(new Point((byte)point.Item1, (byte)point.Item2), StoneColor.Black));
-        }
-
-        foreach (var point in new[] { (1, 2), (2, 1), (3, 1), (4, 2), (3, 4), (4, 3) })
-        {
-            board = board.ApplyMove(Move.Play(new Point((byte)point.Item1, (byte)point.Item2), StoneColor.White));
-        }
-
-        return board;
-    }
 
     [Fact]
     public void Фильтр_Отсекает_Подстановку_И_Оставляет_Безопасный_Ход()

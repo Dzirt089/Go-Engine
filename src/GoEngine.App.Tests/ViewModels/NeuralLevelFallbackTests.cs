@@ -3,6 +3,8 @@ using GoEngine.App.Services;
 using GoEngine.App.ViewModels;
 using GoEngine.Core;
 
+using static GoEngine.App.Tests.TestViewModel;
+
 namespace GoEngine.App.Tests;
 
 /// <summary>Тесты уровней Дан в интерфейсе — T-034, D-038.</summary>
@@ -12,9 +14,6 @@ namespace GoEngine.App.Tests;
 /// </remarks>
 public sealed class NeuralLevelFallbackTests
 {
-    /// <summary>Зерно проверок: партия должна повторяться от запуска к запуску.</summary>
-    private const int Seed = 20260926;
-
     [Fact]
     public void Уровень_Дан_Без_Модели_Не_Срывает_Партию()
     {
@@ -44,22 +43,5 @@ public sealed class NeuralLevelFallbackTests
         var model = new MainViewModel(settings, new Random(Seed), new FakeEvaluator());
 
         Assert.Equal("1", model.MoveNumber);
-    }
-
-    /// <summary>Подставная оценка позиции: тестам не нужна модель.</summary>
-    private sealed class FakeEvaluator : IPositionEvaluator
-    {
-        /// <inheritdoc />
-        public PositionEvaluation Evaluate(Board board, StoneColor toMove, Komi komi, IReadOnlyList<Move> moves)
-        {
-            var area = board.Size.Area;
-            var policy = new double[area + 1];
-            policy[0] = 1.0;
-
-            return new PositionEvaluation(policy, 0.5, area);
-        }
-
-        /// <inheritdoc />
-        public bool LoadModelForBoardSize(int boardSize, string modelsDirectory) => true;
     }
 }

@@ -264,7 +264,7 @@ internal static class CheckModes
         var model = new MainViewModel(AppSettings.Default, new Random(SeedForChecks));
         var failures = 0;
 
-        failures += Expect(model.ToMove == "Чёрные", "игрок чёрными ходит первым");
+        failures += Expect(model.ToMove == StoneColorLabels.Label(StoneColor.Black), "игрок чёрными ходит первым");
         failures += Expect(model.MoveNumber == "0", "номер хода в начале равен нулю");
         failures += Expect(model.Status == "Идёт", "партия идёт");
         failures += Expect(model.LastMove is null, "последнего хода ещё нет");
@@ -272,10 +272,12 @@ internal static class CheckModes
 
         failures += Expect(model.PlayMove(new GoPoint(4, 4)), "ход игрока принят");
         failures += Expect(model.MoveNumber == "2", "AI ответил своим ходом");
-        failures += Expect(model.ToMove == "Чёрные", "после ответа AI снова ход игрока");
+        failures += Expect(model.ToMove == StoneColorLabels.Label(StoneColor.Black), "после ответа AI снова ход игрока");
         failures += Expect(model.LastMove is not null, "последний ход виден");
         failures += Expect(!model.PlayMove(new GoPoint(4, 4)), "ход в занятую точку отклонён");
-        failures += Expect(model.Score.Contains("Чёрные", StringComparison.Ordinal), "счёт посчитан");
+        failures += Expect(
+            model.Score.Contains(StoneColorLabels.Label(StoneColor.Black), StringComparison.Ordinal),
+            "счёт посчитан");
         failures += Expect(model.Board.At(new GoPoint(4, 4)) == StoneColor.Black, "камень стоит на доске");
 
         // Отмена убирает ход игрока вместе с ответом AI, возврат — восстанавливает.

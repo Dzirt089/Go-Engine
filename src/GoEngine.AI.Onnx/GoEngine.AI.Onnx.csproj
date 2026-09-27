@@ -2,6 +2,11 @@
 
   <!-- Общие свойства — в Directory.Build.props. Слой ONNX ссылается на Core и AI -->
 
+  <PropertyGroup>
+    <!-- XML-документация обязательна: публичный член без <summary> ломает сборку. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.ML.OnnxRuntime" />
   </ItemGroup>

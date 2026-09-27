@@ -13,7 +13,7 @@ using GoEngine.Core;
 /// рядом с камнями, а запасной случайный ход ищется пробами точек: полный перебор всех ходов
 /// на каждом ходу playout'а стоил бы сотни проверок правил.
 /// Время в политике не нужно: выбор хода — это один проход по кандидатам, поэтому
-/// <c>TimeProvider</c> здесь не принимается (в отличие от <see cref="Mcts.MctsMoveSelector"/>).
+/// <c>TimeProvider</c> здесь не принимается (в отличие от <see cref="MctsMoveSelector"/>).
 /// </remarks>
 public sealed class PatternPolicy
 {

@@ -14,6 +14,7 @@ public static class AiFactory
     /// <param name="random">Источник случайности; в тестах — с фиксированным seed.</param>
     /// <param name="boardSize">Размер доски партии: уровни с сетью играют только на больших.</param>
     /// <param name="evaluator">Оценка позиции нейросетью: нужна уровням с сетью.</param>
+    /// <param name="modelsDirectory">Каталог с файлами моделей: из него оценщик берёт модель для доски.</param>
     /// <returns>Селектор, играющий на уровне.</returns>
     /// <exception cref="ArgumentNullException">Уровень или источник случайности не задан.</exception>
     /// <exception cref="AiException">У уровня неизвестный вид селектора.</exception>

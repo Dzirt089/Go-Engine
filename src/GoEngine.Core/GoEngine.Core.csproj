@@ -2,4 +2,9 @@
 
   <!-- Общие свойства — в Directory.Build.props. Core не ссылается ни на что, кроме System.* -->
 
+  <PropertyGroup>
+    <!-- XML-документация обязательна: публичный член без <summary> ломает сборку. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
 </Project>

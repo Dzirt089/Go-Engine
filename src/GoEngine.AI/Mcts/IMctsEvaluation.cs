@@ -15,12 +15,12 @@ public interface IMctsEvaluation
     /// <remarks>
     /// Приоритеты меняют способ спуска: с ними дерево считает PUCT, без них — UCB1 с поправкой RAVE.
     /// </remarks>
-    bool GivesPriors { get; }
+    public bool GivesPriors { get; }
 
     /// <summary>Оценивает позицию узла и передаёт оценку по дереву.</summary>
     /// <param name="tree">Дерево поиска, которому принадлежит узел.</param>
     /// <param name="node">Узел, чья позиция оценивается.</param>
     /// <param name="history">Ходы партии до корня дерева: нужны сети для плоскостей истории.</param>
     /// <param name="komi">Коми, по которому считаются доигрывания.</param>
-    void Evaluate(MctsTree tree, MctsNode node, IReadOnlyList<Move> history, Komi komi);
+    public void Evaluate(MctsTree tree, MctsNode node, IReadOnlyList<Move> history, Komi komi);
 }

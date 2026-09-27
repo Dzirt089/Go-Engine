@@ -1,6 +1,8 @@
 using GoEngine.AI;
 using GoEngine.Core;
 
+using static GoEngine.Tests.TestPositions;
+
 namespace GoEngine.Tests;
 
 /// <summary>Тесты остановки движка в конце партии: селекторы пасуют, а не доедают свои очки.</summary>
@@ -132,25 +134,6 @@ public sealed class EndgameSelectionTests
 
         Assert.True(result.IsSuccess, $"Ход {(move.Type == MoveType.Pass ? "пас" : move.Point.ToString())} отклонён: {result.Error}");
     }
-
-    /// <summary>Строит позицию с захватом: чёрная группа в атари, у белых есть снимающий ход.</summary>
-    private static Board CapturePosition() =>
-        new Board(BoardSize.Size9)
-            .ApplyMove(Move.Play(P(0, 0), StoneColor.Black))
-            .ApplyMove(Move.Play(P(1, 0), StoneColor.Black))
-            .ApplyMove(Move.Play(P(0, 1), StoneColor.White))
-            .ApplyMove(Move.Play(P(2, 0), StoneColor.White));
-
-    /// <summary>Строит позицию, где спасти свою группу можно только внутри своей территории.</summary>
-    private static Board RescuePosition() =>
-        new Board(BoardSize.Size9)
-            .ApplyMove(Move.Play(P(4, 4), StoneColor.Black))
-            .ApplyMove(Move.Play(P(4, 3), StoneColor.White))
-            .ApplyMove(Move.Play(P(4, 5), StoneColor.White))
-            .ApplyMove(Move.Play(P(3, 4), StoneColor.White))
-            .ApplyMove(Move.Play(P(5, 3), StoneColor.Black))
-            .ApplyMove(Move.Play(P(5, 5), StoneColor.Black))
-            .ApplyMove(Move.Play(P(6, 4), StoneColor.Black));
 
     [Fact]
     public void Поделённая_Доска_Собрана_Правильно()

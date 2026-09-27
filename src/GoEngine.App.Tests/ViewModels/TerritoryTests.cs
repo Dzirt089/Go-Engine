@@ -98,13 +98,9 @@ public sealed class TerritoryTests
             ],
             null);
 
-    /// <summary>Создаёт модель представления с фиксированным зерном.</summary>
+    /// <summary>Создаёт модель представления со случайным соперником: партия в тесте идёт быстро.</summary>
     /// <param name="color">Цвет игрока.</param>
-    /// <returns>Модель представления партии 9×9.</returns>
-    private static MainViewModel Create(StoneColor? color = null)
-    {
-        var settings = AppSettings.From(Size, DifficultyLevel.Kyu30, color ?? StoneColor.Black, Komi.For9x9);
-
-        return new MainViewModel(settings, new Random(20260926));
-    }
+    /// <returns>Модель представления партии 9×9; построение — общее для тестов.</returns>
+    private static MainViewModel Create(StoneColor? color = null) =>
+        TestViewModel.Create(color, DifficultyLevel.Kyu30, size: Size);
 }

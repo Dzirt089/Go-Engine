@@ -30,21 +30,8 @@ public readonly record struct OnnxEvaluation(IReadOnlyList<float> Policy, IReadO
     public int PassIndex => BoardArea;
 
     /// <summary>Вероятность победы ходящего.</summary>
-    public double WinProbability
-    {
-        get
-        {
-            if (Value.Count == 0)
-            {
-                return 0.0;
-            }
-
-            var max = Value.Max();
-            var sum = Value.Sum(logit => Math.Exp(logit - max));
-
-            return sum > 0 ? Math.Exp(Value[0] - max) / sum : 0.0;
-        }
-    }
+    /// <remarks>Считается общим мягким максимумом — тем же, что и политика (<see cref="Softmax"/>).</remarks>
+    public double WinProbability => Softmax.ProbabilityOfFirst(Value);
 
     /// <summary>Ход с наибольшей вероятностью.</summary>
     /// <returns>Индекс хода: точка доски или пас.</returns>

@@ -123,7 +123,7 @@ public sealed partial class BoardView : UserControl
             return;
         }
 
-        _settingsView?.Initialize(_settings);
+        _settingsView?.Initialize(_settings, ViewModel.HasModelFor);
 
         if (_overlay is not null)
         {

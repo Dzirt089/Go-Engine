@@ -2,6 +2,11 @@
 
   <!-- Общие свойства — в Directory.Build.props. AI ссылается только на Core -->
 
+  <PropertyGroup>
+    <!-- XML-документация обязательна: публичный член без <summary> ломает сборку. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\GoEngine.Core\GoEngine.Core.csproj" />
   </ItemGroup>

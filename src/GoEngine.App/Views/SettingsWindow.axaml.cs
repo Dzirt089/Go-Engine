@@ -21,7 +21,10 @@ public sealed partial class SettingsWindow : Window
 
     /// <summary>Создаёт окно настроек с текущими значениями.</summary>
     /// <param name="current">Текущие настройки партии.</param>
-    public SettingsWindow(AppSettings current)
+    /// <param name="modelAvailable">
+    /// Ответ на вопрос «есть ли модель для доски»; <c>null</c> — вид берёт статические данные.
+    /// </param>
+    public SettingsWindow(AppSettings current, Func<BoardSize, bool>? modelAvailable = null)
     {
         ArgumentNullException.ThrowIfNull(current);
 
@@ -30,7 +33,7 @@ public sealed partial class SettingsWindow : Window
         _view = this.FindControl<SettingsView>("SettingsArea")
             ?? throw new DomainException("В окне настроек нет вида настроек: разметка повреждена.");
 
-        _view.Initialize(current);
+        _view.Initialize(current, modelAvailable);
         _view.Accepted += (_, _) => Close(true);
         _view.Cancelled += (_, _) => Close(false);
     }

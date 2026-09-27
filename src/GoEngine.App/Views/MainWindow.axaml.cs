@@ -1,8 +1,8 @@
 using System.Threading.Tasks;
 using Avalonia.Controls;
-using Avalonia.Platform.Storage;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform.Storage;
 using GoEngine.App.Services;
 using GoEngine.App.ViewModels;
 using GoEngine.Core;
@@ -85,7 +85,9 @@ public sealed partial class MainWindow : Window
     /// <returns>Задача показа диалога.</returns>
     private async Task OpenSettingsAsync()
     {
-        var dialog = new SettingsWindow(_settings);
+        // Наличие модели считает модель представления: у неё те же оценщик и набор размеров,
+        // что у приложения, но окно не читает статические поля само (D-059).
+        var dialog = new SettingsWindow(_settings, ViewModel.HasModelFor);
         var accepted = await dialog.ShowDialog<bool>(this);
 
         if (!accepted)

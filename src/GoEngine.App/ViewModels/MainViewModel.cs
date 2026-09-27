@@ -74,7 +74,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     /// <summary>Кто ходит: «Чёрные» или «Белые».</summary>
-    public string ToMove => _game.ToMove == StoneColor.Black ? "Чёрные" : "Белые";
+    public string ToMove => StoneColorLabels.Label(_game.ToMove);
 
     /// <summary>Номер последнего хода.</summary>
     public string MoveNumber => _game.MoveNumber.ToString(CultureInfo.InvariantCulture);
@@ -116,7 +116,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             if (level.NeedsNetwork)
             {
-                return HasModel(_settings.ToBoardSize())
+                return HasModelFor(_settings.ToBoardSize())
                     ? $"нейросеть {BoardSizes.Label(_settings.ToBoardSize())}"
                     : "нейросеть недоступна";
             }
@@ -134,13 +134,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <remarks>Подпись собирает <see cref="LevelChooser.Describe"/>: ранг номинальный, поэтому
     /// рядом всегда стоят движок и бюджет, а для сети — ещё и размер доски.</remarks>
     public string LevelDescription =>
-        LevelChooser.Describe(CurrentLevel, _settings.ToBoardSize(), HasModel(_settings.ToBoardSize()));
+        LevelChooser.Describe(CurrentLevel, _settings.ToBoardSize(), HasModelFor(_settings.ToBoardSize()));
 
     /// <summary>Уровень, которым играет партия прямо сейчас.</summary>
     public DifficultyLevel CurrentLevel => _settings.ToDifficultyLevel();
 
     /// <summary>Цвет игрока словами.</summary>
-    public string PlayerColor => _settings.ToPlayerColor() == StoneColor.Black ? "Чёрные" : "Белые";
+    public string PlayerColor => StoneColorLabels.Label(_settings.ToPlayerColor());
 
     /// <summary>Сколько чёрных камней снято за партию.</summary>
     public int CapturedBlack => _capturedBlack;
@@ -248,7 +248,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             var size = BoardSizes.At(value);
 
-            StartWith(size, LevelChooser.Resolve(_settings.ToDifficultyLevel(), size, HasModel(size)));
+            StartWith(size, LevelChooser.Resolve(_settings.ToDifficultyLevel(), size, HasModelFor(size)));
         }
     }
 
@@ -256,7 +256,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <remarks>Список собирает <see cref="LevelListView"/>, состав считает <see cref="LevelChooser"/>:
     /// он знает про наличие модели (D-038, D-039).</remarks>
     public IReadOnlyList<DifficultyLevel> LevelOptions =>
-        LevelListView.ForGame(_settings.ToBoardSize(), HasModel(_settings.ToBoardSize())).Levels;
+        LevelListView.ForGame(_settings.ToBoardSize(), HasModelFor(_settings.ToBoardSize())).Levels;
 
     /// <summary>Подписи доступных уровней.</summary>
     /// <remarks>
@@ -274,7 +274,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void RefreshLabels()
     {
         var size = _settings.ToBoardSize();
-        var labels = LevelListView.ForGame(size, HasModel(size)).Labels;
+        var labels = LevelListView.ForGame(size, HasModelFor(size)).Labels;
 
         if (_levelLabels.SequenceEqual(labels, StringComparer.Ordinal))
         {
@@ -332,7 +332,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             var size = _settings.ToBoardSize();
 
-            if (HasModel(size))
+            if (HasModelFor(size))
             {
                 return null;
             }
@@ -349,7 +349,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Есть ли модель для этой доски.</summary>
     /// <param name="size">Сторона доски.</param>
     /// <returns><c>true</c>, если нейросеть загружена и для размера есть файл модели.</returns>
-    private bool HasModel(BoardSize size) => _evaluator is not null && _modelSizes.Contains(size.Value);
+    /// <remarks>
+    /// Открыт видам: экран настроек получает этот ответ вместо собственного чтения статических
+    /// <c>App.Evaluator</c>/<c>App.ModelSizes</c>, чтобы наличие модели считалось в одном месте.
+    /// </remarks>
+    public bool HasModelFor(BoardSize size) => _evaluator is not null && _modelSizes.Contains(size.Value);
 
     /// <summary>Начинает партию с выбранными доской и уровнем.</summary>
     /// <param name="size">Сторона доски.</param>

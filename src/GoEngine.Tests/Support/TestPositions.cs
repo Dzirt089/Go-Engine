@@ -182,4 +182,89 @@ internal static class TestPositions
             .ApplyMove(Move.Play(new Point(3, 2), StoneColor.White))
             .ApplyMove(Move.Play(new Point(3, 3), StoneColor.White))
             .ApplyMove(Move.Play(new Point(3, 4), StoneColor.White));
+
+    /// <summary>Строит позицию, где у чёрных есть ход в самоатари и безопасная альтернатива.</summary>
+    /// <returns>Доска 9×9: чёрные (2,2) и (3,2), белые вокруг.</returns>
+    public static Board SelfAtariPosition()
+    {
+        var board = new Board(BoardSize.Size9);
+
+        foreach (var point in new[] { (2, 2), (3, 2) })
+        {
+            board = board.ApplyMove(Move.Play(new Point((byte)point.Item1, (byte)point.Item2), StoneColor.Black));
+        }
+
+        foreach (var point in new[] { (1, 2), (2, 1), (3, 1), (4, 2), (3, 4), (4, 3) })
+        {
+            board = board.ApplyMove(Move.Play(new Point((byte)point.Item1, (byte)point.Item2), StoneColor.White));
+        }
+
+        return board;
+    }
+
+    /// <summary>Строит позицию с захватом: чёрная группа в атари, у белых есть снимающий ход.</summary>
+    /// <returns>Доска: чёрные (0,0) и (1,0) в атари, белый ход (1,1) снимает группу.</returns>
+    public static Board CapturePosition() =>
+        new Board(BoardSize.Size9)
+            .ApplyMove(Move.Play(new Point(0, 0), StoneColor.Black))
+            .ApplyMove(Move.Play(new Point(1, 0), StoneColor.Black))
+            .ApplyMove(Move.Play(new Point(0, 1), StoneColor.White))
+            .ApplyMove(Move.Play(new Point(2, 0), StoneColor.White));
+
+    /// <summary>Строит позицию, где спасение своей группы возможно только внутри своей территории.</summary>
+    /// <returns>Доска: чёрный камень (4,4) в атари, его единственное дамэ (5,4) — своя территория.</returns>
+    public static Board RescuePosition() =>
+        new Board(BoardSize.Size9)
+            .ApplyMove(Move.Play(new Point(4, 4), StoneColor.Black))
+            .ApplyMove(Move.Play(new Point(4, 3), StoneColor.White))
+            .ApplyMove(Move.Play(new Point(4, 5), StoneColor.White))
+            .ApplyMove(Move.Play(new Point(3, 4), StoneColor.White))
+            .ApplyMove(Move.Play(new Point(5, 3), StoneColor.Black))
+            .ApplyMove(Move.Play(new Point(5, 5), StoneColor.Black))
+            .ApplyMove(Move.Play(new Point(6, 4), StoneColor.Black));
+
+    /// <summary>Строит позицию, где белый камень в атари и чёрные снимают его ходом в (1,2).</summary>
+    /// <returns>Партия, в которой ход чёрных.</returns>
+    public static GameState AtariToCapture()
+    {
+        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+        _ = game.Play(Move.Play(new Point(0, 1), StoneColor.Black));
+        _ = game.Play(Move.Play(new Point(1, 1), StoneColor.White));
+        _ = game.Play(Move.Play(new Point(2, 1), StoneColor.Black));
+        _ = game.Play(Move.Play(new Point(5, 5), StoneColor.White));
+        _ = game.Play(Move.Play(new Point(1, 0), StoneColor.Black));
+        _ = game.Play(Move.Play(new Point(5, 6), StoneColor.White));
+
+        return game;
+    }
+
+    /// <summary>Строит позицию, где чёрная группа в атари и чёрные спасают её ходом в (1,2).</summary>
+    /// <returns>Партия, в которой ход чёрных.</returns>
+    public static GameState AtariToRescue()
+    {
+        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+        _ = game.Play(Move.Play(new Point(1, 1), StoneColor.Black));
+        _ = game.Play(Move.Play(new Point(0, 1), StoneColor.White));
+        _ = game.Play(Move.Play(new Point(5, 5), StoneColor.Black));
+        _ = game.Play(Move.Play(new Point(2, 1), StoneColor.White));
+        _ = game.Play(Move.Play(new Point(5, 6), StoneColor.Black));
+        _ = game.Play(Move.Play(new Point(1, 0), StoneColor.White));
+
+        return game;
+    }
+
+    /// <summary>Строит позицию из перечисленных камней.</summary>
+    /// <param name="stones">Точки и цвета камней.</param>
+    /// <returns>Доска 9×9 с этими камнями.</returns>
+    public static Board StoneGrid(params (int X, int Y, StoneColor Color)[] stones)
+    {
+        var board = new Board(BoardSize.Size9);
+
+        foreach (var (x, y, color) in stones)
+        {
+            board = board.ApplyMove(Move.Play(new Point((byte)x, (byte)y), color));
+        }
+
+        return board;
+    }
 }

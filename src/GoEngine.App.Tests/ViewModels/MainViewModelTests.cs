@@ -3,6 +3,8 @@ using GoEngine.App.Services;
 using GoEngine.App.ViewModels;
 using GoEngine.Core;
 
+using static GoEngine.App.Tests.TestViewModel;
+
 namespace GoEngine.App.Tests;
 
 /// <summary>Тесты модели представления партии: пас, снятые камни, выбор доски и уровня.</summary>
@@ -12,9 +14,6 @@ namespace GoEngine.App.Tests;
 /// </remarks>
 public sealed class MainViewModelTests
 {
-    /// <summary>Зерно проверок: партия должна повторяться от запуска к запуску.</summary>
-    private const int Seed = 20260926;
-
     [Fact]
     public void Пас_Передаёт_Ход_И_Получает_Ответ_AI()
     {
@@ -321,47 +320,8 @@ public sealed class MainViewModelTests
         Assert.Equal(model.SelectedLevelIndex, model.LevelOptions.ToList().IndexOf(DifficultyLevel.Dan5));
     }
 
-    /// <summary>Создаёт модель представления для теста.</summary>
-    /// <param name="color">Цвет игрока; по умолчанию чёрные.</param>
-    /// <param name="level">Уровень AI; по умолчанию 20 кю — поиск без сети.</param>
-    /// <param name="modelSizes">Стороны доски, для которых есть модель.</param>
-    /// <returns>Модель представления на доске 9×9.</returns>
-    private static MainViewModel Create(
-        StoneColor? color = null,
-        DifficultyLevel? level = null,
-        IReadOnlySet<int>? modelSizes = null,
-        BoardSize? size = null)
-    {
-        var settings = AppSettings.From(
-            size ?? BoardSize.Size9,
-            level ?? DifficultyLevel.Kyu20,
-            color ?? StoneColor.Black,
-            Komi.For(size ?? BoardSize.Size9));
-
-        return modelSizes is null
-            ? new MainViewModel(settings, new Random(Seed))
-            : new MainViewModel(settings, new Random(Seed), new FakeEvaluator(), modelSizes);
-    }
-
     /// <summary>Строит партию из двух пасов: по правилам она завершена.</summary>
     /// <returns>Партия с двумя пасами.</returns>
     private static SgfGame TwoPasses() =>
         new(BoardSize.Size9, Komi.For9x9, [Move.Pass(StoneColor.Black), Move.Pass(StoneColor.White)], null);
-
-    /// <summary>Подставная оценка позиции: тестам не нужна модель.</summary>
-    private sealed class FakeEvaluator : IPositionEvaluator
-    {
-        /// <inheritdoc />
-        public PositionEvaluation Evaluate(Board board, StoneColor toMove, Komi komi, IReadOnlyList<Move> moves)
-        {
-            var area = board.Size.Area;
-            var policy = new double[area + 1];
-            policy[0] = 1.0;
-
-            return new PositionEvaluation(policy, 0.5, area);
-        }
-
-        /// <inheritdoc />
-        public bool LoadModelForBoardSize(int boardSize, string modelsDirectory) => true;
-    }
 }

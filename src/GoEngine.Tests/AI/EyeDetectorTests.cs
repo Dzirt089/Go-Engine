@@ -1,6 +1,8 @@
 using GoEngine.AI;
 using GoEngine.Core;
 
+using static GoEngine.Tests.TestPositions;
+
 namespace GoEngine.Tests;
 
 /// <summary>Тесты распознавания глаз и eye-safe playout — <c>DECISIONS.md</c> D-013, D-016.</summary>
@@ -205,21 +207,6 @@ public sealed class EyeDetectorTests
         }
 
         Assert.All(played, result => Assert.True(result.IsSuccess));
-    }
-
-    /// <summary>Строит позицию из перечисленных камней.</summary>
-    /// <param name="stones">Точки и цвета камней.</param>
-    /// <returns>Доска 9×9 с этими камнями.</returns>
-    private static Board StoneGrid(params (int X, int Y, StoneColor Color)[] stones)
-    {
-        var board = new Board(BoardSize.Size9);
-
-        foreach (var (x, y, color) in stones)
-        {
-            board = board.ApplyMove(Move.Play(new Point((byte)x, (byte)y), color));
-        }
-
-        return board;
     }
 
     /// <summary>Заполняет доску чёрными камнями, оставляя пустыми два угла — глаза чёрных.</summary>

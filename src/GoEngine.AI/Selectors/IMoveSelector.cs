@@ -11,10 +11,10 @@ namespace GoEngine.AI;
 public interface IMoveSelector
 {
     /// <summary>Имя селектора для UI и логов партии.</summary>
-    string Name { get; }
+    public string Name { get; }
 
     /// <summary>Выбирает ход в текущей позиции партии.</summary>
     /// <param name="state">Партия, в которой нужно сделать ход.</param>
     /// <returns>Легальный ход за цвет <see cref="GameState.ToMove"/>.</returns>
-    Move SelectMove(GameState state);
+    public Move SelectMove(GameState state);
 }

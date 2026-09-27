@@ -14,9 +14,6 @@ namespace GoEngine.App.Tests;
 /// </remarks>
 public sealed class UndoTests
 {
-    /// <summary>Зерно проверок: партия должна повторяться от запуска к запуску.</summary>
-    private const int Seed = 20260926;
-
     /// <summary>Сколько ходов делает партия в проверках: больше лимита даже для 19×19.</summary>
     private const int MoveLimit = 400;
 
@@ -126,13 +123,9 @@ public sealed class UndoTests
     private static string Fingerprint(MainViewModel model) =>
         string.Join('|', model.Board, model.MoveNumber, model.ToMove, model.Status, model.Score, model.Captures);
 
-    /// <summary>Создаёт модель представления с фиксированным зерном.</summary>
+    /// <summary>Создаёт модель представления со случайным соперником: партия в тесте идёт быстро.</summary>
     /// <param name="color">Цвет игрока.</param>
-    /// <returns>Модель представления партии 9×9 со случайным соперником: партия идёт быстро.</returns>
-    private static MainViewModel Create(StoneColor? color = null)
-    {
-        var settings = AppSettings.From(BoardSize.Size9, DifficultyLevel.Kyu30, color ?? StoneColor.Black, Komi.For9x9);
-
-        return new MainViewModel(settings, new Random(Seed));
-    }
+    /// <returns>Модель представления партии 9×9; построение — общее для тестов.</returns>
+    private static MainViewModel Create(StoneColor? color = null) =>
+        TestViewModel.Create(color, DifficultyLevel.Kyu30);
 }
