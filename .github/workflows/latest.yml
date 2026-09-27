@@ -27,6 +27,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # gh определяет репозиторий по git-каталогу, поэтому checkout здесь обязателен:
+      # без него команды gh падают с «not a git repository», хотя файлы уже собраны.
+      - uses: actions/checkout@v5
+
       - name: Сбор файлов
         uses: actions/download-artifact@v4
         with:
