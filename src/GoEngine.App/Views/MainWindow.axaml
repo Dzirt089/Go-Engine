@@ -5,10 +5,10 @@
         x:Class="GoEngine.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Go Engine"
-        Width="900"
-        Height="640"
-        MinWidth="560"
-        MinHeight="420">
+        Width="920"
+        Height="720"
+        MinWidth="620"
+        MinHeight="520">
 
   <DockPanel>
 

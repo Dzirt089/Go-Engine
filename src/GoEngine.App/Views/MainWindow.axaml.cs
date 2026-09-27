@@ -41,6 +41,15 @@ public sealed partial class MainWindow : Window
         Wire("SaveGameItem", OnSaveGameClick);
         Wire("LoadGameItem", OnLoadGameClick);
         Wire("ExitItem", OnExitClick);
+
+        // Кнопки панели делают то же, что пункты меню: окно подписывается на них и показывает
+        // диалоги, которых у мобильного вида нет.
+        var board = Board;
+
+        board.SettingsRequested += (_, _) => _ = OpenSettingsAsync();
+        board.SaveRequested += (_, _) => _ = SaveGameAsync();
+        board.LoadRequested += (_, _) => _ = LoadGameAsync();
+        board.EnableDesktopActions();
     }
 
     /// <summary>Модель представления партии.</summary>

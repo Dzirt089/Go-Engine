@@ -17,16 +17,27 @@ namespace GoEngine.App.ViewModels;
 /// </remarks>
 public sealed class MainViewModel : INotifyPropertyChanged
 {
+    /// <summary>Стороны доски в списке выбора — по возрастанию.</summary>
+    private static readonly BoardSize[] Sizes = [BoardSize.Size9, BoardSize.Size13, BoardSize.Size19];
+
     private readonly Random _random;
     private readonly IPositionEvaluator? _evaluator;
+    private readonly IReadOnlySet<int> _modelSizes;
     private GameState _game;
     private AppSettings _settings;
+    private int _capturedBlack;
+    private int _capturedWhite;
 
     /// <summary>Создаёт модель представления по настройкам.</summary>
     /// <param name="settings">Настройки партии.</param>
     /// <param name="random">Источник случайности для AI; в тестах — с фиксированным seed.</param>
     /// <param name="evaluator">Оценка позиции нейросетью для уровней Дан; <c>null</c> — игра без сети.</param>
-    public MainViewModel(AppSettings settings, Random random, IPositionEvaluator? evaluator = null)
+    /// <param name="modelSizes">Стороны доски, для которых есть модель; <c>null</c> — взять у приложения.</param>
+    public MainViewModel(
+        AppSettings settings,
+        Random random,
+        IPositionEvaluator? evaluator = null,
+        IReadOnlySet<int>? modelSizes = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(random);
@@ -34,8 +45,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _settings = settings;
         _random = random;
         _evaluator = evaluator;
+        _modelSizes = modelSizes ?? global::GoEngine.App.App.ModelSizes;
         _game = CreateGame(settings);
 
+        RecountCaptures();
         ShowAiMoveIfNeeded();
     }
 
@@ -83,11 +96,165 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Цвет снятых камней: это цвет соперника сделавшего ход.</summary>
     public StoneColor LastCapturedColor => LastCaptured.Count == 0 ? StoneColor.Empty : _game.ToMove;
 
-    /// <summary>Уровень AI словами.</summary>
-    public string Level => $"{_settings.ToDifficultyLevel().RankKyu} кю";
+    /// <summary>Уровень AI словами: «20 кю» или «5 дан».</summary>
+    public string Level => LevelChooser.Label(_settings.ToDifficultyLevel());
+
+    /// <summary>Чем играет AI: вид селектора и модель, если она нашлась.</summary>
+    public string Engine
+    {
+        get
+        {
+            var level = _settings.ToDifficultyLevel();
+
+            if (level.NeedsNetwork)
+            {
+                return HasModel(_settings.ToBoardSize())
+                    ? $"нейросеть {Describe(_settings.ToBoardSize())}"
+                    : "нейросеть недоступна";
+            }
+
+            if (level.Kind == SelectorKind.Random)
+            {
+                return "случайные ходы";
+            }
+
+            return level.Kind == SelectorKind.Heuristic ? "эвристики" : "MCTS без сети";
+        }
+    }
+
+    /// <summary>Уровень и движок одной строкой: «5 дан · нейросеть 9×9», «20 кю · эвристики».</summary>
+    public string LevelDescription => $"{Level} · {Engine}";
 
     /// <summary>Цвет игрока словами.</summary>
     public string PlayerColor => _settings.ToPlayerColor() == StoneColor.Black ? "Чёрные" : "Белые";
+
+    /// <summary>Сколько чёрных камней снято за партию.</summary>
+    public int CapturedBlack => _capturedBlack;
+
+    /// <summary>Сколько белых камней снято за партию.</summary>
+    public int CapturedWhite => _capturedWhite;
+
+    /// <summary>Снятые камни одной строкой.</summary>
+    public string Captures => $"чёрных {_capturedBlack}, белых {_capturedWhite}";
+
+    /// <summary>Итог завершённой партии или пустая строка, пока партия идёт.</summary>
+    public string Outcome
+    {
+        get
+        {
+            if (_game.Status == GameStatus.InProgress)
+            {
+                return string.Empty;
+            }
+
+            var winner = Scorer.Calculate(_game.Board, _game.Komi).Winner;
+
+            return winner == StoneColor.Empty ? "Ничья" : $"Победили {(winner == StoneColor.Black ? "чёрные" : "белые")}";
+        }
+    }
+
+    /// <summary>Показывать ли итог партии: он есть только у завершённой.</summary>
+    public bool HasOutcome => Outcome.Length > 0;
+
+    /// <summary>Подписи сторон доски для списка выбора.</summary>
+    public IReadOnlyList<string> SizeLabels { get; } = [.. Sizes.Select(Describe)];
+
+    /// <summary>Выбранная сторона доски: смена начинает новую партию со стандартным коми.</summary>
+    /// <remarks>
+    /// Смена размера пересоздаёт партию: продолжать её на другой доске нельзя. Коми берётся
+    /// стандартное для нового размера, иначе счёт был бы не по правилам (<c>GO_RULES.md</c>, п. 8).
+    /// </remarks>
+    public int SelectedSizeIndex
+    {
+        get => Array.FindIndex(Sizes, size => size == _settings.ToBoardSize());
+        set
+        {
+            if (value < 0 || value >= Sizes.Length || value == SelectedSizeIndex)
+            {
+                return;
+            }
+
+            var size = Sizes[value];
+
+            StartWith(size, LevelChooser.Resolve(_settings.ToDifficultyLevel(), size, HasModel(size)));
+        }
+    }
+
+    /// <summary>Уровни, доступные для выбранной доски.</summary>
+    /// <remarks>Список считает <see cref="LevelChooser"/>: он знает про наличие модели (D-038, D-039).</remarks>
+    public IReadOnlyList<DifficultyLevel> LevelOptions =>
+        LevelChooser.Available(_settings.ToBoardSize(), HasModel(_settings.ToBoardSize()));
+
+    /// <summary>Подписи доступных уровней.</summary>
+    public IReadOnlyList<string> LevelLabels => [.. LevelOptions.Select(LevelChooser.Label)];
+
+    /// <summary>Выбранный уровень: смена начинает новую партию.</summary>
+    public int SelectedLevelIndex
+    {
+        get
+        {
+            var options = LevelOptions;
+            var current = _settings.ToDifficultyLevel();
+
+            for (var index = 0; index < options.Count; index++)
+            {
+                if (options[index] == current)
+                {
+                    return index;
+                }
+            }
+
+            return 0;
+        }
+        set
+        {
+            var options = LevelOptions;
+
+            if (value < 0 || value >= options.Count || value == SelectedLevelIndex)
+            {
+                return;
+            }
+
+            StartWith(_settings.ToBoardSize(), options[value]);
+        }
+    }
+
+    /// <summary>Подсказка, почему уровней Дан нет, или <c>null</c>, если они доступны.</summary>
+    public string? LevelHint
+    {
+        get
+        {
+            var size = _settings.ToBoardSize();
+
+            if (HasModel(size))
+            {
+                return null;
+            }
+
+            return _evaluator is null
+                ? "Модель нейросети не найдена: играют уровни кю"
+                : $"Для доски {Describe(size)} нет модели: играют уровни кю";
+        }
+    }
+
+    /// <summary>Показывать ли подсказку об уровнях.</summary>
+    public bool HasLevelHint => LevelHint is not null;
+
+    /// <summary>Есть ли модель для этой доски.</summary>
+    /// <param name="size">Сторона доски.</param>
+    /// <returns><c>true</c>, если нейросеть загружена и для размера есть файл модели.</returns>
+    private bool HasModel(BoardSize size) => _evaluator is not null && _modelSizes.Contains(size.Value);
+
+    /// <summary>Начинает партию с выбранными доской и уровнем.</summary>
+    /// <param name="size">Сторона доски.</param>
+    /// <param name="level">Уровень AI.</param>
+    private void StartWith(BoardSize size, DifficultyLevel level) =>
+        ApplySettings(AppSettings.From(size, level, _settings.ToPlayerColor(), Core.Komi.For(size)));
+
+    /// <summary>Подпись стороны доски.</summary>
+    /// <param name="size">Сторона доски.</param>
+    /// <returns>Например, «9×9».</returns>
+    private static string Describe(BoardSize size) => $"{size.Value}×{size.Value}";
 
     /// <summary>Играет ход игрока, затем ход AI, если очередь за ним.</summary>
     /// <param name="point">Точка хода.</param>
@@ -95,6 +262,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool PlayMove(Point point)
     {
         if (!TryPlay(Move.Play(point, _game.ToMove)))
+        {
+            return false;
+        }
+
+        ShowAiMoveIfNeeded();
+
+        return true;
+    }
+
+    /// <summary>Передаёт ход: пасует игрок, затем отвечает AI, если очередь за ним.</summary>
+    /// <returns><c>true</c>, если пас принят.</returns>
+    /// <remarks>
+    /// Два паса подряд завершают партию (<c>GO_RULES.md</c>, п. 7): если после паса игрока
+    /// пасует и AI, партия заканчивается, а статус и счёт обновляются в <see cref="NotifyAll"/>.
+    /// </remarks>
+    public bool Pass()
+    {
+        if (!TryPlay(Move.Pass(_game.ToMove)))
         {
             return false;
         }
@@ -123,6 +308,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _ = _game.Undo();
         }
 
+        RecountCaptures();
         NotifyAll();
 
         return true;
@@ -146,6 +332,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _ = _game.Redo();
         }
 
+        RecountCaptures();
         NotifyAll();
 
         return true;
@@ -170,6 +357,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _game = restored.Value!;
         _settings = AppSettings.From(game.Size, _settings.ToDifficultyLevel(), _settings.ToPlayerColor(), game.Komi);
 
+        RecountCaptures();
+
         // После загрузки партия может стоять на ходе AI — он обязан ответить.
         ShowAiMoveIfNeeded();
 
@@ -188,6 +377,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _settings = settings;
         _game = CreateGame(settings);
 
+        RecountCaptures();
         ShowAiMoveIfNeeded();
         NotifyAll();
     }
@@ -230,10 +420,73 @@ public sealed class MainViewModel : INotifyPropertyChanged
         NotifyAll();
     }
 
-    /// <summary>Играет ход в партии.</summary>
+    /// <summary>Играет ход в партии и учитывает снятые камни.</summary>
     /// <param name="move">Ход.</param>
     /// <returns><c>true</c>, если правила его приняли.</returns>
-    private bool TryPlay(Move move) => _game.Play(move).IsSuccess;
+    /// <remarks>Снятые камни всегда принадлежат сопернику ходившего: пас ничего не снимает.</remarks>
+    private bool TryPlay(Move move)
+    {
+        if (!_game.Play(move).IsSuccess)
+        {
+            return false;
+        }
+
+        if (move.Type == MoveType.Play)
+        {
+            var captured = _game.Board.CapturedStones.Count;
+
+            if (move.Color == StoneColor.Black)
+            {
+                _capturedWhite += captured;
+            }
+            else
+            {
+                _capturedBlack += captured;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Считает снятые камни по всей партии заново.</summary>
+    /// <remarks>
+    /// Нужен после отмены, возврата и загрузки: у этих действий нет одного «последнего хода»,
+    /// а счётчики должны совпадать с партией. Ходы повторяются на доске без истории — правила
+    /// они уже проходили, поэтому отказов не бывает.
+    /// </remarks>
+    private void RecountCaptures()
+    {
+        _capturedBlack = 0;
+        _capturedWhite = 0;
+
+        var board = new Board(_game.Board.Size);
+
+        foreach (var move in _game.Moves)
+        {
+            if (move.Type != MoveType.Play)
+            {
+                continue;
+            }
+
+            board = board.ApplyMove(move);
+
+            var captured = board.CapturedStones.Count;
+
+            if (captured == 0)
+            {
+                continue;
+            }
+
+            if (move.Color == StoneColor.Black)
+            {
+                _capturedWhite += captured;
+            }
+            else
+            {
+                _capturedBlack += captured;
+            }
+        }
+    }
 
     /// <summary>Сообщает об изменении всех свойств партии.</summary>
     /// <remarks>Свойства выводятся из одной партии, поэтому после хода меняются все сразу.</remarks>
@@ -250,7 +503,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(Score),
             nameof(Status),
             nameof(Level),
-            nameof(PlayerColor)
+            nameof(Engine),
+            nameof(LevelDescription),
+            nameof(PlayerColor),
+            nameof(CapturedBlack),
+            nameof(CapturedWhite),
+            nameof(Captures),
+            nameof(Outcome),
+            nameof(HasOutcome),
+            nameof(LevelOptions),
+            nameof(LevelLabels),
+            nameof(SelectedLevelIndex),
+            nameof(SelectedSizeIndex),
+            nameof(LevelHint),
+            nameof(HasLevelHint)
         })
         {
             OnPropertyChanged(name);

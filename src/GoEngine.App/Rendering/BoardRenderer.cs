@@ -1,3 +1,4 @@
+using System.Globalization;
 using GoEngine.Core;
 using SkiaSharp;
 
@@ -46,6 +47,15 @@ public static class BoardRenderer
     /// <summary>Доля радиуса камня, на которой рисуется маркер последнего хода.</summary>
     private const float LastMoveRadiusRatio = 0.35f;
 
+    /// <summary>Доля клетки, которую занимает подпись координаты.</summary>
+    private const float CoordinateSizeRatio = 0.42f;
+
+    /// <summary>Сдвиг базовой линии подписи к её середине, в долях кегля.</summary>
+    private const float CoordinateBaselineRatio = 0.35f;
+
+    /// <summary>Буквы столбцов: латинские без «I», как принято в Го.</summary>
+    private const string ColumnLetters = "ABCDEFGHJKLMNOPQRST";
+
     /// <summary>Рисует доску целиком.</summary>
     /// <param name="canvas">Холст Skia.</param>
     /// <param name="board">Позиция.</param>
@@ -71,6 +81,7 @@ public static class BoardRenderer
         canvas.Clear(BoardColor);
 
         DrawGrid(canvas, board.Size, geometry);
+        DrawCoordinates(canvas, board.Size, geometry);
         DrawStarPoints(canvas, board.Size, geometry);
         DrawStones(canvas, board, geometry, animation);
         DrawMarkers(canvas, geometry, lastMove, hover);
@@ -128,6 +139,39 @@ public static class BoardRenderer
 
             canvas.DrawLine(start, offset, end, offset, paint);
             canvas.DrawLine(offset, start, offset, end, paint);
+        }
+    }
+
+    /// <summary>Рисует координаты: буквы по горизонтали, числа по вертикали.</summary>
+    /// <param name="canvas">Холст Skia.</param>
+    /// <param name="size">Размер доски.</param>
+    /// <param name="geometry">Геометрия доски.</param>
+    /// <remarks>
+    /// Подписи стоят в поле вокруг сетки: оно уже заложено в геометрию, поэтому место есть всегда
+    /// и доска не сдвигается. Номер строки считается сверху вниз — как в <c>Point.ToString()</c>
+    /// (<c>DECISIONS.md</c>, D-009), буква «I» пропускается, как в настоящих Го-программах.
+    /// </remarks>
+    private static void DrawCoordinates(SKCanvas canvas, BoardSize size, BoardGeometry geometry)
+    {
+        var textSize = Math.Max(8f, geometry.Cell * CoordinateSizeRatio);
+        var first = geometry.Center(0);
+        var last = geometry.Center(size.Value - 1);
+        var gap = geometry.Origin / 2;
+        var baseline = textSize * CoordinateBaselineRatio;
+
+        using var font = new SKFont(SKTypeface.Default, textSize);
+        using var paint = new SKPaint { Color = GridColor, IsAntialias = true };
+
+        for (var index = 0; index < size.Value; index++)
+        {
+            var center = geometry.Center(index);
+            var letter = ColumnLetters[index].ToString();
+            var number = (index + 1).ToString(CultureInfo.InvariantCulture);
+
+            canvas.DrawText(letter, center, first - gap + baseline, SKTextAlign.Center, font, paint);
+            canvas.DrawText(letter, center, last + gap + baseline, SKTextAlign.Center, font, paint);
+            canvas.DrawText(number, first - gap, center + baseline, SKTextAlign.Center, font, paint);
+            canvas.DrawText(number, last + gap, center + baseline, SKTextAlign.Center, font, paint);
         }
     }
 
