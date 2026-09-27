@@ -13,6 +13,9 @@ namespace GoEngine.Core;
 /// <see cref="ApplyMove"/> и <see cref="MakeMove"/> сообщают об отказе исключением
 /// <see cref="DomainException"/> — так же, как о ходе в занятую точку; для проверки без исключений
 /// есть <see cref="IsLegal"/>.
+/// Сама доска отвечает только за позицию и её изменение: правила постановки камня (самоубийство
+/// и суперко) вынесены в <c>MoveLegality</c>, снятие групп — в <c>CaptureResolver</c>, поиск групп
+/// и дамэ — в <see cref="GroupTracker"/>.
 /// </remarks>
 public sealed class Board
 {
@@ -136,7 +139,7 @@ public sealed class Board
     {
         EnsurePlayable(move);
 
-        var legality = CheckPlay(move);
+        var legality = MoveLegality.CheckPlay(this, move);
 
         if (!legality.IsSuccess)
         {
@@ -205,7 +208,7 @@ public sealed class Board
         }
 
         return move.Type == MoveType.Play
-            ? CheckPlay(move)
+            ? MoveLegality.CheckPlay(this, move)
             : Result<Unit>.Ok(Unit.Value);
     }
 
@@ -213,146 +216,13 @@ public sealed class Board
     /// <param name="move">Ход типа <see cref="MoveType.Play"/>, уже проверенный <see cref="IsLegal"/>.</param>
     private void PlaceStone(Move move)
     {
-        // Результат относится только к последнему ходу: предыдущий список снятых камней не накапливается.
-        _lastCapture = CaptureResult.None;
         _stones[IndexOf(move.Point)] = move.Color;
 
-        CaptureAdjacentOpponentGroups(move.Point, move.Color);
+        // Результат относится только к последнему ходу: предыдущий список снятых камней не накапливается.
+        _lastCapture = CaptureResolver.Capture(this, move.Point, move.Color);
 
         // В историю попадает позиция после хода: именно её сравнивает суперко.
         History?.Add(this);
-    }
-
-    /// <summary>Проверяет ход постановки камня по правилам, не меняя эту доску.</summary>
-    /// <param name="move">Ход типа <see cref="MoveType.Play"/>.</param>
-    /// <returns>Успех, если ход легален; иначе причина отказа на русском языке.</returns>
-    /// <remarks>
-    /// Самоубийство проверяется без изменения доски: у своей будущей группы считаются дамэ,
-    /// а у соседних групп противника — последнее дамэ. Копия доски нужна только тогда, когда
-    /// ведётся история партии: для проверки суперко позицию после хода надо построить целиком.
-    /// </remarks>
-    private Result<Unit> CheckPlay(Move move)
-    {
-        if (!move.Point.IsOnBoard(Size))
-        {
-            return Result<Unit>.Fail($"Точка {move.Point} находится вне доски {Size}.");
-        }
-
-        if (_stones[IndexOf(move.Point)] != StoneColor.Empty)
-        {
-            return Result<Unit>.Fail($"Точка {move.Point} уже занята.");
-        }
-
-        var suicide = CheckSuicide(move);
-
-        if (!suicide.IsSuccess)
-        {
-            return suicide;
-        }
-
-        // Без истории партии проверять суперко нечем и незачем: анализ может обойтись без копии доски.
-        if (History is null)
-        {
-            return Result<Unit>.Ok(Unit.Value);
-        }
-
-        var probe = PreviewMove(move);
-
-        // GO_RULES.md, п. 6: позиция после хода не должна встречаться в партии ни разу.
-        return KoRule.ViolatesSuperko(History, probe, move)
-            ? Result<Unit>.Fail($"Ход нарушает суперко: позиция после хода в точку {move.Point} уже встречалась в партии.")
-            : Result<Unit>.Ok(Unit.Value);
-    }
-
-    /// <summary>Проверяет самоубийство, не меняя доску.</summary>
-    /// <param name="move">Ход типа <see cref="MoveType.Play"/> на пустую точку доски.</param>
-    /// <returns>Успех, если после хода у своей группы останутся дамэ.</returns>
-    /// <remarks>
-    /// Считается без копии доски: дамэ будущей своей группы — это пустые соседи точки хода плюс
-    /// дамэ соседних своих групп, кроме самой точки. Ход разрешён и тогда, когда своя группа
-    /// осталась бы без дамэ, но снимается хотя бы один камень противника
-    /// (<c>GO_RULES.md</c>, п. 5): группа противника снимается ровно тогда, когда её единственное
-    /// дамэ — точка хода.
-    /// </remarks>
-    private Result<Unit> CheckSuicide(Move move)
-    {
-        var color = move.Color;
-        HashSet<Point> liberties = [];
-        HashSet<Point> visited = [];
-        var captures = false;
-
-        foreach (var neighbor in move.Point.Neighbors(Size))
-        {
-            var neighborColor = _stones[IndexOf(neighbor)];
-
-            if (neighborColor == StoneColor.Empty)
-            {
-                liberties.Add(neighbor);
-                continue;
-            }
-
-            if (!visited.Add(neighbor))
-            {
-                continue;
-            }
-
-            var group = GroupTracker.FindGroup(this, neighbor);
-            visited.UnionWith(group.Stones);
-
-            if (neighborColor == color)
-            {
-                liberties.UnionWith(group.Liberties);
-                continue;
-            }
-
-            captures |= group.Liberties.Count == 1 && group.Liberties.Contains(move.Point);
-        }
-
-        // Сама точка хода перестаёт быть пустой, поэтому своим же дамэ она не считается.
-        liberties.Remove(move.Point);
-
-        return liberties.Count > 0 || captures
-            ? Result<Unit>.Ok(Unit.Value)
-            : Result<Unit>.Fail($"Самоубийственный ход: у своей группы в точке {move.Point} не остаётся дамэ.");
-    }
-
-    /// <summary>Снимает группы противника без дамэ, соседние с поставленным камнем.</summary>
-    /// <param name="point">Точка, в которую только что поставлен камень.</param>
-    /// <param name="color">Цвет поставленного камня.</param>
-    /// <remarks>
-    /// Перебираются только соседи хода: дамэ может потерять лишь группа, соседняя с новой точкой,
-    /// поэтому полный обход всех групп доски не нужен. Группа могла лишиться последней дамэ
-    /// одновременно с нескольких сторон, поэтому соседи отмечаются в <c>visited</c>.
-    /// </remarks>
-    private void CaptureAdjacentOpponentGroups(Point point, StoneColor color)
-    {
-        var opponent = color.Opponent();
-        List<Point> captured = [];
-        HashSet<Point> visited = [];
-
-        foreach (var neighbor in point.Neighbors(Size))
-        {
-            if (_stones[IndexOf(neighbor)] != opponent || !visited.Add(neighbor))
-            {
-                continue;
-            }
-
-            var group = GroupTracker.FindGroup(this, neighbor);
-            visited.UnionWith(group.Stones);
-
-            if (!group.IsCaptured)
-            {
-                continue;
-            }
-
-            foreach (var stone in group.Stones)
-            {
-                _stones[IndexOf(stone)] = StoneColor.Empty;
-                captured.Add(stone);
-            }
-        }
-
-        _lastCapture = new CaptureResult(captured.AsReadOnly());
     }
 
     /// <summary>Перечисляет все точки доски слева направо, сверху вниз.</summary>
@@ -415,7 +285,19 @@ public sealed class Board
     /// <summary>Вычисляет индекс точки в плоском массиве.</summary>
     /// <param name="point">Точка, уже проверенная на принадлежность доске.</param>
     /// <returns>Индекс в массиве камней.</returns>
-    private int IndexOf(Point point) => (point.Y * Size.Value) + point.X;
+    /// <remarks>Внутренний доступ: им пользуются правила хода, чтобы не копировать позицию.</remarks>
+    internal int IndexOf(Point point) => (point.Y * Size.Value) + point.X;
+
+    /// <summary>Возвращает цвет камня по индексу массива.</summary>
+    /// <param name="index">Индекс, полученный из <see cref="IndexOf"/>.</param>
+    /// <returns>Цвет камня в точке или <see cref="StoneColor.Empty"/>.</returns>
+    internal StoneColor StoneAt(int index) => _stones[index];
+
+    /// <summary>Ставит камень по индексу массива.</summary>
+    /// <param name="index">Индекс, полученный из <see cref="IndexOf"/>.</param>
+    /// <param name="color">Новый цвет точки.</param>
+    /// <remarks>Мутация на месте: вызывающий отвечает за правила и целостность групп.</remarks>
+    internal void SetStone(int index, StoneColor color) => _stones[index] = color;
 
     /// <summary>Проверяет, что точка лежит на доске.</summary>
     /// <param name="point">Проверяемая точка.</param>
