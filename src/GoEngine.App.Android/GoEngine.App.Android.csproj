@@ -42,8 +42,14 @@
     <PackageReference Include="Microsoft.ML.OnnxRuntime" ExcludeAssets="native" GeneratePathProperty="true" />
   </ItemGroup>
 
+  <!--
+    Bind="false" обязателен: без него SDK считает AAR Java-библиотекой и генерирует привязки из его
+    classes.jar (onnxruntime4j), которые не компилируются (CS0738 в сгенерированных OnnxMap/OnnxSequence)
+    и нам не нужны вовсе: .NET-привязка работает через P/Invoke. С Bind="false" AAR подключается как
+    AndroidAarLibrary — берутся только jni/<abi>/*.so.
+  -->
   <ItemGroup>
-    <AndroidLibrary Include="$(PkgMicrosoft_ML_OnnxRuntime)/runtimes/android/native/onnxruntime.aar" />
+    <AndroidLibrary Include="$(PkgMicrosoft_ML_OnnxRuntime)/runtimes/android/native/onnxruntime.aar" Bind="false" />
   </ItemGroup>
 
   <!--
