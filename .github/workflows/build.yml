@@ -264,7 +264,7 @@ jobs:
           -p:AndroidSigningKeyStore=${{ runner.temp }}/goengine.p12
           -p:AndroidSigningStorePass=env:ANDROID_STORE_PASSWORD
           -p:AndroidSigningKeyPass=env:ANDROID_KEY_PASSWORD
-          -p:AndroidSigningKeyAlias=env:ANDROID_KEY_ALIAS
+          -p:AndroidSigningKeyAlias="${ANDROID_KEY_ALIAS}"
           ${{ inputs.version != '' && format('-p:Version={0}', inputs.version) || '' }}
           ${{ inputs.version != '' && format('-p:ApplicationDisplayVersion={0}', inputs.version) || '' }}
           ${{ inputs.version_code != '' && format('-p:ApplicationVersion={0}', inputs.version_code) || '' }}
