@@ -220,7 +220,10 @@ jobs:
           for name in "${!hashes[@]}"; do
             url="https://github.com/Dzirt089/Go-Engine/releases/download/${MODELS_TAG}/${name}"
             echo "качаю модель: ${name}"
-            curl -L --fail --silent --show-error -o "models/${name}" "$url"
+            # Повторы обязательны: раздача релиза изредка отвечает 500, и из-за этого падал
+            # весь выпуск, хотя скачивание — не наша ошибка.
+            curl -L --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors \
+              -o "models/${name}" "$url"
             actual=$(sha256sum "models/${name}" | cut -d' ' -f1)
             if [ "$actual" != "${hashes[$name]}" ]; then
               echo "SHA-256 не совпал: ${name}: ожидался ${hashes[$name]}, получен ${actual}" >&2
