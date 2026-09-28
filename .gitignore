@@ -57,3 +57,10 @@ Work-1.bak/
 # Кэш Python: скрипты выпуска лежат в .github/scripts
 __pycache__/
 *.pyc
+# Рабочие документы агента: остаются локально, в репозиторий не входят (просьба владельца)
+/TASKS/
+/AGENTS.md
+/AGENTS_GO.md
+/STATE.md
+/GIT.md
+/TASK_TEMPLATE.md
