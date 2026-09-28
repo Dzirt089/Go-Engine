@@ -25,9 +25,36 @@
     <CheckEolTargetFramework>false</CheckEolTargetFramework>
   </PropertyGroup>
 
+  <!--
+    Нативная библиотека ONNX Runtime обязана быть android-сборкой из AAR. Пакет NuGet кладёт
+    рядом и линуксовые копии (runtimes/linux-*/native/libonnxruntime.so), а граф идентификаторов
+    .NET считает linux-arm64 совместимым с android-arm64:
+    android-arm64 → linux-bionic-arm64 → linux-bionic → linux-arm64.
+    Из-за этого в APK 0.2.33 для arm64 уехала ЛИНУКСОВАЯ библиотека (13 648 152 байта вместо
+    17 584 840 из AAR), и на телефоне падала инициализация NativeMethods — модели не загружались,
+    хотя сборка и все проверки были зелёными.
+    ExcludeAssets="native" убирает все нативные копии пакета (проверено: в разрешении остаётся
+    заглушка runtimes/<rid>/native/_._), а AAR подключается явно — из него Android SDK достаёт
+    jni/<abi>/libonnxruntime.so. Проверка соответствия — в CI (сторож в build.yml).
+  -->
   <ItemGroup>
     <PackageReference Include="Avalonia.Android" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" ExcludeAssets="native" GeneratePathProperty="true" />
   </ItemGroup>
+
+  <ItemGroup>
+    <AndroidLibrary Include="$(PkgMicrosoft_ML_OnnxRuntime)/runtimes/android/native/onnxruntime.aar" />
+  </ItemGroup>
+
+  <!--
+    Если пакет ONNX сменит раскладку, сборка обязана упасть здесь, а не выпустить APK без нативной
+    библиотеки: такой пакет запускается, но уровни с сетью не работают, и заметить это можно только
+    на телефоне.
+  -->
+  <Target Name="CheckOnnxAndroidLibrary" BeforeTargets="BeforeBuild">
+    <Error Condition="!Exists('$(PkgMicrosoft_ML_OnnxRuntime)/runtimes/android/native/onnxruntime.aar')"
+           Text="Нет android-сборки ONNX Runtime: $(PkgMicrosoft_ML_OnnxRuntime)/runtimes/android/native/onnxruntime.aar. Без неё в APK не попадёт libonnxruntime.so, и модели не загрузятся." />
+  </Target>
 
   <ItemGroup>
     <ProjectReference Include="../GoEngine.App/GoEngine.App.csproj" />

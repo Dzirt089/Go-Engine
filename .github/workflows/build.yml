@@ -271,6 +271,55 @@ jobs:
             exit 1
           fi
 
+          # Сторож от подмены нативной библиотеки. Пакет NuGet кладёт рядом и линуксовые копии
+          # (runtimes/linux-*/native/libonnxruntime.so), а граф идентификаторов .NET считает
+          # linux-arm64 совместимым с android-arm64 (android-arm64 → linux-bionic-arm64 →
+          # linux-arm64). Однажды из-за этого в APK для arm64 уехала линуксовая библиотека,
+          # и на телефоне падала инициализация NativeMethods — модели не загружались, хотя
+          # сборка и все прежние проверки были зелёными. Поэтому каждая библиотека в APK
+          # обязана совпасть по SHA-256 с android-сборкой из AAR.
+          aar=$(find "${HOME}/.nuget/packages/microsoft.ml.onnxruntime" \
+            -path '*runtimes/android/native/onnxruntime.aar' 2>/dev/null | sort | tail -n 1)
+          if [ -z "${aar}" ]; then
+            echo "не найден onnxruntime.aar в пакете NuGet: сравнить нативную библиотеку нечем" >&2
+            exit 1
+          fi
+          echo "android-сборка ONNX: ${aar}"
+          linux=$(find "${HOME}/.nuget/packages/microsoft.ml.onnxruntime" \
+            -path '*runtimes/linux-*/native/libonnxruntime.so' 2>/dev/null | head -n 1 || true)
+          linux_hash=""
+          if [ -n "${linux}" ]; then
+            linux_hash=$(sha256sum "${linux}" | cut -d' ' -f1)
+          fi
+
+          tmp=$(mktemp -d)
+          for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+            unzip -p "${apk}" "lib/${abi}/libonnxruntime.so" > "${tmp}/apk.so" 2>/dev/null || true
+            unzip -p "${aar}" "jni/${abi}/libonnxruntime.so" > "${tmp}/aar.so" 2>/dev/null || true
+            if [ ! -s "${tmp}/aar.so" ]; then
+              echo "в AAR нет jni/${abi}/libonnxruntime.so — сравнивать нечего"
+              continue
+            fi
+            if [ ! -s "${tmp}/apk.so" ]; then
+              echo "в APK нет lib/${abi}/libonnxruntime.so" >&2
+              exit 1
+            fi
+            apk_hash=$(sha256sum "${tmp}/apk.so" | cut -d' ' -f1)
+            aar_hash=$(sha256sum "${tmp}/aar.so" | cut -d' ' -f1)
+            if [ "${apk_hash}" != "${aar_hash}" ]; then
+              if [ -n "${linux_hash}" ] && [ "${apk_hash}" = "${linux_hash}" ]; then
+                echo "в APK для ${abi} попала LINUX-сборка ONNX Runtime (runtimes/linux-*/native): на телефоне модели не загрузятся" >&2
+              else
+                echo "нативная библиотека ${abi} не совпала с android-сборкой из AAR" >&2
+              fi
+              echo "  APK: ${apk_hash} ($(stat -c%s "${tmp}/apk.so") байт)" >&2
+              echo "  AAR: ${aar_hash} ($(stat -c%s "${tmp}/aar.so") байт)" >&2
+              exit 1
+            fi
+            echo "  ${abi}: совпадает с AAR ($(stat -c%s "${tmp}/apk.so") байт, ${apk_hash:0:12}…)"
+          done
+          rm -rf "${tmp}"
+
           # Версия пакета: versionName обязан совпасть с версией выпуска, versionCode — с переданным.
           sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           aapt2=$(find "${sdk}/build-tools" -name aapt2 2>/dev/null | sort | tail -n 1)

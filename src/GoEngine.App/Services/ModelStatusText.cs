@@ -42,6 +42,55 @@ public static class ModelStatusText
         return $"Модели не загружены: {reason}";
     }
 
+    /// <summary>Описывает исключение вместе с вложенными причинами.</summary>
+    /// <param name="exception">Исключение, остановившее подготовку моделей.</param>
+    /// <param name="depth">Сколько уровней причины показывать; по умолчанию три.</param>
+    /// <returns>Например, «TypeInitializationException: … → DllNotFoundException: …».</returns>
+    /// <exception cref="ArgumentNullException">Исключение не задано.</exception>
+    /// <remarks>
+    /// На телефоне настоящая причина отказа прячется во вложенном исключении: снаружи видно только
+    /// <c>TypeInitializationException</c>, а внутри — <c>DllNotFoundException</c> или отказ загрузки
+    /// нативной библиотеки. Без цепочки одна строка с телефона не отличает битую модель от
+    /// несовместимой нативной библиотеки, и диагноз превращается в догадки.
+    /// </remarks>
+    public static string Chain(Exception exception, int depth = 3)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        List<string> parts = [];
+        Exception? current = exception;
+
+        for (var level = 0; current is not null && level < Math.Max(depth, 1); level++)
+        {
+            var message = current.Message?.Trim();
+
+            parts.Add(string.IsNullOrEmpty(message)
+                ? current.GetType().Name
+                : $"{current.GetType().Name}: {message}");
+
+            current = current.InnerException;
+        }
+
+        return string.Join(" → ", parts);
+    }
+
+    /// <summary>Обрезает длинный технический текст, чтобы он не разносил экран настроек.</summary>
+    /// <param name="text">Текст причины.</param>
+    /// <param name="limit">Предел длины; по умолчанию 400 символов.</param>
+    /// <returns>Текст не длиннее предела; обрезанный заканчивается многоточием.</returns>
+    /// <exception cref="ArgumentNullException">Текст не задан.</exception>
+    /// <remarks>
+    /// Предел поднят с 160 символов: цепочка из трёх исключений вместе со списком ABI устройства
+    /// в 160 символов не помещается, а именно она отличает «нет библиотеки под этот телефон»
+    /// от «модель повреждена».
+    /// </remarks>
+    public static string Limit(string text, int limit = 400)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        return text.Length <= limit ? text : text[..limit] + "…";
+    }
+
     /// <summary>Проверяет, что размер доски есть в списке приложения.</summary>
     /// <param name="size">Сторона доски.</param>
     /// <returns><c>true</c>, если такую доску игрок может выбрать.</returns>
