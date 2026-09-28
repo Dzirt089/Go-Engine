@@ -52,7 +52,13 @@ public sealed partial class BoardView : UserControl
     /// <summary>Создаёт вид с готовыми настройками.</summary>
     /// <param name="settings">Настройки партии.</param>
     /// <param name="evaluator">Оценка позиции нейросетью для уровней Дан.</param>
-    public BoardView(AppSettings settings, IPositionEvaluator? evaluator = null)
+    /// <param name="viewModel">Готовая модель партии; <c>null</c> — создать свою.</param>
+    /// <remarks>
+    /// Готовая модель нужна оболочке режимов: она владеет моделью партии, поэтому переключение
+    /// между партией и задачами не сбрасывает партию (<c>DECISIONS.md</c>, D-061). Без неё вид
+    /// создаёт модель сам — так его по-прежнему можно собрать одним конструктором.
+    /// </remarks>
+    public BoardView(AppSettings settings, IPositionEvaluator? evaluator = null, MainViewModel? viewModel = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
 
@@ -60,7 +66,7 @@ public sealed partial class BoardView : UserControl
 
         AvaloniaXamlLoader.Load(this);
 
-        ViewModel = new MainViewModel(settings, Random.Shared, evaluator);
+        ViewModel = viewModel ?? new MainViewModel(settings, Random.Shared, evaluator);
         DataContext = ViewModel;
 
         _boardControl = this.FindControl<BoardControl>("Board");

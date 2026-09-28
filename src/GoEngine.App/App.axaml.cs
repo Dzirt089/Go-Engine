@@ -68,7 +68,9 @@ public sealed partial class App : Application
                 break;
 
             case ISingleViewApplicationLifetime mobile:
-                mobile.MainView = new BoardView();
+                // На телефоне — та же оболочка с двумя режимами, что и в окне: меню там нет,
+                // а переключатель «Партия» / «Задачи» есть.
+                mobile.MainView = new ShellView();
                 break;
         }
 

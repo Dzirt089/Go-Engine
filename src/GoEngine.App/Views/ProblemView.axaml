@@ -1,0 +1,75 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:GoEngine.App.Controls"
+             xmlns:vm="clr-namespace:GoEngine.App.ViewModels"
+             x:Class="GoEngine.App.Views.ProblemView"
+             x:DataType="vm:ProblemViewModel">
+
+  <!-- Режим задач: та же доска, что и в партии (BoardControl), но своя панель и своя модель.
+       Раскладку выбирает код вида (ProblemView.axaml.cs) по BoardLayoutRules: на узком экране
+       доска сверху и панель снизу, на широком — доска слева, панель справа. -->
+  <Grid x:Name="Layout" ColumnDefinitions="*,320">
+
+    <controls:BoardControl x:Name="Board"
+                           Grid.Column="0"
+                           Board="{Binding Board}"
+                           LastMove="{Binding LastMove}" />
+
+    <Border x:Name="Panel"
+            Grid.Column="1"
+            Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+            BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+            BorderThickness="1,0,0,0"
+            Padding="12,10">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="4">
+
+          <TextBlock Text="Задачи" FontSize="16" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding StatusText}" />
+
+          <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding GoalText, StringFormat='Цель: {0}'}" TextWrapping="Wrap" />
+
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <TextBlock Text="{Binding ToMoveText, StringFormat='Ход: {0}'}" />
+            <TextBlock Text="{Binding SizeText}" />
+            <TextBlock Text="{Binding RankText}" />
+          </StackPanel>
+
+          <!-- Вердикт хода: «Верно», «Это не решает задачу», «Задача решена». -->
+          <TextBlock x:Name="Verdict"
+                     Text="{Binding Verdict}"
+                     IsVisible="{Binding HasVerdict}"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap"
+                     Margin="0,6,0,0" />
+
+          <TextBlock Text="{Binding Guide}"
+                     TextWrapping="Wrap"
+                     FontStyle="Italic"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+
+          <!-- Кнопки не меньше 44 точек по высоте: это размер, по которому попадает палец. -->
+          <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,8,0,0">
+            <Button x:Name="HintButton" Content="Подсказка" MinHeight="44" MinWidth="110" IsEnabled="{Binding CanHint}" />
+            <Button x:Name="BackButton" Content="Отменить" MinHeight="44" IsEnabled="{Binding CanBack}" />
+            <Button x:Name="ResetButton" Content="Заново" MinHeight="44" />
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button x:Name="PreviousButton" Content="Предыдущая" MinHeight="44" IsEnabled="{Binding CanGoPrevious}" />
+            <Button x:Name="NextButton" Content="Следующая" MinHeight="44" IsEnabled="{Binding CanGoNext}" />
+          </StackPanel>
+
+          <TextBlock Text="Задача" Margin="0,8,0,0" />
+          <!-- Список заполняет код вида, а не привязка: список выбора сбрасывает индекс при подмене
+               ItemsSource и вернул бы его в модель — та же причина, что и в панели партии. -->
+          <ComboBox x:Name="ProblemBox"
+                    MinHeight="44"
+                    HorizontalAlignment="Stretch" />
+
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+  </Grid>
+</UserControl>

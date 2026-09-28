@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -47,14 +48,43 @@ public sealed partial class MainWindow : Window
         // Сохранение и загрузку панель делает сама (через потоки), поэтому пункты меню
         // вызывают те же методы вида — второго пути для этих действий нет.
         Board.SettingsRequested += (_, _) => _ = OpenSettingsAsync();
+
+        // Меню действует на партию: в режиме задач его пункты недоступны, чтобы «Новая партия»
+        // и «Сохранить» не срабатывали неожиданно.
+        Shell.Shell.PropertyChanged += OnShellPropertyChanged;
+        UpdateMenu();
     }
 
     /// <summary>Модель представления партии.</summary>
     public MainViewModel ViewModel => Board.ViewModel;
 
-    /// <summary>Доска с панелью статуса.</summary>
-    private BoardView Board => this.FindControl<BoardView>("BoardArea")
-        ?? throw new DomainException("В окне нет доски: разметка окна повреждена.");
+    /// <summary>Оболочка режимов: в ней живут виды партии и задач.</summary>
+    private ShellView Shell => this.FindControl<ShellView>("ModeShell")
+        ?? throw new DomainException("В окне нет оболочки режимов: разметка окна повреждена.");
+
+    /// <summary>Доска с панелью статуса — внутри оболочки режимов.</summary>
+    private BoardView Board => Shell.GameArea
+        ?? throw new DomainException("В оболочке нет вида партии: разметка окна повреждена.");
+
+    /// <summary>Включает и выключает меню при смене режима.</summary>
+    /// <param name="sender">Модель оболочки.</param>
+    /// <param name="e">Имя изменившегося свойства.</param>
+    private void OnShellPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ShellViewModel.IsGameMode))
+        {
+            UpdateMenu();
+        }
+    }
+
+    /// <summary>Приводит доступность меню в соответствие с текущим режимом.</summary>
+    private void UpdateMenu()
+    {
+        if (this.FindControl<Menu>("MainMenu") is { } menu)
+        {
+            menu.IsEnabled = Shell.Shell.IsGameMode;
+        }
+    }
 
     /// <summary>Подписывает пункт меню на обработчик.</summary>
     /// <param name="name">Имя пункта меню.</param>

@@ -28,6 +28,9 @@
   <ItemGroup>
     <ProjectReference Include="../GoEngine.Core/GoEngine.Core.csproj" />
     <ProjectReference Include="../GoEngine.AI/GoEngine.AI.csproj" />
+    <!-- Режим задач: библиотека задач и сессия решения живут отдельным проектом, чтобы логика
+         задач не смешивалась с логикой партии (D-061). -->
+    <ProjectReference Include="../GoEngine.Problems/GoEngine.Problems.csproj" />
   </ItemGroup>
 
 </Project>

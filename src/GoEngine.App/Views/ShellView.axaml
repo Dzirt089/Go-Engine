@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:GoEngine.App.ViewModels"
+             x:Class="GoEngine.App.Views.ShellView"
+             x:DataType="vm:ShellViewModel">
+
+  <!-- Оболочка приложения: два режима — партия и задачи. Режимы не смешиваются, оболочка только
+       показывает одно или другое; содержимое создаётся кодом вида (ShellView.axaml.cs), чтобы оба
+       режима получали свои модели из одного места и не пересоздавались при переключении. -->
+  <DockPanel>
+
+    <Border DockPanel.Dock="Top"
+            Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+            BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+            BorderThickness="0,0,0,1">
+      <StackPanel Orientation="Horizontal" Spacing="8" Margin="10,8">
+        <!-- Кнопки не меньше 44 точек по высоте: это размер, по которому попадает палец. -->
+        <ToggleButton x:Name="GameModeButton" Content="Партия" MinHeight="44" MinWidth="120" />
+        <ToggleButton x:Name="ProblemModeButton" Content="Задачи" MinHeight="44" MinWidth="120" />
+        <TextBlock x:Name="ModeHintText"
+                   Text="{Binding ModeHint}"
+                   VerticalAlignment="Center"
+                   TextWrapping="Wrap"
+                   Margin="8,0,0,0"
+                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+      </StackPanel>
+    </Border>
+
+    <Panel x:Name="ModeContent" />
+
+  </DockPanel>
+</UserControl>

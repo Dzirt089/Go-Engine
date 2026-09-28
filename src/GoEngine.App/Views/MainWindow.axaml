@@ -13,7 +13,9 @@
 
   <DockPanel>
 
-    <Menu DockPanel.Dock="Top">
+    <!-- Меню действует на партию, поэтому в режиме задач оно недоступно: код окна следит
+         за режимом оболочки и выключает меню. -->
+    <Menu x:Name="MainMenu" DockPanel.Dock="Top">
       <MenuItem Header="Партия">
         <MenuItem x:Name="NewGameItem" Header="Новая партия" />
         <MenuItem x:Name="SettingsItem" Header="Настройки…" />
@@ -25,7 +27,9 @@
       </MenuItem>
     </Menu>
 
-    <views:BoardView x:Name="BoardArea" />
+    <!-- Оболочка режимов: партия и задачи. Вид партии живёт внутри неё и не пересоздаётся
+         при переключении, поэтому партия не сбрасывается. -->
+    <views:ShellView x:Name="ModeShell" />
 
   </DockPanel>
 
