@@ -45,6 +45,8 @@ jobs:
     name: Сборки
     needs: verify
     uses: ./.github/workflows/build.yml
+    # Секреты обязаны передаваться явно: в переиспользуемом workflow контекст secrets пуст.
+    secrets: inherit
     with:
       # Имя архива с версией: go-engine-win-x64-v0.1.0.zip
       suffix: -${{ inputs.tag || github.ref_name }}

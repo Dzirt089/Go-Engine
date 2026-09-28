@@ -43,6 +43,9 @@ jobs:
     name: Сборки
     needs: [version]
     uses: ./.github/workflows/build.yml
+    # Секреты обязаны передаваться явно: в переиспользуемом workflow контекст secrets пуст,
+    # и без этого ключ подписи Android не доезжал до сборки.
+    secrets: inherit
     with:
       version: ${{ needs.version.outputs.version }}
       version_code: ${{ needs.version.outputs.code }}
