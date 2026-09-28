@@ -73,6 +73,10 @@ jobs:
           REPO: ${{ github.repository }}
           COMMIT: ${{ github.sha }}
         run: |
+          # Неподписанный APK в выпуск не идёт: Android его не поставит, а игрок может скачать
+          # именно его и получить «подпись пакета и установленного приложения не совпадают».
+          # Раздаётся только подписанный пакет (его же выбирает манифест обновлений).
+          find dist -name '*.apk' ! -name '*-Signed.apk' -delete
           find dist -type f | sort
           python3 .github/scripts/make-update-manifest.py dist
           echo "--- update.json ---"
