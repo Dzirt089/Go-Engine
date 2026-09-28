@@ -24,11 +24,21 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
     /// <inheritdoc />
     protected override void OnCreate(Bundle? savedInstanceState)
     {
+        // Логи и обработчики падений — раньше остальных: падение на старте тоже обязано
+        // оставить файл, который игрок сможет прислать.
+        global::GoEngine.App.Services.Logging.AppLog.Initialize(LogsDirectory());
+        global::GoEngine.App.Services.Logging.CrashReporter.Install();
+
         AndroidModelStartup.Prepare(this);
         ConfigureUpdates();
 
         base.OnCreate(savedInstanceState);
     }
+
+    /// <summary>Каталог логов: личные файлы приложения, доступные без разрешений.</summary>
+    /// <returns>Путь к каталогу логов или <c>null</c>, если каталог недоступен.</returns>
+    private string? LogsDirectory() =>
+        FilesDir?.AbsolutePath is { Length: > 0 } root ? Path.Combine(root, "logs") : null;
 
     /// <summary>Отдаёт интерфейсу установщик обновлений и каталог для скачанных пакетов.</summary>
     /// <remarks>

@@ -3,7 +3,9 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using GoEngine.AI;
 using GoEngine.App.Services;
+using GoEngine.App.Services.Logging;
 using GoEngine.Core;
+using Microsoft.Extensions.Logging;
 
 namespace GoEngine.App.ViewModels;
 
@@ -24,6 +26,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly Random _random;
     private readonly IPositionEvaluator? _evaluator;
     private readonly IReadOnlySet<int> _modelSizes;
+
+    /// <summary>Логгер партии: по нему после сбоя видно, что происходило перед ним.</summary>
+    private readonly ILogger _log = AppLog.For<MainViewModel>();
     private GameState _game;
     private AppSettings _settings;
     private int _capturedBlack;
@@ -66,6 +71,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         RecountCaptures();
         RefreshLabels();
+        LogNewGame();
         ShowAiMoveIfNeeded();
     }
 
@@ -637,6 +643,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         ArgumentNullException.ThrowIfNull(settings);
 
+        LogSettings(settings);
         BeginGame(settings);
         ShowAiMoveIfNeeded();
         NotifyAll();
@@ -650,6 +657,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         ArgumentNullException.ThrowIfNull(settings);
 
+        LogSettings(settings);
         BeginGame(settings);
         NotifyAll();
         await PlayAiTurnAsync().ConfigureAwait(true);
@@ -663,6 +671,59 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _settings = settings;
         _game = CreateGame(settings);
         RecountCaptures();
+        LogNewGame();
+    }
+
+    /// <summary>Пишет в лог смену настроек партии.</summary>
+    /// <param name="settings">Применённые настройки.</param>
+    private void LogSettings(AppSettings settings) => AppLogMessages.SettingsApplied(
+        _log,
+        settings.ToBoardSize().ToString(),
+        LevelChooser.Describe(settings.ToDifficultyLevel(), settings.ToBoardSize(), HasModelFor(settings.ToBoardSize())),
+        StoneColorLabels.Label(settings.ToPlayerColor()),
+        settings.ToKomi().ToString());
+
+    /// <summary>Пишет в лог начало партии: доска, уровень, цвет игрока и коми.</summary>
+    private void LogNewGame() => AppLogMessages.NewGame(
+        _log,
+        _settings.ToBoardSize().ToString(),
+        LevelChooser.Describe(EffectiveLevel(), _settings.ToBoardSize(), HasModelFor(_settings.ToBoardSize())),
+        StoneColorLabels.Label(_settings.ToPlayerColor()),
+        _settings.ToKomi().ToString());
+
+    /// <summary>Пишет в лог ход: точку подписывает так же, как доска.</summary>
+    /// <param name="move">Сделанный ход.</param>
+    /// <param name="milliseconds">Время поиска хода соперника; 0 — ход игрока или пас.</param>
+    private void LogMove(Move move, double milliseconds = 0)
+    {
+        var color = StoneColorLabels.Label(move.Color);
+
+        if (move.Type != MoveType.Play)
+        {
+            AppLogMessages.MovePassed(_log, _game.MoveNumber, color);
+            return;
+        }
+
+        var point = BoardCoordinates.Label(move.Point, _game.Board.Size);
+
+        if (milliseconds > 0)
+        {
+            AppLogMessages.AiMovePlayed(_log, color, point, LevelChooser.Engine(EffectiveLevel()), milliseconds);
+            return;
+        }
+
+        AppLogMessages.MovePlayed(_log, _game.MoveNumber, color, point);
+    }
+
+    /// <summary>Пишет в лог завершение партии, если она закончилась.</summary>
+    private void LogFinishedIfNeeded()
+    {
+        if (_game.Status == GameStatus.InProgress)
+        {
+            return;
+        }
+
+        AppLogMessages.GameFinished(_log, _game.Status.Name, Score, _game.MoveNumber);
     }
 
     /// <summary>Создаёт партию по настройкам.</summary>
@@ -678,7 +739,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         while (_game.Status == GameStatus.InProgress && _game.ToMove != playerColor)
         {
-            if (TryPlay(ComputeAiMove()) || TryPlay(Move.Pass(_game.ToMove)))
+            var from = AppLog.Time.GetTimestamp();
+            var move = ComputeAiMove();
+            var milliseconds = AppLog.Time.GetElapsedTime(from).TotalMilliseconds;
+
+            if (TryPlay(move, milliseconds) || TryPlay(Move.Pass(_game.ToMove)))
             {
                 continue;
             }
@@ -720,15 +785,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
             while (_game.Status == GameStatus.InProgress && _game.ToMove != playerColor)
             {
                 var moveNumber = _game.MoveNumber;
+                var from = AppLog.Time.GetTimestamp();
                 var move = await Task.Run(ComputeAiMove, cancellation.Token).ConfigureAwait(true);
+                var milliseconds = AppLog.Time.GetElapsedTime(from).TotalMilliseconds;
 
                 if (cancellation.IsCancellationRequested || _game.MoveNumber != moveNumber)
                 {
                     // Партия изменилась, пока считали: устаревший ход не играем.
+                    AppLogMessages.AiSearchCancelled(_log);
+
                     return;
                 }
 
-                if (!TryPlay(move) && !TryPlay(Move.Pass(_game.ToMove)))
+                if (!TryPlay(move, milliseconds) && !TryPlay(Move.Pass(_game.ToMove)))
                 {
                     break;
                 }
@@ -807,12 +876,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     /// <summary>Играет ход в партии и учитывает снятые камни.</summary>
     /// <param name="move">Ход.</param>
+    /// <param name="aiMilliseconds">Время поиска хода соперника; 0 — ход игрока или пас.</param>
     /// <returns><c>true</c>, если правила его приняли.</returns>
     /// <remarks>Снятые камни всегда принадлежат сопернику ходившего: пас ничего не снимает.</remarks>
-    private bool TryPlay(Move move)
+    private bool TryPlay(Move move, double aiMilliseconds = 0)
     {
-        if (!_game.Play(move).IsSuccess)
+        var played = _game.Play(move);
+
+        if (!played.IsSuccess)
         {
+            AppLogMessages.MoveRejected(
+                _log,
+                StoneColorLabels.Label(move.Color),
+                move.Type == MoveType.Play ? BoardCoordinates.Label(move.Point, _game.Board.Size) : "пас",
+                played.Error ?? "правила не приняли ход");
+
             return false;
         }
 
@@ -829,6 +907,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 _capturedBlack += captured;
             }
         }
+
+        LogMove(move, aiMilliseconds);
+        LogFinishedIfNeeded();
 
         return true;
     }

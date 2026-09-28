@@ -33,20 +33,8 @@ public static class SettingsStore
     /// <param name="isWindows">Система — Windows.</param>
     /// <param name="isMacOs">Система — macOS.</param>
     /// <returns>Полный путь к файлу настроек.</returns>
-    public static string PathFor(string userProfile, string applicationData, bool isWindows, bool isMacOs)
-    {
-        if (isWindows && !string.IsNullOrEmpty(applicationData))
-        {
-            return Path.Combine(applicationData, FolderName, FileName);
-        }
-
-        if (isMacOs)
-        {
-            return Path.Combine(userProfile, "Library", "Application Support", FolderName, FileName);
-        }
-
-        return Path.Combine(userProfile, ".config", FolderName.ToLowerInvariant(), FileName);
-    }
+    public static string PathFor(string userProfile, string applicationData, bool isWindows, bool isMacOs) =>
+        Path.Combine(AppDataPaths.RootFor(userProfile, applicationData, isWindows, isMacOs), FileName);
 
     /// <summary>Читает настройки из файла.</summary>
     /// <param name="path">Путь к файлу; <c>null</c> — путь по умолчанию.</param>

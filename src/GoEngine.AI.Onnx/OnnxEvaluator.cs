@@ -14,15 +14,44 @@ namespace GoEngine.AI.Onnx;
 /// </remarks>
 public sealed class OnnxEvaluator : IPositionEvaluator, IDisposable
 {
+    /// <summary>Защищает сессию: поиск идёт в фоне, а модель меняется из потока интерфейса.</summary>
+    /// <remarks>
+    /// Без этой блокировки смена модели (`Replace`) освобождала сессию, пока фоновый поиск
+    /// находился внутри `Run`: это падение в нативном коде ONNX Runtime, которое выглядит как
+    /// случайное завершение процесса. Заодно сериализуются одновременные `Run` — поиск один,
+    /// лишняя параллельность ничего не ускоряет.
+    /// </remarks>
+    private readonly object _sync = new();
+
     private ModelSession _session;
+
+    private bool _disposed;
 
     private OnnxEvaluator(ModelSession session) => _session = session;
 
     /// <summary>Путь к загруженной модели.</summary>
-    public string Path => _session.Path;
+    public string Path
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _session.Path;
+            }
+        }
+    }
 
     /// <summary>Описание модели: входы и выходы.</summary>
-    public OnnxModelInfo Info => _session.Info;
+    public OnnxModelInfo Info
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _session.Info;
+            }
+        }
+    }
 
     /// <summary>Загружает модель из файла.</summary>
     /// <param name="modelPath">Путь к файлу модели.</param>
@@ -80,11 +109,21 @@ public sealed class OnnxEvaluator : IPositionEvaluator, IDisposable
         ArgumentNullException.ThrowIfNull(toMove);
         ArgumentNullException.ThrowIfNull(moves);
 
-        var raw = _session.Run(board, komi, toMove, moves);
+        // Блокировка держится и на время вывода, и на время разбора: пока она не взята,
+        // никто не может освободить сессию из-под работающего вывода.
+        lock (_sync)
+        {
+            if (_disposed)
+            {
+                return Result<OnnxEvaluation>.Fail("Оценщик уже освобождён.");
+            }
 
-        return raw.IsSuccess
-            ? Result<OnnxEvaluation>.Ok(EvaluationReader.Read(raw.Value))
-            : Result<OnnxEvaluation>.Fail(raw.Error!);
+            var raw = _session.Run(board, komi, toMove, moves);
+
+            return raw.IsSuccess
+                ? Result<OnnxEvaluation>.Ok(EvaluationReader.Read(raw.Value))
+                : Result<OnnxEvaluation>.Fail(raw.Error!);
+        }
     }
 
     /// <summary>Оценивает позицию для MCTS: вероятности ходов и шансы ходящего.</summary>
@@ -143,7 +182,23 @@ public sealed class OnnxEvaluator : IPositionEvaluator, IDisposable
     }
 
     /// <inheritdoc />
-    public void Dispose() => _session.Dispose();
+    /// <remarks>
+    /// Освобождение ждёт окончания идущего вывода: закрыть сессию под работающим `Run`
+    /// означает падение в нативном коде.
+    /// </remarks>
+    public void Dispose()
+    {
+        lock (_sync)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _session.Dispose();
+        }
+    }
 
     /// <summary>Заменяет сессию вывода моделью из файла.</summary>
     /// <param name="path">Путь к файлу модели.</param>
@@ -159,9 +214,20 @@ public sealed class OnnxEvaluator : IPositionEvaluator, IDisposable
             return false;
         }
 
-        var previous = _session;
-        _session = created.Value!;
-        previous.Dispose();
+        lock (_sync)
+        {
+            if (_disposed)
+            {
+                // Оценщик уже закрыт: новую сессию не оставляем висеть.
+                created.Value!.Dispose();
+
+                return false;
+            }
+
+            var previous = _session;
+            _session = created.Value!;
+            previous.Dispose();
+        }
 
         return true;
     }

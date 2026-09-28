@@ -2,7 +2,9 @@ using Android.App;
 using Android.OS;
 using GoEngine.AI.Onnx;
 using GoEngine.App.Services;
+using GoEngine.App.Services.Logging;
 using GoEngine.App.Services.Updates;
+using Microsoft.Extensions.Logging;
 
 namespace GoEngine.App.Android;
 
@@ -18,6 +20,9 @@ namespace GoEngine.App.Android;
 /// </remarks>
 internal static class AndroidModelStartup
 {
+    /// <summary>Логгер моделей: на телефоне лог — единственный способ понять, что помешало сети.</summary>
+    private static readonly ILogger Log = AppLog.For("Models");
+
     /// <summary>Копирует модели из пакета и настраивает уровни с нейросетью.</summary>
     /// <param name="activity">Активность: её ресурсы и файловый каталог.</param>
     /// <exception cref="ArgumentNullException">Активность не задана.</exception>
@@ -35,7 +40,9 @@ internal static class AndroidModelStartup
             // может не хватить места, не открыться ресурс пакета или не подняться нативная
             // библиотека ONNX. Игрок получает уровни без сети, но причину видит в настройках:
             // молчаливый отказ превращал диагноз в догадки.
-            global::GoEngine.App.App.ModelsStatus = ModelStatusText.Failed(Describe(activity, exception));
+            var reason = Describe(activity, exception);
+            global::GoEngine.App.App.ModelsStatus = ModelStatusText.Failed(reason);
+            AppLogMessages.ModelsUnavailable(Log, reason);
         }
     }
 
@@ -65,15 +72,23 @@ internal static class AndroidModelStartup
 
         if (result.Missing.Count > 0)
         {
-            global::GoEngine.App.App.ModelsStatus =
-                ModelStatusText.Failed($"в пакете нет файлов моделей: {string.Join(", ", result.Missing)}");
+            var missing = $"в пакете нет файлов моделей: {string.Join(", ", result.Missing)}";
+            global::GoEngine.App.App.ModelsStatus = ModelStatusText.Failed(missing);
+            AppLogMessages.ModelsUnavailable(Log, missing);
 
             return;
         }
 
-        global::GoEngine.App.App.ModelsStatus = AttachEvaluator(activity, result.Directory, present) is { } failure
-            ? ModelStatusText.Failed(failure)
-            : ModelStatusText.Loaded(sizes);
+        if (AttachEvaluator(activity, result.Directory, present) is { } failure)
+        {
+            global::GoEngine.App.App.ModelsStatus = ModelStatusText.Failed(failure);
+            AppLogMessages.ModelsUnavailable(Log, failure);
+
+            return;
+        }
+
+        global::GoEngine.App.App.ModelsStatus = ModelStatusText.Loaded(sizes);
+        AppLogMessages.ModelsReady(Log, result.Directory, string.Join(", ", sizes.Order()));
     }
 
     /// <summary>Подключает оценщик позиции, начиная с самой маленькой модели.</summary>
@@ -139,7 +154,7 @@ internal static class AndroidModelStartup
     {
         var abis = Build.SupportedAbis;
 
-        return abis is { Length: > 0 } ? string.Join(", ", abis) : "неизвестны";
+        return abis is { Count: > 0 } ? string.Join(", ", abis) : "неизвестны";
     }
 
     /// <summary>Проверяет, что нативная библиотека ONNX есть на устройстве и загружается.</summary>

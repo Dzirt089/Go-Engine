@@ -37,4 +37,12 @@ internal static class ModeArguments
 
     /// <summary>Проверочный рендер кадра анимации.</summary>
     public const string RenderAnimation = "--render-anim";
+
+    /// <summary>Проверка лога падений: пишет события и намеренно падает.</summary>
+    /// <remarks>
+    /// Режим не входит в <c>check.ps1</c>: он завершается падением по замыслу, а проверка проекта
+    /// требует нулевого кода возврата. Его запускают вручную, чтобы убедиться, что после сбоя
+    /// появляются копия лога и файл-признак, а следующий запуск показывает сообщение.
+    /// </remarks>
+    public const string CrashTest = "--crash-test";
 }

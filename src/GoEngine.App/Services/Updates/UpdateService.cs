@@ -1,5 +1,7 @@
 using System.Globalization;
+using GoEngine.App.Services.Logging;
 using GoEngine.Core;
+using Microsoft.Extensions.Logging;
 
 namespace GoEngine.App.Services.Updates;
 
@@ -13,6 +15,9 @@ public sealed class UpdateService
     private readonly UpdateDownloader _downloader;
     private readonly IUpdateInstaller _installer;
     private readonly string _downloadDirectory;
+
+    /// <summary>Логгер обновлений: проверка ходит в сеть, и её отказ должен быть виден в логе.</summary>
+    private readonly ILogger _log = AppLog.For<UpdateService>();
 
     /// <summary>Создаёт службу обновления.</summary>
     /// <param name="checker">Проверка версии.</param>
@@ -53,8 +58,41 @@ public sealed class UpdateService
     /// <summary>Проверяет обновление.</summary>
     /// <param name="cancellationToken">Признак отмены.</param>
     /// <returns>Результат проверки или причина отказа.</returns>
-    public Task<Result<UpdateCheck>> CheckAsync(CancellationToken cancellationToken = default) =>
-        _checker.CheckAsync(cancellationToken);
+    public async Task<Result<UpdateCheck>> CheckAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await _checker.CheckAsync(cancellationToken).ConfigureAwait(false);
+
+        if (!result.IsSuccess)
+        {
+            AppLogMessages.UpdateFailed(_log, result.Error ?? "причина неизвестна");
+
+            return result;
+        }
+
+        var check = result.Value!;
+
+        if (check.IsAvailable)
+        {
+            AppLogMessages.UpdateChecked(_log, AppVersion.Display, "доступна версия " + check.Version);
+            AppLogMessages.UpdateAvailable(_log, check.Version.ToString(), AssetSize(check));
+        }
+        else
+        {
+            AppLogMessages.UpdateChecked(_log, AppVersion.Display, "установлена последняя версия");
+        }
+
+        return result;
+    }
+
+    /// <summary>Размер файла обновления для платформы: нужен для строки лога.</summary>
+    /// <param name="check">Результат проверки.</param>
+    /// <returns>Размер в байтах или 0, если файла для платформы нет.</returns>
+    private long AssetSize(UpdateCheck check)
+    {
+        var asset = check.Manifest.AssetFor(_installer.PlatformKey);
+
+        return asset.IsSuccess ? asset.Value!.Size : 0;
+    }
 
     /// <summary>Скачивает и устанавливает обновление.</summary>
     /// <param name="check">Результат проверки, в котором нашлось обновление.</param>
@@ -73,10 +111,21 @@ public sealed class UpdateService
 
         if (!downloaded.IsSuccess)
         {
+            AppLogMessages.UpdateFailed(_log, downloaded.Error ?? "загрузка не удалась");
+
             return Result<string>.Fail(downloaded.Error!);
         }
 
-        return _installer.Install(downloaded.Value!);
+        AppLogMessages.UpdateDownloaded(_log, check.Version.ToString(), downloaded.Value!);
+
+        var installed = _installer.Install(downloaded.Value!);
+
+        if (!installed.IsSuccess)
+        {
+            AppLogMessages.UpdateFailed(_log, installed.Error ?? "установка не удалась");
+        }
+
+        return installed;
     }
 
     /// <summary>Открывает страницу выпуска: запасной путь, когда установка из приложения невозможна.</summary>

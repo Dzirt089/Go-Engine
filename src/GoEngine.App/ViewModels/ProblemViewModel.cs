@@ -1,8 +1,10 @@
 using System.ComponentModel;
 using System.Globalization;
 using GoEngine.App.Services;
+using GoEngine.App.Services.Logging;
 using GoEngine.Core;
 using GoEngine.Problems;
+using Microsoft.Extensions.Logging;
 
 namespace GoEngine.App.ViewModels;
 
@@ -46,6 +48,9 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
 
     private int _index;
     private string _verdict = string.Empty;
+
+    /// <summary>Логгер задач: по нему видно, какие задачи решались перед сбоем.</summary>
+    private readonly ILogger _log = AppLog.For<ProblemViewModel>();
     private Point? _lastMove;
     private IReadOnlyList<Point> _lastCaptured = [];
     private StoneColor _lastCapturedColor = StoneColor.Empty;
@@ -188,11 +193,17 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         {
             // Позиция не изменилась — метку последнего хода не трогаем, доска выглядит как прежде.
             _verdict = verdict == ProblemVerdict.Wrong ? WrongText : verdict.Descriptions ?? verdict.Name;
+            AppLogMessages.ProblemMoveRejected(_log, Current.Id, BoardCoordinates.Label(point, Current.Size));
         }
         else
         {
             UpdateAnimation(before, _session.Board, point);
             _verdict = verdict == ProblemVerdict.Solved ? SolvedText : CorrectText;
+
+            if (verdict == ProblemVerdict.Solved)
+            {
+                AppLogMessages.ProblemSolved(_log, Current.Id, _session.SolverMoveCount);
+            }
         }
 
         NotifyAll();

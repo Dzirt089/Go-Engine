@@ -257,6 +257,29 @@ internal static class CheckModes
         return failures == 0 ? 0 : 1;
     }
 
+    /// <summary>Пишет события в лог и намеренно падает: проверка лога падений.</summary>
+    /// <returns>Не возвращает управление: падение по замыслу — и есть проверка.</returns>
+    /// <remarks>
+    /// Режим <c>--crash-test</c> нужен, чтобы убедиться: после сбоя остаются копия лога
+    /// (<c>crash-…log</c>) и файл-признак <c>ПОСЛЕДНИЙ_СБОЙ.txt</c>, а следующий запуск показывает
+    /// сообщение в настройках. Падение уходит через обработчик домена приложения, поэтому режим
+    /// завершает процесс с ненулевым кодом — в <c>check.ps1</c> он не входит.
+    /// </remarks>
+    public static int CrashTest()
+    {
+        var logger = GoEngine.App.Services.Logging.AppLog.For("CrashTest");
+
+        GoEngine.App.Services.Logging.AppLogMessages.NewGame(logger, "9×9", "20 кю · MCTS с сетью 9×9 · 24 playout'а", "Чёрные", "5.5");
+        GoEngine.App.Services.Logging.AppLogMessages.MovePlayed(logger, 1, "Чёрные", "E5");
+        GoEngine.App.Services.Logging.AppLogMessages.MovePlayed(logger, 2, "Белые", "C3");
+        GoEngine.App.Services.Logging.AppLogMessages.ModeChanged(logger, "Партия");
+
+        Console.WriteLine("Go Engine: события записаны, дальше намеренное падение для проверки лога.");
+
+        throw new InvalidOperationException(
+            "Проверка лога падений (--crash-test): это намеренный сбой, а не ошибка игры.");
+    }
+
     /// <summary>Проверяет, что панель статуса получает данные партии.</summary>
     /// <returns>0, если все проверки прошли; иначе 1.</returns>
     public static int ViewModel()

@@ -32,6 +32,22 @@
          уровней с нейросетью, и причину на телефоне узнать нечем. -->
     <TextBlock x:Name="ModelsText" Margin="0,2,0,0" Foreground="#444444" TextWrapping="Wrap" />
 
+    <!-- Логи: путь виден всегда, папку открывает настольная голова — на телефоне открывать нечего. -->
+    <TextBlock x:Name="LogsText" Margin="0,2,0,0" Foreground="#444444" TextWrapping="Wrap" />
+
+    <!-- Сбой прошлого запуска: показывается один раз, копия лога остаётся в каталоге логов. -->
+    <TextBlock x:Name="CrashText"
+               Margin="0,2,0,0"
+               Foreground="#8A2B2B"
+               TextWrapping="Wrap"
+               IsVisible="False" />
+
+    <Button x:Name="OpenLogsButton"
+            Content="Открыть папку с логами"
+            MinHeight="44"
+            HorizontalAlignment="Left"
+            IsVisible="False" />
+
     <StackPanel Orientation="Horizontal" Spacing="8">
       <Button x:Name="CheckUpdatesButton" Content="Проверить обновления" MinHeight="44" />
       <Button x:Name="InstallUpdateButton"

@@ -21,6 +21,11 @@
   <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="3.116.1" />
   </ItemGroup>
 
+  <ItemGroup Label="Логирование">
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="8.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+  </ItemGroup>
+
   <ItemGroup Label="Нейросеть (v2)">
     <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
   </ItemGroup>

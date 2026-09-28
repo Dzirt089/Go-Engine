@@ -8,7 +8,9 @@ using Avalonia.Platform.Storage;
 using GoEngine.AI;
 using GoEngine.App.Controls;
 using GoEngine.App.Services;
+using GoEngine.App.Services.Logging;
 using GoEngine.App.ViewModels;
+using Microsoft.Extensions.Logging;
 
 namespace GoEngine.App.Views;
 
@@ -25,6 +27,9 @@ namespace GoEngine.App.Views;
 /// </remarks>
 public sealed partial class BoardView : UserControl
 {
+    /// <summary>Логгер вида: сюда попадают сохранение и загрузка партии с их отказами.</summary>
+    private readonly ILogger _log = AppLog.For<BoardView>();
+
     private readonly BoardControl? _boardControl;
     private readonly Grid? _layout;
     private readonly Border? _panel;
@@ -156,12 +161,22 @@ public sealed partial class BoardView : UserControl
             await using var stream = await file.OpenWriteAsync();
             var saved = SgfStore.Save(ViewModel.ToSgfGame(), stream);
 
+            if (saved.IsSuccess)
+            {
+                AppLogMessages.SgfSaved(_log, file.Name, ViewModel.ToSgfGame().Moves.Count);
+            }
+            else
+            {
+                AppLogMessages.SgfFailed(_log, "Сохранение партии", saved.Error ?? "причина неизвестна");
+            }
+
             ShowHint(saved.IsSuccess
                 ? $"Партия сохранена: {file.Name}"
                 : saved.Error ?? "Не удалось сохранить партию.");
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
         {
+            AppLogMessages.SgfFailed(_log, "Сохранение партии", exception.Message);
             ShowHint($"Не удалось сохранить партию: {exception.Message}");
         }
     }
@@ -184,15 +199,18 @@ public sealed partial class BoardView : UserControl
 
             if (!loaded.IsSuccess)
             {
+                AppLogMessages.SgfFailed(_log, "Загрузка партии", loaded.Error ?? "причина неизвестна");
                 ShowHint(loaded.Error ?? "Не удалось прочитать партию.");
                 return;
             }
 
             _ = ViewModel.LoadGameAsync(loaded.Value);
+            AppLogMessages.SgfLoaded(_log, file.Name, loaded.Value.Moves.Count);
             ShowHint($"Партия загружена: {file.Name}");
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
         {
+            AppLogMessages.SgfFailed(_log, "Загрузка партии", exception.Message);
             ShowHint($"Не удалось прочитать партию: {exception.Message}");
         }
     }

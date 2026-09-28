@@ -1,7 +1,9 @@
 using System.ComponentModel;
 using GoEngine.AI;
 using GoEngine.App.Services;
+using GoEngine.App.Services.Logging;
 using GoEngine.Problems;
+using Microsoft.Extensions.Logging;
 
 namespace GoEngine.App.ViewModels;
 
@@ -20,6 +22,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     ];
 
     private bool _problemsMode;
+
+    /// <summary>Логгер режимов: в логе видно, чем игрок занимался до сбоя.</summary>
+    private readonly ILogger _log = AppLog.For<ShellViewModel>();
 
     /// <summary>Создаёт оболочку с готовыми моделями режимов.</summary>
     /// <param name="settings">Настройки партии: их же получает вид партии.</param>
@@ -107,6 +112,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         }
 
         _problemsMode = problems;
+        AppLogMessages.ModeChanged(_log, problems ? "Задачи" : "Партия");
 
         if (problems)
         {

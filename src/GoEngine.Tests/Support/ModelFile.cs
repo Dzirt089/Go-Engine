@@ -41,7 +41,12 @@ internal static class ModelFile
     public static bool Finetuned9x9Exists => File.Exists(Finetuned9x9Path);
 
     /// <summary>Ищет корень репозитория вверх по каталогам.</summary>
-    /// <returns>Каталог с `PROJECT.md` и `TASKS`, либо каталог сборки.</returns>
+    /// <returns>Каталог с `PROJECT.md` и решением `src/GoEngine.sln`, либо каталог сборки.</returns>
+    /// <remarks>
+    /// Признаки — только те файлы, что лежат в репозитории: прежде вторым признаком была папка
+    /// `TASKS`, но рабочие документы агента из репозитория убрали, и у свежего клона поиск
+    /// корня сломался бы (тесты с моделями искали бы их в каталоге сборки).
+    /// </remarks>
     private static string Root()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
@@ -49,7 +54,7 @@ internal static class ModelFile
         while (directory is not null)
         {
             if (File.Exists(System.IO.Path.Combine(directory.FullName, "PROJECT.md")) &&
-                Directory.Exists(System.IO.Path.Combine(directory.FullName, "TASKS")))
+                Directory.Exists(System.IO.Path.Combine(directory.FullName, "src")))
             {
                 return directory.FullName;
             }

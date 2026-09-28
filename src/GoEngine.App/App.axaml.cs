@@ -1,7 +1,9 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using GoEngine.AI;
+using GoEngine.App.Services.Logging;
 using GoEngine.App.Services.Updates;
 using GoEngine.App.Views;
 
@@ -57,6 +59,13 @@ public sealed partial class App : Application
     /// <remarks>Задаёт голова: на Android это каталог приложения, на настольных системах — временный.</remarks>
     public static string? UpdateDownloadDirectory { get; set; }
 
+    /// <summary>Открывает папку с логами: задаёт голова, знающая возможности системы.</summary>
+    /// <remarks>
+    /// На настольных системах это проводник или файловый менеджер, на Android открывать нечего —
+    /// там голова обработчик не задаёт, и экран настроек показывает только путь к файлам.
+    /// </remarks>
+    public static Action<string>? OpenLogsDirectory { get; set; }
+
     /// <summary>Создаёт службу обновления, если голова её настроила.</summary>
     /// <returns>Служба обновления или <c>null</c>, если установщик или каталог не заданы.</returns>
     public static UpdateService? CreateUpdateService() =>
@@ -68,8 +77,15 @@ public sealed partial class App : Application
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Подписка на исключения диспетчера ставится здесь, а не в точке входа: обращение к
+    /// <c>Dispatcher.UIThread</c> до запуска платформы привязывает диспетчер к заглушке,
+    /// и цикл сообщений падает с <c>PlatformNotSupportedException</c> (проверено живым запуском).
+    /// </remarks>
     public override void OnFrameworkInitializationCompleted()
     {
+        Dispatcher.UIThread.UnhandledException += (_, e) => CrashReporter.Report(e.Exception, "Dispatcher.UIThread");
+
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:

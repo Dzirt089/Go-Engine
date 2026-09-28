@@ -3,6 +3,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using GoEngine.AI;
 using GoEngine.App.Services;
+using GoEngine.App.Services.Logging;
 using GoEngine.App.Services.Updates;
 using GoEngine.Core;
 
@@ -75,6 +76,11 @@ public sealed partial class SettingsView : UserControl
             installButton.Click += OnInstallUpdateClick;
         }
 
+        if (this.FindControl<Button>("OpenLogsButton") is { } logsButton)
+        {
+            logsButton.Click += OnOpenLogsClick;
+        }
+
         if (this.FindControl<TextBlock>("VersionText") is { } versionText)
         {
             // Показываем версию без хвоста коммита, а полную строку — в подсказке: она нужна
@@ -85,6 +91,7 @@ public sealed partial class SettingsView : UserControl
         }
 
         ShowModels();
+        ShowLogs();
         Initialize(current);
     }
 
@@ -96,6 +103,48 @@ public sealed partial class SettingsView : UserControl
 
     /// <summary>Игрок отказался от изменений.</summary>
     public event EventHandler? Cancelled;
+
+    /// <summary>Показывает каталог логов, сообщение о сбое прошлого запуска и кнопку открытия папки.</summary>
+    /// <remarks>
+    /// Кнопка открытия видна только там, где голова задала обработчик: на Android открывать
+    /// нечего, и там игрок видит путь к файлам, который можно переписать или переслать.
+    /// Сообщение о сбое живёт до конца сеанса: файл-признак уже прочитан и удалён, поэтому
+    /// вечно оно не показывается, а копия лога остаётся в каталоге.
+    /// </remarks>
+    private void ShowLogs()
+    {
+        if (this.FindControl<TextBlock>("LogsText") is { } logsText)
+        {
+            logsText.Text = AppLog.IsFileLogging
+                ? $"Логи: {AppLog.Directory}"
+                : "Логи: файл недоступен, игра работает без записи";
+        }
+
+        if (this.FindControl<TextBlock>("CrashText") is { } crashText && AppLog.PreviousCrash is { } crash)
+        {
+            crashText.Text = crash.Summary;
+            crashText.IsVisible = true;
+        }
+
+        if (this.FindControl<Button>("OpenLogsButton") is { } openButton)
+        {
+            openButton.IsVisible = global::GoEngine.App.App.OpenLogsDirectory is not null;
+        }
+    }
+
+    /// <summary>Открывает папку с логами средствами платформы.</summary>
+    /// <param name="sender">Кнопка открытия.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnOpenLogsClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+
+        if (global::GoEngine.App.App.OpenLogsDirectory is { } open && AppLog.Directory is { Length: > 0 } directory)
+        {
+            open(directory);
+        }
+    }
 
     /// <summary>Показывает состояние моделей, о котором сообщила голова платформы.</summary>
     /// <remarks>
