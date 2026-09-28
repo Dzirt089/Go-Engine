@@ -36,7 +36,8 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     [
         nameof(Current), nameof(Board), nameof(LastMove), nameof(Title), nameof(GoalText), nameof(ToMoveText),
         nameof(SizeText), nameof(RankText), nameof(Verdict), nameof(HasVerdict), nameof(IsSolved), nameof(CanBack),
-        nameof(CanHint), nameof(CanGoPrevious), nameof(CanGoNext), nameof(StatusText), nameof(SelectedIndex)
+        nameof(CanHint), nameof(CanGoPrevious), nameof(CanGoNext), nameof(StatusText), nameof(SelectedIndex),
+        nameof(LastCaptured), nameof(LastCapturedColor)
     ];
 
     private readonly IReadOnlyList<Problem> _problems;
@@ -46,6 +47,8 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     private int _index;
     private string _verdict = string.Empty;
     private Point? _lastMove;
+    private IReadOnlyList<Point> _lastCaptured = [];
+    private StoneColor _lastCapturedColor = StoneColor.Empty;
 
     /// <summary>Создаёт модель по всей встроенной библиотеке задач.</summary>
     public ProblemViewModel() : this(ProblemLibrary.All)
@@ -90,6 +93,17 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// Ответ соперника сессия ставит сама, поэтому камень ищется сравнением досок до и после хода.
     /// </remarks>
     public Point? LastMove => _lastMove;
+
+    /// <summary>Камни, снятые последним ходом: игрока или ответа соперника.</summary>
+    /// <remarks>
+    /// Сессия применяет ответ соперника сразу за ходом игрока, поэтому «последний ход» — это пара.
+    /// Анимация показывает важнейшее из пары: если было снятие, показывается снятие, иначе —
+    /// появление последнего поставленного камня.
+    /// </remarks>
+    public IReadOnlyList<Point> LastCaptured => _lastCaptured;
+
+    /// <summary>Цвет снятых камней: такой был у них до снятия.</summary>
+    public StoneColor LastCapturedColor => _lastCapturedColor;
 
     /// <summary>Название задачи.</summary>
     public string Title => Current.Name;
@@ -177,7 +191,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         }
         else
         {
-            _lastMove = NewStone(before, _session.Board) ?? point;
+            UpdateAnimation(before, _session.Board, point);
             _verdict = verdict == ProblemVerdict.Solved ? SolvedText : CorrectText;
         }
 
@@ -208,7 +222,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         }
 
         _verdict = string.Empty;
-        _lastMove = null;
+        ClearAnimation();
         NotifyAll();
     }
 
@@ -217,7 +231,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     {
         _session.Reset();
         _verdict = string.Empty;
-        _lastMove = null;
+        ClearAnimation();
         NotifyAll();
     }
 
@@ -253,9 +267,68 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         // Новая задача — новая сессия: состояние решения не переносится между задачами.
         _session = new ProblemSession(_problems[index]);
         _verdict = string.Empty;
-        _lastMove = null;
+        ClearAnimation();
 
         NotifyAll();
+    }
+
+    /// <summary>Собирает данные анимации: что появилось и что снято.</summary>
+    /// <param name="before">Позиция до хода игрока.</param>
+    /// <param name="after">Позиция после хода игрока и ответа соперника.</param>
+    /// <param name="played">Точка хода игрока.</param>
+    /// <remarks>
+    /// Если снятие было у хода игрока — показываем его: игрок должен видеть, что его ход сработал.
+    /// Иначе показываем снятие ответа соперника вместе с его камнем, а если снятий не было —
+    /// просто последний поставленный камень.
+    /// </remarks>
+    private void UpdateAnimation(Board before, Board after, Point played)
+    {
+        var solver = Current.SolverColor;
+        var takenBySolver = CapturedBy(before, after, solver.Opponent());
+
+        if (takenBySolver.Count > 0)
+        {
+            _lastMove = played;
+            _lastCaptured = takenBySolver;
+            _lastCapturedColor = solver.Opponent();
+
+            return;
+        }
+
+        var takenByReply = CapturedBy(before, after, solver);
+        var reply = NewStone(before, after);
+
+        _lastMove = reply is { } stone && stone != played ? stone : played;
+        _lastCaptured = takenByReply;
+        _lastCapturedColor = takenByReply.Count > 0 ? solver : StoneColor.Empty;
+    }
+
+    /// <summary>Точки цвета, которые были заняты до хода и опустели после него.</summary>
+    /// <param name="before">Позиция до хода.</param>
+    /// <param name="after">Позиция после хода.</param>
+    /// <param name="color">Цвет камней, которые могли быть сняты.</param>
+    /// <returns>Снятые точки в порядке обхода доски.</returns>
+    private static IReadOnlyList<Point> CapturedBy(Board before, Board after, StoneColor color)
+    {
+        List<Point> captured = [];
+
+        foreach (var point in before.AllPoints())
+        {
+            if (before.At(point) == color && after.IsEmpty(point))
+            {
+                captured.Add(point);
+            }
+        }
+
+        return captured.AsReadOnly();
+    }
+
+    /// <summary>Сбрасывает данные анимации: доска выглядит как прежде.</summary>
+    private void ClearAnimation()
+    {
+        _lastMove = null;
+        _lastCaptured = [];
+        _lastCapturedColor = StoneColor.Empty;
     }
 
     /// <summary>Ищет камень, появившийся на доске после хода.</summary>

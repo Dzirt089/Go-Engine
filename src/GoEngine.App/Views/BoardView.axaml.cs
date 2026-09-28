@@ -188,7 +188,7 @@ public sealed partial class BoardView : UserControl
                 return;
             }
 
-            _ = ViewModel.LoadGame(loaded.Value);
+            _ = ViewModel.LoadGameAsync(loaded.Value);
             ShowHint($"Партия загружена: {file.Name}");
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -307,7 +307,10 @@ public sealed partial class BoardView : UserControl
         }
 
         _settings = _settingsView.Selected;
-        ViewModel.ApplySettings(_settings);
+
+        // Партия начинается сразу, а первый ход соперника считается в фоне: иначе окно
+        // замирало бы на время поиска, а анимация хода не была бы видна.
+        _ = ViewModel.ApplySettingsAsync(_settings);
 
         // Неудачная запись настроек не мешает играть: значения уже применены к партии.
         _ = SettingsStore.Save(_settings);
@@ -432,12 +435,12 @@ public sealed partial class BoardView : UserControl
     /// <summary>Обрабатывает щелчок по доске.</summary>
     /// <param name="sender">Доска.</param>
     /// <param name="e">Точка хода.</param>
-    private void OnMoveRequested(object? sender, MoveRequestedEventArgs e) => ViewModel.PlayMove(e.Point);
+    private void OnMoveRequested(object? sender, MoveRequestedEventArgs e) => _ = ViewModel.PlayMoveAsync(e.Point);
 
     /// <summary>Передаёт ход.</summary>
     /// <param name="sender">Кнопка «Пас».</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnPassClick(object? sender, RoutedEventArgs e) => ViewModel.Pass();
+    private void OnPassClick(object? sender, RoutedEventArgs e) => _ = ViewModel.PassAsync();
 
     /// <summary>Отменяет последний ход игрока вместе с ответом AI.</summary>
     /// <param name="sender">Кнопка «Отменить».</param>
@@ -452,7 +455,7 @@ public sealed partial class BoardView : UserControl
     /// <summary>Начинает новую партию по выбранным доске и уровню.</summary>
     /// <param name="sender">Кнопка «Новая партия».</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnNewGameClick(object? sender, RoutedEventArgs e) => ViewModel.StartNewGame();
+    private void OnNewGameClick(object? sender, RoutedEventArgs e) => _ = ViewModel.StartNewGameAsync();
 
     /// <summary>Показывает настройки.</summary>
     /// <param name="sender">Кнопка «Настройки».</param>

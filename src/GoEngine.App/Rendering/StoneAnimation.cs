@@ -19,7 +19,7 @@ public readonly record struct StoneAnimation(
     double Progress)
 {
     /// <summary>Длительность анимации в секундах.</summary>
-    public const double DurationSeconds = 0.18;
+    public const double DurationSeconds = 0.24;
 
     /// <summary>Насколько камень меньше своего размера в начале появления.</summary>
     private const double StartScale = 0.6;

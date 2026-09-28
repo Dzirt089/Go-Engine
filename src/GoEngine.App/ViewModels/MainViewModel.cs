@@ -12,8 +12,12 @@ namespace GoEngine.App.ViewModels;
 /// Модель представления ничего не рисует и не знает про Avalonia: она показывает данные
 /// <see cref="GameState"/> строками и играет за AI. Все правила (легальность хода, завершение
 /// партии, подсчёт) выполняет <c>Core</c>, выбор хода — <c>AI</c>.
-/// Ход AI считается синхронно: на слабых уровнях это доли миллисекунды, на сильных окно
-/// на время поиска не отвечает — вынос в фон запланирован на полировку (T-030).
+/// Ход AI считается в фоне. Синхронные <see cref="PlayMove"/> и <see cref="Pass"/> считают его
+/// на месте и остаются для тестов, загрузки партии и смены настроек; интерфейс пользуется
+/// <see cref="PlayMoveAsync"/> и <see cref="PassAsync"/>. Причина: синхронный поиск блокировал поток
+/// интерфейса на время раздумий (на уровне с сетью — больше секунды), поэтому ход игрока появлялся
+/// на доске одновременно с ответом соперника, а анимация успевала закончиться до первой отрисовки.
+/// Отмена не прерывает уже начатый поиск, но его результат не применяется (см. <see cref="CancelThinking"/>).
 /// </remarks>
 public sealed class MainViewModel : INotifyPropertyChanged
 {
@@ -25,6 +29,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int _capturedBlack;
     private int _capturedWhite;
     private bool _showTerritory;
+
+    /// <summary>Отмена текущего поиска хода соперника: результат отменённого поиска не применяется.</summary>
+    private CancellationTokenSource? _aiCancellation;
+
+    /// <summary>Поиск сериализуется: <see cref="Random"/> не потокобезопасен, и двух «раздумий» быть не должно.</summary>
+    private readonly object _aiLock = new();
+
+    /// <summary>Поиск хода соперника идёт прямо сейчас.</summary>
+    private bool _isThinking;
 
     /// <summary>Подписи уровней. Список хранится полем намеренно: подмена <c>ItemsSource</c>
     /// на новом экземпляре заставляет список выбора сбросить выбранный индекс и вернуть его
@@ -355,6 +368,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     public bool HasModelFor(BoardSize size) => _evaluator is not null && _modelSizes.Contains(size.Value);
 
+    /// <summary>Соперник думает: поиск идёт в фоне, интерфейс в это время живой.</summary>
+    /// <remarks>
+    /// Пока идёт поиск, ходы игрока не принимаются: иначе игрок сходил бы за соперника.
+    /// Результат отменённого поиска не применяется — очередь остаётся за игроком.
+    /// </remarks>
+    public bool IsThinking => _isThinking;
+
     /// <summary>Начинает партию с выбранными доской и уровнем.</summary>
     /// <param name="size">Сторона доски.</param>
     /// <param name="level">Уровень AI.</param>
@@ -366,12 +386,34 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <returns><c>true</c>, если ход принят.</returns>
     public bool PlayMove(Point point)
     {
-        if (!TryPlay(Move.Play(point, _game.ToMove)))
+        if (_isThinking || !TryPlay(Move.Play(point, _game.ToMove)))
         {
             return false;
         }
 
         ShowAiMoveIfNeeded();
+
+        return true;
+    }
+
+    /// <summary>Играет ход игрока и считает ответ соперника в фоне.</summary>
+    /// <param name="point">Точка хода.</param>
+    /// <returns><c>true</c>, если ход игрока принят.</returns>
+    /// <remarks>
+    /// Ход игрока применяется сразу и сразу же сообщается виду, поэтому доска успевает
+    /// перерисоваться и показать анимацию, пока соперник думает. Ответ соперника приходит фоном;
+    /// если за время поиска партия изменилась (отмена, новая партия, смена режима), устаревший ход
+    /// не играется.
+    /// </remarks>
+    public async Task<bool> PlayMoveAsync(Point point)
+    {
+        if (_isThinking || !TryPlay(Move.Play(point, _game.ToMove)))
+        {
+            return false;
+        }
+
+        NotifyAll();
+        await PlayAiTurnAsync().ConfigureAwait(true);
 
         return true;
     }
@@ -384,12 +426,27 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     public bool Pass()
     {
-        if (!TryPlay(Move.Pass(_game.ToMove)))
+        if (_isThinking || !TryPlay(Move.Pass(_game.ToMove)))
         {
             return false;
         }
 
         ShowAiMoveIfNeeded();
+
+        return true;
+    }
+
+    /// <summary>Передаёт ход и считает ответ соперника в фоне.</summary>
+    /// <returns><c>true</c>, если пас игрока принят.</returns>
+    public async Task<bool> PassAsync()
+    {
+        if (_isThinking || !TryPlay(Move.Pass(_game.ToMove)))
+        {
+            return false;
+        }
+
+        NotifyAll();
+        await PlayAiTurnAsync().ConfigureAwait(true);
 
         return true;
     }
@@ -411,6 +468,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     public bool Undo()
     {
+        CancelThinking();
+
         if (!CanUndo || !TryUndo())
         {
             return false;
@@ -428,6 +487,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <remarks>Если возврат не доводит очередь до игрока, состояние не меняется.</remarks>
     public bool Redo()
     {
+        CancelThinking();
+
         if (!CanRedo || !TryRedo())
         {
             return false;
@@ -511,17 +572,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <returns>Успех или причина отказа, если ходы не проходят по правилам.</returns>
     public Result LoadGame(SgfGame game)
     {
-        var restored = game.ToGameState();
+        var prepared = PrepareLoaded(game);
 
-        if (!restored.IsSuccess)
+        if (!prepared.IsSuccess)
         {
-            return Result.Fail(restored.Error!);
+            return prepared;
         }
-
-        _game = restored.Value!;
-        _settings = AppSettings.From(game.Size, _settings.ToDifficultyLevel(), _settings.ToPlayerColor(), game.Komi);
-
-        RecountCaptures();
 
         // После загрузки партия может стоять на ходе AI — он обязан ответить.
         ShowAiMoveIfNeeded();
@@ -529,8 +585,51 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return Result.Ok();
     }
 
+    /// <summary>Загружает партию и считает ответ соперника в фоне.</summary>
+    /// <param name="game">Прочитанная партия.</param>
+    /// <returns>Успех или причина отказа, если ходы не проходят по правилам.</returns>
+    public async Task<Result> LoadGameAsync(SgfGame game)
+    {
+        var prepared = PrepareLoaded(game);
+
+        if (!prepared.IsSuccess)
+        {
+            return prepared;
+        }
+
+        NotifyAll();
+        await PlayAiTurnAsync().ConfigureAwait(true);
+
+        return Result.Ok();
+    }
+
+    /// <summary>Готовит загруженную партию — общая часть синхронного и фонового путей.</summary>
+    /// <param name="game">Прочитанная партия.</param>
+    /// <returns>Успех или причина отказа, если ходы не проходят по правилам.</returns>
+    private Result PrepareLoaded(SgfGame game)
+    {
+        var restored = game.ToGameState();
+
+        if (!restored.IsSuccess)
+        {
+            return Result.Fail(restored.Error!);
+        }
+
+        CancelThinking();
+        _game = restored.Value!;
+        _settings = AppSettings.From(game.Size, _settings.ToDifficultyLevel(), _settings.ToPlayerColor(), game.Komi);
+
+        RecountCaptures();
+
+        return Result.Ok();
+    }
+
     /// <summary>Начинает новую партию по текущим настройкам.</summary>
     public void StartNewGame() => ApplySettings(_settings);
+
+    /// <summary>Начинает новую партию и считает первый ход соперника в фоне.</summary>
+    /// <returns>Задача, завершающаяся после ответа соперника.</returns>
+    public Task StartNewGameAsync() => ApplySettingsAsync(_settings);
 
     /// <summary>Применяет настройки и начинает новую партию.</summary>
     /// <param name="settings">Новые настройки партии.</param>
@@ -538,12 +637,32 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         ArgumentNullException.ThrowIfNull(settings);
 
-        _settings = settings;
-        _game = CreateGame(settings);
-
-        RecountCaptures();
+        BeginGame(settings);
         ShowAiMoveIfNeeded();
         NotifyAll();
+    }
+
+    /// <summary>Применяет настройки и считает первый ход соперника в фоне.</summary>
+    /// <param name="settings">Новые настройки партии.</param>
+    /// <returns>Задача, завершающаяся после ответа соперника.</returns>
+    /// <remarks>Путь интерфейса: синхронный <see cref="ApplySettings"/> оставлен тестам и API.</remarks>
+    public async Task ApplySettingsAsync(AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        BeginGame(settings);
+        NotifyAll();
+        await PlayAiTurnAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>Начинает партию по настройкам — общая часть синхронного и фонового путей.</summary>
+    /// <param name="settings">Настройки партии.</param>
+    private void BeginGame(AppSettings settings)
+    {
+        CancelThinking();
+        _settings = settings;
+        _game = CreateGame(settings);
+        RecountCaptures();
     }
 
     /// <summary>Создаёт партию по настройкам.</summary>
@@ -556,24 +675,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void ShowAiMoveIfNeeded()
     {
         var playerColor = _settings.ToPlayerColor();
-        var level = _settings.ToDifficultyLevel();
-        var size = _settings.ToBoardSize();
-
-        // Уровни Дан играют только с сетью и только на больших досках (D-038). Если модель
-        // не загружена или доска 9×9, уровень заменяется на 10 кю: партия не должна срываться
-        // из-за настроек, которые интерфейс и так не предлагает.
-        var modelsDirectory = global::GoEngine.App.App.ModelsDirectory;
-
-        if (level.NeedsNetwork && (_evaluator is null || modelsDirectory is null))
-        {
-            level = DifficultyLevel.Kyu10;
-        }
 
         while (_game.Status == GameStatus.InProgress && _game.ToMove != playerColor)
         {
-            var selector = AiFactory.Create(level, _random, size, _evaluator, modelsDirectory);
-
-            if (TryPlay(selector.SelectMove(_game)) || TryPlay(Move.Pass(_game.ToMove)))
+            if (TryPlay(ComputeAiMove()) || TryPlay(Move.Pass(_game.ToMove)))
             {
                 continue;
             }
@@ -585,6 +690,119 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         NotifyAll();
+    }
+
+    /// <summary>Играет ходы соперника, пока очередь за ним; поиск идёт в фоне.</summary>
+    /// <returns>Задача, завершающаяся, когда соперник ответил или поиск отменён.</returns>
+    /// <remarks>
+    /// Поиск вынесен в <see cref="Task.Run{TResult}(Func{TResult}, CancellationToken)"/>: селектор
+    /// синхронный, а поток интерфейса занят отрисовкой. Отмена не прерывает уже начатый поиск —
+    /// она запрещает применять его результат, поэтому перед применением проверяются и токен,
+    /// и то, что партия не изменилась.
+    /// </remarks>
+    public async Task PlayAiTurnAsync()
+    {
+        var playerColor = _settings.ToPlayerColor();
+
+        if (_game.Status != GameStatus.InProgress || _game.ToMove == playerColor)
+        {
+            return;
+        }
+
+        CancelThinking();
+
+        using var cancellation = new CancellationTokenSource();
+        _aiCancellation = cancellation;
+        SetThinking(true);
+
+        try
+        {
+            while (_game.Status == GameStatus.InProgress && _game.ToMove != playerColor)
+            {
+                var moveNumber = _game.MoveNumber;
+                var move = await Task.Run(ComputeAiMove, cancellation.Token).ConfigureAwait(true);
+
+                if (cancellation.IsCancellationRequested || _game.MoveNumber != moveNumber)
+                {
+                    // Партия изменилась, пока считали: устаревший ход не играем.
+                    return;
+                }
+
+                if (!TryPlay(move) && !TryPlay(Move.Pass(_game.ToMove)))
+                {
+                    break;
+                }
+
+                NotifyAll();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Отмена — ожидаемый исход: результат поиска больше не нужен.
+        }
+        finally
+        {
+            if (ReferenceEquals(_aiCancellation, cancellation))
+            {
+                _aiCancellation = null;
+            }
+
+            SetThinking(false);
+        }
+    }
+
+    /// <summary>Запрещает применять результат идущего поиска.</summary>
+    /// <remarks>
+    /// Сам поиск не прерывается: селектор синхронный и токена не принимает. Поэтому отмена
+    /// означает «результат не применять» — очередь остаётся за игроком.
+    /// </remarks>
+    public void CancelThinking() => _aiCancellation?.Cancel();
+
+    /// <summary>Считает ход соперника; вызывается и из фона, поэтому поиски сериализуются.</summary>
+    /// <returns>Ход селектора для текущей позиции.</returns>
+    private Move ComputeAiMove()
+    {
+        // Random не потокобезопасен, а синхронный и фоновый пути не должны пересекаться.
+        lock (_aiLock)
+        {
+            var selector = AiFactory.Create(
+                EffectiveLevel(),
+                _random,
+                _settings.ToBoardSize(),
+                _evaluator,
+                global::GoEngine.App.App.ModelsDirectory);
+
+            return selector.SelectMove(_game);
+        }
+    }
+
+    /// <summary>Уровень партии с оглядкой на доступность сети.</summary>
+    /// <returns>Уровень, которым играет соперник.</returns>
+    /// <remarks>
+    /// Уровни Дан играют только с сетью и только на больших досках (D-038). Если модель
+    /// не загружена, уровень заменяется на 10 кю: партия не должна срываться из-за настроек,
+    /// которые интерфейс и так не предлагает.
+    /// </remarks>
+    private DifficultyLevel EffectiveLevel()
+    {
+        var level = _settings.ToDifficultyLevel();
+
+        return level.NeedsNetwork && (_evaluator is null || global::GoEngine.App.App.ModelsDirectory is null)
+            ? DifficultyLevel.Kyu10
+            : level;
+    }
+
+    /// <summary>Отмечает начало и конец поиска хода соперника.</summary>
+    /// <param name="thinking">Идёт поиск.</param>
+    private void SetThinking(bool thinking)
+    {
+        if (_isThinking == thinking)
+        {
+            return;
+        }
+
+        _isThinking = thinking;
+        OnPropertyChanged(nameof(IsThinking));
     }
 
     /// <summary>Играет ход в партии и учитывает снятые камни.</summary>

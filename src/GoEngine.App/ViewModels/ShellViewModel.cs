@@ -25,7 +25,14 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <param name="settings">Настройки партии: их же получает вид партии.</param>
     /// <param name="game">Модель представления партии.</param>
     /// <param name="problems">Модель представления задач.</param>
-    public ShellViewModel(AppSettings settings, MainViewModel game, ProblemViewModel problems)
+    /// <param name="startOnSettings">
+    /// Показать настройки до партии: так делает мобильная голова, где игрок сам начинает матч.
+    /// </param>
+    public ShellViewModel(
+        AppSettings settings,
+        MainViewModel game,
+        ProblemViewModel problems,
+        bool startOnSettings = false)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(game);
@@ -34,6 +41,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         Settings = settings;
         Game = game;
         Problems = problems;
+        StartOnSettings = startOnSettings;
     }
 
     /// <inheritdoc />
@@ -41,6 +49,13 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 
     /// <summary>Настройки партии: их показывает экран настроек.</summary>
     public AppSettings Settings { get; }
+
+    /// <summary>Партия начинается с экрана настроек: игрок сам нажимает «Начать партию».</summary>
+    /// <remarks>
+    /// Так ведёт себя мобильная версия: там приложение открывается сразу на доске, и без
+    /// стартового экрана матч начинался бы сам. Настольная версия показывает партию как прежде.
+    /// </remarks>
+    public bool StartOnSettings { get; }
 
     /// <summary>Модель представления партии: живёт, пока приложение открыто.</summary>
     public MainViewModel Game { get; }
@@ -63,15 +78,18 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <param name="settings">Настройки партии.</param>
     /// <param name="evaluator">Оценка позиции нейросетью для уровней Дан; <c>null</c> — без сети.</param>
     /// <param name="problems">Задачи; <c>null</c> — взять встроенную библиотеку.</param>
+    /// <param name="startOnSettings">Показать настройки до партии (мобильная версия).</param>
     /// <returns>Оболочка с двумя режимами.</returns>
     public static ShellViewModel Create(
         AppSettings settings,
         IPositionEvaluator? evaluator = null,
-        IReadOnlyList<Problem>? problems = null) =>
+        IReadOnlyList<Problem>? problems = null,
+        bool startOnSettings = false) =>
         new(
             settings,
             new MainViewModel(settings, Random.Shared, evaluator),
-            problems is null ? new ProblemViewModel() : new ProblemViewModel(problems));
+            problems is null ? new ProblemViewModel() : new ProblemViewModel(problems),
+            startOnSettings);
 
     /// <summary>Показывает режим партии.</summary>
     public void ShowGame() => SetMode(problems: false);
@@ -89,6 +107,13 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         }
 
         _problemsMode = problems;
+
+        if (problems)
+        {
+            // Партия уходит с экрана: поиск хода соперника больше не нужен, а его результат
+            // не должен примениться, пока игрок решает задачи.
+            Game.CancelThinking();
+        }
 
         foreach (var name in PropertyNames)
         {

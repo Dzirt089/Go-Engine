@@ -86,6 +86,16 @@ public sealed partial class ProblemView : UserControl
         {
             SyncProblemBox();
         }
+
+        if (e.PropertyName is nameof(ProblemViewModel.LastMove))
+        {
+            // Та же анимация, что и в партии: ответ соперника и снятие камней не должны
+            // появляться рывком — жалоба «всё происходит резко в один миг» касается и задач.
+            _boardControl?.Animate(
+                ViewModel.LastMove,
+                ViewModel.LastCaptured,
+                ViewModel.LastCapturedColor);
+        }
     }
 
     /// <summary>Играет ход игрока по щелчку в доску.</summary>

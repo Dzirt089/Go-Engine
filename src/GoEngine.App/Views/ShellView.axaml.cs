@@ -1,5 +1,7 @@
 using System.ComponentModel;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
@@ -21,7 +23,16 @@ public sealed partial class ShellView : UserControl
     private readonly ToggleButton? _problemButton;
 
     /// <summary>Создаёт оболочку с настройками из файла и оценкой сети, заданной головой.</summary>
-    public ShellView() : this(ShellViewModel.Create(SettingsStore.Load(), global::GoEngine.App.App.Evaluator))
+    /// <remarks>
+    /// Мобильная голова открывает приложение сразу на доске, поэтому там партия начинается
+    /// с экрана настроек: игрок сам решает, с какой доской и уровнем играть. Настольная версия
+    /// работает как прежде — партия и меню видны сразу.
+    /// </remarks>
+    public ShellView()
+        : this(ShellViewModel.Create(
+            SettingsStore.Load(),
+            global::GoEngine.App.App.Evaluator,
+            startOnSettings: IsSingleViewLifetime()))
     {
     }
 
@@ -64,7 +75,18 @@ public sealed partial class ShellView : UserControl
         shell.PropertyChanged += OnShellPropertyChanged;
 
         UpdateMode();
+
+        if (shell.StartOnSettings)
+        {
+            // Отмена на стартовом экране ничего не ломает: за ним уже готовая партия.
+            GameArea?.ShowSettings();
+        }
     }
+
+    /// <summary>Приложение живёт одним видом, а не окном: так устроена мобильная голова.</summary>
+    /// <returns><c>true</c>, если режим жизненного цикла — единственный вид.</returns>
+    private static bool IsSingleViewLifetime() =>
+        Application.Current?.ApplicationLifetime is ISingleViewApplicationLifetime;
 
     /// <summary>Модель оболочки.</summary>
     public ShellViewModel Shell { get; }
