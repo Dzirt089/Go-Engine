@@ -112,17 +112,24 @@ internal static class Program
     {
         if (FindModelsDirectory() is not { } directory)
         {
+            global::GoEngine.App.App.ModelsStatus =
+                global::GoEngine.App.Services.ModelStatusText.Failed("каталог models не найден рядом с приложением");
+
             return;
         }
 
         // Каталог моделей нужен и без основной модели: для 9×9 подойдёт специализированная (D-039).
         global::GoEngine.App.App.ModelsDirectory = directory;
-        global::GoEngine.App.App.ModelSizes = AvailableSizes(directory);
+        var sizes = AvailableSizes(directory);
+        global::GoEngine.App.App.ModelSizes = sizes;
 
         var path = Path.Combine(directory, ModelFileName);
 
         if (!File.Exists(path))
         {
+            global::GoEngine.App.App.ModelsStatus =
+                global::GoEngine.App.Services.ModelStatusText.Failed($"в каталоге {directory} нет файла {ModelFileName}");
+
             return;
         }
 
@@ -130,11 +137,15 @@ internal static class Program
 
         if (!loaded.IsSuccess)
         {
+            global::GoEngine.App.App.ModelsStatus =
+                global::GoEngine.App.Services.ModelStatusText.Failed(loaded.Error ?? "модель не загрузилась");
+
             Console.WriteLine($"Go Engine: модель не загружена — {loaded.Error ?? "без причины"}.");
             return;
         }
 
         global::GoEngine.App.App.Evaluator = loaded.Value!;
+        global::GoEngine.App.App.ModelsStatus = global::GoEngine.App.Services.ModelStatusText.Loaded(sizes);
         Console.WriteLine($"Go Engine: нейросеть загружена ({Path.GetFileName(path)}).");
     }
 

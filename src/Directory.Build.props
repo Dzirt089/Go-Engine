@@ -24,4 +24,13 @@
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
+  <!--
+    Метка сборки выпуска: её ставит только CI (-p:OfficialBuild=true). По ней приложение понимает,
+    можно ли сравнивать свою версию с выпусками, и не выдаёт заводское «1.0.0» за номер выпуска:
+    хвост коммита SDK добавляет и локальной сборке, поэтому по строке версии их не отличить.
+  -->
+  <ItemGroup Condition="'$(OfficialBuild)' == 'true'">
+    <AssemblyMetadata Include="OfficialBuild" Value="true" />
+  </ItemGroup>
+
 </Project>

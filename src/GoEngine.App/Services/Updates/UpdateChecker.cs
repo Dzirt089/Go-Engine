@@ -11,19 +11,32 @@ public sealed class UpdateChecker
 {
     private readonly HttpClient _http;
     private readonly AppVersion _current;
+    private readonly bool _localBuild;
 
     /// <summary>Создаёт проверку обновлений.</summary>
     /// <param name="http">Клиент HTTP; время ожидания задаёт вызывающий.</param>
     /// <param name="manifestUrl">Адрес манифеста.</param>
     /// <param name="current">Текущая версия; <c>null</c> — версия запущенной сборки.</param>
-    public UpdateChecker(HttpClient http, Uri? manifestUrl = null, AppVersion? current = null)
+    /// <param name="localBuild">
+    /// Сборка без номера версии; <c>null</c> — определить по версии запущенной сборки.
+    /// </param>
+    /// <remarks>
+    /// Локальная сборка получает заводской номер <c>1.0.0</c>, и сравнивать его с выпусками
+    /// бессмысленно: она всегда «новее» любого выпуска. Поэтому такая сборка честно сообщает,
+    /// что сравнивать не с чем, а не показывает ложное «обновлений нет».
+    /// </remarks>
+    public UpdateChecker(HttpClient http, Uri? manifestUrl = null, AppVersion? current = null, bool? localBuild = null)
     {
         ArgumentNullException.ThrowIfNull(http);
 
         _http = http;
         ManifestUrl = manifestUrl ?? DefaultManifestUrl;
         _current = current ?? AppVersion.Current;
+        _localBuild = localBuild ?? (current is null && AppVersion.IsLocalBuild);
     }
+
+    /// <summary>Сборка без номера версии: сравнивать её с выпусками нечем.</summary>
+    public bool IsLocalBuild => _localBuild;
 
     /// <summary>Постоянный адрес манифеста: плавающий релиз <c>latest</c>.</summary>
     /// <remarks>
@@ -44,6 +57,12 @@ public sealed class UpdateChecker
     /// <returns>Результат проверки или причина отказа.</returns>
     public async Task<Result<UpdateCheck>> CheckAsync(CancellationToken cancellationToken = default)
     {
+        if (_localBuild)
+        {
+            return Result<UpdateCheck>.Fail(
+                $"Это локальная сборка ({_current}): её собирали не для выпуска, сравнивать версии нечем.");
+        }
+
         try
         {
             using var response = await _http.GetAsync(ManifestUrl, cancellationToken).ConfigureAwait(false);

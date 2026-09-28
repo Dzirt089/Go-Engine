@@ -66,6 +66,7 @@ jobs:
           dotnet publish src/GoEngine.App.Desktop/GoEngine.App.Desktop.csproj
           -c Release -r ${{ matrix.rid }} --self-contained true
           -p:DebugType=none -p:DebugSymbols=false
+          -p:OfficialBuild=true
           ${{ inputs.version != '' && format('-p:Version={0}', inputs.version) || '' }}
           -o publish/${{ matrix.rid }}
 
@@ -105,6 +106,23 @@ jobs:
           # поэтому запускаем через Start-Process и смотрим код возврата сами.
           $process = Start-Process -FilePath "./publish/${{ matrix.rid }}/GoEngine.App.Desktop.exe" -ArgumentList '--smoke' -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Проверочный режим не прошёл: код $($process.ExitCode)." }
+
+      # Версия внутри собранной программы: её видит игрок и по ней приложение решает, нужен ли
+      # выпуск из манифеста. Читаем прямо из exe — иначе расхождение (например, забытый -p:Version)
+      # обнаружится только на машине игрока.
+      - name: Проверка версии в сборке (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: |
+          $exe = "./publish/${{ matrix.rid }}/GoEngine.App.Desktop.exe"
+          $product = (Get-Item $exe).VersionInfo.ProductVersion
+          Write-Host "ProductVersion сборки: $product"
+          if (-not $env:EXPECTED_VERSION) { Write-Host 'версия выпуска не задана (проверка CI) — сверять не с чем'; exit 0 }
+          if ($product -notlike "$($env:EXPECTED_VERSION)*") {
+            throw "Версия в сборке не совпала: ожидалась $($env:EXPECTED_VERSION), получена $product"
+          }
 
       - name: Проверка запуска (Linux, macOS)
         if: matrix.archive == 'tar.gz'
@@ -221,10 +239,17 @@ jobs:
         run: >-
           dotnet publish GoEngine.App.Android.csproj
           -c Release -f net8.0-android34.0 -o ../../publish/android
+          -p:OfficialBuild=true
+          ${{ inputs.version != '' && format('-p:Version={0}', inputs.version) || '' }}
           ${{ inputs.version != '' && format('-p:ApplicationDisplayVersion={0}', inputs.version) || '' }}
           ${{ inputs.version_code != '' && format('-p:ApplicationVersion={0}', inputs.version_code) || '' }}
-      # Проверка «модели реально в пакете»: APK — это zip, смотрим список файлов.
-      - name: Проверка, что модели внутри APK
+      # Проверка содержимого пакета: APK — это zip, смотрим файлы и версию. Модели без нативной
+      # библиотеки ONNX бесполезны, а версия без номера выпуска выглядит на телефоне как «0.1.0»,
+      # поэтому проверяем и то, и другое, и третье, а не только наличие .onnx.
+      - name: Проверка содержимого APK
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+          EXPECTED_CODE: ${{ inputs.version_code }}
         run: |
           apk=$(find publish/android -name '*.apk' | head -n 1)
           echo "пакет: ${apk} ($(du -h "${apk}" | cut -f1))"
@@ -236,6 +261,35 @@ jobs:
             exit 1
           fi
           echo "моделей в пакете: ${count}"
+
+          # Нативная библиотека ONNX: без неё модели в пакете не загрузятся, и на телефоне это
+          # выглядит ровно как «модели недоступны».
+          so=$(unzip -l "${apk}" | grep 'libonnxruntime.so' || true)
+          echo "${so}"
+          if [ -z "${so}" ]; then
+            echo "в APK нет libonnxruntime.so: модели не загрузятся" >&2
+            exit 1
+          fi
+
+          # Версия пакета: versionName обязан совпасть с версией выпуска, versionCode — с переданным.
+          sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          aapt2=$(find "${sdk}/build-tools" -name aapt2 2>/dev/null | sort | tail -n 1)
+          if [ -z "${aapt2}" ]; then
+            echo "aapt2 не найден в ${sdk}: проверить версию пакета нечем" >&2
+            exit 1
+          fi
+          badging=$("${aapt2}" dump badging "${apk}")
+          name=$(echo "${badging}" | grep -o "versionName='[^']*'" | head -n 1 | cut -d"'" -f2)
+          code=$(echo "${badging}" | grep -o "versionCode='[^']*'" | head -n 1 | cut -d"'" -f2)
+          echo "версия пакета: versionName='${name}', versionCode='${code}'"
+          if [ -n "${EXPECTED_VERSION}" ] && [ "${name}" != "${EXPECTED_VERSION}" ]; then
+            echo "versionName не совпал: ожидался ${EXPECTED_VERSION}, получен ${name}" >&2
+            exit 1
+          fi
+          if [ -n "${EXPECTED_CODE}" ] && [ "${code}" != "${EXPECTED_CODE}" ]; then
+            echo "versionCode не совпал: ожидался ${EXPECTED_CODE}, получен ${code}" >&2
+            exit 1
+          fi
       - name: Выгрузка APK
         uses: actions/upload-artifact@v4
         with:

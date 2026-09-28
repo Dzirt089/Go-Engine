@@ -77,9 +77,14 @@ public sealed partial class SettingsView : UserControl
 
         if (this.FindControl<TextBlock>("VersionText") is { } versionText)
         {
-            versionText.Text = $"Версия: {AppVersion.Current}";
+            // Показываем версию без хвоста коммита, а полную строку — в подсказке: она нужна
+            // для диагностики, но не для игрока. Локальная сборка помечается словом, иначе
+            // заводское «1.0.0» выглядит как номер выпуска.
+            versionText.Text = $"Версия: {AppVersion.Display}";
+            ToolTip.SetTip(versionText, $"Сборка: {AppVersion.InformationalVersion}");
         }
 
+        ShowModels();
         Initialize(current);
     }
 
@@ -91,6 +96,19 @@ public sealed partial class SettingsView : UserControl
 
     /// <summary>Игрок отказался от изменений.</summary>
     public event EventHandler? Cancelled;
+
+    /// <summary>Показывает состояние моделей, о котором сообщила голова платформы.</summary>
+    /// <remarks>
+    /// Состояние заполняет голова: на Android — после копирования моделей из пакета,
+    /// на настольных системах — при поиске каталога models. Пусто — голова не сообщала.
+    /// </remarks>
+    private void ShowModels()
+    {
+        if (this.FindControl<TextBlock>("ModelsText") is { } modelsText)
+        {
+            modelsText.Text = global::GoEngine.App.App.ModelsStatus ?? ModelStatusText.Unknown;
+        }
+    }
 
     /// <summary>Заполняет поля значениями настроек.</summary>
     /// <param name="current">Настройки партии.</param>
@@ -106,6 +124,7 @@ public sealed partial class SettingsView : UserControl
         ArgumentNullException.ThrowIfNull(current);
 
         _modelAvailable = modelAvailable ?? _modelAvailable;
+        ShowModels();
         Selected = current;
 
         if (this.FindControl<ComboBox>("SizeBox") is { } sizeBox)

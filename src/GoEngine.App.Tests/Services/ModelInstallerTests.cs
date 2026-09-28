@@ -85,6 +85,76 @@ public sealed class ModelInstallerTests
         Assert.True(Directory.Exists(result.Directory));
     }
 
+    [Fact]
+    public void Метка_Не_Даёт_Копировать_Модель_Повторно_При_Неизвестной_Длине()
+    {
+        // Сжатый ресурс Android не отдаёт длину потока: без метки файл копировался бы при каждом
+        // запуске — это сотня мегабайт в потоке интерфейса и жалоба «моделей не видно».
+        var source = new FakeSource().Add("model.onnx", 256, knownLength: false);
+        var directory = NewDirectory();
+        var installer = new ModelInstaller(source);
+
+        _ = installer.Install(["model.onnx"], directory, "1.0.0");
+        var second = installer.Install(["model.onnx"], directory, "1.0.0");
+
+        Assert.Empty(second.Installed);
+        Assert.Equal(["model.onnx"], second.Skipped);
+    }
+
+    [Fact]
+    public void Новая_Метка_Заставляет_Установить_Модель_Заново()
+    {
+        var source = new FakeSource().Add("model.onnx", 256, knownLength: false);
+        var directory = NewDirectory();
+        var installer = new ModelInstaller(source);
+
+        _ = installer.Install(["model.onnx"], directory, "1.0.0");
+        var second = installer.Install(["model.onnx"], directory, "1.0.1");
+
+        Assert.Equal(["model.onnx"], second.Installed);
+    }
+
+    [Fact]
+    public void Повреждённая_Копия_Ставится_Заново()
+    {
+        var source = new FakeSource().Add("model.onnx", 256, knownLength: false);
+        var directory = NewDirectory();
+        var installer = new ModelInstaller(source);
+
+        _ = installer.Install(["model.onnx"], directory, "1.0.0");
+        File.WriteAllBytes(Path.Combine(directory, "model.onnx"), new byte[10]);
+        var second = installer.Install(["model.onnx"], directory, "1.0.0");
+
+        Assert.Equal(["model.onnx"], second.Installed);
+        Assert.Equal(256, new FileInfo(Path.Combine(directory, "model.onnx")).Length);
+    }
+
+    [Fact]
+    public void Неполный_Набор_Не_Считается_Установленным()
+    {
+        var source = new FakeSource().Add("model.onnx", 128, knownLength: false);
+        var directory = NewDirectory();
+        var installer = new ModelInstaller(source);
+
+        var first = installer.Install(["model.onnx", "second.onnx"], directory, "1.0.0");
+        var second = installer.Install(["model.onnx"], directory, "1.0.0");
+
+        Assert.Equal(["second.onnx"], first.Missing);
+        Assert.False(first.IsComplete);
+        Assert.Equal(["model.onnx"], second.Installed);
+    }
+
+    [Fact]
+    public void Недокопированная_Модель_Удаляется_И_Сообщается_Об_Ошибке()
+    {
+        var source = new FakeSource().AddTruncated("model.onnx", declared: 512, actual: 64);
+        var directory = NewDirectory();
+
+        _ = Assert.Throws<IOException>(() => new ModelInstaller(source).Install(["model.onnx"], directory));
+
+        Assert.False(File.Exists(Path.Combine(directory, "model.onnx")));
+    }
+
     /// <summary>Создаёт пустой временный каталог для теста.</summary>
     /// <returns>Путь к каталогу.</returns>
     private static string NewDirectory()
@@ -99,6 +169,7 @@ public sealed class ModelInstallerTests
     private sealed class FakeSource : IModelSource
     {
         private readonly Dictionary<string, int> _files = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, int> _actual = new(StringComparer.Ordinal);
         private readonly HashSet<string> _unknownLength = new(StringComparer.Ordinal);
 
         /// <summary>Добавляет файл заданного размера.</summary>
@@ -121,6 +192,19 @@ public sealed class ModelInstallerTests
         /// <inheritdoc />
         public bool Contains(string fileName) => _files.ContainsKey(fileName);
 
+        /// <summary>Добавляет файл, который отдаёт меньше байт, чем обещает: обрыв копирования.</summary>
+        /// <param name="fileName">Имя файла.</param>
+        /// <param name="declared">Сколько байт обещает источник.</param>
+        /// <param name="actual">Сколько байт он отдаёт на самом деле.</param>
+        /// <returns>Этот же источник для цепочки вызовов.</returns>
+        public FakeSource AddTruncated(string fileName, int declared, int actual)
+        {
+            _files[fileName] = declared;
+            _actual[fileName] = actual;
+
+            return this;
+        }
+
         /// <inheritdoc />
         public Stream Open(string fileName)
         {
@@ -129,7 +213,7 @@ public sealed class ModelInstallerTests
                 throw new FileNotFoundException(fileName);
             }
 
-            return new MemoryStream(new byte[length]);
+            return new MemoryStream(new byte[_actual.TryGetValue(fileName, out var actual) ? actual : length]);
         }
 
         /// <inheritdoc />

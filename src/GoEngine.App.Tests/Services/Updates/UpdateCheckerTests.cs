@@ -100,14 +100,32 @@ public sealed class UpdateCheckerTests
             UpdateChecker.DefaultManifestUrl.ToString());
     }
 
-    private static UpdateChecker Create(string? body, AppVersion current, HttpStatusCode status = HttpStatusCode.OK)
+    [Fact]
+    public async Task Проверка_Объясняет_Локальную_Сборку()
+    {
+        // Локальная сборка получает заводской номер 1.0.0: он «новее» любого выпуска, поэтому
+        // сравнение бессмысленно, и приложение обязано сказать это словами, а не молчать.
+        var checker = Create(Newer, AppVersion.Current, localBuild: true);
+
+        var result = await checker.CheckAsync();
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("локальная сборка", result.Error, StringComparison.Ordinal);
+        Assert.True(checker.IsLocalBuild);
+    }
+
+    private static UpdateChecker Create(
+        string? body,
+        AppVersion current,
+        HttpStatusCode status = HttpStatusCode.OK,
+        bool? localBuild = null)
     {
         var http = new HttpClient(new StubHandler(_ => new HttpResponseMessage(status)
         {
             Content = new StringContent(body ?? string.Empty)
         }));
 
-        return new UpdateChecker(http, new Uri("https://example.org/update.json"), current);
+        return new UpdateChecker(http, new Uri("https://example.org/update.json"), current, localBuild);
     }
 
     /// <summary>Подставной обработчик HTTP: сеть в тестах не нужна.</summary>

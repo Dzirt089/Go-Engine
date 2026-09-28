@@ -33,6 +33,12 @@ internal sealed class AndroidModelSource : IModelSource
         TryOpen(fileName) ?? throw new FileNotFoundException($"В пакете нет модели {fileName}.");
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Модели лежат в пакете сжатыми: несжатые прибавили бы к APK около 36 МБ (71,7 и 25,6 МБ
+    /// против 44,3 и 16,6 МБ в сжатом виде), а выигрыш — только знание длины. Поэтому у сжатого
+    /// ресурса длина честно считается неизвестной, и установщик опирается на метку набора:
+    /// без неё он копировал бы сотню мегабайт при каждом запуске.
+    /// </remarks>
     public long Length(string fileName)
     {
         using var stream = TryOpen(fileName);

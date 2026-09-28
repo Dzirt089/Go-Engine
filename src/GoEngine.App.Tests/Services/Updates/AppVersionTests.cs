@@ -42,6 +42,15 @@ public sealed class AppVersionTests
     }
 
     [Fact]
+    public void Тестовая_Сборка_Не_Считается_Выпуском()
+    {
+        // Тесты запускаются без метки CI: приложение обязано понимать, что это не выпуск.
+        Assert.False(AppVersion.IsOfficialBuild);
+        Assert.True(AppVersion.IsLocalBuild);
+        Assert.Contains("локальная сборка", AppVersion.Display, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Локальная_Сборка_Без_Версии_Старее_Любого_Выпуска()
     {
         var current = AppVersion.ParseOrUnknown(null);
@@ -49,6 +58,30 @@ public sealed class AppVersionTests
 
         Assert.Equal(AppVersion.Unknown, current);
         Assert.True(release > current);
+    }
+
+    [Theory]
+    [InlineData("1.0.0")]
+    [InlineData("1.0.0+707b3cc672d2c35105af1c91fb6cafd359aa8437")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void Локальная_Сборка_Помечается_Словами(string? informational)
+    {
+        // Хвост коммита SDK добавляет и локальной сборке, поэтому признак выпуска — метка CI,
+        // а не вид строки версии.
+        var display = AppVersion.DisplayFor(informational, official: false);
+
+        Assert.Contains("локальная сборка", display, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("0.2.30+9d8bda7506d9bd74ad21aa1027bc9462e0de2758", "0.2.30")]
+    [InlineData("0.2.30", "0.2.30")]
+    [InlineData("v0.2.30", "0.2.30")]
+    [InlineData("1.2", "1.2.0")]
+    public void Подпись_Версии_Выпуска_Без_Хвоста_Коммита(string informational, string expected)
+    {
+        Assert.Equal(expected, AppVersion.DisplayFor(informational, official: true));
     }
 
     [Theory]

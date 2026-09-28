@@ -15,8 +15,29 @@ public readonly record struct AppVersion(int Major, int Minor, int Patch) : ICom
     /// <summary>Версия неизвестна: сборка без номера.</summary>
     public static AppVersion Unknown => new(0, 0, 0);
 
+    /// <summary>Ключ метки сборки выпуска в атрибутах сборки.</summary>
+    private const string OfficialBuildKey = "OfficialBuild";
+
+    /// <summary>Строка версии из сборки головы — как есть, вместе с хвостом коммита.</summary>
+    /// <remarks>Нужна для диагностики: игроку показывается <see cref="Display"/>.</remarks>
+    public static string InformationalVersion { get; } = ReadInformationalVersion();
+
     /// <summary>Версия запущенного приложения.</summary>
-    public static AppVersion Current { get; } = FromEntryAssembly();
+    public static AppVersion Current { get; } = ParseOrUnknown(InformationalVersion);
+
+    /// <summary>Сборка выпуска: её собрал CI и пометил меткой <c>OfficialBuild</c>.</summary>
+    /// <remarks>
+    /// Признак нужен потому, что SDK добавляет к версии хвост коммита и локальной сборке
+    /// (<c>1.0.0+707b3cc…</c>), поэтому «заводскую» версию по строке от версии выпуска не отличить.
+    /// Метку ставит только сборка CI (<c>-p:OfficialBuild=true</c>).
+    /// </remarks>
+    public static bool IsOfficialBuild { get; } = HasOfficialMarker();
+
+    /// <summary>Локальная сборка: её собрали не для выпуска.</summary>
+    public static bool IsLocalBuild => !IsOfficialBuild;
+
+    /// <summary>Что показывать игроку: номер выпуска или номер с пометкой локальной сборки.</summary>
+    public static string Display { get; } = DisplayFor(InformationalVersion, IsOfficialBuild);
 
     /// <summary>Разбирает версию из строки.</summary>
     /// <param name="text">Строка вида «0.2.15», «v0.2.15» или «0.2.15+коммит».</param>
@@ -119,13 +140,32 @@ public readonly record struct AppVersion(int Major, int Minor, int Patch) : ICom
     /// <inheritdoc />
     public override string ToString() => string.Create(CultureInfo.InvariantCulture, $"{Major}.{Minor}.{Patch}");
 
-    /// <summary>Читает версию из сборки головы.</summary>
-    /// <returns>Версия или <see cref="Unknown"/>, если атрибута нет.</returns>
-    private static AppVersion FromEntryAssembly()
+    /// <summary>Собирает подпись версии для экрана настроек.</summary>
+    /// <param name="informational">Строка версии из сборки.</param>
+    /// <param name="official">Сборка выпуска: её собрал CI.</param>
+    /// <returns>Например, «0.2.30» или «1.0.0 (локальная сборка)».</returns>
+    /// <remarks>Хвост коммита в подпись не попадает: он нужен для диагностики, а не игроку.</remarks>
+    public static string DisplayFor(string? informational, bool official)
     {
-        var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
-        var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        var version = ParseOrUnknown(informational).ToString();
 
-        return ParseOrUnknown(informational);
+        return official
+            ? version
+            : string.Create(CultureInfo.InvariantCulture, $"{version} (локальная сборка)");
     }
+
+    /// <summary>Читает строку версии из сборки головы.</summary>
+    /// <returns>Строка версии или пустая строка, если атрибута нет.</returns>
+    private static string ReadInformationalVersion() => EntryAssembly()
+        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? string.Empty;
+
+    /// <summary>Проверяет метку сборки выпуска.</summary>
+    /// <returns><c>true</c>, если сборку пометил CI.</returns>
+    private static bool HasOfficialMarker() => EntryAssembly()
+        .GetCustomAttributes<AssemblyMetadataAttribute>()
+        .Any(static attribute => attribute.Key == OfficialBuildKey && attribute.Value == "true");
+
+    /// <summary>Сборка, из которой запущено приложение.</summary>
+    /// <returns>Голова приложения или текущая сборка, если головы нет (тесты).</returns>
+    private static Assembly EntryAssembly() => Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
 }
