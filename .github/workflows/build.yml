@@ -276,7 +276,15 @@ jobs:
           EXPECTED_VERSION: ${{ inputs.version }}
           EXPECTED_CODE: ${{ inputs.version_code }}
         run: |
-          apk=$(find publish/android -name '*.apk' | head -n 1)
+          # Сборка кладёт рядом неподписанный пакет и подписанный (…-Signed.apk). Игрок ставит
+          # подписанный, поэтому и проверять, и публиковать надо его: на неподписанном apksigner
+          # честно говорит «Missing META-INF/MANIFEST.MF», и это не ошибка сборки, а не тот файл.
+          apk=$(find publish/android -name '*-Signed.apk' | head -n 1)
+          if [ -z "${apk}" ]; then
+            echo "нет подписанного APK: подпись не выполнена" >&2
+            ls -l publish/android >&2
+            exit 1
+          fi
           echo "пакет: ${apk} ($(du -h "${apk}" | cut -f1))"
           listing=$(unzip -l "${apk}" | grep 'assets/models/' || true)
           echo "${listing}"
