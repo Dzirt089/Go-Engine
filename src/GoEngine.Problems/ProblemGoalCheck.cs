@@ -8,10 +8,20 @@ using GoEngine.Core;
 /// Для <see cref="ProblemGoal.Capture"/> цель достигнута, когда все камни целевой группы исчезли
 /// с доски. Для <see cref="ProblemGoal.Live"/> — когда у выжившей части целевой группы есть два
 /// настоящих глаза: глаза считает <see cref="EyeDetector"/> из слоя AI, своего второго определения
-/// глаза здесь нет.
+/// глаза здесь нет. Для <see cref="ProblemGoal.Dead"/> приговор выносит <see cref="ForcedCapture(Board, Problem, int)"/>
+/// (факт уровня правил: атакующий форсирует захват за заявленную границу), а глазная проверка
+/// <see cref="DefenderCanForceEyes"/> остаётся вспомогательной: она даёт достаточное условие жизни,
+/// но не необходимое, и потому приговором быть не может.
 /// </remarks>
+
 public static class ProblemGoalCheck
 {
+    /// <summary>Итог проверки форсированного захвата вместе с отчётом о работе перебора.</summary>
+    /// <param name="Forced">Захват форсирован за указанную границу.</param>
+    /// <param name="Nodes">Сколько позиций перебрано, включая вложенные переборы.</param>
+    /// <param name="LimitReached">Перебор упёрся в предел узлов: приговора нет.</param>
+    public readonly record struct ForcedCaptureResult(bool Forced, int Nodes, bool LimitReached);
+
     /// <summary>Проверяет, достигнута ли цель задачи в позиции.</summary>
     /// <param name="problem">Задача.</param>
     /// <param name="board">Позиция.</param>
@@ -35,7 +45,224 @@ public static class ProblemGoalCheck
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(problem);
 
-        var group = LiveGroup(board, problem);
+        return CountRealEyes(board, problem.TargetColor, LiveGroup(board, problem));
+    }
+
+    /// <summary>Проверяет, достигнута ли цель задачи в позиции с учётом заявленной границы.</summary>
+    /// <param name="problem">Задача.</param>
+    /// <param name="board">Позиция.</param>
+    /// <param name="depth">Граница перебора в полуходах для цели <see cref="ProblemGoal.Dead"/>.</param>
+    /// <returns><c>true</c>, если цель достигнута.</returns>
+    /// <remarks>
+    /// Для <see cref="ProblemGoal.Capture"/> и <see cref="ProblemGoal.Live"/> граница не нужна —
+    /// результат совпадает с <see cref="IsAchieved(Problem, Board)"/>. Для
+    /// <see cref="ProblemGoal.Dead"/> цель достигнута, если защищающийся, играя первым, не может
+    /// форсировать два глаза за эту границу: перебор ограничен, и граница берётся из задачи
+    /// (<see cref="Problem.CheckDepth"/>), когда параметр не задан.
+    /// </remarks>
+    public static bool IsAchieved(Problem problem, Board board, int depth)
+    {
+        ArgumentNullException.ThrowIfNull(problem);
+        ArgumentNullException.ThrowIfNull(board);
+
+        if (problem.Goal != ProblemGoal.Dead)
+        {
+            return IsAchieved(problem, board);
+        }
+
+        var band = depth > 0 ? depth : problem.CheckDepth;
+
+        // Приговор — факт уровня правил: атакующий форсирует захват группы за эту границу.
+        // Глазная проверка (DefenderCanForceEyes) остаётся вспомогательной и в приговоре не участвует:
+        // она даёт достаточное условие жизни, а не необходимое, и потому ошибается в обе стороны.
+        return ForcedCapture(board, problem, band);
+    }
+
+    /// <summary>Стоит ли целевая группа на доске: её опорный камень ещё занят цветом цели.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="problem">Задача: из неё берутся целевая точка и цвет группы.</param>
+    /// <returns><c>true</c>, если группа ещё на доске.</returns>
+    /// <remarks>
+    /// Нужно цели <see cref="ProblemGoal.Dead"/>: «мертва, но не снята» и «уже снята» — разные цели.
+    /// Снятая группа — это <see cref="ProblemGoal.Capture"/>, и лист задачи «мертва» снятым быть не может.
+    /// </remarks>
+    public static bool TargetPresent(Board board, Problem problem)
+    {
+        ArgumentNullException.ThrowIfNull(board);
+        ArgumentNullException.ThrowIfNull(problem);
+
+        return board.At(problem.Target) == problem.TargetColor;
+    }
+
+    /// <summary>Форсирует ли атакующий захват целевой группы за указанную глубину.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="problem">Задача: из неё берутся целевая точка и цвет группы.</param>
+    /// <param name="depth">Граница перебора в полуходах.</param>
+    /// <returns><c>true</c>, если захват форсирован; при неполном переборе — <c>false</c>.</returns>
+    /// <remarks>
+    /// Считается тем же <see cref="ProblemSolver"/>, вторым перебором не дублируется. Атакующий
+    /// (противник цвета цели) ходит первым; цель перебора — <see cref="ProblemGoal.Capture"/>.
+    /// Это факт уровня правил, а не глазная эвристика: глазами жизнь доказывается достаточно,
+    /// но не необходимо, поэтому приговором они быть не могут.
+    /// </remarks>
+    public static bool ForcedCapture(Board board, Problem problem, int depth) =>
+        ForcedCapture(board, problem, depth, problem?.TargetColor.Opponent() ?? StoneColor.Black);
+
+    /// <summary>Форсирует ли атакующий захват целевой группы, если первым ходит указанная сторона.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="problem">Задача: из неё берутся целевая точка и цвет группы.</param>
+    /// <param name="depth">Граница перебора в полуходах.</param>
+    /// <param name="toMove">Кто ходит первым: атакующий или защищающийся.</param>
+    /// <returns><c>true</c>, если захват форсирован; при неполном переборе — <c>false</c>.</returns>
+    public static bool ForcedCapture(Board board, Problem problem, int depth, StoneColor toMove) =>
+        ForcedCaptureDetailed(board, problem, depth, toMove).Forced;
+
+    /// <summary>То же, но с отчётом о работе: сколько позиций перебрано и не упёрся ли перебор в предел.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="problem">Задача: из неё берутся целевая точка и цвет группы.</param>
+    /// <param name="depth">Граница перебора в полуходах.</param>
+    /// <param name="toMove">Кто ходит первым: атакующий или защищающийся.</param>
+    /// <returns>Приговор вместе с числом перебранных позиций и признаком неполного перебора.</returns>
+    /// <remarks>
+    /// Нужен там, где приговор попадает в отчёт (например, <see cref="ProblemSolver.Search"/>): без суммы
+    /// по вложенным переборам «0 узлов» читается как приговор без вычислений, хотя работа сделана.
+    /// </remarks>
+    public static ForcedCaptureResult ForcedCaptureDetailed(Board board, Problem problem, int depth, StoneColor toMove)
+    {
+        ArgumentNullException.ThrowIfNull(board);
+        ArgumentNullException.ThrowIfNull(problem);
+        ArgumentNullException.ThrowIfNull(toMove);
+
+        if (depth <= 0)
+        {
+            return new ForcedCaptureResult(false, 0, false);
+        }
+
+        if (board.At(problem.Target) != problem.TargetColor)
+        {
+            // Целевой группы на доске нет: захват уже состоялся.
+            return new ForcedCaptureResult(true, 0, false);
+        }
+
+        var group = GroupTracker.FindGroup(board, problem.Target).Stones;
+        var attacker = problem.TargetColor.Opponent();
+
+        if (toMove == attacker)
+        {
+            var capture = new ProblemSolver(board, ProblemGoal.Capture, attacker, problem.Target, group);
+            var direct = capture.Search(depth);
+
+            return new ForcedCaptureResult(!direct.LimitReached && direct.SolverWins, direct.Nodes, direct.LimitReached);
+        }
+
+        var any = false;
+        var nodes = 0;
+
+        foreach (var point in LocalCandidates(board, problem))
+        {
+            var move = Move.Play(point, attacker.Opponent());
+
+            if (!board.IsLegal(move).IsSuccess)
+            {
+                continue;
+            }
+
+            any = true;
+
+            var after = board.ApplyMove(move);
+            var capture = new ProblemSolver(after, ProblemGoal.Capture, attacker, problem.Target, group);
+            var result = capture.Search(depth - 1);
+            nodes += result.Nodes;
+
+            if (result.LimitReached)
+            {
+                return new ForcedCaptureResult(false, nodes, true);
+            }
+
+            if (!result.SolverWins)
+            {
+                return new ForcedCaptureResult(false, nodes, false);
+            }
+        }
+
+        return new ForcedCaptureResult(any, nodes, false);
+    }
+
+    private static IEnumerable<Point> LocalCandidates(Board board, Problem problem)
+    {
+        var radius = problem.WindowRadius;
+
+        HashSet<Point> points = [];
+        HashSet<Point> stones = [.. GroupTracker.FindGroup(board, problem.Target).Stones];
+
+        foreach (var stone in stones)
+        {
+            for (var dy = -radius; dy <= radius; dy++)
+            {
+                for (var dx = -radius; dx <= radius; dx++)
+                {
+                    var x = stone.X + dx;
+                    var y = stone.Y + dy;
+
+                    if (x >= 0 && y >= 0 && x < board.Size.Value && y < board.Size.Value)
+                    {
+                        points.Add(new Point((byte)x, (byte)y));
+                    }
+                }
+            }
+
+            foreach (var neighbour in stone.Neighbors(board.Size))
+            {
+                points.Add(neighbour);
+            }
+        }
+
+        return points.Where(point => board.IsEmpty(point));
+    }
+
+    /// <summary>Может ли целевая группа форсировать два глаза за указанную глубину.</summary>
+    /// <param name="board">Позиция; защищающийся ходит первым.</param>
+    /// <param name="problem">Задача: из неё берутся целевая точка и цвет группы.</param>
+    /// <param name="depth">Граница перебора в полуходах.</param>
+    /// <returns><c>true</c>, если защита успевает или перебор оказался неполным.</returns>
+    /// <remarks>
+    /// <b>Вспомогательная проверка.</b> Ограниченная эвристика: даёт достаточное условие жизни,
+    /// но не необходимое, поэтому в приговоре по цели <see cref="ProblemGoal.Dead"/> не участвует
+    /// (приговор — <see cref="ForcedCapture(Board, Problem, int)"/>). Второго перебора нет: используется
+    /// <see cref="ProblemSolver"/> с обратными ролями.
+    /// </remarks>
+    public static bool DefenderCanForceEyes(Board board, Problem problem, int depth)
+    {
+        ArgumentNullException.ThrowIfNull(board);
+        ArgumentNullException.ThrowIfNull(problem);
+
+        if (depth <= 0)
+        {
+            return true;
+        }
+
+        if (board.At(problem.Target) != problem.TargetColor)
+        {
+            return false;
+        }
+
+        var group = GroupTracker.FindGroup(board, problem.Target).Stones;
+        var solver = new ProblemSolver(board, ProblemGoal.Live, problem.TargetColor, problem.Target, group);
+        var result = solver.Search(depth);
+
+        return result.LimitReached || result.SolverWins;
+    }
+
+    /// <summary>Считает настоящие глаза группы в позиции.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="color">Цвет группы.</param>
+    /// <param name="group">Камни группы.</param>
+    /// <returns>Число настоящих глаз, соседних с камнями группы.</returns>
+    public static int CountRealEyes(Board board, StoneColor color, IReadOnlyList<Point> group)
+    {
+        ArgumentNullException.ThrowIfNull(board);
+        ArgumentNullException.ThrowIfNull(color);
+        ArgumentNullException.ThrowIfNull(group);
 
         if (group.Count == 0)
         {
@@ -51,7 +278,7 @@ public static class ProblemGoalCheck
                 continue;
             }
 
-            if (EyeDetector.IsEye(board, point, problem.TargetColor))
+            if (EyeDetector.IsEye(board, point, color))
             {
                 eyes++;
             }

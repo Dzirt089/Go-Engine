@@ -10,7 +10,8 @@ using GoEngine.Core;
 /// Игровой <c>SgfReader</c> в <c>Core</c> варианты не читает, поэтому у слоя задач свой разбор.
 /// Формат: свойства <c>SZ</c>, <c>KM</c>, <c>PL</c>, <c>AB</c>, <c>AW</c>, <c>C</c> и аннотации
 /// <c>GN</c> (название), <c>GC</c> (условие для игрока), <c>GE</c> (цель: <c>capture</c> или
-/// <c>live</c>), <c>GD</c> (сложность в кю), <c>GT</c> (точка целевой группы). Дерево решения —
+/// <c>live</c>), <c>GD</c> (сложность в кю), <c>GT</c> (точка целевой группы), <c>GX</c> (заявленный
+/// горизонт), <c>GW</c> (объявленный радиус окна поиска). Дерево решения —
 /// вложенные варианты: <c>;B[..]</c> и <c>;W[..]</c> с <c>( ... )</c>. Пустое значение
 /// (<c>B[]</c> или <c>tt</c>) — пас.
 /// </para>
@@ -22,6 +23,13 @@ using GoEngine.Core;
 public static class ProblemSgf
 {
     private const string PassMarker = "tt";
+
+    /// <summary>Имя цели в файле задачи.</summary>
+    /// <param name="goal">Цель задачи.</param>
+    /// <returns>capture, live или dead.</returns>
+    private static string GoalLabel(ProblemGoal goal) => goal == ProblemGoal.Capture
+        ? "capture"
+        : goal == ProblemGoal.Live ? "live" : "dead";
 
     /// <summary>Читает задачу из текста SGF.</summary>
     /// <param name="text">Содержимое файла задачи.</param>
@@ -58,12 +66,13 @@ public static class ProblemSgf
         {
             "capture" => ProblemGoal.Capture,
             "live" => ProblemGoal.Live,
+            "dead" => ProblemGoal.Dead,
             var other => null
         };
 
         if (goal is null)
         {
-            return Result<Problem>.Fail("Свойство GE должно быть capture или live.");
+            return Result<Problem>.Fail("Свойство GE должно быть capture, live или dead.");
         }
 
         var solver = Property(root, "PL") switch
@@ -89,6 +98,14 @@ public static class ProblemSgf
         var rank = int.TryParse(Property(root, "GD"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedRank)
             ? parsedRank
             : 30;
+        // GX — заявленный горизонт проверки в полуходах.
+        var checkDepth = int.TryParse(Property(root, "GX"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedDepth)
+            ? parsedDepth
+            : 0;
+        // GW — объявленный радиус окна поиска; без свойства берётся объявленный по умолчанию.
+        var windowRadius = int.TryParse(Property(root, "GW"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedWindow)
+            ? parsedWindow
+            : Problem.DefaultWindowRadius;
         var description = Property(root, "GC");
 
         if (string.IsNullOrWhiteSpace(description))
@@ -116,7 +133,9 @@ public static class ProblemSgf
                 target.Value,
                 rank,
                 description ?? string.Empty,
-                solution.Value!));
+                solution.Value!,
+                checkDepth,
+                windowRadius));
         }
         catch (DomainException exception)
         {
@@ -137,8 +156,10 @@ public static class ProblemSgf
         builder.Append(CultureInfo.InvariantCulture, $"KM[{problem.Komi.Value.ToString(CultureInfo.InvariantCulture)}]");
         builder.Append(CultureInfo.InvariantCulture, $"GN[{problem.Name}]");
         builder.Append(CultureInfo.InvariantCulture, $"GC[{problem.Description}]");
-        builder.Append(CultureInfo.InvariantCulture, $"GE[{(problem.Goal == ProblemGoal.Capture ? "capture" : "live")}]");
+        builder.Append(CultureInfo.InvariantCulture, $"GE[{GoalLabel(problem.Goal)}]");
         builder.Append(CultureInfo.InvariantCulture, $"GD[{problem.Rank}]");
+        builder.Append(CultureInfo.InvariantCulture, $"GX[{problem.CheckDepth}]");
+        builder.Append(CultureInfo.InvariantCulture, $"GW[{problem.WindowRadius}]");
         builder.Append(CultureInfo.InvariantCulture, $"PL[{(problem.SolverColor == StoneColor.Black ? "B" : "W")}]");
         builder.Append(CultureInfo.InvariantCulture, $"GT[{ToSgf(problem.Target, problem.Size)}]");
 
@@ -163,17 +184,30 @@ public static class ProblemSgf
 
     private static void WriteMoves(StringBuilder builder, ProblemNode node, BoardSize size)
     {
+        // Несколько принимаемых ходов в узле — это ветви, а не последовательность: игрок выбирает
+        // одну из них. Без скобок парсер склеивал бы ветви в цепочку ходов (регрессия: задача
+        // многоходовая, и «ход за ту же сторону дважды» ломал обход дерева).
+        var branches = node.Moves.Count > 1;
+
         foreach (var accepted in node.Moves)
         {
             var label = accepted.Move.Type == MoveType.Play && accepted.Move.Color == StoneColor.White ? "W" : "B";
             var value = accepted.Move.Type == MoveType.Play ? ToSgf(accepted.Move.Point, size) : string.Empty;
 
+            if (branches)
+            {
+                builder.Append('(');
+            }
+
             builder.Append(CultureInfo.InvariantCulture, $";{label}[{value}]");
 
             if (!accepted.Next.IsLeaf)
             {
-                builder.Append('(');
                 WriteMoves(builder, accepted.Next, size);
+            }
+
+            if (branches)
+            {
                 builder.Append(')');
             }
         }

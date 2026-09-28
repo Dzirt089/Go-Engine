@@ -6,7 +6,8 @@ using GoEngine.Core;
 /// <remarks>
 /// Цель определяет, что считается успехом, и как это проверяется по правилам движка
 /// (<see cref="ProblemChecker"/>): <see cref="Capture"/> — камни целевой группы исчезли с доски,
-/// <see cref="Live"/> — у целевой группы есть два настоящих глаза.
+/// <see cref="Live"/> — у целевой группы есть два настоящих глаза, <see cref="Dead"/> — атакующий
+/// форсирует захват группы в пределах заявленной границы проверки.
 /// </remarks>
 public sealed class ProblemGoal : Enumeration
 {
@@ -21,6 +22,14 @@ public sealed class ProblemGoal : Enumeration
     {
     }
 
+    /// <summary>Убить целевую группу, не снимая её: защищающийся не может построить два глаза.</summary>
+    /// <remarks>
+    /// Отличие от <see cref="Capture"/>: камни цели остаются на доске, важен результат — группа мертва.
+    /// Проверяется перебором: защищающийся играет первым и не может форсировать два глаза за
+    /// заявленную границу <see cref="Problem.CheckDepth"/>; граница ограничена, и это записано в задаче.
+    /// </remarks>
+    public static ProblemGoal Dead { get; } = new(3, nameof(Dead), "убить группу, не снимая: двух глаз у неё быть не может");
+
     /// <summary>Все цели задач.</summary>
-    public static IReadOnlyList<ProblemGoal> All { get; } = [Capture, Live];
+    public static IReadOnlyList<ProblemGoal> All { get; } = [Capture, Live, Dead];
 }

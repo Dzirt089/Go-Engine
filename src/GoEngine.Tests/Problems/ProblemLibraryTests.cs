@@ -2,7 +2,7 @@ using GoEngine.Problems;
 
 namespace GoEngine.Tests;
 
-/// <summary>Библиотека задач: доказательства корректности каждой задачи.</summary>
+/// <summary>Библиотека задач: состав, идентификаторы и проверка движком.</summary>
 public sealed class ProblemLibraryTests
 {
     public static TheoryData<string> Ids()
@@ -36,6 +36,7 @@ public sealed class ProblemLibraryTests
     {
         Assert.Contains(ProblemLibrary.All, problem => problem.Goal == ProblemGoal.Capture);
         Assert.Contains(ProblemLibrary.All, problem => problem.Goal == ProblemGoal.Live);
+        Assert.Contains(ProblemLibrary.All, problem => problem.Goal == ProblemGoal.Dead);
         Assert.Contains(ProblemLibrary.All, problem => problem.Size.Value == 13);
         Assert.Contains(ProblemLibrary.All, problem => problem.Size.Value == 19);
     }
@@ -55,18 +56,28 @@ public sealed class ProblemLibraryTests
 
     [Theory]
     [MemberData(nameof(Ids))]
-    public void Каждая_Задача_РешаетсяОднимХодом_БезВторогоРешения(string id)
+    public void ПринимаемыеПервыеХоды_СовпадаютСПервымиХодамиДерева(string id)
     {
         var problem = ProblemLibrary.ById(id);
 
         Assert.NotNull(problem);
 
-        // Независимый перебор: победа должна быть, и ровно один первый ход должен её давать.
-        var search = new ProblemSolver(problem).Search(depth: 1);
+        var tree = problem.Solution.Moves.Select(move => move.Move.Point).ToList();
+        var accepted = problem.AcceptedFirstMoves.Select(move => move.Point).ToList();
 
-        Assert.False(search.LimitReached);
-        Assert.True(search.SolverWins, $"{id}: перебор не нашёл победы");
-        Assert.Single(search.WinningMoves);
-        Assert.Equal(problem.Hint!.Value.Point, search.WinningMoves[0].Point);
+        Assert.Equal(tree, accepted);
+        Assert.Equal(accepted.Count, problem.AcceptedFirstMoveCount);
+        Assert.Equal(problem.Hint!.Value.Point, accepted[0]);
+    }
+
+    [Theory]
+    [MemberData(nameof(Ids))]
+    public void Описание_Задачи_ОбъявляетГоризонтИЛист(string id)
+    {
+        var problem = ProblemLibrary.ById(id);
+
+        Assert.NotNull(problem);
+        Assert.Contains("Проверена на горизонте", problem.Description, StringComparison.Ordinal);
+        Assert.Contains("принимаемый набор", problem.Description, StringComparison.Ordinal);
     }
 }

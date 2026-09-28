@@ -67,7 +67,22 @@ public static class ProblemChecker
             issues.Add("У целевой группы нет дамэ в начальной позиции: задача начинается со снятой группы.");
         }
 
-        if (ProblemGoalCheck.IsAchieved(problem, board))
+        if (problem.Goal == ProblemGoal.Dead && problem.CheckDepth <= 0)
+        {
+            issues.Add("Цель dead требует заявленной границы проверки (GX): без неё «мертва» недоказуема.");
+        }
+
+        if (problem.Goal == ProblemGoal.Dead)
+        {
+            // Для цели dead «решено без ходов» означает не глазную оценку, а факт: группа мертва
+            // даже когда защита ходит первой. Тогда убивающий ход не нужен — задача бессмысленна.
+            if (problem.CheckDepth > 0
+                && ProblemGoalCheck.ForcedCapture(board, problem, problem.CheckDepth, problem.TargetColor))
+            {
+                issues.Add("Группа мертва уже при ходе защиты: задача решается без хода убивающего.");
+            }
+        }
+        else if (ProblemGoalCheck.IsAchieved(problem, board, problem.CheckDepth))
         {
             issues.Add("Цель достигнута уже в начальной позиции: задача решается без ходов.");
         }
@@ -81,7 +96,21 @@ public static class ProblemChecker
     {
         if (node.IsLeaf)
         {
-            if (!ProblemGoalCheck.IsAchieved(problem, board))
+            if (problem.Goal == ProblemGoal.Dead)
+            {
+                // Лист «мертва» — это позиция, где группа ещё на доске, но захват форсирован
+                // в пределах границы. Снятая группа подтверждает другую цель (capture), и такой
+                // лист задачу «мертва, но не снята» не доказывает.
+                if (!ProblemGoalCheck.TargetPresent(board, problem))
+                {
+                    issues.Add($"Лист на глубине {depth}: целевая группа уже снята — это цель capture, а не dead.");
+                }
+                else if (!ProblemGoalCheck.ForcedCapture(board, problem, problem.CheckDepth, problem.TargetColor))
+                {
+                    issues.Add($"Лист на глубине {depth}: захват не форсирован за {problem.CheckDepth} полуходов.");
+                }
+            }
+            else if (!ProblemGoalCheck.IsAchieved(problem, board, problem.CheckDepth))
             {
                 issues.Add($"Лист на глубине {depth}: цель не достигнута.");
             }
@@ -114,7 +143,15 @@ public static class ProblemChecker
                 continue;
             }
 
-            Walk(problem, board.ApplyMove(move), accepted.Next, side.Opponent(), depth + 1, issues);
+            var after = board.ApplyMove(move);
+
+            // Дерево обрезается на достигнутой цели: продолжать после выполнения цели бессмысленно.
+            if (ProblemGoalCheck.IsAchieved(problem, after, problem.CheckDepth) && !accepted.Next.IsLeaf)
+            {
+                issues.Add($"Глубина {depth}: ход {Describe(move)} выполняет цель, но узел не лист.");
+            }
+
+            Walk(problem, after, accepted.Next, side.Opponent(), depth + 1, issues);
         }
     }
 

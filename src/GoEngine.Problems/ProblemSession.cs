@@ -15,6 +15,9 @@ public sealed class ProblemSession
     private readonly Board _initial;
     private readonly List<Move> _solverMoves = [];
 
+    /// <summary>Последний ход принят вне дерева: цель подтвердил движок, а не принимаемый набор узла.</summary>
+    private Move? _outsideMove;
+
     /// <summary>Создаёт сессию решения задачи.</summary>
     /// <param name="problem">Задача.</param>
     /// <exception cref="DomainException">Позиция задачи не собирается легальными ходами.</exception>
@@ -102,7 +105,10 @@ public sealed class ProblemSession
 
         if (accepted is null)
         {
-            return ProblemVerdict.Wrong;
+            // Второе основание accept: ход, который по правилам сразу выполняет цель, принимается
+            // даже если его нет в дереве. Без этого игрок получал бы «неверно» за правильный ход
+            // (дерево ограничено объявленным окном и горизонтом).
+            return AcceptByGoal(move);
         }
 
         if (!TryApply(Board, move, out var board))
@@ -146,6 +152,7 @@ public sealed class ProblemSession
         return ProblemVerdict.Correct;
     }
 
+
     /// <summary>Играет ход игрока в точку.</summary>
     /// <param name="point">Точка доски.</param>
     /// <returns>Вердикт хода.</returns>
@@ -155,6 +162,16 @@ public sealed class ProblemSession
     /// <returns><c>true</c>, если было что отменять.</returns>
     public bool Back()
     {
+        if (_outsideMove is not null)
+        {
+            // Ход вне дерева: откат — просто вернуться к позиции, собранной по дереву.
+            _outsideMove = null;
+            _ = Replay();
+            State = ProblemState.InProgress;
+
+            return true;
+        }
+
         if (_solverMoves.Count == 0)
         {
             return false;
@@ -171,13 +188,46 @@ public sealed class ProblemSession
     public void Reset()
     {
         _solverMoves.Clear();
+        _outsideMove = null;
         _ = Replay();
         State = ProblemState.InProgress;
+    }
+
+    /// <summary>Второе основание accept: ход вне дерева, но по правилам выполняющий цель задачи.</summary>
+    /// <param name="move">Ход игрока.</param>
+    /// <returns>Вердикт хода.</returns>
+    /// <remarks>
+    /// Принимаемый набор узла ограничен объявленным окном и горизонтом, но окно — ограничение
+    /// нашего перебора, а не правило игры. Поэтому ход, после которого цель выполнена по правилам
+    /// движка (<see cref="ProblemGoalCheck.IsAchieved(Problem, Board, int)"/>: группа снята, два
+    /// настоящих глаза, захват форсирован за <see cref="Problem.CheckDepth"/>), принимается как
+    /// решение — иначе игрок получал бы «неверно» за правильный ход.
+    /// </remarks>
+    private ProblemVerdict AcceptByGoal(Move move)
+    {
+        if (!TryApply(Board, move, out var board))
+        {
+            // Нелегальный ход — ошибка игрока, а не повреждение задачи («повреждена» — про дерево).
+            return ProblemVerdict.Wrong;
+        }
+
+        if (!ProblemGoalCheck.IsAchieved(_problem, board, _problem.CheckDepth))
+        {
+            return ProblemVerdict.Wrong;
+        }
+
+        _outsideMove = move;
+        Board = board;
+        State = ProblemState.Solved;
+        ToMove = _problem.SolverColor.Opponent();
+
+        return ProblemVerdict.Solved;
     }
 
     /// <summary>Восстанавливает позицию и возвращает узел дерева для текущего хода игрока.</summary>
     private ProblemNode Replay()
     {
+        _outsideMove = null;
         var board = _initial;
         var node = _problem.Solution;
 
