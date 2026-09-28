@@ -26,10 +26,18 @@ public static class ProblemSgf
 
     /// <summary>Имя цели в файле задачи.</summary>
     /// <param name="goal">Цель задачи.</param>
-    /// <returns>capture, live или dead.</returns>
+    /// <returns>capture, live, dead, ko, survive, eyes или reference.</returns>
     private static string GoalLabel(ProblemGoal goal) => goal == ProblemGoal.Capture
         ? "capture"
-        : goal == ProblemGoal.Live ? "live" : "dead";
+        : goal == ProblemGoal.Live
+            ? "live"
+            : goal == ProblemGoal.Ko
+                ? "ko"
+                : goal == ProblemGoal.Survive
+                    ? "survive"
+                    : goal == ProblemGoal.Eyes
+                        ? "eyes"
+                        : goal == ProblemGoal.Reference ? "reference" : "dead";
 
     /// <summary>Читает задачу из текста SGF.</summary>
     /// <param name="text">Содержимое файла задачи.</param>
@@ -67,12 +75,16 @@ public static class ProblemSgf
             "capture" => ProblemGoal.Capture,
             "live" => ProblemGoal.Live,
             "dead" => ProblemGoal.Dead,
+            "ko" => ProblemGoal.Ko,
+            "survive" => ProblemGoal.Survive,
+            "eyes" => ProblemGoal.Eyes,
+            "reference" => ProblemGoal.Reference,
             var other => null
         };
 
         if (goal is null)
         {
-            return Result<Problem>.Fail("Свойство GE должно быть capture, live или dead.");
+            return Result<Problem>.Fail("Свойство GE должно быть capture, live, dead, ko, survive, eyes или reference.");
         }
 
         var solver = Property(root, "PL") switch
@@ -113,6 +125,23 @@ public static class ProblemSgf
             description = Property(root, "C");
         }
 
+        // SO — источник решения. У задачи по решению источника он обязателен: исход движком не
+        // проверен, и игрок обязан видеть, откуда взято решение.
+        var source = Property(root, "SO");
+
+        if (goal == ProblemGoal.Reference)
+        {
+            if (string.IsNullOrWhiteSpace(source))
+            {
+                return Result<Problem>.Fail("Задача по решению источника должна указывать источник (SO).");
+            }
+
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                return Result<Problem>.Fail("Задача по решению источника должна содержать формулировку (GC).");
+            }
+        }
+
         var solution = Solution(root, size);
 
         if (!solution.IsSuccess)
@@ -135,7 +164,8 @@ public static class ProblemSgf
                 description ?? string.Empty,
                 solution.Value!,
                 checkDepth,
-                windowRadius));
+                windowRadius,
+                source ?? string.Empty));
         }
         catch (DomainException exception)
         {
@@ -162,6 +192,11 @@ public static class ProblemSgf
         builder.Append(CultureInfo.InvariantCulture, $"GW[{problem.WindowRadius}]");
         builder.Append(CultureInfo.InvariantCulture, $"PL[{(problem.SolverColor == StoneColor.Black ? "B" : "W")}]");
         builder.Append(CultureInfo.InvariantCulture, $"GT[{ToSgf(problem.Target, problem.Size)}]");
+
+        if (!string.IsNullOrWhiteSpace(problem.Source))
+        {
+            builder.Append(CultureInfo.InvariantCulture, $"SO[{problem.Source}]");
+        }
 
         foreach (var colour in new[] { StoneColor.Black, StoneColor.White })
         {

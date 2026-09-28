@@ -67,15 +67,33 @@ public static class ProblemChecker
             issues.Add("У целевой группы нет дамэ в начальной позиции: задача начинается со снятой группы.");
         }
 
-        if (problem.Goal == ProblemGoal.Dead && problem.CheckDepth <= 0)
+        if (problem.Goal == ProblemGoal.Reference)
         {
-            issues.Add("Цель dead требует заявленной границы проверки (GX): без неё «мертва» недоказуема.");
-        }
+            // У задачи по решению источника нет машинного критерия исхода, поэтому движок проверяет
+            // только форму: источник, формулировку и само дерево (это делает Walk ниже). Ни горизонт,
+            // ни «цель достигнута в начале» здесь не спрашиваются — спрашивать нечего.
+            if (string.IsNullOrWhiteSpace(problem.Source))
+            {
+                issues.Add("У задачи по решению источника не указан источник (SO).");
+            }
 
-        if (problem.Goal == ProblemGoal.Dead)
+            if (string.IsNullOrWhiteSpace(problem.Description))
+            {
+                issues.Add("У задачи по решению источника нет формулировки для игрока (GC).");
+            }
+        }
+        else if (NeedsHorizon(problem.Goal) && problem.CheckDepth <= 0)
         {
-            // Для цели dead «решено без ходов» означает не глазную оценку, а факт: группа мертва
-            // даже когда защита ходит первой. Тогда убивающий ход не нужен — задача бессмысленна.
+            issues.Add(
+                $"Цель {problem.Goal.Name} требует заявленного горизонта проверки (GX): "
+                + "без него приговор о жизни невоспроизводим, а окно задаёт область ходов (GW).");
+        }
+        else if (problem.Goal == ProblemGoal.Dead)
+        {
+            // Для цели dead «решено без ходов» означает факт: группа мертва даже когда защита
+            // ходит первой. Тогда убивающий ход не нужен — задача бессмысленна.
+            // Спрашивается именно «мертва ли группа, когда защита ходит первой»: если да, убивающий
+            // ход не нужен, и задача бессмысленна. Модель глаз здесь не участвует — см. ProblemGoalCheck.
             if (problem.CheckDepth > 0
                 && ProblemGoalCheck.ForcedCapture(board, problem, problem.CheckDepth, problem.TargetColor))
             {
@@ -92,22 +110,43 @@ public static class ProblemChecker
         return new ProblemReport(problem.Id, issues.AsReadOnly());
     }
 
+    /// <summary>Нужен ли цели объявленный горизонт проверки.</summary>
+    /// <param name="goal">Цель задачи.</param>
+    /// <returns><c>true</c>, если приговор зависит от горизонта.</returns>
+    /// <remarks>
+    /// Горизонт нужен всем целям о жизни: <see cref="ProblemGoal.Live"/>, <see cref="ProblemGoal.Dead"/>
+    /// и <see cref="ProblemGoal.Survive"/>. <see cref="ProblemGoal.Capture"/> — факт снятия камней,
+    /// а <see cref="ProblemGoal.Ko"/> — свойство позиции, им горизонт не нужен.
+    /// </remarks>
+    private static bool NeedsHorizon(ProblemGoal goal) =>
+        goal == ProblemGoal.Eyes || goal == ProblemGoal.Dead || goal == ProblemGoal.Survive;
+
     private static void Walk(Problem problem, Board board, ProblemNode node, StoneColor side, int depth, List<string> issues)
     {
         if (node.IsLeaf)
         {
+            if (problem.Goal == ProblemGoal.Reference)
+            {
+                // У задачи по решению источника машинного критерия исхода нет: в листе проверять
+                // нечего. Легальность ходов, чередование сторон и структуру дерева проверил обход
+                // выше — это и есть та форма, которую движок в этом виде подтверждает.
+                return;
+            }
+
             if (problem.Goal == ProblemGoal.Dead)
             {
-                // Лист «мертва» — это позиция, где группа ещё на доске, но захват форсирован
-                // в пределах границы. Снятая группа подтверждает другую цель (capture), и такой
-                // лист задачу «мертва, но не снята» не доказывает.
+                // Лист «мертва» — это позиция, где группа ещё на доске, но за горизонт она либо
+                // снимается форсированно, либо не успевает построить два глаза. Снятая группа
+                // подтверждает другую цель (capture), и лист задачу «мертва, но не снята» не доказывает.
                 if (!ProblemGoalCheck.TargetPresent(board, problem))
                 {
                     issues.Add($"Лист на глубине {depth}: целевая группа уже снята — это цель capture, а не dead.");
                 }
-                else if (!ProblemGoalCheck.ForcedCapture(board, problem, problem.CheckDepth, problem.TargetColor))
+                else if (!ProblemGoalCheck.IsAchieved(problem, board, problem.CheckDepth))
                 {
-                    issues.Add($"Лист на глубине {depth}: захват не форсирован за {problem.CheckDepth} полуходов.");
+                    issues.Add(
+                        $"Лист на глубине {depth}: группа не мертва за {problem.CheckDepth} полуходов — "
+                        + "ни захват не форсирован, ни двух глаз у защиты нет.");
                 }
             }
             else if (!ProblemGoalCheck.IsAchieved(problem, board, problem.CheckDepth))
@@ -146,7 +185,11 @@ public static class ProblemChecker
             var after = board.ApplyMove(move);
 
             // Дерево обрезается на достигнутой цели: продолжать после выполнения цели бессмысленно.
-            if (ProblemGoalCheck.IsAchieved(problem, after, problem.CheckDepth) && !accepted.Next.IsLeaf)
+            // У задачи по решению источника цели в машинном смысле нет — линия идёт до конца решения
+            // источника, и обрывать её на «цель достигнута» нечем.
+            if (problem.Goal != ProblemGoal.Reference
+                && ProblemGoalCheck.IsAchieved(problem, after, problem.CheckDepth)
+                && !accepted.Next.IsLeaf)
             {
                 issues.Add($"Глубина {depth}: ход {Describe(move)} выполняет цель, но узел не лист.");
             }

@@ -3,21 +3,30 @@ using GoEngine.Problems;
 
 namespace GoEngine.Tests;
 
-/// <summary>Правило согласованности: принимаемый набор в каждом узле равен выигрывающим ходам.</summary>
+/// <summary>Согласованность задач: у доказанных целей — с перебором, у решения источника — с источником.</summary>
 /// <remarks>
-/// Проверка независимая: выигрышные ходы считает <see cref="ProblemOracle"/>, а не
-/// <see cref="ProblemSolver"/>. Расхождение — падение теста, а не предупреждение: неполный набор
-/// даёт игроку вердикт «неверно» за правильный ход, а это ложный отказ.
+/// <para>
+/// Библиотека состоит из задач <see cref="ProblemGoal.Reference"/>: их исход движком не доказан
+/// (перебор показал, что ни снятие, ни два глаза, ни ко не форсируются), поэтому проверяется форма —
+/// легальность, чередование, непустое дерево, источник с формулировкой и то, что линия источника
+/// проходится целиком, а посторонний ход отклоняется. Обещать большего нельзя.
+/// </para>
+/// <para>
+/// Проверки доказанных целей не ослаблены: они выполняются на образцах
+/// (<see cref="EngineFixtures"/>) тем же независимым перебором <see cref="ProblemOracle"/>.
+/// </para>
 /// </remarks>
 public sealed class ProblemConsistencyTests
 {
-    /// <summary>Задачи, у которых каждый выигрышный первый ход требует не меньше трёх полуходов.</summary>
-    private static readonly string[] MultiMoveIds = ["nk-001", "nk-002", "nk-003", "cg-010", "ti-001", "sb-001", "lf-005"];
+    /// <summary>Образцы, у которых каждый выигрышный первый ход требует не меньше трёх полуходов.</summary>
+    private static readonly string[] MultiMove = ["capture-two-liberties", "bent-four"];
 
-    /// <summary>Задачи, для которых проверяется устойчивость на радиусе 3 и горизонте +2.</summary>
-    private static readonly string[] RobustIds = ["cg-010", "ti-001", "sb-001", "lf-001", "lf-002", "lf-003", "lf-004", "lf-005"];
+    /// <summary>Образцы, у которых набор выигрышных ходов устойчив к окну и горизонту.</summary>
+    private static readonly string[] Robust = ["capture-two-liberties", "two-eyes", "bent-four"];
 
-    public static TheoryData<string> Ids()
+    /// <summary>Идентификаторы задач библиотеки.</summary>
+    /// <returns>Данные теории по каждой задаче.</returns>
+    public static TheoryData<string> LibraryIds()
     {
         TheoryData<string> data = [];
 
@@ -29,36 +38,140 @@ public sealed class ProblemConsistencyTests
         return data;
     }
 
+    /// <summary>Имена образцов с доказанными целями.</summary>
+    /// <returns>Данные теории по каждому образцу.</returns>
+    public static TheoryData<string> FixtureNames() =>
+    [
+        "capture-in-corner",
+        "capture-two-liberties",
+        "nakade",
+        "two-eyes",
+        "bent-four",
+    ];
+
     [Theory]
-    [MemberData(nameof(Ids))]
-    public void ПринимаемыйНабор_ВКаждомУзле_РавенВыигрывающимХодам(string id)
+    [MemberData(nameof(LibraryIds))]
+    public void РешениеИсточника_ФормаЗадачиВерна(string id)
     {
         var problem = ProblemLibrary.ById(id);
-        var issues = ConsistencyIssues(problem!);
 
-        Assert.True(issues.Count == 0, $"{id}: {string.Join("; ", issues)}");
+        Assert.NotNull(problem);
+        Assert.Equal(ProblemGoal.Reference, problem.Goal);
+        Assert.False(string.IsNullOrWhiteSpace(problem.Source), $"{id}: не указан источник решения");
+        Assert.False(string.IsNullOrWhiteSpace(problem.Description), $"{id}: нет формулировки для игрока");
+        Assert.False(problem.Solution.IsLeaf, $"{id}: дерево решения пусто — задача решалась бы без хода");
+
+        var report = ProblemChecker.Check(problem);
+
+        Assert.True(report.IsValid, $"{id}: {string.Join("; ", report.Issues)}");
     }
 
     [Theory]
-    [MemberData(nameof(Ids))]
-    public void Каждый_Лист_ПодтверждёнЦелью(string id)
+    [MemberData(nameof(LibraryIds))]
+    public void РешениеИсточника_ЛинияПроходитсяЦеликом(string id)
     {
-        var problem = ProblemLibrary.ById(id);
-        var oracle = new ProblemOracle(problem!);
+        var problem = ProblemLibrary.ById(id)!;
+        var session = new ProblemSession(problem);
+        var node = problem.Solution;
+        var moves = 0;
+
+        while (!node.IsLeaf)
+        {
+            moves++;
+
+            var verdict = session.Play(node.Moves[0].Move);
+
+            if (verdict == ProblemVerdict.Solved)
+            {
+                break;
+            }
+
+            Assert.Equal(ProblemVerdict.Correct, verdict);
+
+            node = node.Moves[0].Next;
+            node = node.IsLeaf ? node : node.Moves[0].Next;
+        }
+
+        Assert.Equal(ProblemState.Solved, session.State);
+        Assert.True(moves > 0, $"{id}: линия источника пуста");
+    }
+
+    [Theory]
+    [MemberData(nameof(LibraryIds))]
+    public void РешениеИсточника_ПринимаетсяРовноХодИсточника(string id)
+    {
+        var problem = ProblemLibrary.ById(id)!;
+        var node = problem.Solution;
+
+        // Линия источника — одна ветвь: в каждом узле ровно один принимаемый ход. Другие
+        // продолжения приложение отклонит, и это записано в PROBLEMS.md как ограничение вида.
+        while (!node.IsLeaf)
+        {
+            Assert.Single(node.Moves);
+            node = node.Moves[0].Next;
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(LibraryIds))]
+    public void РешениеИсточника_ПостороннийХодОтклонён(string id)
+    {
+        var problem = ProblemLibrary.ById(id)!;
+        var session = new ProblemSession(problem);
+        var before = Fingerprint(session.Board);
+        var far = new Point((byte)(problem.Size.Value - 2), 1);
+
+        var verdict = session.Play(Move.Play(far, problem.SolverColor));
+
+        Assert.Equal(ProblemVerdict.Wrong, verdict);
+        Assert.Equal(ProblemState.InProgress, session.State);
+        Assert.Equal(before, Fingerprint(session.Board));
+        Assert.Equal(0, session.SolverMoveCount);
+    }
+
+    [Theory]
+    [MemberData(nameof(LibraryIds))]
+    public void РешениеИсточника_СписокНеОбещаетПроверкуДвижком(string id)
+    {
+        var problem = ProblemLibrary.ById(id)!;
+
+        // Формулировка задачи берётся с источника и не должна утверждать машинную проверку:
+        // иначе игрок решит, что исход доказан, а это не так.
+        Assert.DoesNotContain("Проверена на горизонте", problem.Description, StringComparison.Ordinal);
+        Assert.DoesNotContain("принимаемый набор", problem.Description, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [MemberData(nameof(FixtureNames))]
+    public void Образец_ПринимаемыйНабор_РавенВыигрывающимХодам(string name)
+    {
+        var problem = EngineFixtures.Get(name);
+        var issues = ConsistencyIssues(problem);
+
+        Assert.True(issues.Count == 0, $"{name}: {string.Join("; ", issues)}");
+    }
+
+    [Theory]
+    [MemberData(nameof(FixtureNames))]
+    public void Образец_КаждыйЛист_ПодтверждёнЦелью(string name)
+    {
+        var problem = EngineFixtures.Get(name);
+        var oracle = new ProblemOracle(problem);
         List<string> issues = [];
-        WalkLeaves(problem!, oracle, Board(problem!), problem!.Solution, 0, issues);
 
-        Assert.True(issues.Count == 0, $"{id}: {string.Join("; ", issues)}");
+        WalkLeaves(problem, oracle, Board(problem), problem.Solution, 0, issues);
+
+        Assert.True(issues.Count == 0, $"{name}: {string.Join("; ", issues)}");
     }
 
     [Theory]
-    [MemberData(nameof(Ids))]
-    public void Подсказка_СамыйБыстрыйВыигрывающийХод(string id)
+    [MemberData(nameof(FixtureNames))]
+    public void Образец_Подсказка_СамыйБыстрыйВыигрывающийХод(string name)
     {
-        var problem = ProblemLibrary.ById(id);
-        var oracle = new ProblemOracle(problem!);
-        var board = Board(problem!);
-        var accepted = problem!.AcceptedFirstMoves;
+        var problem = EngineFixtures.Get(name);
+        var oracle = new ProblemOracle(problem);
+        var board = Board(problem);
+        var accepted = problem.AcceptedFirstMoves;
 
         Assert.NotEmpty(accepted);
 
@@ -73,45 +186,41 @@ public sealed class ProblemConsistencyTests
     }
 
     [Theory]
-    [MemberData(nameof(Ids))]
-    public void Задача_НеСлабая_И_Горизонт_Задан(string id)
+    [MemberData(nameof(FixtureNames))]
+    public void Образец_ГоризонтЗаявлен(string name)
     {
-        var problem = ProblemLibrary.ById(id);
+        var problem = EngineFixtures.Get(name);
 
-        Assert.False(problem!.IsWeak, $"{id}: принимаемых первых ходов {problem.AcceptedFirstMoveCount}");
-        Assert.True(problem.CheckDepth > 0, $"{id}: не задан заявленный горизонт (GX)");
+        Assert.True(problem.CheckDepth > 0, $"{name}: не задан заявленный горизонт (GX)");
+        Assert.True(problem.WindowRadius > 0, $"{name}: не задан радиус окна (GW)");
     }
 
     [Fact]
-    public void Многоходовые_КаждыйВыигрышныйПервыйХод_НеКорочеТрёхПолуходов()
+    public void Образцы_Многоходовые_КаждыйВыигрышныйПервыйХод_НеКорочеТрёхПолуходов()
     {
-        foreach (var id in MultiMoveIds)
+        foreach (var name in MultiMove)
         {
-            var problem = ProblemLibrary.ById(id);
-
-            Assert.NotNull(problem);
-
+            var problem = EngineFixtures.Get(name);
             var oracle = new ProblemOracle(problem);
             var board = Board(problem);
+
+            Assert.True(problem.AcceptedFirstMoves.Count > 0, $"{name}: нет принимаемых первых ходов");
 
             foreach (var move in problem.AcceptedFirstMoves)
             {
                 Assert.True(
                     Cost(problem, oracle, board, move) >= 3,
-                    $"{id}: ход {move.Point.X},{move.Point.Y} выигрывает быстрее трёх полуходов");
+                    $"{name}: ход {move.Point.X},{move.Point.Y} выигрывает быстрее трёх полуходов");
             }
         }
     }
 
     [Fact]
-    public void Устойчивость_НаОбъявленномОкне_ИГоризонтеПлюсДва()
+    public void Образцы_Устойчивы_НаОбъявленномОкне_ИГоризонтеПлюсДва()
     {
-        foreach (var id in RobustIds)
+        foreach (var name in Robust)
         {
-            var problem = ProblemLibrary.ById(id);
-
-            Assert.NotNull(problem);
-
+            var problem = EngineFixtures.Get(name);
             var board = Board(problem);
             var accepted = problem.AcceptedFirstMoves;
             var horizon = problem.CheckDepth;
@@ -125,7 +234,7 @@ public sealed class ProblemConsistencyTests
 
                 Assert.True(
                     Same(winning, accepted),
-                    $"{id}: на радиусе {radius} и горизонте {depth} выигрышных {winning.Count}, принято {accepted.Count}");
+                    $"{name}: на радиусе {radius} и горизонте {depth} выигрышных {winning.Count}, принято {accepted.Count}");
             }
         }
     }
@@ -134,10 +243,7 @@ public sealed class ProblemConsistencyTests
     public void Ход_ВыполняющийЦель_Принимается_ВнеДерева()
     {
         // Дерево содержит только медленный выигрыш: снимающего хода в нём нет.
-        var source = ProblemLibrary.ById("cg-001");
-
-        Assert.NotNull(source);
-
+        var source = EngineFixtures.Get("capture-in-corner");
         var slow = new ProblemNode([new ProblemMove(Move.Play(new Point(3, 0), StoneColor.Black), ProblemNode.Leaf)]);
         var problem = new Problem(
             source.Id,
@@ -168,24 +274,27 @@ public sealed class ProblemConsistencyTests
     }
 
     [Fact]
-    public void Библиотека_СодержитМногоходовуюЖизнь()
+    public void Образец_МногоходовойЖизни_ОсталсяДляПроверкиЦелиLive()
     {
-        var life = ProblemLibrary.ById("lf-005");
+        var life = EngineFixtures.Get("bent-four");
 
-        Assert.NotNull(life);
         Assert.Equal(ProblemGoal.Live, life.Goal);
-        Assert.Contains("lf-005", MultiMoveIds, StringComparer.Ordinal);
+        Assert.Equal(3, life.CheckDepth);
     }
 
-    /// <summary>Задача многоходовая: каждый выигрышный первый ход не короче трёх полуходов до цели.</summary>
-    /// <param name="problem">Задача.</param>
-    /// <returns><c>true</c>, если задача многоходовая.</returns>
-    private static bool IsMultiMove(Problem problem)
+    /// <summary>Отпечаток позиции: сравнение «до и после» без разбора доски по точкам.</summary>
+    /// <param name="board">Доска.</param>
+    /// <returns>Строка отпечатка.</returns>
+    private static string Fingerprint(Board board)
     {
-        var oracle = new ProblemOracle(problem);
-        var board = Board(problem);
+        var text = new System.Text.StringBuilder();
 
-        return problem.AcceptedFirstMoves.All(move => Cost(problem, oracle, board, move) >= 3);
+        foreach (var point in board.AllPoints())
+        {
+            text.Append(board.At(point).Id);
+        }
+
+        return text.ToString();
     }
 
     private static List<string> ConsistencyIssues(Problem problem)
@@ -305,6 +414,11 @@ public sealed class ProblemConsistencyTests
     }
 
     /// <summary>Число полуходов до цели, если сыграть этот ход: 1 — цель достигается сразу.</summary>
+    /// <param name="problem">Задача.</param>
+    /// <param name="oracle">Независимый перебор.</param>
+    /// <param name="board">Позиция.</param>
+    /// <param name="move">Ход.</param>
+    /// <returns>Число полуходов или <see cref="int.MaxValue"/>, если цель недостижима.</returns>
     private static int Cost(Problem problem, ProblemOracle oracle, Board board, Move move)
     {
         var after = board.ApplyMove(move);

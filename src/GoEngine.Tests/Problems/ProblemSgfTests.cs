@@ -64,7 +64,7 @@ public sealed class ProblemSgfTests
     [Fact]
     public void Запись_ИЧтение_ДаютТуЖеЗадачу()
     {
-        var original = ProblemLibrary.ById("cg-001")!;
+        var original = ProblemLibrary.ById("ts-008")!;
         var text = ProblemSgf.Write(original);
         var parsed = ProblemSgf.Parse(text, original.Id);
 
@@ -82,6 +82,35 @@ public sealed class ProblemSgfTests
         Assert.Equal(original.Stones.Count, restored.Stones.Count);
         Assert.Equal(original.Hint!.Value.Point, restored.Hint!.Value.Point);
         Assert.Equal(original.Komi.Value, restored.Komi.Value);
+
+        // Источник решения обязан переживать запись и чтение: без него задача «по решению
+        // источника» перестанет разбираться вовсе.
+        Assert.Equal(original.Source, restored.Source);
+    }
+
+    [Fact]
+    public void РешениеИсточника_БезИсточника_ДаётОтказ()
+    {
+        // Формулировка есть, источника нет: такую задачу игрок увидит как проверенную движком,
+        // а это неправда, поэтому разбор обязан отказать.
+        var parsed = ProblemSgf.Parse(
+            "(;SZ[9]GN[Без источника]GC[Ход чёрных.]GE[reference]PL[B]GT[ai]AB[ah]AB[bh]AW[ai];B[bi])",
+            "test-ref");
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains("SO", parsed.Error!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void РешениеИсточника_СИсточником_Читается()
+    {
+        var parsed = ProblemSgf.Parse(
+            "(;SZ[9]GN[С источником]GC[Ход чёрных.]GE[reference]SO[пример.сайт, задача 1]PL[B]GT[ai]AB[ah]AB[bh]AW[ai];B[bi])",
+            "test-ref-2");
+
+        Assert.True(parsed.IsSuccess, parsed.Error);
+        Assert.Equal(ProblemGoal.Reference, parsed.Value!.Goal);
+        Assert.Equal("пример.сайт, задача 1", parsed.Value!.Source);
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using GoEngine.App.ViewModels;
 using GoEngine.Core;
+using GoEngine.Problems;
 
 namespace GoEngine.App.Tests;
 
@@ -10,40 +11,35 @@ namespace GoEngine.App.Tests;
 /// </remarks>
 public sealed class ProblemAnimationTests
 {
+    /// <summary>Позиция с захватом: два белых камня в углу под атари, чёрные снимают их первым ходом.</summary>
+    /// <remarks>
+    /// Своя позиция нужна потому, что библиотека теперь состоит из задач по решению источника, и в их
+    /// линиях снятия не видно: у ts-001 чёрные жертвуют камень, который белые снимают ответом, а разница
+    /// досок до и после пары ходов такую жертву не показывает. Проверяем анимацию там, где снятие есть.
+    /// </remarks>
+    private const string CaptureProblem =
+        "(;GM[1]FF[4]CA[UTF-8]SZ[9]KM[5.5]GN[Захват в углу]GC[Белые два камня в углу в атари.]"
+        + "GE[capture]GD[30]GX[3]GW[3]PL[B]GT[ai]AB[ah]AB[bh]AW[ai]AW[bi](;B[ci])(;B[di];W[ci];B[ch]))";
+
     [Fact]
     public void При_Снятии_Камней_Анимация_Показывает_Снятые()
     {
-        var model = new ProblemViewModel();
+        var parsed = ProblemSgf.Parse(CaptureProblem, "capture-in-corner");
 
-        for (var index = 0; index < model.Problems.Count; index++)
+        Assert.True(parsed.IsSuccess, parsed.Error);
+
+        var model = new ProblemViewModel([parsed.Value!]);
+        var hint = model.AcceptedMoves[0];
+
+        model.Play(hint.Point);
+
+        Assert.NotEmpty(model.LastCaptured);
+        Assert.NotEqual(StoneColor.Empty, model.LastCapturedColor);
+
+        foreach (var point in model.LastCaptured)
         {
-            model.SelectedIndex = index;
-
-            var hint = model.AcceptedMoves.Count > 0 ? model.AcceptedMoves[0] : Move.None;
-
-            if (hint.IsNone)
-            {
-                continue;
-            }
-
-            model.Play(hint.Point);
-
-            if (model.LastCaptured.Count == 0)
-            {
-                continue;
-            }
-
-            Assert.NotEqual(StoneColor.Empty, model.LastCapturedColor);
-
-            foreach (var point in model.LastCaptured)
-            {
-                Assert.True(model.Board.IsEmpty(point), "снятый камень обязан исчезнуть с доски");
-            }
-
-            return;
+            Assert.True(model.Board.IsEmpty(point), "снятый камень обязан исчезнуть с доски");
         }
-
-        Assert.Fail("ни одна задача библиотеки не снимает камни первым правильным ходом");
     }
 
     [Fact]

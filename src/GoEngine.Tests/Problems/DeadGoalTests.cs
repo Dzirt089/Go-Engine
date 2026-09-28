@@ -11,10 +11,16 @@ namespace GoEngine.Tests;
 /// </remarks>
 public sealed class DeadGoalTests
 {
-    private static IEnumerable<Problem> DeadProblems => ProblemLibrary.All.Where(problem => problem.Goal == ProblemGoal.Dead);
+    /// <summary>Образцы с целью «мертва»: в библиотеке таких задач больше нет.</summary>
+    /// <remarks>
+    /// Библиотеку заменили задачи по решению источника, у которых машинного критерия исхода нет.
+    /// Проверки цели «мертва» остались в полной силе и выполняются на образцах
+    /// (<see cref="EngineFixtures.DeadNames"/>) — тех самых позициях с теми же горизонтами.
+    /// </remarks>
+    private static IEnumerable<Problem> DeadProblems => EngineFixtures.DeadNames.Select(EngineFixtures.Get);
 
     [Fact]
-    public void Библиотека_СодержитМногоходовыеЗадачи_СЦельюМертва()
+    public void Образцы_СодержатМногоходовыеЗадачи_СЦельюМертва()
     {
         var dead = DeadProblems.ToList();
 

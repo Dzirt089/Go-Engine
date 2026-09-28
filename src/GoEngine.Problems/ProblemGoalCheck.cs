@@ -31,9 +31,73 @@ public static class ProblemGoalCheck
         ArgumentNullException.ThrowIfNull(problem);
         ArgumentNullException.ThrowIfNull(board);
 
-        return problem.Goal == ProblemGoal.Capture
-            ? problem.TargetPoints.All(point => board.At(point) == StoneColor.Empty)
-            : CountRealEyes(board, problem) >= 2;
+        return IsAchieved(problem, board, problem.CheckDepth > 0 ? problem.CheckDepth : ProblemLife.DefaultHorizon);
+    }
+
+    /// <summary>Может ли сторона создать ко в этой позиции.</summary>
+    /// <param name="board">Позиция без истории партии.</param>
+    /// <param name="color">Сторона, которая ходит.</param>
+    /// <returns><c>true</c>, если есть ход, снимающий один камень с запрещённым ответом.</returns>
+    /// <remarks>
+    /// Критерий механический, без догадок: ход снимает <b>ровно один</b> камень, ответный ход
+    /// по форме возможен, но восстанавливает ровно ту позицию, что стояла до хода, — значит,
+    /// в партии он запрещён правилом ко (позиция повторилась бы). История для такой проверки
+    /// не нужна: сравниваются камни двух позиций по каждой точке.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Позиция или сторона не заданы.</exception>
+    public static bool KoAvailable(Board board, StoneColor color)
+    {
+        ArgumentNullException.ThrowIfNull(board);
+        ArgumentNullException.ThrowIfNull(color);
+
+        foreach (var point in board.EmptyPoints())
+        {
+            var move = Move.Play(point, color);
+
+            if (!board.IsLegal(move).IsSuccess)
+            {
+                continue;
+            }
+
+            var after = board.ApplyMove(move);
+
+            if (after.CapturedStones.Count != 1)
+            {
+                continue;
+            }
+
+            var recapture = Move.Play(after.CapturedStones[0], color.Opponent());
+
+            // Ответ возможен по форме и возвращает прежнюю позицию — это ко, а не размен.
+            if (after.IsLegal(recapture).IsSuccess && SamePosition(board, after.ApplyMove(recapture)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Совпадают ли позиции по каждой точке доски.</summary>
+    /// <param name="left">Первая позиция.</param>
+    /// <param name="right">Вторая позиция.</param>
+    /// <returns><c>true</c>, если расстановка камней одинакова.</returns>
+    private static bool SamePosition(Board left, Board right)
+    {
+        if (left.Size != right.Size)
+        {
+            return false;
+        }
+
+        foreach (var point in left.AllPoints())
+        {
+            if (left.At(point) != right.At(point))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>Считает настоящие глаза целевой группы.</summary>
@@ -65,17 +129,54 @@ public static class ProblemGoalCheck
         ArgumentNullException.ThrowIfNull(problem);
         ArgumentNullException.ThrowIfNull(board);
 
-        if (problem.Goal != ProblemGoal.Dead)
+        var horizon = depth > 0 ? depth : problem.CheckDepth > 0 ? problem.CheckDepth : ProblemLife.DefaultHorizon;
+
+        if (problem.Goal == ProblemGoal.Ko)
         {
-            return IsAchieved(problem, board);
+            return KoAvailable(board, problem.SolverColor);
         }
 
-        var band = depth > 0 ? depth : problem.CheckDepth;
+        if (problem.Goal == ProblemGoal.Capture)
+        {
+            return problem.TargetPoints.All(point => board.At(point) == StoneColor.Empty);
+        }
 
-        // Приговор — факт уровня правил: атакующий форсирует захват группы за эту границу.
-        // Глазная проверка (DefenderCanForceEyes) остаётся вспомогательной и в приговоре не участвует:
-        // она даёт достаточное условие жизни, а не необходимое, и потому ошибается в обе стороны.
-        return ForcedCapture(board, problem, band);
+        var group = LiveGroup(board, problem);
+
+        if (group.Count == 0)
+        {
+            // Целевой группы на доске нет: жить и спасать нечего, «мертва» достигнута.
+            return problem.Goal == ProblemGoal.Dead;
+        }
+
+        var radius = problem.WindowRadius;
+
+        if (problem.Goal == ProblemGoal.Live)
+        {
+            // Прежняя модель: два настоящих глаза по детектору слоя AI. Детектор консервативен —
+            // ложной жизни не объявляет, но настоящие глаза формой часто не видит, поэтому для
+            // задач «жизнь формой» есть отдельная цель Eyes.
+            return CountRealEyes(board, problem) >= 2;
+        }
+
+        if (problem.Goal == ProblemGoal.Eyes)
+        {
+            // Новая модель: защищающийся успевает построить два глаза за объявленный горизонт.
+            return ProblemLife.CanForceTwoEyes(board, problem.TargetColor, group, horizon, radius).Forced;
+        }
+
+        if (problem.Goal == ProblemGoal.Survive)
+        {
+            // Спасение: атакующий не форсирует снятие группы за горизонт.
+            return ProblemLife.CanSurvive(board, problem.TargetColor, group, horizon, radius).Forced;
+        }
+
+        // «Мертва» — факт уровня правил: атакующий форсирует захват группы за горизонт.
+        // Модель «за горизонт не построены два глаза» приговором здесь быть не может: на коротком
+        // горизонте «не успел построить» неотличимо от «не построит никогда», и первая версия
+        // объявляла мёртвыми уже живые группы (тесты библиотеки это поймали). Глаза как критерий
+        // жизни остаются достаточным условием, а не приговором о смерти.
+        return ForcedCapture(board, problem, horizon);
     }
 
     /// <summary>Стоит ли целевая группа на доске: её опорный камень ещё занят цветом цели.</summary>

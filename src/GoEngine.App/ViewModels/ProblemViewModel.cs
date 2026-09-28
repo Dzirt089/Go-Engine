@@ -116,6 +116,19 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// <summary>Цель задачи словами: «убить группу», «обеспечить жизнь группы», «убить группу, не снимая…».</summary>
     public string GoalText => Current.Goal.Descriptions ?? Current.Goal.Name;
 
+    /// <summary>Честная пометка о происхождении решения; пусто у задач, проверенных движком.</summary>
+    /// <remarks>
+    /// У задачи по решению источника (<see cref="ProblemGoal.Reference"/>) исход движком не доказан:
+    /// перебор не подтверждает ни снятие группы, ни два глаза, ни ко. Игрок обязан видеть и это,
+    /// и то, что другие правильные продолжения приложение отклонит.
+    /// </remarks>
+    public string SourceText => Current.Goal == ProblemGoal.Reference
+        ? $"Решение: {Current.Source}. Движком не проверялось: принимается линия источника, другие продолжения приложение отклонит."
+        : string.Empty;
+
+    /// <summary>Есть ли что сказать о происхождении решения.</summary>
+    public bool HasSource => SourceText.Length > 0;
+
     /// <summary>Чей ход в текущей позиции.</summary>
     public string ToMoveText => StoneColorLabels.Label(_session.ToMove);
 
@@ -359,14 +372,21 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         return null;
     }
 
-    /// <summary>Подпись задачи для списка: шифр, цель, сложность и пометка слабой задачи.</summary>
+    /// <summary>Подпись задачи для списка: шифр, цель, сложность и пометки.</summary>
     /// <param name="problem">Задача.</param>
-    /// <returns>Например, «cg-001 · убить группу · 30 кю».</returns>
+    /// <returns>Например, «ts-001 · по решению источника · 20 кю».</returns>
     private static string LabelOf(Problem problem)
     {
         var label = string.Create(
             CultureInfo.InvariantCulture,
             $"{problem.Id} · {problem.Goal.Descriptions ?? problem.Goal.Name} · {problem.Rank} кю");
+
+        // Пометка о виде задачи обязана быть в списке: у задачи по решению источника исход
+        // движком не доказан, и игрок должен видеть это до того, как начнёт решать.
+        if (problem.Goal == ProblemGoal.Reference)
+        {
+            label += " · решение источника";
+        }
 
         return problem.IsWeak ? label + " · слабая" : label;
     }

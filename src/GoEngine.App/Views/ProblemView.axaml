@@ -36,6 +36,14 @@
             <TextBlock Text="{Binding RankText}" />
           </StackPanel>
 
+          <!-- Происхождение решения: у задач с сайта исход движком не проверен, и это сказано прямо. -->
+          <TextBlock x:Name="SourceNote"
+                     Text="{Binding SourceText}"
+                     IsVisible="{Binding HasSource}"
+                     TextWrapping="Wrap"
+                     FontSize="12"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+
           <!-- Вердикт хода: «Верно», «Это не решает задачу», «Задача решена». -->
           <TextBlock x:Name="Verdict"
                      Text="{Binding Verdict}"

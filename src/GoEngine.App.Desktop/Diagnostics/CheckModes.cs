@@ -4,6 +4,7 @@ using GoEngine.App.Rendering;
 using GoEngine.App.Services;
 using GoEngine.App.ViewModels;
 using GoEngine.Core;
+using GoEngine.Problems;
 using GoPoint = GoEngine.Core.Point;
 
 namespace GoEngine.App.Diagnostics;
@@ -278,6 +279,160 @@ internal static class CheckModes
 
         throw new InvalidOperationException(
             "Проверка лога падений (--crash-test): это намеренный сбой, а не ошибка игры.");
+    }
+
+    /// <summary>Проверяет режим задач: пометку о виде, линию источника и отказ постороннего хода.</summary>
+    /// <returns>0, если выбранные задачи решаются по линии и отвергают посторонний ход; иначе 1.</returns>
+    /// <remarks>
+    /// Режим идёт через ту же модель, что и вид (<see cref="ProblemViewModel"/>): ход передаётся в её
+    /// <c>Play</c>, вердикт читается из её свойств. Так проверяется всё, кроме пикселей, и проверка
+    /// работает без окна — на сборочном агенте и там, где экран занят.
+    /// </remarks>
+    public static int Problems()
+    {
+        string[] probes = ["ts-009", "ts-005", "ts-008"];
+        var model = new ProblemViewModel();
+        var failures = 0;
+
+        Console.WriteLine($"задач в библиотеке: {model.Problems.Count}");
+
+        foreach (var problem in model.Problems)
+        {
+            var kind = problem.Goal == ProblemGoal.Reference ? "решение источника" : "проверена движком";
+
+            Console.WriteLine(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"  {problem.Id}: {problem.Size.Value}×{problem.Size.Value}, {problem.Goal.Name}, {kind}"));
+        }
+
+        foreach (var id in probes)
+        {
+            var index = -1;
+
+            for (var position = 0; position < model.Problems.Count; position++)
+            {
+                if (string.Equals(model.Problems[position].Id, id, StringComparison.Ordinal))
+                {
+                    index = position;
+                    break;
+                }
+            }
+
+            if (index < 0)
+            {
+                Console.WriteLine($"{id}: задачи нет в библиотеке");
+                failures++;
+
+                continue;
+            }
+
+            model.SelectedIndex = index;
+            model.Reset();
+
+            // Посторонний ход: пустая точка, которой нет среди принимаемых.
+            var start = ProblemsFingerprint(model.Board);
+            var wrong = model.Board.AllPoints()
+                .First(point => model.Board.IsEmpty(point) && model.AcceptedMoves.All(move => move.Point != point));
+
+            model.Play(wrong);
+
+            var unchanged = ProblemsFingerprint(model.Board) == start;
+            var rejected = model.Verdict == ProblemViewModel.WrongText && unchanged;
+
+            Console.WriteLine(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{id}: посторонний ход {wrong.X},{wrong.Y} → «{model.Verdict}», позиция {(unchanged ? "не изменилась" : "ИЗМЕНИЛАСЬ")}"));
+
+            if (!rejected)
+            {
+                failures++;
+            }
+
+            model.Reset();
+
+            var steps = 0;
+
+            while (!model.IsSolved && steps < 12)
+            {
+                var accepted = model.AcceptedMoves;
+
+                if (accepted.Count == 0)
+                {
+                    break;
+                }
+
+                steps++;
+                model.Play(accepted[0].Point);
+
+                Console.WriteLine(
+                    string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"  ход {steps}: {accepted[0].Point.X},{accepted[0].Point.Y} → «{model.Verdict}»"));
+            }
+
+            Console.WriteLine($"{id}: {(model.IsSolved ? "ЗАДАЧА РЕШЕНА" : "НЕ РЕШЕНА")} (ходов решающего {steps})");
+
+            if (!model.IsSolved)
+            {
+                failures++;
+            }
+
+            Console.WriteLine(ProblemsDiagram(model));
+        }
+
+        Console.WriteLine(failures == 0 ? "режим задач: все проверки пройдены" : $"режим задач: расхождений {failures}");
+
+        return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>Отпечаток позиции: сравнение «до и после» хода.</summary>
+    /// <param name="board">Доска.</param>
+    /// <returns>Строка отпечатка.</returns>
+    private static string ProblemsFingerprint(Board board)
+    {
+        var text = new System.Text.StringBuilder();
+
+        foreach (var point in board.AllPoints())
+        {
+            text.Append(board.At(point).Id);
+        }
+
+        return text.ToString();
+    }
+
+    /// <summary>Рисует позицию задачи: сверху вниз, как на доске сайта.</summary>
+    /// <param name="model">Модель режима задач.</param>
+    /// <returns>Текстовая диаграмма с координатами.</returns>
+    private static string ProblemsDiagram(ProblemViewModel model)
+    {
+        const string columns = "ABCDEFGHJKLMNOPQRST";
+        var size = model.Board.Size.Value;
+        var text = new System.Text.StringBuilder();
+
+        for (var y = size - 1; y >= 0; y--)
+        {
+            text.Append(CultureInfo.InvariantCulture, $"{y + 1,2} ");
+
+            for (var x = 0; x < size; x++)
+            {
+                var stone = model.Board.At(new GoPoint((byte)x, (byte)y));
+
+                text.Append(stone == StoneColor.Black ? '#' : stone == StoneColor.White ? 'O' : '.');
+            }
+
+            text.AppendLine();
+        }
+
+        text.Append("   ");
+
+        for (var x = 0; x < size; x++)
+        {
+            text.Append(columns[x]);
+        }
+
+        return text.ToString();
     }
 
     /// <summary>Проверяет, что панель статуса получает данные партии.</summary>

@@ -1,3 +1,4 @@
+using GoEngine.Core;
 using GoEngine.Problems;
 
 namespace GoEngine.Tests;
@@ -18,9 +19,16 @@ public sealed class ProblemLibraryTests
     }
 
     [Fact]
-    public void Библиотека_НеМеньшеДвенадцатиЗадач()
+    public void Библиотека_СодержитДесятьЗадачПоРешениюИсточника()
     {
-        Assert.True(ProblemLibrary.Count >= 12, $"задач в библиотеке: {ProblemLibrary.Count}");
+        // Библиотека заменена задачами пользователя с сайта: их десять, и все они вида
+        // «по решению источника» — машинного критерия исхода у них нет.
+        Assert.Equal(10, ProblemLibrary.Count);
+        Assert.All(ProblemLibrary.All, problem => Assert.Equal(ProblemGoal.Reference, problem.Goal));
+
+        var expected = Enumerable.Range(1, 10).Select(number => $"ts-{number:000}").ToArray();
+
+        Assert.Equal(expected, ProblemLibrary.All.Select(problem => problem.Id).ToArray());
     }
 
     [Fact]
@@ -32,13 +40,12 @@ public sealed class ProblemLibraryTests
     }
 
     [Fact]
-    public void Библиотека_ПокрываетЦелиИРазмеры()
+    public void Библиотека_ПокрываетРазмерыДосок()
     {
-        Assert.Contains(ProblemLibrary.All, problem => problem.Goal == ProblemGoal.Capture);
-        Assert.Contains(ProblemLibrary.All, problem => problem.Goal == ProblemGoal.Live);
-        Assert.Contains(ProblemLibrary.All, problem => problem.Goal == ProblemGoal.Dead);
+        // Задачи перенесены на меньшую доску: девять из них 9×9, одна (с камнем за кропом) — 13×13.
+        Assert.Contains(ProblemLibrary.All, problem => problem.Size.Value == 9);
         Assert.Contains(ProblemLibrary.All, problem => problem.Size.Value == 13);
-        Assert.Contains(ProblemLibrary.All, problem => problem.Size.Value == 19);
+        Assert.Contains(ProblemLibrary.All, problem => problem.SolverColor == StoneColor.Black);
     }
 
     [Theory]
@@ -72,12 +79,12 @@ public sealed class ProblemLibraryTests
 
     [Theory]
     [MemberData(nameof(Ids))]
-    public void Описание_Задачи_ОбъявляетГоризонтИЛист(string id)
+    public void Каждая_Задача_ОбъявляетИсточник(string id)
     {
         var problem = ProblemLibrary.ById(id);
 
         Assert.NotNull(problem);
-        Assert.Contains("Проверена на горизонте", problem.Description, StringComparison.Ordinal);
-        Assert.Contains("принимаемый набор", problem.Description, StringComparison.Ordinal);
+        Assert.Contains("goproblems.ru", problem.Source, StringComparison.Ordinal);
+        Assert.False(string.IsNullOrWhiteSpace(problem.Description), $"{id}: нет формулировки");
     }
 }

@@ -120,6 +120,13 @@ internal static class Program
             return CheckModes.Settings();
         }
 
+        if (args.Contains(ModeArguments.Problems))
+        {
+            // Проверка режима задач без окна: та же модель, что и в виде, решает задачи по линии
+            // источника и отвергает посторонний ход.
+            return CheckModes.Problems();
+        }
+
         if (args.Contains(ModeArguments.State))
         {
             // Проверка панели статуса без окна: модель представления показывает данные партии.

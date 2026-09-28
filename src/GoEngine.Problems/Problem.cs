@@ -36,6 +36,7 @@ public sealed class Problem
 
     private readonly IReadOnlyList<Point> _targetPoints;
     private readonly IReadOnlyList<Move> _acceptedFirstMoves;
+    private readonly StoneColor _targetColor;
 
     /// <summary>Создаёт задачу.</summary>
     /// <param name="id">Идентификатор задачи.</param>
@@ -51,6 +52,7 @@ public sealed class Problem
     /// <param name="solution">Корень дерева решения.</param>
     /// <param name="checkDepth">Заявленный горизонт проверки цели в полуходах.</param>
     /// <param name="windowRadius">Объявленный радиус окна поиска: шахматное расстояние от камней целевой группы.</param>
+    /// <param name="source">Источник решения; заполняется у задач <see cref="ProblemGoal.Reference"/>.</param>
     /// <exception cref="DomainException">Нарушен инвариант задачи.</exception>
     public Problem(
         string id,
@@ -65,7 +67,8 @@ public sealed class Problem
         string description,
         ProblemNode solution,
         int checkDepth = 0,
-        int windowRadius = DefaultWindowRadius)
+        int windowRadius = DefaultWindowRadius,
+        string source = "")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -91,12 +94,18 @@ public sealed class Problem
         }
 
         // Целевая группа у соперника, когда её убивают (Capture и Dead), и своя, когда её спасают (Live).
-        var targetColor = goal == ProblemGoal.Live ? solverColor : solverColor.Opponent();
+        // У задачи по решению источника цвет берётся из расстановки: она бывает и своя («спасти»),
+        // и чужая («убить»), а исход движок в этом виде не проверяет — важно лишь, о какой группе задача.
+        var targetStone = stones.FirstOrDefault(stone => stone.Point == target);
 
-        if (!stones.Any(stone => stone.Point == target && stone.Color == targetColor))
+        if (targetStone == default)
         {
-            throw new DomainException($"Задача {id}: в целевой точке {target} нет камня цвета {targetColor.Name}.");
+            throw new DomainException($"Задача {id}: в целевой точке {target} нет камня.");
         }
+
+        var targetColor = goal == ProblemGoal.Reference
+            ? targetStone.Color
+            : goal == ProblemGoal.Live ? solverColor : solverColor.Opponent();
 
         Id = id;
         Name = name;
@@ -111,6 +120,8 @@ public sealed class Problem
         Solution = solution;
         CheckDepth = checkDepth;
         WindowRadius = windowRadius > 0 ? windowRadius : DefaultWindowRadius;
+        Source = source ?? string.Empty;
+        _targetColor = targetColor;
         _targetPoints = GroupOf(stones, target, targetColor);
 
         List<Move> accepted = [];
@@ -148,7 +159,13 @@ public sealed class Problem
     public Point Target { get; }
 
     /// <summary>Цвет целевой группы: у решающего или у соперника, в зависимости от цели.</summary>
-    public StoneColor TargetColor => Goal == ProblemGoal.Live ? SolverColor : SolverColor.Opponent();
+    /// <remarks>
+    /// У задачи по решению источника цвет задан расстановкой (<see cref="ProblemGoal.Reference"/>):
+    /// такая задача бывает и про спасение своей группы, и про убийство чужой.
+    /// </remarks>
+    public StoneColor TargetColor => Goal == ProblemGoal.Reference
+        ? _targetColor
+        : Goal == ProblemGoal.Live ? SolverColor : SolverColor.Opponent();
 
     /// <summary>Камни целевой группы в начальной позиции.</summary>
     public IReadOnlyList<Point> TargetPoints => _targetPoints;
@@ -158,6 +175,13 @@ public sealed class Problem
 
     /// <summary>Описание задачи для игрока.</summary>
     public string Description { get; }
+
+    /// <summary>Источник решения: сайт, раздел, номер задачи; пусто — задача проверена движком.</summary>
+    /// <remarks>
+    /// Заполняется только у задач <see cref="ProblemGoal.Reference"/>: игрок обязан видеть, откуда
+    /// взято решение, раз исход движком не доказан.
+    /// </remarks>
+    public string Source { get; }
 
     /// <summary>Корень дерева решения.</summary>
     public ProblemNode Solution { get; }
