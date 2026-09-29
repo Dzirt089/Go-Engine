@@ -48,7 +48,11 @@ public static class BoardRenderer
     private const float LastMoveRadiusRatio = 0.35f;
 
     /// <summary>Доля клетки, которую занимает подпись координаты.</summary>
-    private const float CoordinateSizeRatio = 0.42f;
+    /// <remarks>
+    /// Долю читает и раскладка (<c>BoardLayoutRules.CoordinatesFit</c>): подписи не рисуются,
+    /// когда от неё получается кегль мельче читаемого.
+    /// </remarks>
+    public const float CoordinateSizeRatio = 0.42f;
 
     /// <summary>Доля клетки, которую занимает знак территории.</summary>
     private const float TerritorySizeRatio = 0.34f;
@@ -62,6 +66,30 @@ public static class BoardRenderer
     /// <summary>Сдвиг базовой линии подписи к её середине, в долях кегля.</summary>
     private const float CoordinateBaselineRatio = 0.35f;
 
+    /// <summary>Цвет метки мёртвого камня на чёрном камне.</summary>
+    private static readonly SKColor DeadMarkOnBlack = new(0xF5, 0xF5, 0xF0);
+
+    /// <summary>Цвет метки мёртвого камня на белом камне.</summary>
+    private static readonly SKColor DeadMarkOnWhite = new(0x1A, 0x1A, 0x1A);
+
+    /// <summary>Доля радиуса камня, которую занимает метка мёртвого камня.</summary>
+    private const float DeadMarkRadiusRatio = 0.5f;
+
+    /// <summary>Толщина метки мёртвого камня в пикселях.</summary>
+    private const float DeadMarkStrokeWidth = 2.5f;
+
+    /// <summary>Непрозрачность приглушения мёртвого камня: камень виден, но явно уходит с доски.</summary>
+    private const byte DeadMarkFadeAlpha = 132;
+
+    /// <summary>Цвет маркера подсказки: синий, чтобы не путался с красным маркером последнего хода.</summary>
+    private static readonly SKColor HintColor = new(0x0F, 0x6C, 0xBD);
+
+    /// <summary>Толщина кольца подсказки в пикселях.</summary>
+    private const float HintStrokeWidth = 3f;
+
+    /// <summary>Доля радиуса камня, которую занимает кольцо подсказки.</summary>
+    private const float HintRadiusRatio = 1.3f;
+
     /// <summary>Буквы столбцов: латинские без «I», как принято в Го.</summary>
     private const string ColumnLetters = "ABCDEFGHJKLMNOPQRST";
 
@@ -74,6 +102,14 @@ public static class BoardRenderer
     /// <param name="hover">Точка под курсором или <c>null</c>.</param>
     /// <param name="animation">Кадр анимации камней или <c>null</c>.</param>
     /// <param name="territory">Владение точками для показа территории или <c>null</c>.</param>
+    /// <param name="deadPoints">Камни, помеченные мёртвыми при подсчёте, или <c>null</c>.</param>
+    /// <param name="hint">Точка подсказки или <c>null</c>.</param>
+    /// <param name="showCoordinates">Рисовать ли подписи координат.</param>
+    /// <remarks>
+    /// Координаты можно выключить: на телефоне доска 19×19 занимает те же точки, что и 9×9,
+    /// и подписи в поле вокруг сетки становятся нечитаемыми. Решение принимает раскладка
+    /// (<c>BoardLayoutRules.CoordinatesFit</c>), а не отрисовка.
+    /// </remarks>
     public static void Draw(
         SKCanvas canvas,
         Board board,
@@ -82,21 +118,120 @@ public static class BoardRenderer
         Point? lastMove = null,
         Point? hover = null,
         StoneAnimation? animation = null,
-        IReadOnlyList<StoneColor>? territory = null)
+        IReadOnlyList<StoneColor>? territory = null,
+        IReadOnlyList<Point>? deadPoints = null,
+        Point? hint = null,
+        bool showCoordinates = true)
     {
         ArgumentNullException.ThrowIfNull(canvas);
         ArgumentNullException.ThrowIfNull(board);
 
         var geometry = BoardGeometry.Fit(board.Size, width, height);
 
-        canvas.Clear(BoardColor);
+        // Фон рисуется прямоугольником отведённой области, а не canvas.Clear: Clear закрашивает
+        // весь холст вместе с частями окна за границами элемента.
+        using (var background = new SKPaint { Color = BoardColor, IsAntialias = false, Style = SKPaintStyle.Fill })
+        {
+            canvas.DrawRect(new SKRect(0, 0, width, height), background);
+        }
 
         DrawGrid(canvas, board.Size, geometry);
-        DrawCoordinates(canvas, board.Size, geometry);
+
+        if (showCoordinates)
+        {
+            DrawCoordinates(canvas, board.Size, geometry);
+        }
+
         DrawStarPoints(canvas, board.Size, geometry);
         DrawStones(canvas, board, geometry, animation);
         DrawTerritory(canvas, board, geometry, territory);
+        DrawDeadMarks(canvas, board, geometry, deadPoints);
         DrawMarkers(canvas, geometry, lastMove, hover);
+
+        if (hint is { } hintPoint)
+        {
+            DrawHint(canvas, geometry, hintPoint);
+        }
+    }
+
+    /// <summary>Помечает камни, отмеченные мёртвыми при подсчёте.</summary>
+    /// <param name="canvas">Холст Skia.</param>
+    /// <param name="board">Позиция.</param>
+    /// <param name="geometry">Геометрия доски.</param>
+    /// <param name="deadPoints">Точки мёртвых камней или <c>null</c>.</param>
+    /// <remarks>
+    /// Помеченный камень не просто перечёркивается: он приглушается — поверх камня ложится
+    /// полупрозрачный цвет доски, и камень выглядит уходящим с неё. Без приглушения игрок
+    /// не отличал бы пометку от знака территории, а подтверждение подсчёта было бы кнопкой вслепую.
+    /// Крест поверх камня рисуется обратным цветом: на чёрном белый, на белом чёрный.
+    /// Пустые точки пропускаются: мёртвым помечают камень, а не пересечение.
+    /// </remarks>
+    private static void DrawDeadMarks(SKCanvas canvas, Board board, BoardGeometry geometry, IReadOnlyList<Point>? deadPoints)
+    {
+        if (deadPoints is null || deadPoints.Count == 0)
+        {
+            return;
+        }
+
+        var half = geometry.StoneRadius * DeadMarkRadiusRatio;
+        var radius = geometry.StoneRadius;
+
+        using var fade = new SKPaint
+        {
+            Color = BoardColor.WithAlpha(DeadMarkFadeAlpha),
+            IsAntialias = true,
+            Style = SKPaintStyle.Fill
+        };
+
+        foreach (var point in deadPoints)
+        {
+            var stone = board.At(point);
+
+            if (stone == StoneColor.Empty)
+            {
+                continue;
+            }
+
+            using var paint = new SKPaint
+            {
+                Color = stone == StoneColor.Black ? DeadMarkOnBlack : DeadMarkOnWhite,
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = DeadMarkStrokeWidth
+            };
+
+            var center = geometry.Pixel(point);
+
+            canvas.DrawCircle(center, radius, fade);
+            canvas.DrawLine(center.X - half, center.Y - half, center.X + half, center.Y + half, paint);
+            canvas.DrawLine(center.X - half, center.Y + half, center.X + half, center.Y - half, paint);
+        }
+    }
+
+    /// <summary>Рисует маркер подсказки: кольцо вокруг точки и точку в середине.</summary>
+    /// <param name="canvas">Холст Skia.</param>
+    /// <param name="geometry">Геометрия доски.</param>
+    /// <param name="point">Точка подсказки.</param>
+    /// <remarks>
+    /// Кольцо рисуется снаружи камня и отличается цветом от красного маркера последнего хода:
+    /// подсказка и последний ход могут стоять на соседних точках, и их нельзя путать.
+    /// </remarks>
+    private static void DrawHint(SKCanvas canvas, BoardGeometry geometry, Point point)
+    {
+        var center = geometry.Pixel(point);
+
+        using var ring = new SKPaint
+        {
+            Color = HintColor,
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = HintStrokeWidth
+        };
+
+        using var dot = new SKPaint { Color = HintColor, IsAntialias = true, Style = SKPaintStyle.Fill };
+
+        canvas.DrawCircle(center, geometry.StoneRadius * HintRadiusRatio, ring);
+        canvas.DrawCircle(center, geometry.StoneRadius * 0.25f, dot);
     }
 
     /// <summary>Рисует знаки территории на пустых пересечениях.</summary>

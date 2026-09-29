@@ -10,8 +10,12 @@ namespace GoEngine.App.Rendering;
 /// </remarks>
 public readonly record struct BoardGeometry
 {
-    /// <summary>Доля меньшей стороны области, занятая полем вокруг сетки.</summary>
-    private const float MarginRatio = 0.08f;
+    /// <summary>Доля меньшей стороны области, занятая полем вокруг сетки с каждой стороны.</summary>
+    /// <remarks>
+    /// Поле открыто не только для красоты: в нём рисуются подписи координат. Долю читает и
+    /// раскладка (<c>BoardLayoutRules.CoordinatesFit</c>), решающая, помещаются ли подписи.
+    /// </remarks>
+    public const float MarginRatio = 0.08f;
 
     /// <summary>Доля клетки, которую занимает камень.</summary>
     private const float StoneRadiusRatio = 0.47f;

@@ -1,0 +1,128 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Стили мобильного вида и общих карточек. Все селекторы привязаны к классам (.app-*):
+       настольный вид не получает ни одного нового правила и выглядит как прежде.
+       Высоты не меньше 48 точек — по этому размеру попадает палец. -->
+
+  <!-- Кнопка действия над доской: компактная, но с крупной целью нажатия. -->
+  <Style Selector="Button.app-action">
+    <Setter Property="MinHeight" Value="{DynamicResource AppTouchTarget}" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="10,0" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontBody}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusSmall}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- Кнопка на панели поверх доски: подписи вроде «Новая партия» обязаны помещаться
+       в 360 точек, поэтому кегль и внутренние отступы меньше, чем у обычной кнопки. -->
+  <Style Selector="Button.app-action-bar">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Padding" Value="7,0" />
+    <Setter Property="MinWidth" Value="0" />
+  </Style>
+
+  <!-- Главное действие: пас и подтверждение подсчёта -->
+  <Style Selector="Button.app-primary">
+    <Setter Property="MinHeight" Value="{DynamicResource AppTouchTarget}" />
+    <Setter Property="Padding" Value="14,0" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontBody}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusSmall}" />
+    <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppOnAccentBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- Раздел в нижней навигации: значок и подпись, выбранный выделен акцентом. -->
+  <Style Selector="Button.app-nav">
+    <Setter Property="MinHeight" Value="{DynamicResource AppNavHeight}" />
+    <Setter Property="Padding" Value="0,6" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextMutedBrush}" />
+  </Style>
+
+  <!-- Выбранный раздел: подложка акцента и сам акцент в значке и подписи. -->
+  <Style Selector="Button.app-nav.active">
+    <Setter Property="Background" Value="{DynamicResource AppAccentSoftBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppAccentBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="Button.app-nav TextBlock">
+    <Setter Property="FontSize" Value="{DynamicResource AppFontNav}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextMutedBrush}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Button.app-nav Path">
+    <Setter Property="Fill" Value="{DynamicResource AppTextMutedBrush}" />
+  </Style>
+
+  <Style Selector="Button.app-nav.active TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource AppAccentBrush}" />
+  </Style>
+
+  <Style Selector="Button.app-nav.active Path">
+    <Setter Property="Fill" Value="{DynamicResource AppAccentBrush}" />
+  </Style>
+
+  <!-- Карточка: настройки, подробности, панель действий поверх доски. -->
+  <Style Selector="Border.app-card">
+    <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusMedium}" />
+  </Style>
+
+  <!-- Строка подписи со значением в списках сведений -->
+  <Style Selector="TextBlock.app-label">
+    <Setter Property="Foreground" Value="{DynamicResource AppTextMutedBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontCaption}" />
+  </Style>
+
+  <Style Selector="TextBlock.app-value">
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontBody}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <Style Selector="TextBlock.app-title">
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontTitle}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="TextBlock.app-subtitle">
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSubtitle}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+
+  <!-- Экран настроек телефона: тот же SettingsView, но во всю высоту, без карточки по центру. -->
+  <Style Selector="Border.app-settings-screen">
+    <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="Border.app-settings-card-mobile">
+    <Setter Property="MaxWidth" Value="Infinity" />
+    <Setter Property="MaxHeight" Value="Infinity" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+    <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
+</Styles>

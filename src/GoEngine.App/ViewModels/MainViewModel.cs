@@ -31,9 +31,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly ILogger _log = AppLog.For<MainViewModel>();
     private GameState _game;
     private AppSettings _settings;
-    private int _capturedBlack;
-    private int _capturedWhite;
     private bool _showTerritory;
+
+    /// <summary>Помеченные мёртвыми камни: согласование конца партии.</summary>
+    /// <remarks>
+    /// Пометки относятся к конкретной позиции, а не к партии вообще: любое изменение партии
+    /// (ход, отмена, возврат, загрузка) начинает согласование заново. Мёртвые камни не снимаются
+    /// с доски молча — их помечает перебор <see cref="Endgame.ProposeDead"/> или игрок кликом.
+    /// </remarks>
+    private readonly HashSet<Point> _dead = [];
+
+    /// <summary>Помеченные камни в порядке обхода доски: список для вида, а не для поиска.</summary>
+    private IReadOnlyList<Point> _deadPoints = [];
+
+    /// <summary>Сколько раз менялись пометки мёртвых: по этому счётчику вид перерисовывает доску.</summary>
+    private int _deadRevision;
+
+    /// <summary>Подтверждённый итог партии или <c>null</c>, пока подсчёт не подтверждён.</summary>
+    private FinalScore? _finalScore;
 
     /// <summary>Отмена текущего поиска хода соперника: результат отменённого поиска не применяется.</summary>
     private CancellationTokenSource? _aiCancellation;
@@ -69,7 +84,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _modelSizes = modelSizes ?? global::GoEngine.App.App.ModelSizes;
         _game = CreateGame(settings);
 
-        RecountCaptures();
         RefreshLabels();
         LogNewGame();
         ShowAiMoveIfNeeded();
@@ -101,8 +115,90 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Коми партии.</summary>
     public string Komi => _game.Komi.ToString();
 
-    /// <summary>Текущий счёт по китайским правилам.</summary>
-    public string Score => Scorer.Calculate(_game.Board, _game.Komi).ToString();
+    /// <summary>Система подсчёта партии: японская (основная) или китайская.</summary>
+    /// <remarks>
+    /// Смена системы партию не пересоздаёт: она выбирает, по какой из двух посчитанных величин
+    /// называется победитель. Обе величины Core считает всегда, поэтому переключение мгновенно
+    /// и не может разойтись с разбором в <see cref="ScoreDetail"/>. Экран настроек пишет сюда же:
+    /// так выбранная система попадает и в файл настроек, и в текущую партию.
+    /// </remarks>
+    public Core.ScoringRule ScoringRule
+    {
+        get => _settings.ToScoringRule();
+        set
+        {
+            var rule = value ?? Core.ScoringRule.Japanese;
+
+            if (rule == _settings.ToScoringRule())
+            {
+                return;
+            }
+
+            _settings = _settings with { ScoringRule = rule.Name };
+
+            // Подтверждённый итог тоже меняет систему: величины в нём уже посчитаны, а победитель
+            // и строка зависят от выбора. Без этой строки переключение после подтверждения
+            // не изменило бы ничего — счёт остался бы назван по прежней системе.
+            if (_finalScore is { } final)
+            {
+                _finalScore = final with { Rule = rule };
+            }
+
+            NotifyAll();
+        }
+    }
+
+    /// <summary>Справка о подсчёте: системы, из чего складываются очки и какое коми типично в РФ.</summary>
+    /// <remarks>
+    /// Показывается рядом с выбором системы на экране настроек. Коми правилами не задаётся —
+    /// его определяет регламент встречи, поэтому в справке названо типичное турнирное значение,
+    /// а не выдуманное правило.
+    /// </remarks>
+    public string ScoringHint =>
+        "Японская система (основная): очки = территория + пленные + камни, снятые как мёртвые, плюс коми белым. "
+        + "Китайская система (показывается рядом): очки = свои камни на доске + территория, пленные не считаются. "
+        + "Территория в обеих системах считается по доске без мёртвых камней. "
+        + "Коми задаёт регламент встречи: в турнирах РФ на 19×19 типично 6,5.";
+
+    /// <summary>Счёт партии строкой по основной системе: предварительный или окончательный.</summary>
+    /// <remarks>
+    /// Пока идёт согласование мёртвых, счёт предварительный: он считается по доске без помеченных
+    /// камней, поэтому пометка сразу видна в числе — игрок понимает, что именно подтверждает.
+    /// После <see cref="ConfirmScore"/> строка берётся из подтверждённого итога и не меняется.
+    /// </remarks>
+    public string Score => CurrentScore.ToString();
+
+    /// <summary>Разбор подсчёта для панели партии: камни, территория, пленные, коми и итог.</summary>
+    /// <remarks>
+    /// Обе системы показаны рядом: сначала та, по которой называется победитель
+    /// (<see cref="ScoringRule"/>), затем вторая. Пленные идут отдельной строкой — под японской
+    /// системой это очки, под китайской пояснение, откуда взялась разница между системами.
+    /// Нейтральные точки и число помеченных мёртвых показываются всегда: по ним видно, почему
+    /// счёт такой. Пока подсчёт не подтверждён, строка прямо об этом говорит.
+    /// </remarks>
+    public string ScoreDetail
+    {
+        get
+        {
+            var current = CurrentScore;
+            var territory = TerritoryLine(current);
+            var area = AreaLine(current);
+
+            // Первой идёт основная система: победителя называет именно она.
+            var primary = ScoringRule == Core.ScoringRule.Chinese ? area : territory;
+            var secondary = ScoringRule == Core.ScoringRule.Chinese ? territory : area;
+            var lines = $"{primary} · {secondary} · {PrisonersLine(current)} · нейтрально {current.Neutral}";
+
+            if (_finalScore is not null)
+            {
+                return $"Подсчёт подтверждён · {lines} · мёртвых снято {_dead.Count}";
+            }
+
+            return IsCounting
+                ? $"Подсчёт не подтверждён: клик по группе помечает её мёртвой · {lines} · мёртвых помечено {_dead.Count}"
+                : lines;
+        }
+    }
 
     /// <summary>Состояние партии словами.</summary>
     public string Status => _game.Status switch
@@ -162,13 +258,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string PlayerColor => StoneColorLabels.Label(_settings.ToPlayerColor());
 
     /// <summary>Сколько чёрных камней снято за партию.</summary>
-    public int CapturedBlack => _capturedBlack;
+    /// <remarks>
+    /// Счёт ведёт партия (<see cref="GameState.WhitePrisoners"/>): снятые чёрные камни — добыча
+    /// белых. Своего счётчика у модели представления нет: два счётчика разошлись бы после отмены.
+    /// </remarks>
+    public int CapturedBlack => _game.WhitePrisoners;
 
     /// <summary>Сколько белых камней снято за партию.</summary>
-    public int CapturedWhite => _capturedWhite;
+    public int CapturedWhite => _game.BlackPrisoners;
 
     /// <summary>Снятые камни одной строкой.</summary>
-    public string Captures => $"чёрных {_capturedBlack}, белых {_capturedWhite}";
+    public string Captures => $"чёрных {CapturedBlack}, белых {CapturedWhite}";
 
     /// <summary>Итог завершённой партии или пустая строка, пока партия идёт.</summary>
     public string Outcome
@@ -180,7 +280,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return string.Empty;
             }
 
-            var winner = Scorer.Calculate(_game.Board, _game.Komi).Winner;
+            // Победителя называет та же величина, что стоит в строке счёта: иначе панель спорила бы
+            // сама с собой. После подтверждения это зафиксированный итог, до него — текущий счёт
+            // по доске без помеченных мёртвых камней.
+            var winner = CurrentScore.Winner;
 
             return winner == StoneColor.Empty ? "Ничья" : $"Победили {(winner == StoneColor.Black ? "чёрные" : "белые")}";
         }
@@ -218,10 +321,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     /// <summary>Владение точками для разметки или <c>null</c>, если разметка выключена.</summary>
     /// <remarks>
-    /// Считает <see cref="Scorer.Ownership"/>: камень — своему цвету, пустая область — цвету
-    /// окружения, спорная — нейтральна. Второго подсчёта территории в проекте нет.
+    /// Считает <see cref="Scorer.Ownership"/> по доске без помеченных мёртвых камней
+    /// (<see cref="ScoringBoard"/>): камень — своему цвету, пустая область — цвету окружения,
+    /// спорная — нейтральна. Мёртвый камень внутри чужого владения не отменяет территорию
+    /// соперника и не приносит очков своему цвету. Второго подсчёта территории в проекте нет.
     /// </remarks>
-    public IReadOnlyList<StoneColor>? Territory => HasTerritory ? Scorer.Ownership(_game.Board) : null;
+    public IReadOnlyList<StoneColor>? Territory => HasTerritory ? Scorer.Ownership(ScoringBoard) : null;
 
     /// <summary>Расшифровка разметки: площадь сторон, нейтральные точки и коми.</summary>
     /// <remarks>
@@ -237,7 +342,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return string.Empty;
             }
 
-            var area = Scorer.Breakdown(_game.Board);
+            var area = Scorer.Breakdown(ScoringBoard);
 
             return $"Площадь: чёрные {area.Black} (камни {area.BlackStones}, территория {area.BlackTerritory}), "
                 + $"белые {area.White} (камни {area.WhiteStones}, территория {area.WhiteTerritory}), "
@@ -385,7 +490,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <param name="size">Сторона доски.</param>
     /// <param name="level">Уровень AI.</param>
     private void StartWith(BoardSize size, DifficultyLevel level) =>
-        ApplySettings(AppSettings.From(size, level, _settings.ToPlayerColor(), Core.Komi.For(size)));
+        ApplySettings(AppSettings.From(
+            size,
+            level,
+            _settings.ToPlayerColor(),
+            Core.Komi.For(size),
+            _settings.ToScoringRule()));
 
     /// <summary>Играет ход игрока, затем ход AI, если очередь за ним.</summary>
     /// <param name="point">Точка хода.</param>
@@ -464,6 +574,84 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Можно ли вернуть отменённый ход игрока.</summary>
     public bool CanRedo => _game.CanRedoTo(_settings.ToPlayerColor());
 
+    /// <summary>Идёт согласование мёртвых групп: партия завершена двумя пасами, подсчёт не подтверждён.</summary>
+    /// <remarks>
+    /// В это время ходы не принимаются, а клик по доске помечает группу мёртвой. Мёртвые камни
+    /// не снимаются молча: пока игрок не подтвердил подсчёт, доска остаётся как была, а счёт —
+    /// предварительным. Окончание по лимиту ходов и сдача согласования не требуют.
+    /// </remarks>
+    public bool IsCounting => _game.Status == GameStatus.FinishedByTwoPasses && _finalScore is null;
+
+    /// <summary>Подсчёт можно подтвердить: идёт согласование мёртвых групп.</summary>
+    public bool CanConfirmScore => IsCounting;
+
+    /// <summary>Помеченные мёртвыми камни в порядке обхода доски.</summary>
+    public IReadOnlyList<Point> DeadPoints => _deadPoints;
+
+    /// <summary>Сколько раз менялись пометки мёртвых.</summary>
+    /// <remarks>
+    /// Вид перерисовывает доску по этому счётчику: список <see cref="DeadPoints"/> может остаться
+    /// тем же объектом, и подписка на него одного изменения не заметит.
+    /// </remarks>
+    public int DeadRevision => _deadRevision;
+
+    /// <summary>Помечает или снимает пометку группы, которой принадлежит точка.</summary>
+    /// <param name="point">Точка на доске: клик игрока по камню.</param>
+    /// <returns><c>true</c>, если пометки изменились.</returns>
+    /// <remarks>
+    /// Помечается вся группа: камень живёт и умирает вместе с ней, частично мёртвой группы не
+    /// бывает. Повторный клик снимает пометку — до подтверждения игрок может передумать.
+    /// Вне согласования, по пустой точке и по точке вне доски метод ничего не делает и возвращает
+    /// <c>false</c>: виду не нужно самому проверять состояние партии.
+    /// </remarks>
+    public bool ToggleDeadAt(Point point)
+    {
+        if (!IsCounting || !point.IsOnBoard(_game.Board.Size) || _game.Board.At(point) == StoneColor.Empty)
+        {
+            return false;
+        }
+
+        var stones = GroupTracker.FindGroup(_game.Board, point).Stones;
+
+        if (_dead.Contains(point))
+        {
+            foreach (var stone in stones)
+            {
+                _ = _dead.Remove(stone);
+            }
+        }
+        else
+        {
+            foreach (var stone in stones)
+            {
+                _ = _dead.Add(stone);
+            }
+        }
+
+        _deadRevision++;
+        RefreshDeadPoints();
+        NotifyDeadChanged();
+
+        return true;
+    }
+
+    /// <summary>Подтверждает подсчёт: мёртвые снимаются, становятся пленными и входят в итог.</summary>
+    /// <remarks>
+    /// До подтверждения счёт предварительный, после — окончательный. Повторный вызов ничего
+    /// не делает: подтверждать нечего. Вернуться к согласованию можно отменой хода — она снова
+    /// открывает партию и сбрасывает пометки.
+    /// </remarks>
+    public void ConfirmScore()
+    {
+        if (!IsCounting)
+        {
+            return;
+        }
+
+        _finalScore = _game.FinalScore(_dead, ScoringRule);
+        NotifyAll();
+    }
+
     /// <summary>Отменяет ход игрока вместе с ответом AI.</summary>
     /// <returns><c>true</c>, если ход отменён.</returns>
     /// <remarks>
@@ -481,7 +669,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return false;
         }
 
-        RecountCaptures();
+        SyncDeadMarks();
         ShowAiMoveIfNeeded();
         NotifyAll();
 
@@ -500,7 +688,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return false;
         }
 
-        RecountCaptures();
+        SyncDeadMarks();
         NotifyAll();
 
         return true;
@@ -623,9 +811,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         CancelThinking();
         _game = restored.Value!;
-        _settings = AppSettings.From(game.Size, _settings.ToDifficultyLevel(), _settings.ToPlayerColor(), game.Komi);
+        _settings = AppSettings.From(
+            game.Size,
+            _settings.ToDifficultyLevel(),
+            _settings.ToPlayerColor(),
+            game.Komi,
+            _settings.ToScoringRule());
 
-        RecountCaptures();
+        SyncDeadMarks();
 
         return Result.Ok();
     }
@@ -670,7 +863,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         CancelThinking();
         _settings = settings;
         _game = CreateGame(settings);
-        RecountCaptures();
+        SyncDeadMarks();
         LogNewGame();
     }
 
@@ -894,19 +1087,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return false;
         }
 
-        if (move.Type == MoveType.Play)
-        {
-            var captured = _game.Board.CapturedStones.Count;
-
-            if (move.Color == StoneColor.Black)
-            {
-                _capturedWhite += captured;
-            }
-            else
-            {
-                _capturedBlack += captured;
-            }
-        }
+        // Пленных ведёт партия (GameState), а пометки мёртвых относятся к прежней позиции: после
+        // любого принятого хода согласование начинается заново. Заодно партия сама сообщает,
+        // не завершилась ли она двумя пасами, — по этому признаку и включается согласование.
+        SyncDeadMarks();
 
         LogMove(move, aiMilliseconds);
         LogFinishedIfNeeded();
@@ -914,45 +1098,109 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return true;
     }
 
-    /// <summary>Считает снятые камни по всей партии заново.</summary>
+    /// <summary>Приводит согласование мёртвых в соответствие с партией.</summary>
     /// <remarks>
-    /// Нужен после отмены, возврата и загрузки: у этих действий нет одного «последнего хода»,
-    /// а счётчики должны совпадать с партией. Ходы повторяются на доске без истории — правила
-    /// они уже проходили, поэтому отказов не бывает.
+    /// Пометки живут ровно столько, сколько живёт позиция: любой ход, отмена, возврат, загрузка
+    /// и новая партия их обнуляют — мёртвая группа одной позиции ничего не значит в другой.
+    /// Как только партия завершается двумя пасами, перебор предлагает то, что доказано
+    /// (<see cref="Endgame.ProposeDead"/>): игрок видит готовое предложение и правит его кликами.
+    /// Подтверждённый итог при этом сбрасывается — он относился к прежней позиции.
     /// </remarks>
-    private void RecountCaptures()
+    private void SyncDeadMarks()
     {
-        _capturedBlack = 0;
-        _capturedWhite = 0;
+        _finalScore = null;
 
-        var board = new Board(_game.Board.Size);
+        // Перебор предлагает только доказанные группы и ничего не утверждает о сэки и глазах:
+        // ложное «мёртвая» испортило бы счёт молча, поэтому предложение осторожное.
+        HashSet<Point> proposed = _game.Status == GameStatus.FinishedByTwoPasses
+            ? [.. Endgame.ProposeDead(_game.Board)]
+            : [];
 
-        foreach (var move in _game.Moves)
+        if (_dead.SetEquals(proposed))
         {
-            if (move.Type != MoveType.Play)
-            {
-                continue;
-            }
+            return;
+        }
 
-            board = board.ApplyMove(move);
+        _dead.Clear();
+        _dead.UnionWith(proposed);
+        _deadRevision++;
+        RefreshDeadPoints();
+    }
 
-            var captured = board.CapturedStones.Count;
+    /// <summary>Обновляет список помеченных камней для вида: порядок — как у обхода доски.</summary>
+    private void RefreshDeadPoints() =>
+        _deadPoints = [.. _dead.OrderBy(static point => point.Y).ThenBy(static point => point.X)];
 
-            if (captured == 0)
-            {
-                continue;
-            }
-
-            if (move.Color == StoneColor.Black)
-            {
-                _capturedWhite += captured;
-            }
-            else
-            {
-                _capturedBlack += captured;
-            }
+    /// <summary>Сообщает об изменении пометок мёртвых и всего, что от них зависит.</summary>
+    /// <remarks>
+    /// Счёт и разметка территории считаются по доске без мёртвых камней, поэтому клик по группе
+    /// меняет не только пометки: без этих уведомлений панель показывала бы старый счёт.
+    /// </remarks>
+    private void NotifyDeadChanged()
+    {
+        foreach (var name in new[]
+        {
+            nameof(DeadPoints),
+            nameof(DeadRevision),
+            nameof(IsCounting),
+            nameof(CanConfirmScore),
+            nameof(Territory),
+            nameof(HasTerritory),
+            nameof(TerritorySummary),
+            nameof(Score),
+            nameof(ScoreDetail),
+            nameof(Outcome),
+            nameof(HasOutcome)
+        })
+        {
+            OnPropertyChanged(name);
         }
     }
+
+    /// <summary>Строка японской системы: территория плюс пленные, плюс коми белым.</summary>
+    /// <param name="score">Итог подсчёта.</param>
+    /// <returns>Разбор по территории с пленными и победитель по этой величине.</returns>
+    private static string TerritoryLine(FinalScore score) =>
+        $"По территории с пленными: чёрные {score.BlackTerritoryPoints} (территория {score.BlackTerritory} + пленные {score.BlackPrisoners})"
+        + $" : белые {score.WhiteTerritoryPoints + score.Komi.Value} (территория {score.WhiteTerritory} + пленные {score.WhitePrisoners} + коми {score.Komi})"
+        + $" → {WinnerLabel(score.TerritoryWinner)}";
+
+    /// <summary>Строка китайской системы: камни плюс территория, плюс коми белым.</summary>
+    /// <param name="score">Итог подсчёта.</param>
+    /// <returns>Разбор по площади и победитель по этой величине.</returns>
+    private static string AreaLine(FinalScore score) =>
+        $"По площади: чёрные {score.BlackArea} (камни {score.BlackStones} + территория {score.BlackTerritory})"
+        + $" : белые {score.WhiteArea + score.Komi.Value} (камни {score.WhiteStones} + территория {score.WhiteTerritory} + коми {score.Komi})"
+        + $" → {WinnerLabel(score.AreaWinner)}";
+
+    /// <summary>Строка пленных: под японской системой это очки, под китайской — пояснение.</summary>
+    /// <param name="score">Итог подсчёта.</param>
+    /// <returns>Кто сколько камней взял за партию и при снятии мёртвых.</returns>
+    private static string PrisonersLine(FinalScore score) =>
+        $"Пленные: чёрные взяли {score.BlackPrisoners}, белые взяли {score.WhitePrisoners}";
+
+    /// <summary>Называет победителя словами.</summary>
+    /// <param name="winner">Цвет победителя или пустой цвет при ничьей.</param>
+    /// <returns>«победили чёрные», «победили белые» или «ничья».</returns>
+    private static string WinnerLabel(StoneColor winner) =>
+        winner == StoneColor.Empty ? "ничья" :
+        winner == StoneColor.Black ? "победили чёрные" :
+        "победили белые";
+
+    /// <summary>Итог по текущему состоянию: подтверждённый или предварительный.</summary>
+    /// <remarks>
+    /// Считает Core одной функцией от доски, пометок, пленных партии и выбранной системы.
+    /// Отдельного «предварительного» подсчёта в модели нет: иначе он разошёлся бы с итогом.
+    /// </remarks>
+    private FinalScore CurrentScore => _finalScore ?? _game.FinalScore(_dead, ScoringRule);
+
+    /// <summary>Доска подсчёта: без помеченных мёртвых камней.</summary>
+    /// <remarks>
+    /// Территория и владение считаются по ней, а не по игровой доске: мёртвый камень внутри
+    /// чужого владения не должен отменять территорию соперника. Кэша нет намеренно — пометки
+    /// меняются кликами, и сбрасывать кэш пришлось бы в каждом месте, где меняется партия.
+    /// </remarks>
+    private Board ScoringBoard => _dead.Count == 0 ? _game.Board : Endgame.ClearedBoard(_game.Board, _dead);
 
     /// <summary>Сообщает об изменении всех свойств партии.</summary>
     /// <remarks>Свойства выводятся из одной партии, поэтому после хода меняются все сразу.</remarks>
@@ -968,7 +1216,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(ToMove),
             nameof(MoveNumber),
             nameof(Komi),
+            nameof(ScoringRule),
             nameof(Score),
+            nameof(ScoreDetail),
+            nameof(IsCounting),
+            nameof(CanConfirmScore),
+            nameof(DeadPoints),
+            nameof(DeadRevision),
             nameof(Status),
             nameof(Level),
             nameof(Engine),

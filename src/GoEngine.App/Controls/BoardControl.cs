@@ -36,9 +36,28 @@ public sealed class BoardControl : Control
     public static readonly StyledProperty<IReadOnlyList<StoneColor>?> TerritoryProperty =
         AvaloniaProperty.Register<BoardControl, IReadOnlyList<StoneColor>?>(nameof(Territory));
 
+    /// <summary>Свойство пометки мёртвых камней: изменение перерисовывает доску.</summary>
+    public static readonly StyledProperty<IReadOnlyList<GoPoint>?> DeadPointsProperty =
+        AvaloniaProperty.Register<BoardControl, IReadOnlyList<GoPoint>?>(nameof(DeadPoints));
+
+    /// <summary>Свойство точки подсказки: изменение перерисовывает доску.</summary>
+    public static readonly StyledProperty<GoPoint?> HintPointProperty =
+        AvaloniaProperty.Register<BoardControl, GoPoint?>(nameof(HintPoint));
+
+    /// <summary>Свойство показа координат: выключенные подписи не перерисовываются.</summary>
+    public static readonly StyledProperty<bool> ShowCoordinatesProperty =
+        AvaloniaProperty.Register<BoardControl, bool>(nameof(ShowCoordinates), defaultValue: true);
+
     static BoardControl()
     {
-        AffectsRender<BoardControl>(BoardProperty, LastMoveProperty, HoverPointProperty, TerritoryProperty);
+        AffectsRender<BoardControl>(
+            BoardProperty,
+            LastMoveProperty,
+            HoverPointProperty,
+            TerritoryProperty,
+            DeadPointsProperty,
+            HintPointProperty,
+            ShowCoordinatesProperty);
     }
 
     private static readonly TimeProvider Clock = TimeProvider.System;
@@ -107,6 +126,35 @@ public sealed class BoardControl : Control
         set => SetValue(TerritoryProperty, value);
     }
 
+    /// <summary>Камни, помеченные мёртвыми при подсчёте, или <c>null</c>, если подсчёт не идёт.</summary>
+    public IReadOnlyList<GoPoint>? DeadPoints
+    {
+        get => GetValue(DeadPointsProperty);
+        set => SetValue(DeadPointsProperty, value);
+    }
+
+    /// <summary>Точка подсказки или <c>null</c>, если подсказки нет.</summary>
+    /// <remarks>
+    /// Маркер подсказки рисуется поверх позиции и не участвует в правилах: им пользуется
+    /// режим задач, чтобы показать первый правильный ход.
+    /// </remarks>
+    public GoPoint? HintPoint
+    {
+        get => GetValue(HintPointProperty);
+        set => SetValue(HintPointProperty, value);
+    }
+
+    /// <summary>Рисовать ли подписи координат вокруг сетки.</summary>
+    /// <remarks>
+    /// На телефоне подписи выключаются, когда клетка становится мелкой: решение принимает
+    /// раскладка (<c>BoardLayoutRules.CoordinatesFit</c>), а элемент только рисует по нему.
+    /// </remarks>
+    public bool ShowCoordinates
+    {
+        get => GetValue(ShowCoordinatesProperty);
+        set => SetValue(ShowCoordinatesProperty, value);
+    }
+
     /// <inheritdoc />
     public override void Render(DrawingContext context)
     {
@@ -119,7 +167,23 @@ public sealed class BoardControl : Control
 
         var frame = _animation.IsActive ? _animation : (StoneAnimation?)null;
 
-        context.Custom(new BoardDrawOperation(board, new Rect(Bounds.Size), LastMove, HoverPoint, frame, Territory));
+        // Обрезка по своим границам обязательна: рисование идёт прямо на холсте Skia
+        // (ICustomDrawOperation), а он не обрезан по границам элемента. Без неё заливка фона
+        // доски закрывала бы соседние элементы — так доска закрашивала строку состояния
+        // и фон мобильной раскладки.
+        using (context.PushClip(new Rect(Bounds.Size)))
+        {
+            context.Custom(new BoardDrawOperation(
+                board,
+                new Rect(Bounds.Size),
+                LastMove,
+                HoverPoint,
+                frame,
+                Territory,
+                DeadPoints,
+                HintPoint,
+                ShowCoordinates));
+        }
     }
 
     /// <summary>Продвигает кадр анимации.</summary>
@@ -209,6 +273,9 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
     private readonly GoPoint? _hover;
     private readonly StoneAnimation? _animation;
     private readonly IReadOnlyList<StoneColor>? _territory;
+    private readonly IReadOnlyList<GoPoint>? _deadPoints;
+    private readonly GoPoint? _hint;
+    private readonly bool _showCoordinates;
 
     internal BoardDrawOperation(
         Board board,
@@ -216,13 +283,19 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
         GoPoint? lastMove,
         GoPoint? hover,
         StoneAnimation? animation,
-        IReadOnlyList<StoneColor>? territory)
+        IReadOnlyList<StoneColor>? territory,
+        IReadOnlyList<GoPoint>? deadPoints,
+        GoPoint? hint,
+        bool showCoordinates)
     {
         _board = board;
         _lastMove = lastMove;
         _hover = hover;
         _animation = animation;
         _territory = territory;
+        _deadPoints = deadPoints;
+        _hint = hint;
+        _showCoordinates = showCoordinates;
         Bounds = bounds;
     }
 
@@ -258,6 +331,9 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
             _lastMove,
             _hover,
             _animation,
-            _territory);
+            _territory,
+            _deadPoints,
+            _hint,
+            _showCoordinates);
     }
 }

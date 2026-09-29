@@ -6,10 +6,17 @@
 
   <!-- Оболочка приложения: два режима — партия и задачи. Режимы не смешиваются, оболочка только
        показывает одно или другое; содержимое создаётся кодом вида (ShellView.axaml.cs), чтобы оба
-       режима получали свои модели из одного места и не пересоздавались при переключении. -->
-  <DockPanel>
+       режима получали свои модели из одного места и не пересоздавались при переключении.
 
-    <Border DockPanel.Dock="Top"
+       Раскладок две. На широком экране (760 точек и больше) остаётся прежняя настольная:
+       строка режимов сверху, содержимое под ней. На телефоне строка режимов заменяется нижней
+       навигацией с тремя разделами — «Партия», «Задачи», «Настройки»; она ближе к большому пальцу,
+       а разделы не спорят за верх экрана с доской. Выбор раскладки — чистая функция
+       (BoardLayoutRules.DecideLayout), здесь только применяется её ответ. -->
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <Border x:Name="DesktopBar"
+            Grid.Row="0"
             Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
             BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
             BorderThickness="0,0,0,1">
@@ -26,7 +33,59 @@
       </StackPanel>
     </Border>
 
-    <Panel x:Name="ModeContent" />
+    <!-- Содержимое общее для обеих раскладок: виды режимов живут здесь и не пересоздаются. -->
+    <Panel x:Name="ModeContent" Grid.Row="1" />
 
-  </DockPanel>
+    <!-- Нижняя навигация телефона: значок и подпись, выбранный раздел выделен акцентом.
+         Высота кнопки — 64 точки, цель нажатия заметно больше 48. -->
+    <Border x:Name="MobileNav"
+            Grid.Row="2"
+            IsVisible="False"
+            Background="{DynamicResource AppSurfaceBrush}"
+            BorderBrush="{DynamicResource AppBorderBrush}"
+            BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,*,*" Height="{DynamicResource AppNavHeight}">
+
+        <Button x:Name="NavGameButton"
+                Grid.Column="0"
+                Classes="app-nav"
+                Classes.active="{Binding IsGameSection}"
+                AutomationProperties.Name="Партия">
+          <StackPanel Spacing="3" VerticalAlignment="Center">
+            <!-- Значок — вектор, а не шрифт: значкового шрифта в проекте нет. -->
+            <Path Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center"
+                  Data="M4,12 A8,8 0 1 1 20,12 A8,8 0 1 1 4,12 Z" />
+            <TextBlock Text="Партия" />
+          </StackPanel>
+        </Button>
+
+        <Button x:Name="NavProblemButton"
+                Grid.Column="1"
+                Classes="app-nav"
+                Classes.active="{Binding IsProblemSection}"
+                AutomationProperties.Name="Задачи">
+          <StackPanel Spacing="3" VerticalAlignment="Center">
+            <Path Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center"
+                  Data="M12,3 L21,12 L12,21 L3,12 Z" />
+            <TextBlock Text="Задачи" />
+          </StackPanel>
+        </Button>
+
+        <Button x:Name="NavSettingsButton"
+                Grid.Column="2"
+                Classes="app-nav"
+                Classes.active="{Binding IsSettingsSection}"
+                AutomationProperties.Name="Настройки">
+          <StackPanel Spacing="3" VerticalAlignment="Center">
+            <!-- Ползунки: понятный значок настроек без значкового шрифта. -->
+            <Path Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center"
+                  Data="M4,7 h16 v1.8 h-16 z M9,4.6 h3 v6.6 h-3 z M4,15 h16 v1.8 h-16 z M15,12.6 h3 v6.6 h-3 z" />
+            <TextBlock Text="Настройки" />
+          </StackPanel>
+        </Button>
+
+      </Grid>
+    </Border>
+
+  </Grid>
 </UserControl>

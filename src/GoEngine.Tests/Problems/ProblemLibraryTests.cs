@@ -19,16 +19,43 @@ public sealed class ProblemLibraryTests
     }
 
     [Fact]
-    public void Библиотека_СодержитДесятьЗадачПоРешениюИсточника()
+    public void Библиотека_НачинаетсяДесятьюЗадачамиСайта()
     {
-        // Библиотека заменена задачами пользователя с сайта: их десять, и все они вида
-        // «по решению источника» — машинного критерия исхода у них нет.
-        Assert.Equal(10, ProblemLibrary.Count);
-        Assert.All(ProblemLibrary.All, problem => Assert.Equal(ProblemGoal.Reference, problem.Goal));
-
+        // Первые десять задач — задачи пользователя с сайта (ts-001…ts-010), все вида
+        // «по решению источника»: машинного критерия исхода у них нет.
+        //
+        // Число задач в проверке не фиксируется: набор растёт вместе с файлами Problems/*.sgf
+        // (решение D-062 — библиотека читает все встроенные файлы), а жёсткая десятка ломала бы
+        // сборку на каждой новой задаче и ничего не говорила о содержимом библиотеки.
         var expected = Enumerable.Range(1, 10).Select(number => $"ts-{number:000}").ToArray();
 
-        Assert.Equal(expected, ProblemLibrary.All.Select(problem => problem.Id).ToArray());
+        Assert.True(ProblemLibrary.Count >= expected.Length, "в библиотеке меньше десяти задач сайта");
+        Assert.Equal(expected, ProblemLibrary.All.Take(expected.Length).Select(problem => problem.Id).ToArray());
+        Assert.All(ProblemLibrary.All.Take(expected.Length), problem => Assert.Equal(ProblemGoal.Reference, problem.Goal));
+    }
+
+    [Fact]
+    public void Библиотека_ЧитаетВсеВстроенныеФайлыЗадач()
+    {
+        // Задача — это файл Problems/<id>.sgf, вшитый ресурсом; отдельного списка задач в коде нет.
+        // Проверка держит это свойство: новая задача (ts-011 и дальше) попадает в режим задач
+        // без правок кода, а забытый файл или фильтр по имени видны сразу.
+        var resources = typeof(ProblemLibrary).Assembly.GetManifestResourceNames()
+            .Where(name => name.EndsWith(".sgf", StringComparison.Ordinal))
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.NotEmpty(resources);
+        Assert.Equal(resources.Count, ProblemLibrary.Count);
+
+        foreach (var resource in resources)
+        {
+            // Имя ресурса — «<пространство имён>.Problems.<id>.sgf», поэтому идентификатор задачи
+            // берётся из предпоследнего отрезка имени: так же его читает и сама библиотека.
+            var id = resource.Split('.')[^2];
+
+            Assert.Contains(ProblemLibrary.All, problem => string.Equals(problem.Id, id, StringComparison.Ordinal));
+        }
     }
 
     [Fact]
@@ -42,7 +69,7 @@ public sealed class ProblemLibraryTests
     [Fact]
     public void Библиотека_ПокрываетРазмерыДосок()
     {
-        // Задачи перенесены на меньшую доску: девять из них 9×9, одна (с камнем за кропом) — 13×13.
+        // Задачи перенесены на меньшую доску: большинство 9×9, три задачи (ts-004, ts-027, ts-030) — 13×13.
         Assert.Contains(ProblemLibrary.All, problem => problem.Size.Value == 9);
         Assert.Contains(ProblemLibrary.All, problem => problem.Size.Value == 13);
         Assert.Contains(ProblemLibrary.All, problem => problem.SolverColor == StoneColor.Black);

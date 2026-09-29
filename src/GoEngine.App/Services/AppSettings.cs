@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using GoEngine.AI;
 using GoEngine.Core;
+using ScoringRule = GoEngine.Core.ScoringRule;
 
 namespace GoEngine.App.Services;
 
@@ -31,8 +32,22 @@ public sealed record AppSettings
     public string PlayerColor { get; set; } = nameof(StoneColor.Black);
 
     /// <summary>Коми партии.</summary>
+    /// <remarks>
+    /// Размер коми определяет регламент встречи, а не правила: в турнирах РФ на 19×19 типично 6.5,
+    /// в <c>GO_RULES.md</c> закреплены 7.5 для 19×19 и 5.5 для 13×13 и 9×9. Значение по умолчанию —
+    /// из правил проекта, игрок меняет его в настройках.
+    /// </remarks>
     [JsonPropertyName("komi")]
     public double Komi { get; set; } = 5.5;
+
+    /// <summary>Система подсчёта: <c>Japanese</c> или <c>Chinese</c>.</summary>
+    /// <remarks>
+    /// Хранится именем, а не числом: файл настроек читается человеком, и перестановка элементов
+    /// перечисления не изменит смысл сохранённого значения. Неизвестное имя — не ошибка:
+    /// берётся система по умолчанию.
+    /// </remarks>
+    [JsonPropertyName("scoringRule")]
+    public string ScoringRule { get; set; } = nameof(Core.ScoringRule.Japanese);
 
     /// <summary>Возвращает размер доски из настроек.</summary>
     /// <returns>Размер доски; при недопустимом значении — 9×9.</returns>
@@ -61,6 +76,17 @@ public sealed record AppSettings
         }
     }
 
+    /// <summary>Возвращает систему подсчёта из настроек.</summary>
+    /// <returns>
+    /// Система подсчёта; при неизвестном имени — японская, как в большинстве турниров РФ.
+    /// </returns>
+    /// <remarks>
+    /// Японская система — основная в приложении: очки считаются как территория плюс пленные плюс
+    /// снятые мёртвыми камни, плюс коми белым. Китайская (площадь) считается рядом и не прячется.
+    /// </remarks>
+    public Core.ScoringRule ToScoringRule() =>
+        Enumeration.TryFromName<Core.ScoringRule>(ScoringRule) ?? Core.ScoringRule.Japanese;
+
     /// <summary>Возвращает коми из настроек.</summary>
     /// <returns>Коми; при недопустимом значении — стандартное для размера доски.</returns>
     public Komi ToKomi() =>
@@ -83,13 +109,24 @@ public sealed record AppSettings
     /// <param name="level">Уровень AI.</param>
     /// <param name="playerColor">Цвет игрока.</param>
     /// <param name="komi">Коми.</param>
+    /// <param name="rule">Система подсчёта; <c>null</c> — японская.</param>
     /// <returns>Настройки для сохранения.</returns>
-    public static AppSettings From(BoardSize size, DifficultyLevel level, StoneColor playerColor, Komi komi) => new()
+    /// <remarks>
+    /// Система подсчёта переживает смену доски, уровня и загрузку партии: она не свойство партии,
+    /// а выбор игрока, и терять его при каждой правке настроек нельзя.
+    /// </remarks>
+    public static AppSettings From(
+        BoardSize size,
+        DifficultyLevel level,
+        StoneColor playerColor,
+        Komi komi,
+        ScoringRule? rule = null) => new()
     {
         BoardSize = size.Value,
         AiRankKyu = level.RankKyu,
         PlayerColor = playerColor.Name,
-        Komi = komi.Value
+        Komi = komi.Value,
+        ScoringRule = (rule ?? Core.ScoringRule.Japanese).Name
     };
 
     /// <summary>Разбирает настройки из JSON.</summary>

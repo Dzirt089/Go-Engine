@@ -18,10 +18,12 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 {
     private static readonly string[] PropertyNames =
     [
-        nameof(IsGameMode), nameof(IsProblemMode), nameof(ModeHint)
+        nameof(IsGameMode), nameof(IsProblemMode), nameof(ModeHint),
+        nameof(IsGameSection), nameof(IsProblemSection), nameof(IsSettingsSection)
     ];
 
     private bool _problemsMode;
+    private bool _settingsScreen;
 
     /// <summary>Логгер режимов: в логе видно, чем игрок занимался до сбоя.</summary>
     private readonly ILogger _log = AppLog.For<ShellViewModel>();
@@ -74,6 +76,19 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <summary>Показан режим задач.</summary>
     public bool IsProblemMode => _problemsMode;
 
+    /// <summary>Выбран раздел партии в нижней навигации.</summary>
+    /// <remarks>
+    /// Разделы нижней навигации телефона: партия, задачи и настройки. Настройки — не окно поверх
+    /// партии, а отдельный раздел, поэтому выбранным может быть только один из трёх.
+    /// </remarks>
+    public bool IsGameSection => !_problemsMode && !_settingsScreen;
+
+    /// <summary>Выбран раздел задач в нижней навигации.</summary>
+    public bool IsProblemSection => _problemsMode && !_settingsScreen;
+
+    /// <summary>Выбран раздел настроек: на телефоне настройки — отдельный экран.</summary>
+    public bool IsSettingsSection => _settingsScreen;
+
     /// <summary>Подсказка о текущем режиме — чтобы игрок понимал, где он находится.</summary>
     public string ModeHint => _problemsMode
         ? "Задачи на жизнь и смерть: решите позицию, подсказка покажет первый правильный ход."
@@ -102,17 +117,70 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <summary>Показывает режим задач.</summary>
     public void ShowProblems() => SetMode(problems: true);
 
-    /// <summary>Переключает режим и сообщает об этом виду.</summary>
-    /// <param name="problems">Показывать задачи.</param>
-    private void SetMode(bool problems)
+    /// <summary>Показывает экран настроек: на телефоне это отдельный раздел, а не окно-диалог.</summary>
+    /// <remarks>
+    /// Настройки принадлежат партии, поэтому раздел партии остаётся выбранным по режиму:
+    /// экран настроек показывает <c>BoardView</c>, а оболочка только подсвечивает раздел и
+    /// убирает его, когда экран закрыт (<see cref="HideSettingsScreen"/>).
+    /// </remarks>
+    public void ShowSettingsScreen()
     {
-        if (_problemsMode == problems)
+        if (_settingsScreen && !_problemsMode)
         {
             return;
         }
 
+        // Раздел партии остаётся выбранным по режиму: экран настроек — надстройка над партией.
+        SetMode(problems: false, leaveSettingsScreen: false);
+        _settingsScreen = true;
+        NotifyAll();
+    }
+
+    /// <summary>Закрывает экран настроек и возвращает раздел партии.</summary>
+    public void HideSettingsScreen()
+    {
+        if (!_settingsScreen)
+        {
+            return;
+        }
+
+        _settingsScreen = false;
+        NotifyAll();
+    }
+
+    /// <summary>Переключает режим и сообщает об этом виду.</summary>
+    /// <param name="problems">Показывать задачи.</param>
+    /// <param name="leaveSettingsScreen">
+    /// Закрыть экран настроек. <c>false</c> — оставить: так его открывает
+    /// <see cref="ShowSettingsScreen"/>, которому режим нужен лишь для раздела партии.
+    /// </param>
+    /// <remarks>
+    /// Уход с экрана настроек — не отдельное событие: нажатие «Партия» или «Задачи» в нижней
+    /// навигации само закрывает его, и подсветка раздела остаётся согласованной.
+    /// </remarks>
+    private void SetMode(bool problems, bool leaveSettingsScreen = true)
+    {
+        var modeChanged = _problemsMode != problems;
+        var settingsLeft = leaveSettingsScreen && _settingsScreen;
+
+        // Повторный выбор того же раздела ничего не меняет и ни о чём не сообщает:
+        // иначе вид перерисовывался бы на каждое нажатие выбранной кнопки.
+        if (!modeChanged && !settingsLeft)
+        {
+            return;
+        }
+
+        if (modeChanged)
+        {
+            AppLogMessages.ModeChanged(_log, problems ? "Задачи" : "Партия");
+        }
+
         _problemsMode = problems;
-        AppLogMessages.ModeChanged(_log, problems ? "Задачи" : "Партия");
+
+        if (leaveSettingsScreen)
+        {
+            _settingsScreen = false;
+        }
 
         if (problems)
         {
@@ -121,6 +189,16 @@ public sealed class ShellViewModel : INotifyPropertyChanged
             Game.CancelThinking();
         }
 
+        NotifyAll();
+    }
+
+    /// <summary>Сообщает виду обо всех свойствах оболочки.</summary>
+    /// <remarks>
+    /// Сообщаем обо всех: разделы нижней навигации зависят и от режима, и от экрана настроек,
+    /// а вычислять, что именно изменилось, здесь нечего — свойств шесть.
+    /// </remarks>
+    private void NotifyAll()
+    {
         foreach (var name in PropertyNames)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

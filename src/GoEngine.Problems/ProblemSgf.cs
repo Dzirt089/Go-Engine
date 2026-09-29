@@ -100,6 +100,12 @@ public static class ProblemSgf
         }
 
         var stones = Stones(root, size);
+
+        if (!stones.IsSuccess)
+        {
+            return Result<Problem>.Fail(stones.Error!);
+        }
+
         var target = ParsePoint(Property(root, "GT"), size);
 
         if (!target.IsSuccess)
@@ -158,7 +164,7 @@ public static class ProblemSgf
                 KomiOf(root, size),
                 solver,
                 goal,
-                stones,
+                stones.Value!,
                 target.Value,
                 rank,
                 description ?? string.Empty,
@@ -299,7 +305,17 @@ public static class ProblemSgf
         return point.IsSuccess ? Result<Move>.Ok(Move.Play(point.Value, color)) : Result<Move>.Fail(point.Error!);
     }
 
-    private static IReadOnlyList<ProblemStone> Stones(SgfNode root, BoardSize size)
+    /// <summary>Читает расстановку из свойств AB и AW.</summary>
+    /// <param name="root">Корневой узел задачи.</param>
+    /// <param name="size">Размер доски.</param>
+    /// <returns>Камни или причина отказа с именем свойства.</returns>
+    /// <remarks>
+    /// Неразобранная координата — отказ, а не пропуск. Молча выброшенный камень — это «молча
+    /// неправильно»: задача разбирается успешно, а позиция отличается от задуманной, и заметить это
+    /// можно только пересчётом камней. Так выглядит и разрыв значения переводом строки (<c>AB[e↵c]</c>),
+    /// который встречается в файлах сайта.
+    /// </remarks>
+    private static Result<IReadOnlyList<ProblemStone>> Stones(SgfNode root, BoardSize size)
     {
         List<ProblemStone> stones = [];
 
@@ -309,15 +325,24 @@ public static class ProblemSgf
             {
                 var point = ParsePoint(value, size);
 
-                if (point.IsSuccess)
+                if (!point.IsSuccess)
                 {
-                    stones.Add(new ProblemStone(point.Value, color));
+                    return Result<IReadOnlyList<ProblemStone>>.Fail(
+                        $"Свойство {label}: координата «{Visible(value)}» не разобрана — {point.Error}.");
                 }
+
+                stones.Add(new ProblemStone(point.Value, color));
             }
         }
 
-        return stones.AsReadOnly();
+        return Result<IReadOnlyList<ProblemStone>>.Ok(stones.AsReadOnly());
     }
+
+    /// <summary>Показывает значение так, чтобы перевод строки был виден в сообщении об ошибке.</summary>
+    /// <param name="value">Значение свойства.</param>
+    /// <returns>Значение с заменёнными переводами строк.</returns>
+    private static string Visible(string value) =>
+        value.Replace("\r", "\\r").Replace("\n", "\\n");
 
     private static bool TrySize(SgfNode root, out BoardSize size, out string error)
     {
@@ -511,8 +536,19 @@ public static class ProblemSgf
             var name = text[start..index].ToUpperInvariant();
             List<string> values = [];
 
-            while (index < text.Length && text[index] == '[')
+            // Между значениями списка допускается перевод строки — так пишет сайт
+            // («AW[if][eg]» и «[gg]» на следующей строке). Без пропуска пробелов разбор обрывался
+            // на переводе строки, терял остаток узла вместе с ходами, и задача молча получалась
+            // неполной: это хуже отказа, потому что игрок увидел бы чужую позицию.
+            while (true)
             {
+                Skip(text, ref index);
+
+                if (index >= text.Length || text[index] != '[')
+                {
+                    break;
+                }
+
                 index++;
                 StringBuilder value = new();
 

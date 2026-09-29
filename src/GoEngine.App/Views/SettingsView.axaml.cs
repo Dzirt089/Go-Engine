@@ -18,6 +18,17 @@ namespace GoEngine.App.Views;
 /// </remarks>
 public sealed partial class SettingsView : UserControl
 {
+    /// <summary>Системы подсчёта в порядке показа: основная (японская) и китайская.</summary>
+    /// <remarks>
+    /// Список явный: элементы <see cref="Enumeration"/> публично не перечисляются, а порядок
+    /// показа должен быть задан здесь, а не зависеть от порядка свойств в типе.
+    /// </remarks>
+    private static readonly ScoringRule[] ScoringRules = [ScoringRule.Japanese, ScoringRule.Chinese];
+
+    /// <summary>Подписи систем подсчёта для списка выбора: описания берутся у самих правил.</summary>
+    private static readonly IReadOnlyList<string> ScoringLabels =
+        ScoringRules.Select(rule => rule.Descriptions ?? rule.Name).ToList().AsReadOnly();
+
     /// <summary>Уровни, показанные сейчас: зависят от доски и наличия модели (D-038).</summary>
     private LevelListView _levels = LevelListView.ForSettings(BoardSize.Size9, false);
 
@@ -54,6 +65,11 @@ public sealed partial class SettingsView : UserControl
         if (this.FindControl<ComboBox>("SizeBox") is { } sizeBox)
         {
             sizeBox.SelectionChanged += OnSizeChanged;
+        }
+
+        if (this.FindControl<ComboBox>("ScoringBox") is { } scoringBox)
+        {
+            scoringBox.SelectionChanged += OnScoringChanged;
         }
 
         if (this.FindControl<Button>("StartButton") is { } startButton)
@@ -194,7 +210,29 @@ public sealed partial class SettingsView : UserControl
         {
             komiBox.Value = (decimal)current.Komi;
         }
+
+        if (this.FindControl<ComboBox>("ScoringBox") is { } scoringBox)
+        {
+            scoringBox.ItemsSource = ScoringLabels;
+            scoringBox.SelectedIndex = Math.Max(0, Array.IndexOf(ScoringRules, current.ToScoringRule()));
+        }
+
+        ShowScoringHint();
     }
+
+    /// <summary>Показывает пояснение к выбранной системе подсчёта.</summary>
+    private void ShowScoringHint()
+    {
+        if (this.FindControl<TextBlock>("ScoringHintText") is { } hint)
+        {
+            hint.Text = ScoringRules[SelectedIndex("ScoringBox")].Descriptions ?? string.Empty;
+        }
+    }
+
+    /// <summary>Обновляет пояснение при смене системы подсчёта.</summary>
+    /// <param name="sender">Список систем.</param>
+    /// <param name="e">Событие смены выбора.</param>
+    private void OnScoringChanged(object? sender, SelectionChangedEventArgs e) => ShowScoringHint();
 
     /// <summary>Наличие модели по статическим данным приложения: запасной источник ответа.</summary>
     /// <param name="size">Размер доски.</param>
@@ -268,7 +306,7 @@ public sealed partial class SettingsView : UserControl
         var color = StoneColorLabels.At(SelectedIndex("ColorBox"));
         var komi = this.FindControl<NumericUpDown>("KomiBox")?.Value ?? (decimal)Selected.Komi;
 
-        Selected = AppSettings.From(size, level, color, new Komi((double)komi));
+        Selected = AppSettings.From(size, level, color, new Komi((double)komi), ScoringRules[SelectedIndex("ScoringBox")]);
 
         Accepted?.Invoke(this, EventArgs.Empty);
     }

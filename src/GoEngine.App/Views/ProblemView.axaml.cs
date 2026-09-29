@@ -18,10 +18,23 @@ namespace GoEngine.App.Views;
 /// </remarks>
 public sealed partial class ProblemView : UserControl
 {
+    /// <summary>Наименьшая высота панели в вертикальной раскладке.</summary>
+    /// <remarks>
+    /// Вердикт и два ряда кнопок занимают около 150 точек; остальное — описание задачи, и оно
+    /// прокручивается. Меньше этой границы панель отдавать нельзя: кнопки режима уехали бы
+    /// за край экрана, и игрок не смог бы ни подсказать ход, ни отменить его.
+    /// </remarks>
+    private const double MinimumPanelHeight = 280;
+
+    /// <summary>Высота доски на совсем низком экране, где половина высоты меньше разумного минимума.</summary>
+    private const double MinimumBoardHeightForTinyScreen = 120;
+
     private readonly BoardControl? _boardControl;
     private readonly Grid? _layout;
     private readonly Border? _panel;
     private readonly ComboBox? _problemBox;
+    private readonly TextBlock? _heading;
+    private readonly Expander? _details;
 
     /// <summary>Состояние списка задач: программное обновление не считается выбором игрока.</summary>
     private readonly ComboState _problemCombo = new();
@@ -50,6 +63,8 @@ public sealed partial class ProblemView : UserControl
         _layout = this.FindControl<Grid>("Layout");
         _panel = this.FindControl<Border>("Panel");
         _problemBox = this.FindControl<ComboBox>("ProblemBox");
+        _heading = this.FindControl<TextBlock>("Heading");
+        _details = this.FindControl<Expander>("Details");
 
         if (_boardControl is not null)
         {
@@ -103,7 +118,7 @@ public sealed partial class ProblemView : UserControl
     /// <param name="e">Точка щелчка.</param>
     private void OnMoveRequested(object? sender, MoveRequestedEventArgs e) => ViewModel.Play(e.Point);
 
-    /// <summary>Показывает подсказку.</summary>
+    /// <summary>Показывает подсказку: ход словом и точкой на доске.</summary>
     /// <param name="sender">Кнопка.</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnHintClick(object? sender, RoutedEventArgs e) => ViewModel.ShowHint();
@@ -175,7 +190,11 @@ public sealed partial class ProblemView : UserControl
     /// <summary>Раскладывает доску и панель по размеру вида.</summary>
     /// <param name="width">Ширина вида.</param>
     /// <param name="height">Высота вида.</param>
-    /// <remarks>Правила те же, что у доски партии: на телефоне доска сверху, панель снизу.</remarks>
+    /// <remarks>
+    /// Правила те же, что у доски партии: на телефоне доска сверху, панель снизу. Высота доски
+    /// пересчитывается при каждом изменении размера, а не только при смене раскладки: окно
+    /// на телефоне меняется и в повороте, и когда появляется экранная клавиатура.
+    /// </remarks>
     private void ApplyLayout(double width, double height)
     {
         if (_layout is null || _boardControl is null || _panel is null)
@@ -185,23 +204,65 @@ public sealed partial class ProblemView : UserControl
 
         var narrow = BoardLayoutRules.IsNarrow(width, height);
 
-        if (_narrow == narrow)
+        if (_narrow != narrow)
         {
-            return;
+            _narrow = narrow;
+
+            _layout.ColumnDefinitions = new ColumnDefinitions(narrow ? "*" : "*,320");
+            _layout.RowDefinitions = new RowDefinitions(narrow ? "Auto,*" : "*");
+
+            Grid.SetColumn(_boardControl, 0);
+            Grid.SetRow(_boardControl, 0);
+            Grid.SetColumn(_panel, narrow ? 0 : 1);
+            Grid.SetRow(_panel, narrow ? 1 : 0);
+
+            _panel.BorderThickness = narrow ? new Thickness(0, 1, 0, 0) : new Thickness(1, 0, 0, 0);
         }
 
-        _narrow = narrow;
+        if (_heading is not null)
+        {
+            // На телефоне заголовок панели дублирует подпись раздела в нижней навигации,
+            // а его высота нужна описанию задачи.
+            _heading.IsVisible = !narrow;
+        }
 
-        _layout.ColumnDefinitions = new ColumnDefinitions(narrow ? "*" : "*,320");
-        _layout.RowDefinitions = new RowDefinitions(narrow ? "Auto,*" : "*");
+        if (_details is not null)
+        {
+            // На телефоне подробности свёрнуты: развёрнутое описание не помещается в панель
+            // и обрывалось на середине строки прямо над кнопками.
+            _details.IsExpanded = !narrow;
+        }
 
-        Grid.SetColumn(_boardControl, 0);
-        Grid.SetRow(_boardControl, 0);
-        Grid.SetColumn(_panel, narrow ? 0 : 1);
-        Grid.SetRow(_panel, narrow ? 1 : 0);
+        _boardControl.Height = narrow ? NarrowBoardHeight(width, height) : double.NaN;
+    }
 
-        _boardControl.Height = narrow ? BoardLayoutRules.BoardHeight(width, height) : double.NaN;
-        _panel.BorderThickness = narrow ? new Thickness(0, 1, 0, 0) : new Thickness(1, 0, 0, 0);
+    /// <summary>Считает высоту доски в вертикальной раскладке.</summary>
+    /// <param name="width">Ширина вида.</param>
+    /// <param name="height">Высота вида.</param>
+    /// <returns>Высота доски в точках.</returns>
+    /// <remarks>
+    /// Берётся обычная высота доски (<see cref="BoardLayoutRules.BoardHeight"/>), но не больше той,
+    /// при которой панели остаётся <see cref="MinimumPanelHeight"/>. На низком экране доска
+    /// уступает панели: без кнопок режим бесполезен, а доска меньше минимума — нечитаема.
+    /// </remarks>
+    private static double NarrowBoardHeight(double width, double height)
+    {
+        if (width <= 0 || height <= 0)
+        {
+            return double.NaN;
+        }
+
+        var available = height - MinimumPanelHeight;
+
+        if (available < BoardLayoutRules.MinimumBoardHeight)
+        {
+            // Экран ниже, чем доска вместе с панелью (телефон в повороте): делим высоту пополам,
+            // но панель не отдаём целиком — иначе кнопки снова уедут за край, а без них режим
+            // бесполезен. Совсем низкий экран — исключение из правила, а не его отмена.
+            return Math.Max(height / 2, MinimumBoardHeightForTinyScreen);
+        }
+
+        return Math.Min(BoardLayoutRules.BoardHeight(width, height), available);
     }
 
     /// <summary>Подписывает кнопку на обработчик, если она есть в разметке.</summary>

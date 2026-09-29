@@ -30,6 +30,76 @@ public sealed class ProblemSgfTests
         Assert.Equal(new Point(2, 0), problem.Hint!.Value.Point);
     }
 
+    /// <summary>Задача, у которой список значений разорван переводом строки — как в SGF сайта.</summary>
+    private const string WithMultilineValues =
+        "(;GM[1]FF[4]CA[UTF-8]SZ[9]KM[5.5]\n"
+        + "GN[Список значений в несколько строк]\n"
+        + "GC[Ход чёрных. Проверка разбора списка значений.]\n"
+        + "GE[reference]GD[20]SO[проверка, задача 1]PL[B]GT[dd]\n"
+        + "AB[dd][ed]\n[fd]\n"
+        + "AW[ee]\n[fe]\n"
+        + ";B[da]\n;W[ca])";
+
+    [Fact]
+    public void Разбор_ТерпитПереводСтроки_ВнутриСпискаЗначений()
+    {
+        // Регрессия: в SGF сайта список значений бывает разорван переводом строки. Разбор
+        // останавливался на нём и терял остаток узла вместе с ходами: задача получалась неполной
+        // молча — это хуже отказа, потому что игрок увидел бы чужую позицию.
+        var parsed = ProblemSgf.Parse(WithMultilineValues, "test-lines");
+
+        Assert.True(parsed.IsSuccess, parsed.Error);
+
+        var problem = parsed.Value!;
+
+        Assert.Equal(5, problem.Stones.Count);
+        Assert.Contains(problem.Stones, stone => stone.Point == new Point(3, 5) && stone.Color == StoneColor.Black);
+        Assert.Contains(problem.Stones, stone => stone.Point == new Point(4, 5) && stone.Color == StoneColor.Black);
+        Assert.Contains(problem.Stones, stone => stone.Point == new Point(5, 5) && stone.Color == StoneColor.Black);
+        Assert.Contains(problem.Stones, stone => stone.Point == new Point(4, 4) && stone.Color == StoneColor.White);
+        Assert.Contains(problem.Stones, stone => stone.Point == new Point(5, 4) && stone.Color == StoneColor.White);
+
+        // Строки после разорванного списка тоже обязаны читаться: и свойства, и ходы.
+        Assert.Equal("проверка, задача 1", problem.Source);
+        Assert.Equal("Ход чёрных. Проверка разбора списка значений.", problem.Description);
+        Assert.Equal(new Point(3, 8), problem.Hint!.Value.Point);
+        Assert.Equal(new Point(2, 8), problem.Solution.Moves[0].Next.Moves[0].Move.Point);
+    }
+
+    [Theory]
+    [InlineData("e\nc")]
+    [InlineData("e\r\nc")]
+    [InlineData("zz")]
+    public void Разбор_НеразобраннаяКоординатаКамня_ДаётОтказ(string broken)
+    {
+        // Регрессия: неразобранная координата в AB/AW пропускалась молча — задача разбиралась
+        // успешно, но камней в ней было меньше, чем в файле. Это класс «молча неправильно»:
+        // позиция выглядит собранной и отличается от задуманной. Перевод строки внутри значения
+        // (AB[e↵c]) — частный случай того же пропуска.
+        var text = "(;SZ[9]GN[Разрыв значения камня]GC[Ход чёрных.]GE[reference]SO[проверка, задача 1]"
+            + "PL[B]GT[dd]AB[dd][ed]AB[" + broken + "]AW[ee];B[da])";
+
+        var parsed = ProblemSgf.Parse(text, "test-broken-stone");
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains("AB", parsed.Error!, StringComparison.Ordinal);
+        Assert.Contains("не разобрана", parsed.Error!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Разбор_ПереводСтрокиВнутриЗначенияКамня_НеТеряетКамень()
+    {
+        // Проверка того же места с другой стороны: если значение разорвано переводом строки,
+        // разбор обязан отказать, а не вернуть задачу без одного камня.
+        const string broken = "(;SZ[9]GN[Разрыв]GC[Ход чёрных.]GE[reference]SO[проверка, задача 1]"
+            + "PL[B]GT[dd]AB[dd]AB[e\nc]AW[ee];B[da])";
+
+        var parsed = ProblemSgf.Parse(broken, "test-broken-stone-2");
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains("AB", parsed.Error!, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Разбор_ЧитаетВарианты()
     {

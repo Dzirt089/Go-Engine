@@ -40,7 +40,8 @@ function Invoke-Step {
 Invoke-Step 'сборка решения' { dotnet build (Join-Path $src 'GoEngine.sln') --nologo }
 Invoke-Step 'тесты' { dotnet test (Join-Path $src 'GoEngine.sln') --nologo }
 
-$modes = @('--smoke', '--check', '--state', '--settings', '--sgf', '--animation', '--e2e')
+# Режим задач обязателен в гейте: жалоба «задачи не работают» не должна ловиться игроком.
+$modes = @('--smoke', '--check', '--state', '--settings', '--sgf', '--animation', '--problems', '--e2e')
 if (-not $SkipStress) { $modes += '--stress' }
 
 foreach ($mode in $modes) {

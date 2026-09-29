@@ -34,12 +34,19 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     public const string GuideText =
         "Ход не решает задачу — доска остаётся прежней. Подсказка показывает первый правильный ход.";
 
+    /// <remarks>
+    /// Список ведётся руками, поэтому в нём обязаны быть <b>все</b> свойства, зависящие от задачи:
+    /// пропущенное имя — это застывшая надпись на экране. Так уже было с <see cref="SourceText"/>:
+    /// после перехода к следующей задаче панель продолжала показывать источник предыдущей, то есть
+    /// говорила игроку неправду о происхождении решения.
+    /// </remarks>
     private static readonly string[] PropertyNames =
     [
         nameof(Current), nameof(Board), nameof(LastMove), nameof(Title), nameof(GoalText), nameof(ToMoveText),
-        nameof(SizeText), nameof(RankText), nameof(Verdict), nameof(HasVerdict), nameof(IsSolved), nameof(CanBack),
-        nameof(CanHint), nameof(CanGoPrevious), nameof(CanGoNext), nameof(StatusText), nameof(SelectedIndex),
-        nameof(LastCaptured), nameof(LastCapturedColor)
+        nameof(SizeText), nameof(RankText), nameof(Description), nameof(HasDescription), nameof(SourceText),
+        nameof(HasSource), nameof(Verdict), nameof(HasVerdict), nameof(IsSolved), nameof(CanBack),
+        nameof(CanHint), nameof(HintPoint), nameof(CanGoPrevious), nameof(CanGoNext), nameof(StatusText),
+        nameof(SelectedIndex), nameof(LastCaptured), nameof(LastCapturedColor)
     ];
 
     private readonly IReadOnlyList<Problem> _problems;
@@ -54,6 +61,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     private Point? _lastMove;
     private IReadOnlyList<Point> _lastCaptured = [];
     private StoneColor _lastCapturedColor = StoneColor.Empty;
+    private Point? _hint;
 
     /// <summary>Создаёт модель по всей встроенной библиотеке задач.</summary>
     public ProblemViewModel() : this(ProblemLibrary.All)
@@ -116,6 +124,17 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// <summary>Цель задачи словами: «убить группу», «обеспечить жизнь группы», «убить группу, не снимая…».</summary>
     public string GoalText => Current.Goal.Descriptions ?? Current.Goal.Name;
 
+    /// <summary>Условие задачи так, как оно записано в источнике или автором.</summary>
+    /// <remarks>
+    /// Показывается игроку целиком: у задачи по решению источника условие взято с сайта, и оно же
+    /// оговаривает, что решение не проверено движком. Прятать формулировку нельзя — тогда игрок
+    /// судит о задаче по одному названию.
+    /// </remarks>
+    public string Description => Current.Description;
+
+    /// <summary>Есть ли у задачи собственное условие для игрока.</summary>
+    public bool HasDescription => Description.Length > 0;
+
     /// <summary>Честная пометка о происхождении решения; пусто у задач, проверенных движком.</summary>
     /// <remarks>
     /// У задачи по решению источника (<see cref="ProblemGoal.Reference"/>) исход движком не доказан:
@@ -152,6 +171,15 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
 
     /// <summary>Есть подсказка: в текущей позиции известен принимаемый ход.</summary>
     public bool CanHint => _session.Hint is not null;
+
+    /// <summary>Точка подсказки: показывается на доске, а не только словами.</summary>
+    /// <remarks>
+    /// Игрок должен видеть подсказанный ход на доске: текст «Подсказка: D9» заставляет искать
+    /// пересечение глазами, а на телефоне координаты вообще не читаются с доски. Точка снимается
+    /// первым же ходом, отменой, сбросом и переходом к другой задаче — подсказка относится
+    /// к позиции, а не к задаче вообще.
+    /// </remarks>
+    public Point? HintPoint => _hint;
 
     /// <summary>Принимаемые ходы текущей позиции: их считает сессия решения.</summary>
     /// <remarks>Нужны проверкам режима и подсказке вида: своего списка ходов модель не ведёт.</remarks>
@@ -193,12 +221,23 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// </remarks>
     public void Play(Point point)
     {
+        if (_session.State == ProblemState.Solved)
+        {
+            // Решённая задача ходов не принимает: иначе щелчок по доске «ставил» бы метку хода
+            // на произвольной точке и выглядел бы как сделанный ход.
+            return;
+        }
+
         var before = _session.Board;
 
         if (!before.IsEmpty(point) || !before.IsLegal(Move.Play(point, _session.ToMove)).IsSuccess)
         {
+            // Промах по занятой точке и самоубийственный ход ходом не считаются: подсказка
+            // остаётся на доске, игрок ещё решает задачу.
             return;
         }
+
+        _hint = null;
 
         var verdict = _session.Play(point);
 
@@ -230,6 +269,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
             return;
         }
 
+        _hint = hint.Point;
         _verdict = string.Create(
             CultureInfo.InvariantCulture,
             $"Подсказка: {BoardCoordinates.Label(hint.Point, Current.Size)}");
@@ -246,6 +286,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         }
 
         _verdict = string.Empty;
+        _hint = null;
         ClearAnimation();
         NotifyAll();
     }
@@ -255,6 +296,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     {
         _session.Reset();
         _verdict = string.Empty;
+        _hint = null;
         ClearAnimation();
         NotifyAll();
     }
@@ -291,6 +333,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         // Новая задача — новая сессия: состояние решения не переносится между задачами.
         _session = new ProblemSession(_problems[index]);
         _verdict = string.Empty;
+        _hint = null;
         ClearAnimation();
 
         NotifyAll();

@@ -24,6 +24,19 @@
                    MinHeight="44"
                    HorizontalAlignment="Stretch" />
 
+    <!-- Система подсчёта: основная японская или китайская. Обе величины считаются всегда,
+         выбор решает, какая называется победителем. Подписи берутся у самих правил
+         (ScoringRule.Descriptions), а не пишутся здесь строками. -->
+    <TextBlock Text="Правила подсчёта" FontWeight="SemiBold" Margin="0,6,0,0" />
+    <ComboBox x:Name="ScoringBox" MinHeight="44" HorizontalAlignment="Stretch">
+      <ComboBox.ItemTemplate>
+        <DataTemplate>
+          <TextBlock Text="{Binding}" TextWrapping="Wrap" MaxWidth="320" />
+        </DataTemplate>
+      </ComboBox.ItemTemplate>
+    </ComboBox>
+    <TextBlock x:Name="ScoringHintText" TextWrapping="Wrap" Foreground="#444444" />
+
     <!-- Обновления: версия видна всегда, проверка и установка — по кнопке. Проверка ходит
          за манифестом в плавающий релиз latest, установка отличается от системы к системе. -->
     <TextBlock x:Name="VersionText" Margin="0,6,0,0" Foreground="#444444" />

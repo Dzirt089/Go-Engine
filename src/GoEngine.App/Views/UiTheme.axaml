@@ -1,0 +1,64 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Единый визуальный язык приложения: палитра, типографика, радиусы, отступы и размеры
+       элементов. Палитра одна на настольную и мобильную версии: различается раскладка,
+       а не цвета — иначе мобильный вид выглядел бы чужим для приложения.
+       Цвета объявлены парами «кисть + цвет»: кисти берут виды через DynamicResource, поэтому
+       смена значения здесь меняет вид сразу везде. -->
+
+  <!-- Поверхности -->
+  <Color x:Key="AppBackgroundColor">#F2F4F7</Color>
+  <Color x:Key="AppSurfaceColor">#FFFFFF</Color>
+  <Color x:Key="AppSurfaceAltColor">#F7F9FC</Color>
+  <Color x:Key="AppBorderColor">#DCE1E8</Color>
+  <Color x:Key="AppBoardBackdropColor">#E9EDF3</Color>
+  <SolidColorBrush x:Key="AppBackgroundBrush" Color="{StaticResource AppBackgroundColor}" />
+  <SolidColorBrush x:Key="AppSurfaceBrush" Color="{StaticResource AppSurfaceColor}" />
+  <SolidColorBrush x:Key="AppSurfaceAltBrush" Color="{StaticResource AppSurfaceAltColor}" />
+  <SolidColorBrush x:Key="AppBorderBrush" Color="{StaticResource AppBorderColor}" />
+  <SolidColorBrush x:Key="AppBoardBackdropBrush" Color="{StaticResource AppBoardBackdropColor}" />
+
+  <!-- Текст -->
+  <Color x:Key="AppTextColor">#16202A</Color>
+  <Color x:Key="AppTextMutedColor">#5B6B7C</Color>
+  <SolidColorBrush x:Key="AppTextBrush" Color="{StaticResource AppTextColor}" />
+  <SolidColorBrush x:Key="AppTextMutedBrush" Color="{StaticResource AppTextMutedColor}" />
+
+  <!-- Акцент: главное действие и выбранный раздел -->
+  <Color x:Key="AppAccentColor">#1B6FE0</Color>
+  <Color x:Key="AppAccentSoftColor">#E4EFFC</Color>
+  <SolidColorBrush x:Key="AppAccentBrush" Color="{StaticResource AppAccentColor}" />
+  <SolidColorBrush x:Key="AppAccentSoftBrush" Color="{StaticResource AppAccentSoftColor}" />
+  <SolidColorBrush x:Key="AppOnAccentBrush" Color="#FFFFFF" />
+
+  <!-- Состояния: завершённая партия и предупреждение -->
+  <SolidColorBrush x:Key="AppDangerBrush" Color="#B3261E" />
+  <SolidColorBrush x:Key="AppOverlayBrush" Color="#66000000" />
+
+  <!-- Типографика: четыре ступени, больше не нужно -->
+  <x:Double x:Key="AppFontTitle">22</x:Double>
+  <x:Double x:Key="AppFontSubtitle">16</x:Double>
+  <x:Double x:Key="AppFontBody">14</x:Double>
+  <x:Double x:Key="AppFontCaption">12</x:Double>
+  <x:Double x:Key="AppFontNav">11</x:Double>
+
+  <!-- Радиусы -->
+  <CornerRadius x:Key="AppRadiusSmall">8</CornerRadius>
+  <CornerRadius x:Key="AppRadiusMedium">14</CornerRadius>
+  <CornerRadius x:Key="AppRadiusLarge">20</CornerRadius>
+
+  <!-- Отступы -->
+  <Thickness x:Key="AppPaddingPage">12</Thickness>
+  <Thickness x:Key="AppPaddingCard">12,10</Thickness>
+  <Thickness x:Key="AppPaddingCompact">8,4</Thickness>
+  <x:Double x:Key="AppGapSmall">6</x:Double>
+  <x:Double x:Key="AppGapMedium">10</x:Double>
+
+  <!-- Размеры элементов: 48 точек — наименьшая цель, по которой попадает палец -->
+  <x:Double x:Key="AppTouchTarget">48</x:Double>
+  <x:Double x:Key="AppNavHeight">64</x:Double>
+  <x:Double x:Key="AppStatusHeight">44</x:Double>
+  <x:Double x:Key="AppSheetHandleHeight">28</x:Double>
+
+</ResourceDictionary>

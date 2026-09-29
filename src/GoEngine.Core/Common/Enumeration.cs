@@ -55,6 +55,14 @@ public abstract class Enumeration : IEquatable<Enumeration>
     public static T? TryFromId<T>(int id) where T : Enumeration =>
         Registry<T>.ById.TryGetValue(id, out var item) ? item : null;
 
+    /// <summary>Возвращает элемент перечисления по имени, если он есть.</summary>
+    /// <typeparam name="T">Тип перечисления.</typeparam>
+    /// <param name="name">Искомое имя; <c>null</c> и пустая строка означают «не найдено».</param>
+    /// <returns>Элемент перечисления или <c>null</c>, если такого имени нет.</returns>
+    /// <remarks>Нужен разбору внешних данных (файл настроек): неизвестное имя — не ошибка движка.</remarks>
+    public static T? TryFromName<T>(string? name) where T : Enumeration =>
+        !string.IsNullOrWhiteSpace(name) && Registry<T>.ByName.TryGetValue(name, out var item) ? item : null;
+
     /// <summary>Возвращает элемент перечисления по имени. Регистр учитывается.</summary>
     /// <typeparam name="T">Тип перечисления.</typeparam>
     /// <param name="name">Искомое имя.</param>

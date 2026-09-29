@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
@@ -10,6 +11,7 @@ using GoEngine.App.Controls;
 using GoEngine.App.Services;
 using GoEngine.App.Services.Logging;
 using GoEngine.App.ViewModels;
+using GoEngine.Core;
 using Microsoft.Extensions.Logging;
 
 namespace GoEngine.App.Views;
@@ -19,23 +21,66 @@ namespace GoEngine.App.Views;
 /// Вид связывает доску с моделью представления: щелчок по доске превращается в ход игрока,
 /// после которого отвечает AI. Здесь же всё, что нужно и без окна: пас, отмена, возврат, новая
 /// партия, выбор доски и уровня, сохранение и загрузка партии, настройки.
-/// Раскладка выбирается по размеру вида (<see cref="BoardLayoutRules"/>): на телефоне доска
-/// сверху и управление снизу, на широком экране — как в настольной версии. Настройки на
-/// настольной системе показывает окно (<see cref="SettingsWindow"/>, подписка на
-/// <see cref="SettingsRequested"/>), а если окна нет — тот же <see cref="SettingsView"/>
-/// показывается поверх доски.
+/// Раскладок две, выбор — чистая функция <see cref="BoardLayoutRules.DecideLayout"/> по ширине вида.
+/// Шире 760 точек — прежний настольный вид: доска слева, панель управления справа. Уже — мобильный:
+/// доска занимает экран, действия стоят компактной панелью поверх доски, состояние и подробности
+/// собраны в шторке снизу, а настройки открываются отдельным экраном, а не окном-диалогом.
+/// На настольной системе настройки по-прежнему показывает окно (<see cref="SettingsWindow"/>,
+/// подписка на <see cref="SettingsRequested"/>).
 /// </remarks>
 public sealed partial class BoardView : UserControl
 {
+    /// <summary>Ширина настольной панели управления: та же, что в разметке.</summary>
+    private const double DesktopPanelWidth = 320;
+
+    /// <summary>Отступ мобильной доски от краёв отведённого места.</summary>
+    private const double MobileBoardMargin = 8;
+
+    /// <summary>Высота, ниже которой мобильная раскладка становится компактной.</summary>
+    /// <remarks>
+    /// Телефон в ландшафте: высоты мало, и строку состояния вместе со строками краткого состояния
+    /// приходится убирать — иначе доска превратилась бы в полоску. Подробности остаются
+    /// в развёрнутой шторке.
+    /// </remarks>
+    private const double CompactHeight = 460;
+
+    /// <summary>Класс фона экрана настроек: на телефоне он закрывает вид целиком.</summary>
+    private const string SettingsScreenClass = "app-settings-screen";
+
+    /// <summary>Класс карточки настроек: на телефоне она растягивается на весь экран.</summary>
+    private const string SettingsCardClass = "app-settings-card-mobile";
+
     /// <summary>Логгер вида: сюда попадают сохранение и загрузка партии с их отказами.</summary>
     private readonly ILogger _log = AppLog.For<BoardView>();
 
     private readonly BoardControl? _boardControl;
     private readonly Grid? _layout;
-    private readonly Border? _panel;
+    private readonly Grid? _mobileLayout;
+    private readonly Border? _desktopBoardHost;
+    private readonly Border? _mobileBoardHost;
     private readonly Border? _overlay;
+    private readonly Border? _settingsCard;
+    private readonly Border? _settingsHeader;
     private readonly SettingsView? _settingsView;
     private readonly TextBlock? _hint;
+    private readonly TextBlock? _mobileHint;
+    private readonly TextBlock? _mobileTurnText;
+    private readonly TextBlock? _mobileMoveText;
+    private readonly Ellipse? _mobileTurnBlack;
+    private readonly Ellipse? _mobileTurnWhite;
+    private readonly Border? _mobileStatus;
+    private readonly Border? _sheet;
+    private readonly TextBlock? _sheetSummary;
+    private readonly TextBlock? _sheetSummaryDetails;
+    private readonly TextBlock? _sheetChevron;
+    private readonly ScrollViewer? _sheetDetails;
+    private readonly StackPanel? _sheetSummaryPanel;
+    private readonly TextBlock? _desktopPrisoners;
+    private readonly TextBlock? _mobilePrisoners;
+    private readonly TextBlock? _desktopOutcome;
+    private readonly TextBlock? _mobileOutcome;
+    private readonly TextBlock? _desktopScore;
+    private readonly TextBlock? _mobileScore;
 
     /// <summary>Настройки, с которыми играет вид: их показывает панель настроек.</summary>
     private AppSettings _settings;
@@ -47,7 +92,10 @@ public sealed partial class BoardView : UserControl
     private readonly ComboState _levelCombo = new();
 
     /// <summary>Текущая раскладка: <c>null</c> — ещё не выбрана.</summary>
-    private bool? _narrow;
+    private LayoutMode? _layoutMode;
+
+    /// <summary>Шторка развёрнута: подробности показаны.</summary>
+    private bool _detailsExpanded;
 
     /// <summary>Создаёт вид с настройками из файла и оценкой сети, заданной головой.</summary>
     public BoardView() : this(SettingsStore.Load(), global::GoEngine.App.App.Evaluator)
@@ -76,14 +124,37 @@ public sealed partial class BoardView : UserControl
 
         _boardControl = this.FindControl<BoardControl>("Board");
         _layout = this.FindControl<Grid>("Layout");
-        _panel = this.FindControl<Border>("Panel");
+        _mobileLayout = this.FindControl<Grid>("MobileLayout");
+        _desktopBoardHost = this.FindControl<Border>("DesktopBoardHost");
+        _mobileBoardHost = this.FindControl<Border>("MobileBoardHost");
         _overlay = this.FindControl<Border>("SettingsOverlay");
+        _settingsCard = this.FindControl<Border>("SettingsCard");
+        _settingsHeader = this.FindControl<Border>("SettingsHeader");
         _settingsView = this.FindControl<SettingsView>("SettingsArea");
         _hint = this.FindControl<TextBlock>("Hint");
+        _mobileHint = this.FindControl<TextBlock>("MobileHint");
+        _mobileTurnText = this.FindControl<TextBlock>("MobileTurnText");
+        _mobileMoveText = this.FindControl<TextBlock>("MobileMoveText");
+        _mobileTurnBlack = this.FindControl<Ellipse>("MobileTurnBlack");
+        _mobileTurnWhite = this.FindControl<Ellipse>("MobileTurnWhite");
+        _mobileStatus = this.FindControl<Border>("MobileStatus");
+        _sheet = this.FindControl<Border>("Sheet");
+        _sheetSummary = this.FindControl<TextBlock>("SheetSummary");
+        _sheetSummaryDetails = this.FindControl<TextBlock>("SheetSummaryDetails");
+        _sheetChevron = this.FindControl<TextBlock>("SheetChevron");
+        _sheetDetails = this.FindControl<ScrollViewer>("SheetDetails");
+        _sheetSummaryPanel = this.FindControl<StackPanel>("SheetSummaryPanel");
+        _desktopPrisoners = this.FindControl<TextBlock>("DesktopPrisonersText");
+        _mobilePrisoners = this.FindControl<TextBlock>("MobilePrisonersText");
+        _desktopOutcome = this.FindControl<TextBlock>("DesktopOutcomeText");
+        _mobileOutcome = this.FindControl<TextBlock>("MobileOutcomeText");
+        _desktopScore = this.FindControl<TextBlock>("DesktopScoreText");
+        _mobileScore = this.FindControl<TextBlock>("MobileScoreText");
 
         if (_boardControl is not null)
         {
             _boardControl.MoveRequested += OnMoveRequested;
+            _boardControl.SizeChanged += OnBoardSizeChanged;
         }
 
         if (_settingsView is not null)
@@ -102,6 +173,22 @@ public sealed partial class BoardView : UserControl
         WireButton("SaveButton", OnSaveClick);
         WireButton("LoadButton", OnLoadClick);
 
+        // Кнопки мобильной раскладки делают то же самое: обработчики общие.
+        WireButton("MobilePassButton", OnPassClick);
+        WireButton("MobileUndoButton", OnUndoClick);
+        WireButton("MobileRedoButton", OnRedoClick);
+        WireButton("MobileNewGameButton", OnNewGameClick);
+        WireButton("MobileSaveButton", OnSaveClick);
+        WireButton("MobileLoadButton", OnLoadClick);
+        WireButton("MobileSettingsButton", OnSettingsClick);
+        WireButton("SettingsBackButton", OnSettingsBackClick);
+        WireButton("SheetToggleButton", OnSheetToggleClick);
+
+        // Подтверждение подсчёта: кнопка есть в обеих раскладках, действие одно.
+        WireButton("DesktopConfirmButton", OnConfirmScoreClick);
+        WireButton("MobileConfirmButton", OnConfirmScoreClick);
+        WireButton("SheetConfirmButton", OnConfirmScoreClick);
+
         if (this.FindControl<ComboBox>("SizeBox") is { } sizeBox)
         {
             sizeBox.SelectionChanged += OnSizeChanged;
@@ -114,7 +201,25 @@ public sealed partial class BoardView : UserControl
 
         SizeChanged += OnViewSizeChanged;
 
+        // Размеры мобильных частей меняются от содержимого и от раскрытия шторки: по ним
+        // пересчитывается сторона доски.
+        if (_mobileLayout is not null)
+        {
+            _mobileLayout.SizeChanged += OnMobilePartSizeChanged;
+        }
+
+        if (_mobileStatus is not null)
+        {
+            _mobileStatus.SizeChanged += OnMobilePartSizeChanged;
+        }
+
+        if (_sheet is not null)
+        {
+            _sheet.SizeChanged += OnMobilePartSizeChanged;
+        }
+
         SyncCombos();
+        RefreshSummary();
         ApplyLayout(Bounds.Width, Bounds.Height);
     }
 
@@ -122,13 +227,21 @@ public sealed partial class BoardView : UserControl
     /// <remarks>Без подписчика (мобильный вид) настройки показываются поверх доски.</remarks>
     public event EventHandler? SettingsRequested;
 
+    /// <summary>Экран настроек показан: оболочка подсвечивает раздел настроек.</summary>
+    public event EventHandler? SettingsShown;
+
+    /// <summary>Экран настроек закрыт: оболочка возвращает подсветку раздела партии.</summary>
+    public event EventHandler? SettingsClosed;
+
     /// <summary>Модель представления партии.</summary>
     public MainViewModel ViewModel { get; }
 
-    /// <summary>Показывает настройки: в окне, если окно есть, иначе поверх доски.</summary>
+    /// <summary>Показывает настройки: в окне, если окно есть, иначе отдельным экраном.</summary>
     public void ShowSettings()
     {
-        if (SettingsRequested is not null)
+        // На телефоне настройки — отдельный экран, даже если окно умеет показать диалог:
+        // диалог шириной 440 на экране 360 не помещается, а на Android окна нет вовсе.
+        if (_layoutMode != LayoutMode.Mobile && SettingsRequested is not null)
         {
             SettingsRequested.Invoke(this, EventArgs.Empty);
             return;
@@ -140,7 +253,13 @@ public sealed partial class BoardView : UserControl
         {
             _overlay.IsVisible = true;
         }
+
+        SettingsShown?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>Закрывает экран настроек без изменений.</summary>
+    /// <remarks>Нужно оболочке: переход в другой раздел нижней навигации закрывает настройки.</remarks>
+    public void CloseSettingsScreen() => HideSettings();
 
     /// <summary>Спрашивает файл и записывает в него партию.</summary>
     /// <returns>Задача сохранения.</returns>
@@ -260,17 +379,22 @@ public sealed partial class BoardView : UserControl
         Patterns = [$"*.{SgfStore.Extension}"]
     };
 
-    /// <summary>Показывает сообщение под панелью.</summary>
+    /// <summary>Показывает сообщение под панелью и в мобильной шторке.</summary>
     /// <param name="message">Текст сообщения.</param>
     private void ShowHint(string message)
     {
-        if (_hint is null)
+        if (_hint is not null)
         {
-            return;
+            _hint.Text = message;
+            _hint.IsVisible = true;
         }
 
-        _hint.Text = message;
-        _hint.IsVisible = true;
+        if (_mobileHint is not null)
+        {
+            // На телефоне сообщение видно и в свёрнутой шторке: системных диалогов там нет.
+            _mobileHint.Text = message;
+            _mobileHint.IsVisible = true;
+        }
     }
 
     /// <summary>Перестраивает раскладку при изменении размера вида.</summary>
@@ -279,40 +403,293 @@ public sealed partial class BoardView : UserControl
     private void OnViewSizeChanged(object? sender, SizeChangedEventArgs e) =>
         ApplyLayout(e.NewSize.Width, e.NewSize.Height);
 
+    /// <summary>Пересчитывает сторону мобильной доски при изменении её частей.</summary>
+    /// <param name="sender">Часть мобильной раскладки.</param>
+    /// <param name="e">Новый размер.</param>
+    private void OnMobilePartSizeChanged(object? sender, SizeChangedEventArgs e) => UpdateMobileBoardSize();
+
+    /// <summary>Определяет сторону доски по её настоящему месту на экране.</summary>
+    /// <param name="sender">Доска.</param>
+    /// <param name="e">Новый размер.</param>
+    /// <remarks>
+    /// Координаты рисуются не всегда: на телефоне доска 19×19 занимает те же точки, что и 9×9,
+    /// и подписи в поле вокруг сетки стали бы серой кашей. Решение принимает чистая функция
+    /// <see cref="BoardLayoutRules.CoordinatesFit"/> по настоящему размеру доски.
+    /// </remarks>
+    private void OnBoardSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        if (_boardControl is null)
+        {
+            return;
+        }
+
+        var side = Math.Min(e.NewSize.Width, e.NewSize.Height);
+
+        _boardControl.ShowCoordinates = BoardLayoutRules.CoordinatesFit(side, ViewModel.Board.Size.Value);
+    }
+
     /// <summary>Раскладывает доску и панель по размеру вида.</summary>
     /// <param name="width">Ширина вида.</param>
     /// <param name="height">Высота вида.</param>
-    /// <remarks>
-    /// Узкий экран (телефон в портрете) — доска сверху квадратом, управление снизу под прокруткой.
-    /// Широкий — как в настольной версии: доска слева, панель справа.
-    /// </remarks>
     private void ApplyLayout(double width, double height)
     {
-        if (_layout is null || _boardControl is null || _panel is null)
+        if (_boardControl is null || _layout is null || _mobileLayout is null)
         {
             return;
         }
 
-        var narrow = BoardLayoutRules.IsNarrow(width, height);
+        var mode = BoardLayoutRules.DecideLayout(width, height);
 
-        if (_narrow == narrow)
+        if (_layoutMode != mode)
         {
-            return;
+            _layoutMode = mode;
+            ApplyMode(mode);
         }
 
-        _narrow = narrow;
-
-        _layout.ColumnDefinitions = new ColumnDefinitions(narrow ? "*" : "*,320");
-        _layout.RowDefinitions = new RowDefinitions(narrow ? "Auto,*" : "*");
-
-        Grid.SetColumn(_boardControl, 0);
-        Grid.SetRow(_boardControl, 0);
-        Grid.SetColumn(_panel, narrow ? 0 : 1);
-        Grid.SetRow(_panel, narrow ? 1 : 0);
-
-        _boardControl.Height = narrow ? BoardLayoutRules.BoardHeight(width, height) : double.NaN;
-        _panel.BorderThickness = narrow ? new Thickness(0, 1, 0, 0) : new Thickness(1, 0, 0, 0);
+        UpdateMobileBoardSize();
     }
+
+    /// <summary>Показывает выбранную раскладку и переносит в неё доску.</summary>
+    /// <param name="mode">Раскладка.</param>
+    private void ApplyMode(LayoutMode mode)
+    {
+        var mobile = mode == LayoutMode.Mobile;
+
+        _layout!.IsVisible = !mobile;
+        _mobileLayout!.IsVisible = mobile;
+
+        if (_mobileBoardHost is not null && _desktopBoardHost is not null && _boardControl is not null)
+        {
+            // Доска одна на обе раскладки: она переносится, а не создаётся заново, иначе
+            // анимация и подписка на щелчки жили бы в двух местах.
+            MoveBoard(mobile ? _mobileBoardHost : _desktopBoardHost);
+        }
+
+        if (_overlay is not null)
+        {
+            _overlay.Classes.Set(SettingsScreenClass, mobile);
+        }
+
+        if (_settingsCard is not null)
+        {
+            _settingsCard.Classes.Set(SettingsCardClass, mobile);
+        }
+
+        if (_settingsHeader is not null)
+        {
+            // Заголовок с кнопкой «Назад» нужен только экрану телефона.
+            _settingsHeader.IsVisible = mobile;
+        }
+    }
+
+    /// <summary>Переносит доску в другую раскладку.</summary>
+    /// <param name="host">Место, куда встаёт доска.</param>
+    private void MoveBoard(Border host)
+    {
+        if (_boardControl is null || ReferenceEquals(host.Child, _boardControl))
+        {
+            return;
+        }
+
+        if (_boardControl.Parent is Border previous)
+        {
+            previous.Child = null;
+        }
+
+        host.Child = _boardControl;
+    }
+
+    /// <summary>Считает сторону доски для мобильной раскладки.</summary>
+    /// <remarks>
+    /// Доска занимает всё, что осталось от строки состояния, шторки и отступов: сторона равна
+    /// меньшей из доступных величин, поэтому на телефоне она упирается в ширину экрана.
+    /// </remarks>
+    private void UpdateMobileBoardSize()
+    {
+        if (_layoutMode != LayoutMode.Mobile || _mobileLayout is null || _mobileBoardHost is null)
+        {
+            return;
+        }
+
+        // Тесная высота: убираем строку состояния и строки краткого состояния шторки.
+        // Видимость зависит только от высоты раскладки, а не от стороны доски, поэтому
+        // повторного пересчёта по кругу не возникает.
+        var compact = _mobileLayout.Bounds.Height > 0 && _mobileLayout.Bounds.Height < CompactHeight;
+
+        if (_mobileStatus is not null)
+        {
+            _mobileStatus.IsVisible = !compact;
+        }
+
+        if (_sheetSummaryPanel is not null)
+        {
+            _sheetSummaryPanel.IsVisible = !compact;
+        }
+
+        var width = _mobileLayout.Bounds.Width - (2 * MobileBoardMargin);
+        var height = _mobileLayout.Bounds.Height
+            - (_mobileStatus?.Bounds.Height ?? 0)
+            - (_sheet?.Bounds.Height ?? 0)
+            - (2 * MobileBoardMargin);
+
+        var side = BoardLayoutRules.MobileBoardSide(width, height);
+
+        if (side <= 0)
+        {
+            return;
+        }
+
+        _mobileBoardHost.Width = side;
+        _mobileBoardHost.Height = side;
+    }
+
+    /// <summary>Раскрывает и сворачивает шторку сведений.</summary>
+    /// <param name="sender">Ручка шторки.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnSheetToggleClick(object? sender, RoutedEventArgs e)
+    {
+        _detailsExpanded = !_detailsExpanded;
+
+        if (_sheetDetails is not null)
+        {
+            _sheetDetails.IsVisible = _detailsExpanded;
+        }
+
+        if (_sheetChevron is not null)
+        {
+            // Стрелка показывает, что будет по нажатию: вверх — раскрыть, вниз — свернуть.
+            _sheetChevron.Text = _detailsExpanded ? "▼" : "▲";
+        }
+
+        UpdateMobileBoardSize();
+    }
+
+    /// <summary>Закрывает экран настроек кнопкой «Назад».</summary>
+    /// <param name="sender">Кнопка «Назад».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnSettingsBackClick(object? sender, RoutedEventArgs e) => HideSettings();
+
+    /// <summary>Обновляет короткое состояние вида: строку состояния, шторку и строки партии.</summary>
+    /// <remarks>
+    /// Строка состояния несёт одно главное сообщение — кто ходит; счёт, пленные и коми стоят
+    /// в свёрнутой шторке, где для них есть место. Подробности — в развёрнутой шторке.
+    /// Пленные называются явно и отдельной строкой: под японской системой это очки, и путать
+    /// их со «снято» нельзя.
+    /// </remarks>
+    private void RefreshSummary()
+    {
+        // «Пленные: чёрные взяли N, белые взяли M»: чёрные взяли белые камни (CapturedWhite),
+        // белые — чёрные (CapturedBlack). Порядок слов тот же, что и в разборе счёта.
+        var prisoners = $"Пленные: чёрные взяли {ViewModel.CapturedWhite}, белые взяли {ViewModel.CapturedBlack}";
+
+        if (_desktopPrisoners is not null)
+        {
+            _desktopPrisoners.Text = prisoners;
+        }
+
+        if (_mobilePrisoners is not null)
+        {
+            _mobilePrisoners.Text = prisoners;
+        }
+
+        // Идёт согласование мёртвых групп: победитель ещё не назван, счёт предварительный.
+        // Правило «что показывать» живёт в чистых функциях GameStatusLines, чтобы его проверяли
+        // тесты: пока подсчёт не подтверждён, приговор показывать нельзя.
+        var counting = ViewModel.IsCounting;
+        var verdict = ViewModel.HasOutcome;
+
+        var status = GameStatusLines.Headline(counting, verdict, ViewModel.Status, ViewModel.ToMove);
+        var second = GameStatusLines.Detail(counting, verdict, ViewModel.Outcome, ViewModel.MoveNumber);
+        var score = GameStatusLines.ScoreLine(counting, ViewModel.Score);
+        var stone = GameStatusLines.ShowTurnStone(counting, verdict);
+        var outcome = GameStatusLines.ShowOutcome(counting, verdict);
+
+        if (_mobileTurnText is not null)
+        {
+            _mobileTurnText.Text = status;
+        }
+
+        if (_mobileMoveText is not null)
+        {
+            _mobileMoveText.Text = second;
+        }
+
+        if (_mobileTurnBlack is not null)
+        {
+            _mobileTurnBlack.IsVisible = stone && IsBlackTurn();
+        }
+
+        if (_mobileTurnWhite is not null)
+        {
+            _mobileTurnWhite.IsVisible = stone && !IsBlackTurn();
+        }
+
+        if (_desktopOutcome is not null)
+        {
+            _desktopOutcome.Text = ViewModel.Outcome;
+            _desktopOutcome.IsVisible = outcome;
+        }
+
+        if (_mobileOutcome is not null)
+        {
+            _mobileOutcome.Text = ViewModel.Outcome;
+            _mobileOutcome.IsVisible = outcome;
+        }
+
+        if (_desktopScore is not null)
+        {
+            _desktopScore.Text = score;
+        }
+
+        if (_mobileScore is not null)
+        {
+            _mobileScore.Text = score;
+        }
+
+        if (_sheetSummary is not null)
+        {
+            _sheetSummary.Text = score;
+        }
+
+        if (_sheetSummaryDetails is not null)
+        {
+            _sheetSummaryDetails.Text = $"{prisoners} · Коми: {ViewModel.Komi}";
+        }
+
+        RefreshDeadMarks();
+    }
+
+    /// <summary>Показывает на доске пометки мёртвых камней.</summary>
+    /// <remarks>
+    /// Список берётся у модели представления, но перерисовка заказывается по счётчику изменений
+    /// (<c>DeadRevision</c>): тот же экземпляр списка мог измениться внутри, и подписка на свойство
+    /// этого не заметила бы.
+    /// </remarks>
+    private void RefreshDeadMarks()
+    {
+        if (_boardControl is null)
+        {
+            return;
+        }
+
+        var dead = ViewModel.IsCounting ? ViewModel.DeadPoints : null;
+
+        _boardControl.DeadPoints = dead;
+        _boardControl.InvalidateVisual();
+    }
+
+    /// <summary>Подтверждает подсчёт: мёртвые камни снимаются и входят в итог.</summary>
+    /// <param name="sender">Кнопка «Посчитать».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnConfirmScoreClick(object? sender, RoutedEventArgs e) => ViewModel.ConfirmScore();
+
+    /// <summary>Ходят ли чёрные.</summary>
+    /// <returns><c>true</c>, если очередь чёрных.</returns>
+    /// <remarks>
+    /// Подпись очереди берётся из того же источника, что и в модели представления: своей
+    /// копии слов «Чёрные» и «Белые» здесь быть не должно.
+    /// </remarks>
+    private bool IsBlackTurn() => ViewModel.ToMove == StoneColorLabels.Label(StoneColor.Black);
 
     /// <summary>Применяет настройки, выбранные в панели настроек, и убирает её.</summary>
     /// <param name="sender">Вид настроек.</param>
@@ -342,22 +719,48 @@ public sealed partial class BoardView : UserControl
     private void OnSettingsCancelled(object? sender, EventArgs e) => HideSettings();
 
     /// <summary>Прячет панель настроек.</summary>
+    /// <remarks>
+    /// О закрытии сообщается оболочке: на телефоне настройки — раздел нижней навигации,
+    /// и подсветка должна вернуться к партии.
+    /// </remarks>
     private void HideSettings()
     {
+        var visible = _overlay?.IsVisible == true;
+
         if (_overlay is not null)
         {
             _overlay.IsVisible = false;
         }
+
+        if (visible)
+        {
+            SettingsClosed?.Invoke(this, EventArgs.Empty);
+        }
     }
 
-    /// <summary>Запускает анимацию, когда партия показала новый ход.</summary>
+    /// <summary>Обновляет вид, когда модель сообщает об изменении.</summary>
     /// <param name="sender">Модель представления.</param>
-    /// <param name="e">Событие изменения свойства.</param>
+    /// <param name="e">Имя изменившегося свойства.</param>
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MainViewModel.LastMove))
         {
             _boardControl?.Animate(ViewModel.LastMove, ViewModel.LastCaptured, ViewModel.LastCapturedColor);
+            RefreshSummary();
+            return;
+        }
+
+        // Пометки мёртвых камней: список может остаться тем же объектом, поэтому доска
+        // перерисовывается и по счётчику изменений, и по самому списку.
+        if (e.PropertyName is nameof(MainViewModel.DeadPoints)
+            or nameof(MainViewModel.DeadRevision)
+            or nameof(MainViewModel.IsCounting))
+        {
+            RefreshDeadMarks();
+
+            // Вход в подсчёт и выход из него меняют и подписи: до подтверждения победитель
+            // не называется, счёт объявляется предварительным.
+            RefreshSummary();
             return;
         }
 
@@ -367,6 +770,22 @@ public sealed partial class BoardView : UserControl
             or nameof(MainViewModel.SelectedSizeIndex))
         {
             SyncCombos();
+            RefreshSummary();
+            return;
+        }
+
+        // Состояние, счёт и очередь хода показываются и на телефоне: строка состояния и шторка.
+        if (e.PropertyName is nameof(MainViewModel.ToMove)
+            or nameof(MainViewModel.Status)
+            or nameof(MainViewModel.Score)
+            or nameof(MainViewModel.Outcome)
+            or nameof(MainViewModel.MoveNumber)
+            or nameof(MainViewModel.CapturedBlack)
+            or nameof(MainViewModel.CapturedWhite)
+            or nameof(MainViewModel.Komi)
+            or nameof(MainViewModel.Board))
+        {
+            RefreshSummary();
         }
     }
 
@@ -453,7 +872,20 @@ public sealed partial class BoardView : UserControl
     /// <summary>Обрабатывает щелчок по доске.</summary>
     /// <param name="sender">Доска.</param>
     /// <param name="e">Точка хода.</param>
-    private void OnMoveRequested(object? sender, MoveRequestedEventArgs e) => _ = ViewModel.PlayMoveAsync(e.Point);
+    /// <remarks>
+    /// Пока идёт согласование мёртвых групп, щелчок не играет ход, а помечает группу мёртвой
+    /// или снимает пометку: в этом режиме ходы не принимаются (контракт конца партии, T-A).
+    /// </remarks>
+    private void OnMoveRequested(object? sender, MoveRequestedEventArgs e)
+    {
+        if (ViewModel.IsCounting)
+        {
+            _ = ViewModel.ToggleDeadAt(e.Point);
+            return;
+        }
+
+        _ = ViewModel.PlayMoveAsync(e.Point);
+    }
 
     /// <summary>Передаёт ход.</summary>
     /// <param name="sender">Кнопка «Пас».</param>

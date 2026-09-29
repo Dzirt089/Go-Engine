@@ -5,6 +5,9 @@ namespace GoEngine.Core;
 /// Состояние меняется ходами: <see cref="Play"/> проверяет ход, применяет его и обновляет партию.
 /// Партия завершается двумя пасами, сдачей или лимитом ходов (<c>GO_RULES.md</c>, п. 7–8).
 /// История позиций ведётся с самого начала: начальная позиция тоже входит в партию.
+/// Партия же ведёт счёт пленных: сколько камней снял каждый цвет за всю партию
+/// (<see cref="BlackPrisoners"/>, <see cref="WhitePrisoners"/>). Отмена и возврат хода
+/// восстанавливают и это счёт, иначе он разошёлся бы с позицией.
 /// </remarks>
 public sealed class GameState
 {
@@ -53,11 +56,41 @@ public sealed class GameState
     /// <summary>История позиций партии: нужна позиционному суперко.</summary>
     public PositionHistory History { get; private set; }
 
+    /// <summary>Сколько камней сняли чёрные за партию.</summary>
+    /// <remarks>
+    /// Пленные называются по тому, кто их взял: <see cref="BlackPrisoners"/> — это снятые чёрными
+    /// белые камни. Так их складывает японская система подсчёта (снятый камень приносит очко
+    /// снявшему) и так же читается панель партии. Пас и сдача не снимают ничего, отмена хода
+    /// возвращает счётчик назад вместе с позицией.
+    /// </remarks>
+    public int BlackPrisoners { get; private set; }
+
+    /// <summary>Сколько камней сняли белые за партию.</summary>
+    /// <remarks>Пленные белых — снятые ими чёрные камни; см. <see cref="BlackPrisoners"/>.</remarks>
+    public int WhitePrisoners { get; private set; }
+
     /// <summary>Можно ли отменить последний ход.</summary>
     public bool CanUndo => _undo.Count > 0;
 
     /// <summary>Можно ли вернуть отменённый ход.</summary>
     public bool CanRedo => _redo.Count > 0;
+
+    /// <summary>Возвращает число камней, снятых указанным цветом.</summary>
+    /// <param name="color">Цвет: <see cref="StoneColor.Black"/> или <see cref="StoneColor.White"/>.</param>
+    /// <returns>Сколько камней соперника снял этот цвет за партию.</returns>
+    /// <exception cref="DomainException">Передан <see cref="StoneColor.Empty"/>.</exception>
+    /// <remarks>Нужен панели партии и итогу: пленные показываются и по ходу игры, и в подсчёте.</remarks>
+    public int PrisonersOf(StoneColor color)
+    {
+        ArgumentNullException.ThrowIfNull(color);
+
+        if (color == StoneColor.Empty)
+        {
+            throw new DomainException("Пустой цвет камней не снимает: пленные есть только у чёрных и белых.");
+        }
+
+        return color == StoneColor.Black ? BlackPrisoners : WhitePrisoners;
+    }
 
     /// <summary>Есть ли в истории отмены состояние, в котором ход был за этот цвет.</summary>
     /// <param name="color">Цвет, который ходит.</param>
@@ -144,6 +177,11 @@ public sealed class GameState
         _moves.Add(move);
         MoveNumber++;
 
+        // Пленные считаются по факту хода: CapturedStones — камни, снятые именно этим ходом,
+        // и они достаются цвету ходившего. Считать их по доске нельзя: снятые камни на ней
+        // уже не лежат, и отличить их от не поставленных было бы нечем.
+        AddPrisoners(move.Color, Board.CapturedStones.Count);
+
         ApplyOutcome(move);
 
         return Result<MoveResult>.Ok(new MoveResult(true, move, Board.CapturedStones, null));
@@ -161,6 +199,49 @@ public sealed class GameState
 
         return Result<GameResult>.Ok(result);
     }
+
+    /// <summary>Записывает снятые ходом камни в счёт пленных ходившего.</summary>
+    /// <param name="color">Цвет ходившего.</param>
+    /// <param name="count">Сколько камней снято; ноль у паса и сдачи.</param>
+    private void AddPrisoners(StoneColor color, int count)
+    {
+        if (count == 0)
+        {
+            return;
+        }
+
+        if (color == StoneColor.Black)
+        {
+            BlackPrisoners += count;
+        }
+        else
+        {
+            WhitePrisoners += count;
+        }
+    }
+
+    /// <summary>Считает итог партии с согласованными мёртвыми камнями.</summary>
+    /// <param name="dead">Помеченные мёртвыми камни: точка означает всю свою группу.</param>
+    /// <returns>Итог с пленными за партию и обеими величинами подсчёта.</returns>
+    /// <remarks>
+    /// Отличие от <see cref="Finish"/>: тот считает по расположению на доске без снятия мёртвых
+    /// (<c>GO_RULES.md</c>, п. 9), а этот снимает мёртвые группы, отдаёт их камни в пленные
+    /// соперника и считает территорию по очищенной доске. Партию метод не меняет: ни доска,
+    /// ни счётчики пленных не трогаются — подсчёт это вопрос, а не ход.
+    /// </remarks>
+    public FinalScore FinalScore(IReadOnlyCollection<Point> dead) =>
+        Endgame.Finalize(Board, dead, Komi, BlackPrisoners, WhitePrisoners);
+
+    /// <summary>Считает итог партии по выбранной системе подсчёта.</summary>
+    /// <param name="dead">Помеченные мёртвыми камни: точка означает всю свою группу.</param>
+    /// <param name="rule">Система подсчёта: японская или китайская.</param>
+    /// <returns>Итог, победитель которого назван по указанной системе.</returns>
+    /// <remarks>
+    /// Обе величины (площадь и территория с пленными) считаются всегда — система выбирает только
+    /// ту, по которой называется победитель. Это позволяет показывать обе рядом.
+    /// </remarks>
+    public FinalScore FinalScore(IReadOnlyCollection<Point> dead, ScoringRule rule) =>
+        Endgame.Finalize(Board, dead, Komi, BlackPrisoners, WhitePrisoners, rule);
 
     /// <summary>Отменяет последний ход.</summary>
     /// <returns>Успех или причина отказа, если отменять нечего.</returns>
@@ -201,7 +282,9 @@ public sealed class GameState
         Status,
         _consecutivePasses,
         _result,
-        _moves.Count);
+        _moves.Count,
+        BlackPrisoners,
+        WhitePrisoners);
 
     /// <summary>Восстанавливает партию из снимка.</summary>
     /// <param name="snapshot">Снимок состояния.</param>
@@ -214,6 +297,8 @@ public sealed class GameState
         Status = snapshot.Status;
         _consecutivePasses = snapshot.ConsecutivePasses;
         _result = snapshot.Result;
+        BlackPrisoners = snapshot.BlackPrisoners;
+        WhitePrisoners = snapshot.WhitePrisoners;
 
         if (_moves.Count > snapshot.MoveCount)
         {
@@ -229,6 +314,8 @@ public sealed class GameState
     /// <param name="ConsecutivePasses">Сколько пасов подряд было сделано.</param>
     /// <param name="Result">Итог партии, если она была завершена.</param>
     /// <param name="MoveCount">Сколько ходов было в списке.</param>
+    /// <param name="BlackPrisoners">Сколько камней сняли чёрные к моменту снимка.</param>
+    /// <param name="WhitePrisoners">Сколько камней сняли белые к моменту снимка.</param>
     private readonly record struct Snapshot(
         Board Board,
         StoneColor ToMove,
@@ -236,7 +323,9 @@ public sealed class GameState
         GameStatus Status,
         int ConsecutivePasses,
         GameResult? Result,
-        int MoveCount);
+        int MoveCount,
+        int BlackPrisoners,
+        int WhitePrisoners);
 
     /// <summary>Обновляет партию после успешного хода.</summary>
     /// <param name="move">Сделанный ход.</param>

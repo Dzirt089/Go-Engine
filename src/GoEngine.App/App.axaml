@@ -3,8 +3,20 @@
              x:Class="GoEngine.App.App"
              RequestedThemeVariant="Light">
 
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <!-- Единый визуальный язык: палитра, типографика, радиусы, отступы. -->
+        <ResourceInclude Source="avares://GoEngine.App/Views/UiTheme.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+
   <Application.Styles>
     <FluentTheme />
+    <!-- Стили мобильного вида: все селекторы привязаны к классам .app-*, поэтому настольный
+         вид получает только общие цвета, но не новые правила оформления. -->
+    <StyleInclude Source="avares://GoEngine.App/Views/UiStyles.axaml" />
   </Application.Styles>
 
 </Application>
