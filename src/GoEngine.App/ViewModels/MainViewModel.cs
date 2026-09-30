@@ -545,7 +545,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             level,
             _settings.ToPlayerColor(),
             Core.Komi.For(size),
-            _settings.ToScoringRule()));
+            _settings.ToScoringRule(),
+            _settings.SoundEnabled));
 
     /// <summary>Играет ход игрока, затем ход AI, если очередь за ним.</summary>
     /// <param name="point">Точка хода.</param>
@@ -883,7 +884,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _settings.ToDifficultyLevel(),
             _settings.ToPlayerColor(),
             game.Komi,
-            _settings.ToScoringRule());
+            _settings.ToScoringRule(),
+            _settings.SoundEnabled);
 
         SyncDeadMarks();
 

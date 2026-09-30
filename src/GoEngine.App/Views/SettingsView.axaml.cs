@@ -217,6 +217,11 @@ public sealed partial class SettingsView : UserControl
             scoringBox.SelectedIndex = Math.Max(0, Array.IndexOf(ScoringRules, current.ToScoringRule()));
         }
 
+        if (this.FindControl<CheckBox>("SoundBox") is { } soundBox)
+        {
+            soundBox.IsChecked = current.SoundEnabled;
+        }
+
         ShowScoringHint();
     }
 
@@ -306,7 +311,15 @@ public sealed partial class SettingsView : UserControl
         var color = StoneColorLabels.At(SelectedIndex("ColorBox"));
         var komi = this.FindControl<NumericUpDown>("KomiBox")?.Value ?? (decimal)Selected.Komi;
 
-        Selected = AppSettings.From(size, level, color, new Komi((double)komi), ScoringRules[SelectedIndex("ScoringBox")]);
+        var sound = this.FindControl<CheckBox>("SoundBox")?.IsChecked != false;
+
+        Selected = AppSettings.From(
+            size,
+            level,
+            color,
+            new Komi((double)komi),
+            ScoringRules[SelectedIndex("ScoringBox")],
+            sound);
 
         Accepted?.Invoke(this, EventArgs.Empty);
     }

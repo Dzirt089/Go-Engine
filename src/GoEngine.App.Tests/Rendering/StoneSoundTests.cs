@@ -164,6 +164,63 @@ public sealed class StoneSoundTests
         Assert.Equal(0, player.PlayCount);
     }
 
+    /// <summary>Звук проверок: тесты включают и выключают его, поэтому состояние восстанавливается.</summary>
+    /// <remarks>
+    /// Настройка живёт статическим свойством общего экземпляра: прогон в одном процессе, и без
+    /// восстановления выключенный звук в одном тесте погасил бы звук в следующем.
+    /// </remarks>
+    private static bool _soundWasEnabled;
+
+    [Fact]
+    public async Task Обвязка_Выключенный_Звук_Молчит()
+    {
+        // Жалоба-продолжение 2026-09-30: звук должен отключаться в настройках.
+        _soundWasEnabled = StoneSoundPlayer.SoundEnabled;
+
+        try
+        {
+            var player = new RecordingSoundPlayer();
+            var sound = new StoneSoundPlayer(player);
+
+            StoneSoundPlayer.SoundEnabled = false;
+
+            await sound.OnMove("1", []);
+            await sound.OnMove("2", []);
+
+            Assert.Equal(0, player.PlayCount);
+        }
+        finally
+        {
+            StoneSoundPlayer.SoundEnabled = _soundWasEnabled;
+        }
+    }
+
+    [Fact]
+    public async Task Обвязка_Включённый_После_Выключения_Звук_Звучит_Снова()
+    {
+        _soundWasEnabled = StoneSoundPlayer.SoundEnabled;
+
+        try
+        {
+            var player = new RecordingSoundPlayer();
+            var clock = new TestClock(DateTimeOffset.UnixEpoch);
+            var sound = new StoneSoundPlayer(player, timeProvider: clock);
+
+            StoneSoundPlayer.SoundEnabled = false;
+            await sound.OnMove("1", []);
+
+            StoneSoundPlayer.SoundEnabled = true;
+            clock.Now = clock.Now.AddSeconds(1);
+            await sound.OnMove("2", []);
+
+            Assert.Equal(1, player.PlayCount);
+        }
+        finally
+        {
+            StoneSoundPlayer.SoundEnabled = _soundWasEnabled;
+        }
+    }
+
     [Fact]
     public async Task Обвязка_Два_Хода_В_Одну_Паузу_Звучат_Один_Раз()
     {

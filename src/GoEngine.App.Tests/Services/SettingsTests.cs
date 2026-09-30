@@ -35,6 +35,39 @@ public sealed class SettingsTests
     }
 
     [Fact]
+    public void Settings_Звук_По_Умолчанию_Включён()
+    {
+        // Свежая установка играет звук: так же ведёт себя и старый файл без этого ключа.
+        Assert.True(AppSettings.Default.SoundEnabled);
+    }
+
+    [Fact]
+    public void Settings_Выключенный_Звук_Переживает_Запись_И_Чтение()
+    {
+        var settings = AppSettings.From(
+            BoardSize.Size9,
+            DifficultyLevel.Kyu20,
+            StoneColor.Black,
+            Komi.For9x9,
+            soundEnabled: false);
+
+        var restored = AppSettings.Parse(settings.ToJson());
+
+        Assert.NotNull(restored);
+        Assert.False(restored!.SoundEnabled);
+    }
+
+    [Fact]
+    public void Settings_Старый_Файл_Без_Ключа_Звука_Играет_Звук()
+    {
+        // Терпимость к старому файлу: ключа нет — звук включён, а не «сломанное значение».
+        var restored = AppSettings.Parse("{\"boardSize\":13,\"aiRankKyu\":20}");
+
+        Assert.NotNull(restored);
+        Assert.True(restored!.SoundEnabled);
+    }
+
+    [Fact]
     public void Settings_Круговорот_Через_Файл()
     {
         var path = Path.Combine(Path.GetTempPath(), $"go-engine-settings-{Guid.NewGuid():N}.json");

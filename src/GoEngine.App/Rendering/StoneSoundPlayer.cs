@@ -12,6 +12,7 @@ namespace GoEngine.App.Rendering;
 /// одно событие, и дробить его на два стука нельзя, а быстрый ответ соперника не должен
 /// накладываться на звук игрока.
 /// Третье: при выключенной анимации звука нет — звук идёт вместе с анимацией камня, а не вместо неё.
+/// Четвёртое: выключенный в настройках звук молчит всегда (<see cref="SoundEnabled"/>).
 /// Проигрыватель всегда вызывается в фоне: воспроизведение не должно задерживать поток интерфейса.
 /// </remarks>
 public sealed class StoneSoundPlayer
@@ -22,6 +23,15 @@ public sealed class StoneSoundPlayer
     /// уведомления об одном ходе, пришедшие подряд, не превратились в несколько стуков.
     /// </remarks>
     public static readonly TimeSpan MinInterval = TimeSpan.FromMilliseconds(60);
+
+    /// <summary>Играть ли звук: выбор игрока в настройках.</summary>
+    /// <remarks>
+    /// Свойство статическое, как и общий экземпляр: настройка одна на приложение, и вид ставит
+    /// её при каждом применении настроек. Отдельного проигрывателя-обёртки для выключенного звука
+    /// нет намеренно: проверка в одном месте проще, чем второй проигрыватель, который надо
+    /// не забыть подставить (и который разошёлся бы с настоящим при смене настроек).
+    /// </remarks>
+    public static bool SoundEnabled { get; set; } = true;
 
     /// <summary>Общий проигрыватель приложения: один на процесс.</summary>
     /// <remarks>
@@ -90,7 +100,8 @@ public sealed class StoneSoundPlayer
         ArgumentException.ThrowIfNullOrWhiteSpace(moveNumber);
         ArgumentNullException.ThrowIfNull(captured);
 
-        if (_animationsEnabled?.Invoke() == false)
+        // Выключенный звук — первая проверка: она дешевле всего и не трогает ни часы, ни замок.
+        if (!SoundEnabled || _animationsEnabled?.Invoke() == false)
         {
             return Task.CompletedTask;
         }

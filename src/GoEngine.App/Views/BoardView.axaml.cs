@@ -161,6 +161,9 @@ public sealed partial class BoardView : UserControl
 
         _settings = settings;
 
+        // Настройка звука применяется сразу: до первого хода она уже должна действовать.
+        StoneSoundPlayer.SoundEnabled = settings.SoundEnabled;
+
         AvaloniaXamlLoader.Load(this);
 
         ViewModel = viewModel ?? new MainViewModel(settings, Random.Shared, evaluator);
@@ -901,6 +904,9 @@ public sealed partial class BoardView : UserControl
         }
 
         _settings = _settingsView.Selected;
+
+        // Звук — выбор игрока: он живёт в настройках, а решает о звуке обвязка звука.
+        StoneSoundPlayer.SoundEnabled = _settings.SoundEnabled;
 
         // Партия начинается сразу, а первый ход соперника считается в фоне: иначе окно
         // замирало бы на время поиска, а анимация хода не была бы видна.

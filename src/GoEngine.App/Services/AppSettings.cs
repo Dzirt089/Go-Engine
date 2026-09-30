@@ -49,6 +49,16 @@ public sealed record AppSettings
     [JsonPropertyName("scoringRule")]
     public string ScoringRule { get; set; } = nameof(Core.ScoringRule.Japanese);
 
+    /// <summary>Играть ли звук ходов.</summary>
+    /// <remarks>
+    /// Звук — украшение, и игрок вправе его выключить: в турнирном зале, в транспорте или просто
+    /// потому, что не нужен. Ключ читается терпимо: в старом файле настроек его нет, и тогда звук
+    /// включён — так же, как в свежей установке. Хранится здесь, а не в голове платформы: выбор
+    /// игрока один на все системы, а настройки уже переживают перезапуск.
+    /// </remarks>
+    [JsonPropertyName("soundEnabled")]
+    public bool SoundEnabled { get; set; } = true;
+
     /// <summary>Возвращает размер доски из настроек.</summary>
     /// <returns>Размер доски; при недопустимом значении — 9×9.</returns>
     public BoardSize ToBoardSize() => BoardSize switch
@@ -110,23 +120,26 @@ public sealed record AppSettings
     /// <param name="playerColor">Цвет игрока.</param>
     /// <param name="komi">Коми.</param>
     /// <param name="rule">Система подсчёта; <c>null</c> — японская.</param>
+    /// <param name="soundEnabled">Играть ли звук ходов.</param>
     /// <returns>Настройки для сохранения.</returns>
     /// <remarks>
-    /// Система подсчёта переживает смену доски, уровня и загрузку партии: она не свойство партии,
-    /// а выбор игрока, и терять его при каждой правке настроек нельзя.
+    /// Система подсчёта и звук переживают смену доски, уровня и загрузку партии: это не свойства
+    /// партии, а выбор игрока, и терять его при каждой правке настроек нельзя.
     /// </remarks>
     public static AppSettings From(
         BoardSize size,
         DifficultyLevel level,
         StoneColor playerColor,
         Komi komi,
-        ScoringRule? rule = null) => new()
+        ScoringRule? rule = null,
+        bool soundEnabled = true) => new()
     {
         BoardSize = size.Value,
         AiRankKyu = level.RankKyu,
         PlayerColor = playerColor.Name,
         Komi = komi.Value,
-        ScoringRule = (rule ?? Core.ScoringRule.Japanese).Name
+        ScoringRule = (rule ?? Core.ScoringRule.Japanese).Name,
+        SoundEnabled = soundEnabled
     };
 
     /// <summary>Разбирает настройки из JSON.</summary>
