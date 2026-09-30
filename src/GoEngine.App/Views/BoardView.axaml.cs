@@ -89,6 +89,7 @@ public sealed partial class BoardView : UserControl
     private readonly Ellipse? _mobileTurnWhite;
     private readonly Border? _mobileStatus;
     private readonly Border? _mobileActionBar;
+    private readonly Panel? _mobileBoardRow;
     private readonly Border? _sheet;
     private readonly TextBlock? _sheetSummary;
     private readonly TextBlock? _sheetSummaryDetails;
@@ -186,6 +187,7 @@ public sealed partial class BoardView : UserControl
         _mobileTurnWhite = this.FindControl<Ellipse>("MobileTurnWhite");
         _mobileStatus = this.FindControl<Border>("MobileStatus");
         _mobileActionBar = this.FindControl<Border>("MobileActionBar");
+        _mobileBoardRow = this.FindControl<Panel>("MobileBoardRow");
         _sheet = this.FindControl<Border>("Sheet");
         _sheetSummary = this.FindControl<TextBlock>("SheetSummary");
         _sheetSummaryDetails = this.FindControl<TextBlock>("SheetSummaryDetails");
@@ -667,15 +669,11 @@ public sealed partial class BoardView : UserControl
             _sheetSummaryPanel.IsVisible = !compact;
         }
 
-        // Панель действий стоит поверх доски, но место под неё отводится заранее: иначе доска
-        // уходила бы под кнопки, и нижние ряды стали бы недоступны для щелчка. Раньше в панели
-        // был один ряд кнопок, теперь два — высота берётся по факту, а не константой.
+        // Место доски считает раскладка: доска и панель действий стоят в разных строках сетки
+        // (BoardView.axaml), поэтому строка доски уже не включает в себя кнопки, а её настоящая
+        // высота известна после раскладки. Ширина берётся у раскладки, высота — у строки доски.
         var width = _mobileLayout.Bounds.Width - (2 * MobileBoardMargin);
-        var height = _mobileLayout.Bounds.Height
-            - (_mobileStatus?.Bounds.Height ?? 0)
-            - (_sheet?.Bounds.Height ?? 0)
-            - ((_mobileActionBar?.Bounds.Height ?? 0) + MobileActionMargin)
-            - (2 * MobileBoardMargin);
+        var height = (_mobileBoardRow?.Bounds.Height ?? 0) - (2 * MobileBoardMargin);
 
         var side = BoardLayoutRules.MobileBoardSide(width, height);
 
