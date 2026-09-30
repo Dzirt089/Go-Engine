@@ -35,6 +35,9 @@
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="9.0.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <!-- Прогон тестов в обход vstest: утилита src/GoEngine.Tools.TestRunner (PROJECT.md,
+         «Обход, если dotnet test не стартует»). В решение не входит, частью продукта не является. -->
+    <PackageVersion Include="xunit.runner.utility" Version="2.9.3" />
   </ItemGroup>
 
 </Project>

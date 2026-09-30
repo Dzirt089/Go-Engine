@@ -2,12 +2,15 @@ using System.ComponentModel;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using GoEngine.AI;
 using GoEngine.App.Controls;
+using GoEngine.App.Rendering;
 using GoEngine.App.Services;
 using GoEngine.App.Services.Logging;
 using GoEngine.App.ViewModels;
@@ -31,10 +34,20 @@ namespace GoEngine.App.Views;
 public sealed partial class BoardView : UserControl
 {
     /// <summary>Ширина настольной панели управления: та же, что в разметке.</summary>
-    private const double DesktopPanelWidth = 320;
+    private const double DesktopPanelWidth = 360;
+
+    /// <summary>Сколько живёт сообщение о сохранении, загрузке или отказе.</summary>
+    /// <remarks>
+    /// Строка подсказки исчезает сама: раньше она висела до конца сеанса и на телефоне
+    /// занимала место в шторке даже после того, как партия давно загрузилась (жалоба 2026-09-30).
+    /// </remarks>
+    private static readonly TimeSpan HintLifetime = TimeSpan.FromSeconds(8);
 
     /// <summary>Отступ мобильной доски от краёв отведённого места.</summary>
     private const double MobileBoardMargin = 8;
+
+    /// <summary>Отступ панели действий от доски: тот же, что в разметке.</summary>
+    private const double MobileActionMargin = 8;
 
     /// <summary>Высота, ниже которой мобильная раскладка становится компактной.</summary>
     /// <remarks>
@@ -49,6 +62,12 @@ public sealed partial class BoardView : UserControl
 
     /// <summary>Класс карточки настроек: на телефоне она растягивается на весь экран.</summary>
     private const string SettingsCardClass = "app-settings-card-mobile";
+
+    /// <summary>Подпись кнопки до первого хода: партия ещё не начата.</summary>
+    private const string StartGameLabel = "Начать партию";
+
+    /// <summary>Подпись кнопки после первого хода: партия идёт, кнопка начинает новую.</summary>
+    private const string NewGameLabel = "Новая партия";
 
     /// <summary>Логгер вида: сюда попадают сохранение и загрузка партии с их отказами.</summary>
     private readonly ILogger _log = AppLog.For<BoardView>();
@@ -69,6 +88,7 @@ public sealed partial class BoardView : UserControl
     private readonly Ellipse? _mobileTurnBlack;
     private readonly Ellipse? _mobileTurnWhite;
     private readonly Border? _mobileStatus;
+    private readonly Border? _mobileActionBar;
     private readonly Border? _sheet;
     private readonly TextBlock? _sheetSummary;
     private readonly TextBlock? _sheetSummaryDetails;
@@ -77,10 +97,34 @@ public sealed partial class BoardView : UserControl
     private readonly StackPanel? _sheetSummaryPanel;
     private readonly TextBlock? _desktopPrisoners;
     private readonly TextBlock? _mobilePrisoners;
-    private readonly TextBlock? _desktopOutcome;
-    private readonly TextBlock? _mobileOutcome;
     private readonly TextBlock? _desktopScore;
     private readonly TextBlock? _mobileScore;
+    private readonly TextBlock? _desktopStatus;
+    private readonly TextBlock? _mobileStatusText;
+    private readonly TextBlock? _desktopScoreDetail;
+    private readonly TextBlock? _mobileScoreDetail;
+    private readonly TextBlock? _desktopBreakdown;
+    private readonly TextBlock? _mobileBreakdown;
+    private readonly TextBlock? _desktopStats;
+    private readonly TextBlock? _mobileStats;
+    private readonly TextBlock? _desktopLevelHint;
+    private readonly StackPanel? _desktopDetails;
+    private readonly ToggleButton? _desktopDetailsButton;
+    private readonly Button? _desktopNewGame;
+    private readonly Button? _mobileNewGame;
+    private readonly GameResultBanner? _desktopResultBanner;
+    private readonly GameResultBanner? _mobileResultBanner;
+    private readonly Border? _mobileResultHost;
+
+    /// <summary>Показанный сейчас баннер итога: раскладок две, и баннер в каждой свой.</summary>
+    /// <remarks>
+    /// Баннеры не переезжают между раскладками (в отличие от доски): у каждого своя рамка
+    /// и своё место в разметке, поэтому вид показывает тот, что стоит в текущей раскладке.
+    /// </remarks>
+    private GameResultBanner? _resultBanner;
+
+    /// <summary>Таймер, по которому исчезает подсказка.</summary>
+    private DispatcherTimer? _hintTimer;
 
     /// <summary>Настройки, с которыми играет вид: их показывает панель настроек.</summary>
     private AppSettings _settings;
@@ -138,6 +182,7 @@ public sealed partial class BoardView : UserControl
         _mobileTurnBlack = this.FindControl<Ellipse>("MobileTurnBlack");
         _mobileTurnWhite = this.FindControl<Ellipse>("MobileTurnWhite");
         _mobileStatus = this.FindControl<Border>("MobileStatus");
+        _mobileActionBar = this.FindControl<Border>("MobileActionBar");
         _sheet = this.FindControl<Border>("Sheet");
         _sheetSummary = this.FindControl<TextBlock>("SheetSummary");
         _sheetSummaryDetails = this.FindControl<TextBlock>("SheetSummaryDetails");
@@ -146,10 +191,27 @@ public sealed partial class BoardView : UserControl
         _sheetSummaryPanel = this.FindControl<StackPanel>("SheetSummaryPanel");
         _desktopPrisoners = this.FindControl<TextBlock>("DesktopPrisonersText");
         _mobilePrisoners = this.FindControl<TextBlock>("MobilePrisonersText");
-        _desktopOutcome = this.FindControl<TextBlock>("DesktopOutcomeText");
-        _mobileOutcome = this.FindControl<TextBlock>("MobileOutcomeText");
         _desktopScore = this.FindControl<TextBlock>("DesktopScoreText");
         _mobileScore = this.FindControl<TextBlock>("MobileScoreText");
+        _desktopStatus = this.FindControl<TextBlock>("DesktopStatusText");
+        _mobileStatusText = this.FindControl<TextBlock>("MobileStatusText");
+        _desktopScoreDetail = this.FindControl<TextBlock>("DesktopScoreDetailText");
+        _mobileScoreDetail = this.FindControl<TextBlock>("MobileScoreDetailText");
+        _desktopBreakdown = this.FindControl<TextBlock>("DesktopBreakdownText");
+        _mobileBreakdown = this.FindControl<TextBlock>("MobileBreakdownText");
+        _desktopStats = this.FindControl<TextBlock>("DesktopStatsText");
+        _mobileStats = this.FindControl<TextBlock>("MobileStatsText");
+        _desktopLevelHint = this.FindControl<TextBlock>("DesktopLevelHintText");
+        _desktopDetails = this.FindControl<StackPanel>("DesktopDetailsPanel");
+        _desktopDetailsButton = this.FindControl<ToggleButton>("DesktopDetailsButton");
+        _desktopNewGame = this.FindControl<Button>("NewGameButton");
+        _mobileNewGame = this.FindControl<Button>("MobileNewGameButton");
+        _desktopResultBanner = this.FindControl<GameResultBanner>("DesktopResultBanner");
+        _mobileResultBanner = this.FindControl<GameResultBanner>("MobileResultBanner");
+        _mobileResultHost = this.FindControl<Border>("MobileResultHost");
+
+        // До выбора раскладки показывается настольный баннер: раскладку выберет ApplyLayout.
+        _resultBanner = _desktopResultBanner;
 
         if (_boardControl is not null)
         {
@@ -184,6 +246,16 @@ public sealed partial class BoardView : UserControl
         WireButton("SettingsBackButton", OnSettingsBackClick);
         WireButton("SheetToggleButton", OnSheetToggleClick);
 
+        // Файловые действия телефона живут в меню кнопки «Файл»: у пунктов меню обработчик
+        // тот же, что у кнопок настольной панели.
+        WireMenuItem("MobileSaveMenuItem", OnSaveClick);
+        WireMenuItem("MobileLoadMenuItem", OnLoadClick);
+
+        if (_desktopDetailsButton is not null)
+        {
+            _desktopDetailsButton.Click += OnDetailsToggleClick;
+        }
+
         // Подтверждение подсчёта: кнопка есть в обеих раскладках, действие одно.
         WireButton("DesktopConfirmButton", OnConfirmScoreClick);
         WireButton("MobileConfirmButton", OnConfirmScoreClick);
@@ -211,6 +283,13 @@ public sealed partial class BoardView : UserControl
         if (_mobileStatus is not null)
         {
             _mobileStatus.SizeChanged += OnMobilePartSizeChanged;
+        }
+
+        // Высота панели действий меняется от подписей кнопок и от скрытой кнопки территории:
+        // по ней пересчитывается сторона доски.
+        if (_mobileActionBar is not null)
+        {
+            _mobileActionBar.SizeChanged += OnMobilePartSizeChanged;
         }
 
         if (_sheet is not null)
@@ -395,6 +474,44 @@ public sealed partial class BoardView : UserControl
             _mobileHint.Text = message;
             _mobileHint.IsVisible = true;
         }
+
+        ScheduleHintHide();
+    }
+
+    /// <summary>Убирает подсказку через несколько секунд: сообщение не должно висеть вечно.</summary>
+    /// <remarks>
+    /// Таймер один и перезапускается: два быстрых сообщения подряд не должны оставить первое
+    /// на экране. Диспетчер берётся у самого вида — отдельного потока здесь не нужно.
+    /// </remarks>
+    private void ScheduleHintHide()
+    {
+        _hintTimer ??= new DispatcherTimer { Interval = HintLifetime };
+
+        if (!_hintTimer.IsEnabled)
+        {
+            _hintTimer.Tick += OnHintTimeout;
+        }
+
+        _hintTimer.Stop();
+        _hintTimer.Start();
+    }
+
+    /// <summary>Прячет подсказку по таймеру.</summary>
+    /// <param name="sender">Таймер.</param>
+    /// <param name="e">Событие таймера.</param>
+    private void OnHintTimeout(object? sender, EventArgs e)
+    {
+        _hintTimer?.Stop();
+
+        if (_hint is not null)
+        {
+            _hint.IsVisible = false;
+        }
+
+        if (_mobileHint is not null)
+        {
+            _mobileHint.IsVisible = false;
+        }
     }
 
     /// <summary>Перестраивает раскладку при изменении размера вида.</summary>
@@ -465,6 +582,27 @@ public sealed partial class BoardView : UserControl
             MoveBoard(mobile ? _mobileBoardHost : _desktopBoardHost);
         }
 
+        // Баннер показывает только текущая раскладка: у каждой он свой, со своей рамкой
+        // и своим местом. Кнопка баннера на телефоне крупнее — цель нажатия 48 точек.
+        _resultBanner = mobile ? _mobileResultBanner : _desktopResultBanner;
+
+        if (_desktopResultBanner is not null)
+        {
+            _desktopResultBanner.IsVisible = false;
+        }
+
+        if (_mobileResultBanner is not null)
+        {
+            _mobileResultBanner.IsTouch = true;
+        }
+
+        if (_mobileResultHost is not null)
+        {
+            _mobileResultHost.IsVisible = false;
+        }
+
+        RefreshResultBanner();
+
         if (_overlay is not null)
         {
             _overlay.Classes.Set(SettingsScreenClass, mobile);
@@ -526,10 +664,14 @@ public sealed partial class BoardView : UserControl
             _sheetSummaryPanel.IsVisible = !compact;
         }
 
+        // Панель действий стоит поверх доски, но место под неё отводится заранее: иначе доска
+        // уходила бы под кнопки, и нижние ряды стали бы недоступны для щелчка. Раньше в панели
+        // был один ряд кнопок, теперь два — высота берётся по факту, а не константой.
         var width = _mobileLayout.Bounds.Width - (2 * MobileBoardMargin);
         var height = _mobileLayout.Bounds.Height
             - (_mobileStatus?.Bounds.Height ?? 0)
             - (_sheet?.Bounds.Height ?? 0)
+            - ((_mobileActionBar?.Bounds.Height ?? 0) + MobileActionMargin)
             - (2 * MobileBoardMargin);
 
         var side = BoardLayoutRules.MobileBoardSide(width, height);
@@ -574,13 +716,16 @@ public sealed partial class BoardView : UserControl
     /// Строка состояния несёт одно главное сообщение — кто ходит; счёт, пленные и коми стоят
     /// в свёрнутой шторке, где для них есть место. Подробности — в развёрнутой шторке.
     /// Пленные называются явно и отдельной строкой: под японской системой это очки, и путать
-    /// их со «снято» нельзя.
+    /// их со «снято» нельзя. Мёртвые камни заключительной позиции называются отдельно:
+    /// они тоже идут в пленные (правила вида спорта «го», пп. 1.10 и 1.12), но счётчик партии
+    /// их не знает — их снимает подсчёт, а не ход. Без этой строки панель показывала «пленные 0»,
+    /// а счёт уже включал снятые мёртвые камни, и числа выглядели противоречиво (жалоба 2026-09-30).
     /// </remarks>
     private void RefreshSummary()
     {
-        // «Пленные: чёрные взяли N, белые взяли M»: чёрные взяли белые камни (CapturedWhite),
-        // белые — чёрные (CapturedBlack). Порядок слов тот же, что и в разборе счёта.
-        var prisoners = $"Пленные: чёрные взяли {ViewModel.CapturedWhite}, белые взяли {ViewModel.CapturedBlack}";
+        // Строку о пленных собирает модель представления: она знает и счётчики партии,
+        // и пометки мёртвых камней, которые тоже идут в пленные (правила, пп. 1.10 и 1.12).
+        var prisoners = ViewModel.PrisonersLine;
 
         if (_desktopPrisoners is not null)
         {
@@ -601,8 +746,14 @@ public sealed partial class BoardView : UserControl
         var status = GameStatusLines.Headline(counting, verdict, ViewModel.Status, ViewModel.ToMove);
         var second = GameStatusLines.Detail(counting, verdict, ViewModel.Outcome, ViewModel.MoveNumber);
         var score = GameStatusLines.ScoreLine(counting, ViewModel.Score);
+        var detail = ViewModel.ScoreDetail;
+        var breakdown = ViewModel.ScoreBreakdown;
+        var stats = GameStatusLines.StatsLine(
+            ViewModel.LevelDescription,
+            ViewModel.PlayerColor.ToLowerInvariant(),
+            ViewModel.MoveNumber,
+            ViewModel.Komi);
         var stone = GameStatusLines.ShowTurnStone(counting, verdict);
-        var outcome = GameStatusLines.ShowOutcome(counting, verdict);
 
         if (_mobileTurnText is not null)
         {
@@ -624,39 +775,87 @@ public sealed partial class BoardView : UserControl
             _mobileTurnWhite.IsVisible = stone && !IsBlackTurn();
         }
 
-        if (_desktopOutcome is not null)
-        {
-            _desktopOutcome.Text = ViewModel.Outcome;
-            _desktopOutcome.IsVisible = outcome;
-        }
+        SetText(_desktopStatus, status);
+        SetText(_mobileStatusText, $"Статус: {ViewModel.Status}");
+        SetText(_desktopScore, score);
+        SetText(_mobileScore, score);
+        SetText(_desktopScoreDetail, detail);
+        SetText(_mobileScoreDetail, detail);
+        SetText(_desktopBreakdown, breakdown);
+        SetText(_mobileBreakdown, breakdown);
+        SetText(_desktopStats, stats);
+        SetText(_mobileStats, stats);
+        SetText(_sheetSummary, score);
+        SetText(_sheetSummaryDetails, prisoners);
 
-        if (_mobileOutcome is not null)
-        {
-            _mobileOutcome.Text = ViewModel.Outcome;
-            _mobileOutcome.IsVisible = outcome;
-        }
+        // До первого хода кнопка называется «Начать партию»: партия ждёт игрока, а не идёт.
+        var newGameLabel = ViewModel.IsFirstMove ? StartGameLabel : NewGameLabel;
+        SetText(_desktopNewGame, newGameLabel);
+        SetText(_mobileNewGame, newGameLabel);
 
-        if (_desktopScore is not null)
-        {
-            _desktopScore.Text = score;
-        }
-
-        if (_mobileScore is not null)
-        {
-            _mobileScore.Text = score;
-        }
-
-        if (_sheetSummary is not null)
-        {
-            _sheetSummary.Text = score;
-        }
-
-        if (_sheetSummaryDetails is not null)
-        {
-            _sheetSummaryDetails.Text = $"{prisoners} · Коми: {ViewModel.Komi}";
-        }
+        SetText(_desktopLevelHint, ViewModel.LevelHint);
 
         RefreshDeadMarks();
+        RefreshOutcomeHighlight();
+        RefreshResultBanner();
+    }
+
+    /// <summary>Показывает баннер итога в текущей раскладке.</summary>
+    /// <remarks>
+    /// Строка баннера на телефоне — отдельная строка сетки, и она появляется вместе с баннером:
+    /// пустая рамка над доской съедала бы место на низком экране.
+    /// </remarks>
+    private void RefreshResultBanner()
+    {
+        _resultBanner?.Refresh();
+
+        if (_mobileResultHost is not null)
+        {
+            _mobileResultHost.IsVisible = _mobileResultBanner?.IsVisible == true;
+        }
+    }
+
+    /// <summary>Подсвечивает доску цветом итога: выигрыш, проигрыш или ничья.</summary>
+    /// <remarks>
+    /// Рамку по краю доски рисует рендерер, а решение «выиграл или проиграл» принимает модель
+    /// представления: отрисовка не знает ни про счёт, ни про цвет игрока.
+    /// </remarks>
+    private void RefreshOutcomeHighlight()
+    {
+        if (_boardControl is null)
+        {
+            return;
+        }
+
+        _boardControl.Outcome = ViewModel.ResultTone switch
+        {
+            GameTone.Win => BoardOutcome.Win,
+            GameTone.Loss => BoardOutcome.Loss,
+            GameTone.Draw => BoardOutcome.Draw,
+            _ => BoardOutcome.None
+        };
+    }
+
+    /// <summary>Ставит текст, если элемент нашёлся в разметке.</summary>
+    /// <param name="target">Элемент или <c>null</c>, если его нет в этой раскладке.</param>
+    /// <param name="text">Новый текст.</param>
+    private static void SetText(TextBlock? target, string? text)
+    {
+        if (target is not null)
+        {
+            target.Text = text ?? string.Empty;
+        }
+    }
+
+    /// <summary>Ставит подпись кнопки, если она нашлась в разметке.</summary>
+    /// <param name="target">Кнопка или <c>null</c>, если её нет в этой раскладке.</param>
+    /// <param name="text">Новая подпись.</param>
+    private static void SetText(Button? target, string text)
+    {
+        if (target is not null)
+        {
+            target.Content = text;
+        }
     }
 
     /// <summary>Показывает на доске пометки мёртвых камней.</summary>
@@ -746,6 +945,9 @@ public sealed partial class BoardView : UserControl
         if (e.PropertyName == nameof(MainViewModel.LastMove))
         {
             _boardControl?.Animate(ViewModel.LastMove, ViewModel.LastCaptured, ViewModel.LastCapturedColor);
+
+            // Звук — там же, где анимация: он её сопровождает, а не живёт отдельно.
+            _ = StoneSoundPlayer.Shared.OnMove(ViewModel.MoveNumber, ViewModel.LastCaptured);
             RefreshSummary();
             return;
         }
@@ -767,7 +969,9 @@ public sealed partial class BoardView : UserControl
         // Партия пересоздана (смена доски, уровня, настроек) — списки выбора должны это показать.
         if (e.PropertyName is nameof(MainViewModel.LevelLabels)
             or nameof(MainViewModel.SelectedLevelIndex)
-            or nameof(MainViewModel.SelectedSizeIndex))
+            or nameof(MainViewModel.SelectedSizeIndex)
+            or nameof(MainViewModel.LevelDescription)
+            or nameof(MainViewModel.HasLevelHint))
         {
             SyncCombos();
             RefreshSummary();
@@ -784,6 +988,13 @@ public sealed partial class BoardView : UserControl
             or nameof(MainViewModel.CapturedWhite)
             or nameof(MainViewModel.Komi)
             or nameof(MainViewModel.Board))
+        {
+            RefreshSummary();
+            return;
+        }
+
+        // Кнопка «Начать партию» / «Новая партия»: подпись меняется на первом ходу партии.
+        if (e.PropertyName is nameof(MainViewModel.IsFirstMove))
         {
             RefreshSummary();
         }
@@ -866,6 +1077,28 @@ public sealed partial class BoardView : UserControl
         if (this.FindControl<Button>(name) is { } button)
         {
             button.Click += handler;
+        }
+    }
+
+    /// <summary>Подписывает пункт меню на обработчик.</summary>
+    /// <param name="name">Имя пункта.</param>
+    /// <param name="handler">Обработчик нажатия.</param>
+    private void WireMenuItem(string name, EventHandler<RoutedEventArgs> handler)
+    {
+        if (this.FindControl<MenuItem>(name) is { } item)
+        {
+            item.Click += handler;
+        }
+    }
+
+    /// <summary>Раскрывает и сворачивает подробности настольной панели.</summary>
+    /// <param name="sender">Переключатель «Подробности».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnDetailsToggleClick(object? sender, RoutedEventArgs e)
+    {
+        if (_desktopDetails is not null)
+        {
+            _desktopDetails.IsVisible = _desktopDetailsButton?.IsChecked == true;
         }
     }
 

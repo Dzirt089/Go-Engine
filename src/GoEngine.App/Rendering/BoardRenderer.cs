@@ -90,6 +90,21 @@ public static class BoardRenderer
     /// <summary>Доля радиуса камня, которую занимает кольцо подсказки.</summary>
     private const float HintRadiusRatio = 1.3f;
 
+    /// <summary>Цвет подсветки выигранной партии: синий, как акцент приложения.</summary>
+    private static readonly SKColor WinHighlightColor = new(0x1B, 0x6F, 0xE0);
+
+    /// <summary>Цвет подсветки проигранной партии.</summary>
+    private static readonly SKColor LossHighlightColor = new(0xB3, 0x26, 0x1E);
+
+    /// <summary>Цвет подсветки ничьей.</summary>
+    private static readonly SKColor DrawHighlightColor = new(0x5B, 0x6B, 0x7C);
+
+    /// <summary>Толщина рамки подсветки в пикселях.</summary>
+    private const float OutcomeStrokeWidth = 3f;
+
+    /// <summary>Насколько отступает рамка подсветки от края доски, в пикселях.</summary>
+    private const float OutcomeInset = 1.5f;
+
     /// <summary>Буквы столбцов: латинские без «I», как принято в Го.</summary>
     private const string ColumnLetters = "ABCDEFGHJKLMNOPQRST";
 
@@ -105,6 +120,7 @@ public static class BoardRenderer
     /// <param name="deadPoints">Камни, помеченные мёртвыми при подсчёте, или <c>null</c>.</param>
     /// <param name="hint">Точка подсказки или <c>null</c>.</param>
     /// <param name="showCoordinates">Рисовать ли подписи координат.</param>
+    /// <param name="outcome">Итог партии для подсветки края доски; <see cref="BoardOutcome.None"/> — без подсветки.</param>
     /// <remarks>
     /// Координаты можно выключить: на телефоне доска 19×19 занимает те же точки, что и 9×9,
     /// и подписи в поле вокруг сетки становятся нечитаемыми. Решение принимает раскладка
@@ -121,12 +137,18 @@ public static class BoardRenderer
         IReadOnlyList<StoneColor>? territory = null,
         IReadOnlyList<Point>? deadPoints = null,
         Point? hint = null,
-        bool showCoordinates = true)
+        bool showCoordinates = true,
+        BoardOutcome outcome = BoardOutcome.None)
     {
         ArgumentNullException.ThrowIfNull(canvas);
         ArgumentNullException.ThrowIfNull(board);
 
         var geometry = BoardGeometry.Fit(board.Size, width, height);
+
+        // Подсветка итога рисуется до сетки и камней: это рамка по краю доски, а не плёнка
+        // поверх позиции — закрывать камни цветом нельзя, иначе в конце партии позиция
+        // становится нечитаемой.
+        DrawOutcomeFrame(canvas, width, height, outcome);
 
         // Фон рисуется прямоугольником отведённой области, а не canvas.Clear: Clear закрашивает
         // весь холст вместе с частями окна за границами элемента.
@@ -152,6 +174,49 @@ public static class BoardRenderer
         {
             DrawHint(canvas, geometry, hintPoint);
         }
+    }
+
+    /// <summary>Рисует рамку подсветки итога по краю доски.</summary>
+    /// <param name="canvas">Холст Skia.</param>
+    /// <param name="width">Ширина области рисования.</param>
+    /// <param name="height">Высота области рисования.</param>
+    /// <param name="outcome">Итог партии: <see cref="BoardOutcome.None"/> — рамки нет.</param>
+    /// <remarks>
+    /// Рамка, а не заливка: заливка цветом поверх дерева делала бы камни и знаки территории
+    /// тусклыми, а на телефоне ещё и мешала бы читать позицию. Рамка видна и не мешает.
+    /// Цвет — глазами игрока: синий выигрыш, красный проигрыш, серый ничья.
+    /// </remarks>
+    private static void DrawOutcomeFrame(SKCanvas canvas, float width, float height, BoardOutcome outcome)
+    {
+        if (outcome == BoardOutcome.None)
+        {
+            return;
+        }
+
+        var color = outcome switch
+        {
+            BoardOutcome.Win => WinHighlightColor,
+            BoardOutcome.Loss => LossHighlightColor,
+            _ => DrawHighlightColor
+        };
+
+        var half = OutcomeStrokeWidth / 2;
+
+        using var paint = new SKPaint
+        {
+            Color = color,
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = OutcomeStrokeWidth
+        };
+
+        canvas.DrawRect(
+            new SKRect(
+                OutcomeInset + half,
+                OutcomeInset + half,
+                width - OutcomeInset - half,
+                height - OutcomeInset - half),
+            paint);
     }
 
     /// <summary>Помечает камни, отмеченные мёртвыми при подсчёте.</summary>

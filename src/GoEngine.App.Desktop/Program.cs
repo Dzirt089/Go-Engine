@@ -127,6 +127,12 @@ internal static class Program
             return CheckModes.Problems();
         }
 
+        if (args.Contains(ModeArguments.Result))
+        {
+            // Проверка строк итога: ими игрок читает, выиграл он или проиграл.
+            return CheckModes.ResultLines();
+        }
+
         if (args.Contains(ModeArguments.State))
         {
             // Проверка панели статуса без окна: модель представления показывает данные партии.
@@ -140,6 +146,9 @@ internal static class Program
             Console.WriteLine($"Go Engine: доска отрисована в {path}.");
             return 0;
         }
+
+        // Голова решает, играть ли звук вообще: система может просить обойтись без анимаций.
+        App.Sound = DesktopSoundPlayer.Create();
 
         LoadNetwork();
         ConfigureUpdates();

@@ -8,15 +8,29 @@
 
   <!-- Один и тот же вид работает в настольном окне и на телефоне.
        Раскладку выбирает код вида (BoardView.axaml.cs) по правилам BoardLayoutRules:
-       шире 760 точек — прежний настольный вид: доска слева, панель управления справа;
-       уже — мобильный: доска на весь экран, действия поверх доски, шторка сведений снизу.
+       шире 760 точек — настольный вид: доска слева, панель управления справа;
+       уже — мобильный: доска на весь экран, действия над ней, шторка сведений снизу.
        Цвета берутся из темы (DynamicResource), а не задаются жёстко: иначе на тёмной теме
-       системы светлый текст попадал бы на светлый фон и панель было не прочитать. -->
+       системы светлый текст попадал бы на светлый фон и панель было не прочитать.
+
+       Тексты в разметке не дублируются: строки состояния, счёта и итога собирает модель
+       представления и чистые функции GameStatusLines, а вид только подставляет их. Правило
+       записано после жалобы 2026-09-30: одна и та же мысль стояла в трёх местах сразу. -->
+
+  <UserControl.Resources>
+    <!-- Файловые действия телефона: сохранить и загрузить. Отдельная кнопка «Файл» с меню
+         вместо двух кнопок — так строка действий остаётся читаемой в 360 точках, а редкие
+         действия не спорят за место с ходом партии. -->
+    <MenuFlyout x:Key="FileActionsFlyout">
+      <MenuItem x:Name="MobileSaveMenuItem" Header="Сохранить партию" />
+      <MenuItem x:Name="MobileLoadMenuItem" Header="Загрузить партию" />
+    </MenuFlyout>
+  </UserControl.Resources>
 
   <Panel x:Name="Root">
 
-    <!-- Настольная раскладка: как была. Панель справа прокручивается и содержит всё, что не
-         поместилось: статус, выбор доски и уровня, сохранение и загрузка, настройки. -->
+    <!-- Настольная раскладка. Панель справа прокручивается и содержит то, что не поместилось:
+         состояние, счёт, выбор доски и уровня, сохранение и загрузка, настройки. -->
     <Grid x:Name="Layout" ColumnDefinitions="*,320">
 
       <!-- Доска одна на обе раскладки: при переключении она переносится в другое место
@@ -35,43 +49,35 @@
               BorderThickness="1,0,0,0"
               Padding="12,10">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <StackPanel Spacing="4">
+          <StackPanel Spacing="8">
 
-            <TextBlock Text="Партия" FontSize="16" FontWeight="SemiBold" />
+            <!-- Итог партии стоит первым в панели и не уезжает при прокрутке: после конца партии
+                 игрок должен видеть исход сразу, а не искать его (жалоба 2026-09-30). -->
+            <views:GameResultBanner x:Name="DesktopResultBanner" />
 
-            <TextBlock Text="{Binding Status, StringFormat='Статус: {0}'}"
+            <!-- Состояние партии: кто ходит и что происходит. Итог называет баннер, поэтому
+                 здесь его нет — иначе одно и то же сообщение стояло бы дважды. -->
+            <TextBlock x:Name="DesktopStatusText"
+                       FontSize="16"
                        FontWeight="SemiBold"
                        TextWrapping="Wrap" />
-            <!-- Итог показывает код вида: до подтверждения подсчёта победитель не называется. -->
-            <TextBlock x:Name="DesktopOutcomeText" TextWrapping="Wrap" IsVisible="False" />
 
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <TextBlock Text="{Binding ToMove, StringFormat='Ход: {0}'}" />
-              <TextBlock Text="{Binding MoveNumber, StringFormat='Номер хода: {0}'}" />
-            </StackPanel>
-
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <TextBlock Text="{Binding Komi, StringFormat='Коми: {0}'}" />
-              <TextBlock Text="{Binding PlayerColor, StringFormat='Мой цвет: {0}'}" />
-            </StackPanel>
-
-            <!-- Пленные называются явно: «Снято: чёрных 0, белых 0» читалось как загадка —
-                 непонятно, кто кого взял. Формулировку собирает код вида. -->
-            <TextBlock x:Name="DesktopPrisonersText" TextWrapping="Wrap" />
-
-            <!-- Счёт по основной системе и разбор обеих систем: территория, площадь, пленные,
-                 нейтральные точки. Первой в разборе идёт выбранная система. -->
             <TextBlock x:Name="DesktopScoreText"
-                       TextWrapping="Wrap"
-                       FontWeight="SemiBold" />
+                       FontSize="14"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap" />
+
+            <!-- Счёт по обеим системам: две короткие строки вместо прежнего разбора
+                 с четырьмя повторами «территория + пленные + камни». -->
+            <TextBlock x:Name="DesktopScoreDetailText"
+                       Classes="app-label"
+                       TextWrapping="Wrap" />
 
             <!-- Согласование мёртвых групп после двух пасов: пока идёт подсчёт, щелчок по доске
-                 помечает группу, а не играет ход. Стоит выше разбора счёта: во время согласования
-                 это главное действие, и оно должно быть видно без прокрутки. Видна только в этом
-                 режиме. -->
+                 помечает группу, а не играет ход. Стоит выше прочего: во время согласования
+                 это главное действие. Видна только в этом режиме. -->
             <Border x:Name="DesktopCountingPanel"
                     IsVisible="{Binding IsCounting}"
-                    Margin="0,6,0,0"
                     Padding="10,8"
                     CornerRadius="8"
                     Background="{DynamicResource AppAccentSoftBrush}">
@@ -87,62 +93,54 @@
               </StackPanel>
             </Border>
 
-            <TextBlock Text="{Binding ScoreDetail}" TextWrapping="Wrap" Classes="app-label" />
-
-            <!-- Разметка территории: чёрный квадрат — территория чёрных, белый квадрат с обводкой —
-                 белых, серый крест — нейтральные точки. В завершённой партии показывается сама,
-                 во время партии включается переключателем. -->
-            <ToggleButton x:Name="TerritoryButton"
-                          Content="Территория"
-                          MinHeight="44"
-                          Margin="0,6,0,0"
-                          HorizontalAlignment="Stretch"
-                          HorizontalContentAlignment="Center"
-                          ToolTip.Tip="Показать, кому принадлежат пустые точки"
-                          IsChecked="{Binding ShowTerritory}" />
-            <TextBlock Text="{Binding TerritorySummary}"
-                       TextWrapping="Wrap"
-                       IsVisible="{Binding HasTerritory}" />
-
-            <TextBlock Text="Соперник" FontSize="14" FontWeight="SemiBold" Margin="0,6,0,0" />
-            <TextBlock Text="{Binding LevelDescription}" TextWrapping="Wrap" />
-            <TextBlock Text="{Binding LevelHint}"
-                       TextWrapping="Wrap"
-                       FontStyle="Italic"
-                       IsVisible="{Binding HasLevelHint}"
-                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-
-            <!-- Сообщения о сохранении, загрузке и отказах: на телефоне системных диалогов нет. -->
-            <TextBlock x:Name="Hint"
-                       TextWrapping="Wrap"
-                       IsVisible="False"
-                       Margin="0,4,0,0"
-                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-
-            <!-- Кнопки не меньше 44 точек по высоте: это размер, по которому попадает палец. -->
-            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,8,0,0">
-              <Button x:Name="PassButton" Content="Пас" Classes="accent" MinHeight="44" MinWidth="84" />
-              <!-- Кнопки недоступны, когда действие невозможно: отмена обязана вернуть ход
-                   игроку (CanUndo), возврат — тоже (CanRedo). -->
+            <!-- Действия в один ряд: пас, отмена, возврат, территория и новая партия.
+                 Ряд одинаков на обеих раскладках и отличается только размерами (жалоба 2026-09-30:
+                 «перенеси кнопку территория наверх, рядом с другими кнопками»). -->
+            <!-- Ряд действий: равные доли ширины панели, а не ширина по содержимому.
+                 В прошлый раз кнопки стояли в StackPanel, и подпись «Начать партию»
+                 не помещалась — кнопка уезжала за край (проверено живым прогоном 2026-09-30). -->
+            <Grid x:Name="DesktopActionRow"
+                  Classes="app-action-row"
+                  ColumnDefinitions="*,*,*,*"
+                  Margin="0,2,0,0">
+              <Button x:Name="PassButton"
+                      Grid.Column="0"
+                      Content="Пас"
+                      Classes="app-row-action primary" />
               <Button x:Name="UndoButton"
+                      Grid.Column="1"
                       Content="Отменить"
-                      MinHeight="44"
+                      Classes="app-row-action"
                       IsEnabled="{Binding CanUndo}" />
               <Button x:Name="RedoButton"
+                      Grid.Column="2"
                       Content="Вернуть"
-                      MinHeight="44"
+                      Classes="app-row-action"
                       IsEnabled="{Binding CanRedo}" />
-            </StackPanel>
+              <ToggleButton x:Name="TerritoryButton"
+                            Grid.Column="3"
+                            Content="Территория"
+                            Classes="app-toggle"
+                            ToolTip.Tip="Показать, кому принадлежат пустые точки"
+                            IsVisible="{Binding CanToggleTerritory}"
+                            IsChecked="{Binding ShowTerritory}" />
+            </Grid>
 
-            <Grid ColumnDefinitions="Auto,*" Margin="0,8,0,0">
+            <!-- Сведения о партии одной строкой: соперник, номер хода и коми. -->
+            <TextBlock x:Name="DesktopStatsText"
+                       Classes="app-label"
+                       TextWrapping="Wrap" />
+
+            <!-- Списки доски и уровня: ими игрок выбирает, с чем играть, поэтому они видны
+                 всегда. Списки заполняет код вида (BoardView.axaml.cs), а не привязка: список
+                 выбора сбрасывает индекс при подмене ItemsSource и вернул бы его в модель
+                 представления, из-за чего партия начиналась не с выбранным уровнем. -->
+            <Grid ColumnDefinitions="Auto,*">
               <TextBlock Text="Доска" VerticalAlignment="Center" />
-              <!-- Списки заполняет код вида (BoardView.axaml.cs), а не привязка: список выбора
-                   сбрасывает индекс при подмене ItemsSource и вернул бы его в модель представления,
-                   из-за чего партия начиналась не с выбранным уровнем. -->
               <ComboBox x:Name="SizeBox"
                         Grid.Column="1"
                         Margin="8,0,0,0"
-                        MinHeight="44"
+                        MinHeight="40"
                         HorizontalAlignment="Stretch" />
             </Grid>
 
@@ -151,39 +149,71 @@
               <ComboBox x:Name="LevelBox"
                         Grid.Column="1"
                         Margin="8,0,0,0"
-                        MinHeight="44"
+                        MinHeight="40"
                         HorizontalAlignment="Stretch" />
             </Grid>
 
-            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" Margin="0,10,0,0">
-              <Button x:Name="NewGameButton"
-                      Content="Новая партия"
-                      MinHeight="44"
-                      Margin="0,0,3,0"
-                      HorizontalAlignment="Stretch"
-                      HorizontalContentAlignment="Center" />
+            <!-- Сообщения о сохранении, загрузке и отказах: на телефоне системных диалогов нет.
+                 Строка исчезает сама через несколько секунд (BoardView.axaml.cs). -->
+            <TextBlock x:Name="Hint"
+                       TextWrapping="Wrap"
+                       IsVisible="False"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+
+            <!-- Подробности свёрнуты по умолчанию: постоянные строки про пленных и площадь
+                 занимали пол-панели и повторяли то, что и так видно на доске. Разворачивает
+                 их игрок, а не приложение за него. -->
+            <ToggleButton x:Name="DesktopDetailsButton"
+                          Content="Подробности"
+                          Classes="app-toggle"
+                          Margin="0,2,0,0"
+                          HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Center" />
+
+            <StackPanel x:Name="DesktopDetailsPanel" Spacing="6" IsVisible="False">
+              <TextBlock x:Name="DesktopPrisonersText"
+                         Classes="app-label"
+                         TextWrapping="Wrap" />
+              <TextBlock x:Name="DesktopBreakdownText"
+                         Classes="app-label"
+                         TextWrapping="Wrap" />
+              <!-- Подсказка о том, почему уровней с сетью нет: строка нужна, но показывается
+                   только когда есть что сказать. -->
+              <TextBlock x:Name="DesktopLevelHintText"
+                         Classes="app-label"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+
+            <!-- Главное действие партии — отдельной крупной кнопкой во всю ширину панели.
+                 В ряду действий подпись «Начать партию» не помещалась: пять кнопок на 320 точек
+                 панели обрезали её (проверено живым прогоном 2026-09-30). -->
+            <Button x:Name="NewGameButton"
+                    Content="Начать партию"
+                    Classes="app-primary"
+                    Margin="0,2,0,0"
+                    HorizontalAlignment="Stretch" />
+
+            <Grid ColumnDefinitions="*,*,*">
               <Button x:Name="SettingsButton"
-                      Grid.Column="1"
                       Content="Настройки…"
-                      MinHeight="44"
-                      Margin="3,0,0,0"
+                      MinHeight="40"
+                      Margin="0,0,3,0"
                       ToolTip.Tip="Размер доски, уровень AI, цвет игрока и коми"
                       HorizontalAlignment="Stretch"
                       HorizontalContentAlignment="Center" />
               <Button x:Name="SaveButton"
-                      Grid.Row="1"
-                      Content="Сохранить…"
-                      MinHeight="44"
-                      Margin="0,6,3,0"
+                      Grid.Column="1"
+                      Content="Сохранить"
+                      MinHeight="40"
+                      Margin="3,0,3,0"
                       ToolTip.Tip="Сохранить партию в файл SGF"
                       HorizontalAlignment="Stretch"
                       HorizontalContentAlignment="Center" />
               <Button x:Name="LoadButton"
-                      Grid.Row="1"
-                      Grid.Column="1"
-                      Content="Загрузить…"
-                      MinHeight="44"
-                      Margin="3,6,0,0"
+                      Grid.Column="2"
+                      Content="Загрузить"
+                      MinHeight="40"
+                      Margin="3,0,0,0"
                       ToolTip.Tip="Загрузить партию из файла SGF"
                       HorizontalAlignment="Stretch"
                       HorizontalContentAlignment="Center" />
@@ -195,16 +225,27 @@
 
     </Grid>
 
-    <!-- Мобильная раскладка: доска занимает весь экран, действия — компактной панелью поверх
-         доски, состояние и подробности — в шторке снизу с ручкой. -->
+    <!-- Мобильная раскладка: доска занимает экран, действия — над доской, состояние и
+         подробности — в шторке снизу с ручкой. -->
     <Grid x:Name="MobileLayout"
           IsVisible="False"
-          RowDefinitions="Auto,*,Auto"
+          RowDefinitions="Auto,Auto,*,Auto"
           Background="{DynamicResource AppBoardBackdropBrush}">
+
+      <!-- Итог партии на телефоне — отдельная строка над доской: в свёрнутой шторке его
+           не видно, а поверх доски карточка закрывала бы позицию и верхние ряды. -->
+      <Border x:Name="MobileResultHost"
+              Grid.Row="0"
+              IsVisible="False"
+              Background="{DynamicResource AppSurfaceBrush}"
+              BorderBrush="{DynamicResource AppBorderBrush}"
+              BorderThickness="0,0,0,1">
+        <views:GameResultBanner x:Name="MobileResultBanner" />
+      </Border>
 
       <!-- Строка состояния: кто ходит и номер хода. Подробности (счёт, пленные, коми) — в шторке:
            на узком экране одна строка несёт одно главное сообщение. -->
-      <Border Grid.Row="0"
+      <Border Grid.Row="1"
               x:Name="MobileStatus"
               Background="{DynamicResource AppSurfaceBrush}"
               BorderBrush="{DynamicResource AppBorderBrush}"
@@ -241,8 +282,8 @@
         </Grid>
       </Border>
 
-      <!-- Доска и панель действий поверх неё. -->
-      <Panel Grid.Row="1">
+      <!-- Доска, приглашение подтвердить подсчёт и панель действий над ней. -->
+      <Panel Grid.Row="2">
         <Border x:Name="MobileBoardHost"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center" />
@@ -267,23 +308,57 @@
           </StackPanel>
         </Border>
 
+        <!-- Панель действий: два ряда. В первом — четыре действия партии, во втором —
+             «Начать партию» во всю ширину: до первого хода это главное действие экрана.
+             Пять кнопок в один ряд в 360 точек не помещались (жалоба 2026-09-30). -->
         <Border x:Name="MobileActionBar"
                 Classes="app-card"
                 Padding="6"
-                Margin="8,0,8,10"
+                Margin="8,0,8,8"
                 VerticalAlignment="Bottom"
                 HorizontalAlignment="Center">
-          <StackPanel Orientation="Horizontal" Spacing="4">
-            <Button x:Name="MobilePassButton" Content="Пас" Classes="app-action app-action-bar app-primary" />
-            <Button x:Name="MobileUndoButton"
-                    Content="Отменить"
-                    Classes="app-action app-action-bar"
-                    IsEnabled="{Binding CanUndo}" />
-            <Button x:Name="MobileRedoButton"
-                    Content="Вернуть"
-                    Classes="app-action app-action-bar"
-                    IsEnabled="{Binding CanRedo}" />
-            <Button x:Name="MobileNewGameButton" Content="Новая партия" Classes="app-action app-action-bar" />
+          <!-- Две строки фиксированной высоты: кнопка территории прячется, когда разметка
+               включается сама, и панель не должна от этого прыгать. Во второй строке —
+               «Начать партию» и «Файл» с сохранением и загрузкой: три кнопки в ряд здесь
+               не помещаются, а файловые действия нужны редко. -->
+          <StackPanel Spacing="6">
+            <Grid x:Name="MobileActionRow" ColumnDefinitions="*,*,*,*" Classes="app-touch-row touch">
+              <Button x:Name="MobilePassButton"
+                      Grid.Column="0"
+                      Content="Пас"
+                      Classes="app-touch primary" />
+              <Button x:Name="MobileUndoButton"
+                      Grid.Column="1"
+                      Content="Отменить"
+                      Classes="app-touch"
+                      IsEnabled="{Binding CanUndo}" />
+              <Button x:Name="MobileRedoButton"
+                      Grid.Column="2"
+                      Content="Вернуть"
+                      Classes="app-touch"
+                      IsEnabled="{Binding CanRedo}" />
+              <ToggleButton x:Name="MobileTerritoryButton"
+                            Grid.Column="3"
+                            Content="Территория"
+                            Classes="app-touch-toggle"
+                            IsVisible="{Binding CanToggleTerritory}"
+                            IsChecked="{Binding ShowTerritory}" />
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto">
+              <Button x:Name="MobileNewGameButton"
+                      Grid.Column="0"
+                      Content="Начать партию"
+                      Classes="app-touch primary"
+                      HorizontalAlignment="Stretch" />
+              <!-- Расстояние между кнопками — отступом: RowSpacing и ColumnSpacing у Grid
+                   в Avalonia 11.2 нет (проверено сборкой, AVLN2000). -->
+              <Button x:Name="MobileFileButton"
+                      Grid.Column="1"
+                      Content="Файл"
+                      Classes="app-touch"
+                      Margin="6,0,0,0"
+                      Flyout="{StaticResource FileActionsFlyout}" />
+            </Grid>
           </StackPanel>
         </Border>
       </Panel>
@@ -291,7 +366,7 @@
       <!-- Шторка сведений: свёрнута — короткое состояние, развёрнута — подробности.
            Ручка и строка состояния вместе дают цель нажатия выше 48 точек. -->
       <Border x:Name="Sheet"
-              Grid.Row="2"
+              Grid.Row="3"
               Background="{DynamicResource AppSurfaceBrush}"
               BorderBrush="{DynamicResource AppBorderBrush}"
               BorderThickness="0,1,0,0"
@@ -347,19 +422,13 @@
 
               <TextBlock Classes="app-subtitle" Text="Подробности" />
 
-              <TextBlock Classes="app-value" Text="{Binding Status, StringFormat='Статус: {0}'}" />
-              <TextBlock x:Name="MobileOutcomeText"
-                         Classes="app-value"
-                         IsVisible="False"
-                         FontWeight="SemiBold"
-                         Foreground="{DynamicResource AppAccentBrush}" />
+              <TextBlock x:Name="MobileStatusText" Classes="app-value" />
 
               <!-- Пленные, счёт по основной системе и разбор обеих систем: тот же порядок,
                    что и в настольной панели. -->
-              <TextBlock x:Name="MobilePrisonersText" Classes="app-value" />
-              <TextBlock x:Name="MobileScoreText"
-                         Classes="app-value"
-                         FontWeight="SemiBold" />
+              <TextBlock x:Name="MobilePrisonersText" Classes="app-value" FontWeight="SemiBold" />
+              <TextBlock x:Name="MobileScoreText" Classes="app-value" FontWeight="SemiBold" />
+              <TextBlock x:Name="MobileScoreDetailText" Classes="app-label" TextWrapping="Wrap" />
 
               <Border x:Name="SheetCountingPanel"
                       IsVisible="{Binding IsCounting}"
@@ -378,27 +447,19 @@
                 </StackPanel>
               </Border>
 
-              <TextBlock Classes="app-label" Text="{Binding ScoreDetail}" TextWrapping="Wrap" />
+              <TextBlock x:Name="MobileBreakdownText"
+                         Classes="app-label"
+                         TextWrapping="Wrap"
+                         IsVisible="{Binding HasTerritory}" />
 
-              <WrapPanel>
-                <TextBlock Classes="app-label" Margin="0,0,12,0" Text="{Binding ToMove, StringFormat='Ход: {0}'}" />
-                <TextBlock Classes="app-label" Margin="0,0,12,0" Text="{Binding MoveNumber, StringFormat='Номер хода: {0}'}" />
-                <TextBlock Classes="app-label" Margin="0,0,12,0" Text="{Binding Komi, StringFormat='Коми: {0}'}" />
-                <TextBlock Classes="app-label" Text="{Binding PlayerColor, StringFormat='Мой цвет: {0}'}" />
-              </WrapPanel>
+              <TextBlock x:Name="MobileStatsText" Classes="app-label" TextWrapping="Wrap" />
 
-              <TextBlock Classes="app-label" Text="{Binding LevelDescription, StringFormat='Соперник: {0}'}" />
               <TextBlock Classes="app-label"
                          Text="{Binding LevelHint}"
                          IsVisible="{Binding HasLevelHint}"
                          FontStyle="Italic" />
 
               <WrapPanel>
-                <ToggleButton x:Name="MobileTerritoryButton"
-                              Content="Территория"
-                              Classes="app-action"
-                              Margin="0,0,6,6"
-                              IsChecked="{Binding ShowTerritory}" />
                 <Button x:Name="MobileSaveButton"
                         Content="Сохранить"
                         Classes="app-action"
@@ -407,6 +468,8 @@
                         Content="Загрузить"
                         Classes="app-action"
                         Margin="0,0,6,6" />
+                <!-- Единственный вход в настройки на телефоне: кнопка в панели действий
+                     переехала сюда, чтобы не теснить «Начать партию» (жалоба 2026-09-30). -->
                 <Button x:Name="MobileSettingsButton"
                         Content="Настройки"
                         Classes="app-action"
@@ -423,7 +486,7 @@
 
     <!-- Настройки поверх вида: окон на телефоне нет, поэтому тот же SettingsView показывается
          здесь. На узком экране это отдельный экран во всю высоту с заголовком и кнопкой «Назад»,
-         на настольной версии — прежняя карточка по центру, а кнопка «Настройки» открывает окно
+         на настольной версии — карточка по центру, а кнопка «Настройки» открывает окно
          (SettingsWindow). -->
     <Border x:Name="SettingsOverlay"
             IsVisible="False"
@@ -449,7 +512,7 @@
                       AutomationProperties.Name="Назад" />
               <TextBlock Grid.Column="1"
                          Classes="app-subtitle"
-                         Text="Настройки партии"
+                         Text="Партия"
                          HorizontalAlignment="Center"
                          VerticalAlignment="Center" />
               <Border Grid.Column="2" Width="66" />

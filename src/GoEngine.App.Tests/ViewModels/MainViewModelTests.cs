@@ -72,8 +72,9 @@ public sealed class MainViewModelTests
     {
         var model = Create(level: DifficultyLevel.Kyu20);
 
-        // 20 кю играет поиском и без модели считает playout'ы (D-054).
-        Assert.Equal("20 кю · MCTS без сети · 24 playout'а", model.LevelDescription);
+        // 20 кю играет поиском, а без модели — перебором (D-045): подпись называет его
+        // понятным словом, без «MCTS» и служебного числа доигрываний (жалоба 2026-09-30).
+        Assert.Equal("20 кю · перебор", model.LevelDescription);
     }
 
     [Fact]
@@ -81,7 +82,7 @@ public sealed class MainViewModelTests
     {
         var model = Create(level: DifficultyLevel.Dan5, modelSizes: new HashSet<int> { 9 });
 
-        Assert.Equal("5 дан · нейросеть 9×9 · 44 итерации", model.LevelDescription);
+        Assert.Equal("5 дан · нейросеть 9×9", model.LevelDescription);
     }
 
     [Fact]
@@ -238,18 +239,16 @@ public sealed class MainViewModelTests
             var level = options[index];
             var label = model.LevelLabels[index];
 
-            // Список выбора показывает ту же подпись, что и панель партии: движок, размер
-            // доски и бюджет (D-045).
+            // Список выбора показывает ту же подпись, что и панель партии: ранг и движок,
+            // который сядет играть на этой доске (D-045, D-048).
             Assert.Equal(LevelChooser.Describe(level, model.Board.Size, true), label);
             Assert.Contains(LevelChooser.Rank(level), label, StringComparison.Ordinal);
 
-            // Бюджет в подписи: у уровня с сетью — итерации для этой доски, у остальных —
-            // бюджет уровня без сети (D-054).
-            var budget = level.NeuralBudget is { } neural
-                ? $"{neural.For(model.Board.Size)} итерац"
-                : LevelChooser.Budget(level);
-
-            Assert.Contains(budget, label, StringComparison.Ordinal);
+            // Служебных чисел в подписи нет: ни итераций, ни секунд на ход (жалоба 2026-09-30).
+            // Служебный бюджет остался отдельной функцией для замеров и логов.
+            Assert.DoesNotContain("итерац", label, StringComparison.Ordinal);
+            Assert.DoesNotContain("с/ход", label, StringComparison.Ordinal);
+            Assert.DoesNotContain("MCTS", label, StringComparison.Ordinal);
         }
     }
 
@@ -316,7 +315,7 @@ public sealed class MainViewModelTests
 
         Assert.Equal(19, model.Board.Size.Value);
         Assert.Equal(DifficultyLevel.Dan5, model.CurrentLevel);
-        Assert.Equal("5 дан · нейросеть 19×19 · 25 итераций", model.LevelDescription);
+        Assert.Equal("5 дан · нейросеть 19×19", model.LevelDescription);
         Assert.Equal(model.SelectedLevelIndex, model.LevelOptions.ToList().IndexOf(DifficultyLevel.Dan5));
     }
 

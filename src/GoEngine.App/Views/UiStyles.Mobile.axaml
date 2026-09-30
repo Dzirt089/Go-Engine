@@ -1,0 +1,120 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Мобильные размеры органов управления: телефон против настольного окна.
+
+       ПОРЯДОК ВКЛЮЧЕНИЯ (App.axaml): UiStyles.axaml -> UiStyles.Mobile.axaml -> UiStyles.Controls.axaml.
+       В Avalonia при равном приоритете побеждает правило, объявленное позже (документация,
+       «Property Setters -> Style Priority»: «the last matching style wins»); специфичности селекторов,
+       как в CSS, здесь нет. Значит правило, объявленное и здесь, и в UiStyles.Controls.axaml, решает
+       общий файл: он идёт последним. Уточнять отсюда можно только те селекторы, которых
+       в UiStyles.axaml и UiStyles.Controls.axaml нет.
+
+       Что это значит для Button.app-banner-action: он объявлен здесь на 48 точек (палец),
+       а в UiStyles.Controls.axaml — на 38 (курсор), и при текущем порядке побеждает 38 на обеих
+       раскладках, то есть и на телефоне. Чтобы телефон получил 48, Controls должен включаться
+       ПЕРЕД этим файлом; иначе размер правится только в Controls.
+       Один селектор даёт одно значение сразу на обе раскладки: разные значения для телефона и
+       настольной системы требуют разных классов, которые ставит код вида.
+
+       ПОЧЕМУ РАЗМЕРЫ РАЗНЫЕ. Телефон: цель нажатия 48 точек — по этому размеру уверенно попадает
+       палец (руководство Android Material, 48dp; Apple HIG называет 44pt, 48 строже и покрывает обе).
+       Настольная система: курсор точнее пальца, достаточно 32 точек, а крупные кнопки на широком
+       экране выглядят громоздко. Числа — из ветки mobile функции PlatformMetrics.For
+       (Services/PlatformMetrics.cs); XAML не умеет вызывать C#-функцию, поэтому они продублированы
+       ключами AppMobile* в UiTheme.axaml. Расхождение чисел — ошибка, а не настройка. -->
+
+  <!-- Кнопка действия в шторке и на экране настроек телефона: «Сохранить», «Загрузить»,
+       «Настройки», «Назад». Высота 48 — палец; отступы у всех кнопок ряда одинаковые,
+       иначе ряд выглядит рваным. -->
+  <Style Selector="Button.app-action">
+    <Setter Property="MinHeight" Value="{DynamicResource AppMobileTapTarget}" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="{DynamicResource AppMobilePaddingAction}" />
+    <Setter Property="FontSize" Value="{DynamicResource AppMobileFontBody}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppMobileRadiusSmall}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- Тот же размер для переключателя: «Территория» — ToggleButton с тем же классом. -->
+  <Style Selector="ToggleButton.app-action">
+    <Setter Property="MinHeight" Value="{DynamicResource AppMobileTapTarget}" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="{DynamicResource AppMobilePaddingAction}" />
+    <Setter Property="FontSize" Value="{DynamicResource AppMobileFontBody}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppMobileRadiusSmall}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- Включённый переключатель обязан быть видно: без подсветки игрок не понимает, включена
+       разметка территории или нет (жалоба 2026-09-30). Цвета ставятся части шаблона
+       PART_ContentPresenter, а не самому ToggleButton: шаблон Fluent рисует подложку и рамку
+       именно на ней, и её собственное значение перекрывает TemplateBinding (документация Avalonia,
+       «Pseudoclass style is not applied»). Без этого включённое состояние выглядит как выключенное. -->
+  <Style Selector="ToggleButton.app-action:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AppAccentSoftBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppAccentBrush}" />
+  </Style>
+
+  <!-- Полужирная подпись: FontWeight шаблон не рисует, его наследует текст содержимого. -->
+  <Style Selector="ToggleButton.app-action:checked">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- То же включённое состояние для обычной кнопки: класс active ставит код вида. -->
+  <Style Selector="Button.app-action.active /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AppAccentSoftBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppAccentBrush}" />
+  </Style>
+
+  <Style Selector="Button.app-action.active">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- Компактная кнопка ряда действий: кегль 13 и узкий отступ, но высота та же — 48: кнопка
+       становится уже, а не мельче, иначе по ней не попасть пальцем. Сейчас класс свободен:
+       ряд действий над доской помечен app-touch (UiStyles.Controls.axaml), кнопки шторки — app-action.
+       Правило оставлено готовым: как только ряд вернётся на этот класс, размеры уже верные. -->
+  <Style Selector="Button.app-action-bar">
+    <Setter Property="MinHeight" Value="{DynamicResource AppMobileTapTarget}" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="{DynamicResource AppMobilePaddingBar}" />
+    <Setter Property="FontSize" Value="{DynamicResource AppMobileFontAction}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppMobileRadiusSmall}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- Главное действие телефона: пас и «Посчитать». Размеры те же, что у кнопок действия, —
+       палец не должен искать мелкую кнопку среди крупных. -->
+  <Style Selector="Button.app-primary">
+    <Setter Property="MinHeight" Value="{DynamicResource AppMobileTapTarget}" />
+    <Setter Property="Padding" Value="{DynamicResource AppMobilePaddingPrimary}" />
+    <Setter Property="FontSize" Value="{DynamicResource AppMobileFontBody}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppMobileRadiusSmall}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- Кнопка действия в баннере итога партии. Настольный размер объявлен в UiStyles.Controls.axaml
+       (38), здесь мобильный — 48: после конца партии «Новая партия» — главное действие, по нему
+       попадают пальцем. О порядке включения и о том, какое правило победит, — комментарий выше. -->
+  <Style Selector="Button.app-banner-action">
+    <Setter Property="MinHeight" Value="{DynamicResource AppMobileTapTarget}" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="{DynamicResource AppMobilePaddingAction}" />
+    <Setter Property="FontSize" Value="{DynamicResource AppMobileFontBody}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppMobileRadiusSmall}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+</Styles>

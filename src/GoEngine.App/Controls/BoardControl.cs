@@ -48,6 +48,10 @@ public sealed class BoardControl : Control
     public static readonly StyledProperty<bool> ShowCoordinatesProperty =
         AvaloniaProperty.Register<BoardControl, bool>(nameof(ShowCoordinates), defaultValue: true);
 
+    /// <summary>Свойство итога партии: по нему доска подсвечивается по краю.</summary>
+    public static readonly StyledProperty<BoardOutcome> OutcomeProperty =
+        AvaloniaProperty.Register<BoardControl, BoardOutcome>(nameof(Outcome));
+
     static BoardControl()
     {
         AffectsRender<BoardControl>(
@@ -57,7 +61,8 @@ public sealed class BoardControl : Control
             TerritoryProperty,
             DeadPointsProperty,
             HintPointProperty,
-            ShowCoordinatesProperty);
+            ShowCoordinatesProperty,
+            OutcomeProperty);
     }
 
     private static readonly TimeProvider Clock = TimeProvider.System;
@@ -155,6 +160,17 @@ public sealed class BoardControl : Control
         set => SetValue(ShowCoordinatesProperty, value);
     }
 
+    /// <summary>Итог партии глазами игрока: доска подсвечивается рамкой по краю.</summary>
+    /// <remarks>
+    /// На телефоне и в настольном окне рамка одного цвета: синий выигрыш, красный проигрыш,
+    /// серый ничья. Решение принимает модель представления, элемент только передаёт его рендереру.
+    /// </remarks>
+    public BoardOutcome Outcome
+    {
+        get => GetValue(OutcomeProperty);
+        set => SetValue(OutcomeProperty, value);
+    }
+
     /// <inheritdoc />
     public override void Render(DrawingContext context)
     {
@@ -182,7 +198,8 @@ public sealed class BoardControl : Control
                 Territory,
                 DeadPoints,
                 HintPoint,
-                ShowCoordinates));
+                ShowCoordinates,
+                Outcome));
         }
     }
 
@@ -276,6 +293,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
     private readonly IReadOnlyList<GoPoint>? _deadPoints;
     private readonly GoPoint? _hint;
     private readonly bool _showCoordinates;
+    private readonly BoardOutcome _outcome;
 
     internal BoardDrawOperation(
         Board board,
@@ -286,7 +304,8 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
         IReadOnlyList<StoneColor>? territory,
         IReadOnlyList<GoPoint>? deadPoints,
         GoPoint? hint,
-        bool showCoordinates)
+        bool showCoordinates,
+        BoardOutcome outcome)
     {
         _board = board;
         _lastMove = lastMove;
@@ -296,6 +315,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
         _deadPoints = deadPoints;
         _hint = hint;
         _showCoordinates = showCoordinates;
+        _outcome = outcome;
         Bounds = bounds;
     }
 
@@ -334,6 +354,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
             _territory,
             _deadPoints,
             _hint,
-            _showCoordinates);
+            _showCoordinates,
+            _outcome);
     }
 }

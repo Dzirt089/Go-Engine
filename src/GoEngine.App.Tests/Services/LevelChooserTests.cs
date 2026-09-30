@@ -82,34 +82,44 @@ public sealed class LevelChooserTests
     }
 
     [Fact]
-    public void Подпись_Уровня_Дан_Читается_Как_Дан()
+    public void Подпись_Уровня_Дан_Не_Содержит_Зауми()
     {
+        // Даны играют только сетью, поэтому второй движок в подписи не упоминается.
+        // Жалоба 2026-09-30: игроку непонятны «MCTS» и число итераций — подпись называет
+        // ранг и понятное слово «нейросеть».
         var label = LevelChooser.Label(DifficultyLevel.Dan5);
 
         Assert.StartsWith("5 дан", label, StringComparison.Ordinal);
         Assert.Contains("нейросеть", label, StringComparison.Ordinal);
-        Assert.Contains("итерац", label, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Подпись_Уровня_Кю_Читается_Как_Кю()
+    public void Подпись_Уровня_Кю_Называет_Оба_Движка()
     {
-        // Кю играют сетью, когда модель для доски есть (D-045): подпись обязана называть сеть,
-        // а не предпочтительный движок. Бюджет в подписи без доски — бюджет уровня без сети (D-054).
+        // Без доски неизвестно, нашлась ли модель (D-045), поэтому названы оба движка:
+        // обещать один значило бы повторить дефект D-048.
         var label = LevelChooser.Label(DifficultyLevel.Kyu10);
 
         Assert.StartsWith("10 кю", label, StringComparison.Ordinal);
-        Assert.Contains("MCTS с сетью", label, StringComparison.Ordinal);
-        Assert.Contains("с/ход", label, StringComparison.Ordinal);
+        Assert.Contains("нейросеть или перебор", label, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Без_Модели_Подпись_Уровня_Кю_Называет_MCTS()
+    public void Точная_Подпись_Уровня_Кю_Без_Модели_Называет_Перебор()
     {
+        // Доска известна и модели для неё нет: движок называется один — перебор.
+        // Служебных чисел (итераций, playout'ов, секунд) в подписи нет: жалоба 2026-09-30.
         var label = LevelChooser.Describe(DifficultyLevel.Kyu10, BoardSize.Size9, false);
 
-        Assert.StartsWith("10 кю", label, StringComparison.Ordinal);
-        Assert.Contains("MCTS без сети", label, StringComparison.Ordinal);
-        Assert.Contains("с/ход", label, StringComparison.Ordinal);
+        Assert.Equal("10 кю · перебор", label);
+    }
+
+    [Fact]
+    public void Точная_Подпись_Уровня_Кю_С_Моделью_Называет_Доску()
+    {
+        // Модель обучена под конкретный размер (D-039), поэтому у сети стоит доска.
+        var label = LevelChooser.Describe(DifficultyLevel.Kyu25, BoardSize.Size13, true);
+
+        Assert.Equal("25 кю · нейросеть 13×13", label);
     }
 }

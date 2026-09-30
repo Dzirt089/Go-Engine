@@ -30,6 +30,7 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
         global::GoEngine.App.Services.Logging.CrashReporter.Install();
 
         AndroidModelStartup.Prepare(this);
+        global::GoEngine.App.App.Sound = new AndroidSoundPlayer(this);
         ConfigureUpdates();
 
         base.OnCreate(savedInstanceState);

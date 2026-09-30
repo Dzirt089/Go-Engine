@@ -157,27 +157,47 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Разбор_Во_Время_Согласования_Говорит_О_Нём()
+    public void Разбор_Говорит_О_Предварительном_Подсчёте()
     {
+        // Пока подсчёт не подтверждён, баннер прямо об этом пишет: игрок должен видеть,
+        // что счёт ещё изменится (жалоба 2026-09-30 — прежние четыре строки разбора путали).
         var model = CreateCountingModel();
 
-        Assert.Contains("Подсчёт не подтверждён", model.ScoreDetail, StringComparison.Ordinal);
+        Assert.Contains("предварительно", model.ResultDetail, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Разбор_Показывает_Пленных_Отдельной_Строкой()
+    public void Пленные_За_Партию_Видны_Отдельной_Строкой()
     {
-        var model = CreateCountingModel();
+        // Позиция канона п. 13.9: белые снимают три чёрных камня ходом. Строка называет именно
+        // снятые по ходам камни: снятые как мёртвые счётчик партии не знает, и они называются
+        // отдельно в PrisonersLine.
+        var model = Create();
+        _ = model.LoadGame(CapturedThreeGame());
 
-        Assert.Contains("Пленные: чёрные взяли 2, белые взяли 0", model.ScoreDetail, StringComparison.Ordinal);
+        Assert.Equal("чёрные 0 : 3 белые", model.Captures);
     }
 
     [Fact]
-    public void Разбор_Показывает_Обе_Системы()
+    public void Строка_О_Пленных_Называет_И_Снятых_Мёртвыми()
+    {
+        // Жалоба 2026-09-30: «пленные 0» рядом со счётом, в котором мёртвые камни уже учтены.
+        // Строка обязана называть обе величины.
+        var model = CreateCountingModel();
+        var dead = model.DeadPoints.Count;
+
+        Assert.Contains($"снято мёртвыми: {dead}", model.PrisonersLine, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Разбор_Называет_Обе_Системы_Одной_Строкой()
     {
         var model = CreateCountingModel();
 
-        Assert.Contains("По площади", model.ScoreDetail, StringComparison.Ordinal);
+        // Первой идёт основная система (японская), второй — китайская; слагаемые в подписи
+        // не расписываются: их видно в расшифровке площади.
+        Assert.Contains("Японская:", model.ScoreDetail, StringComparison.Ordinal);
+        Assert.Contains("Китайская:", model.ScoreDetail, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -191,13 +211,32 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Подтверждение_Фиксирует_Разбор()
+    public void Подтверждение_Показывает_Итог_Словами_Игрока()
     {
         var model = CreateCountingModel();
 
         model.ConfirmScore();
 
-        Assert.Contains("Подсчёт подтверждён", model.ScoreDetail, StringComparison.Ordinal);
+        // Итог называется глазами игрока: цвет победителя сам по себе ничего ему не говорит.
+        Assert.NotEqual(GameTone.None, model.ResultTone);
+        Assert.Contains("Вы ", model.ResultHeadline, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Снятые_Мёртвые_Камни_Приносят_Очки()
+    {
+        // Правила вида спорта «го», пп. 1.10 и 1.12: снятые как мёртвые камни добавляются
+        // к пленникам и приносят очки. Регрессия жалобы 2026-09-30: счёт включал их, а строка
+        // «Пленные» показывала только камни, снятые ходами.
+        var model = CreateCountingModel();
+        var dead = model.DeadPoints.Count;
+        var before = model.Margin;
+
+        model.ConfirmScore();
+
+        Assert.True(dead > 0);
+        Assert.Equal(before, model.Margin);
+        Assert.Contains("снято мёртвыми", model.PrisonersLine, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -396,12 +435,13 @@ public sealed class EndgameScoreTests
         return model;
     }
 
-    /// <summary>Строит партию, в которой чёрные снимают три белых камня, и завершает её двумя пасами.</summary>
+    /// <summary>Строит партию, в которой три камня снимаются ходом, и завершает её двумя пасами.</summary>
     /// <returns>Прочитанная партия для <see cref="MainViewModel.LoadGame"/>.</returns>
     /// <remarks>
-    /// Позиция из <c>GO_RULES.md</c>, п. 13.9. Белая группа (0,0), (1,0), (0,1) получает
-    /// единственное дамэ (0,2); ход чёрных в него снимает все три камня. Дальше обе стороны
-    /// играют по камню вдалеке и пасуют — партия завершается двумя пасами, пленных трое.
+    /// Позиция из <c>GO_RULES.md</c>, п. 13.9: группа (0,0), (1,0), (0,1) получает единственное
+    /// дамэ (0,2), и ход в него снимает все три камня. Дальше обе стороны играют по камню вдалеке
+    /// и пасуют — партия завершается двумя пасами, пленных трое. Цвет снявшего проверяют
+    /// приёмочные тесты счёта: по японской системе снятые камни приносят ему три очка.
     /// </remarks>
     private static SgfGame CapturedThreeGame() => new(
         Size,

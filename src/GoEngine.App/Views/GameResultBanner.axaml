@@ -1,0 +1,40 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="GoEngine.App.Views.GameResultBanner"
+             IsVisible="False">
+
+  <!-- Баннер итога партии: одна карточка на обе раскладки, потому что сообщение одно и то же —
+       партия выиграна, проиграна или ничья. Стоит поверх доски сверху, а не в панели: панель
+       на телефоне свёрнута в шторку, и итог в ней легко не заметить (жалоба 2026-09-30).
+       Содержимое ставит код вида (GameResultBanner.axaml.cs) — строки собирают чистые функции
+       GameStatusLines, чтобы правило «что показывать» проверялось тестами. -->
+  <Border x:Name="BannerCard"
+          Classes="app-banner"
+          Margin="8,8,8,0"
+          Padding="12,10"
+          MaxWidth="420"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Top">
+    <StackPanel Spacing="6">
+
+      <TextBlock x:Name="HeadlineText"
+                 Classes="app-banner-title"
+                 HorizontalAlignment="Center"
+                 TextAlignment="Center" />
+
+      <TextBlock x:Name="DetailText"
+                 Classes="app-banner-detail"
+                 HorizontalAlignment="Center"
+                 TextAlignment="Center" />
+
+      <!-- Действие прямо в баннере: после конца партии игрок чаще всего начинает новую,
+           и искать для этого кнопку в другом месте не нужно. -->
+      <Button x:Name="NewGameButton"
+              Classes="app-banner-action primary touch"
+              Content="Новая партия"
+              HorizontalAlignment="Center" />
+
+    </StackPanel>
+  </Border>
+
+</UserControl>

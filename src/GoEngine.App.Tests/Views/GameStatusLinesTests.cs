@@ -1,3 +1,4 @@
+using GoEngine.App.ViewModels;
 using GoEngine.App.Views;
 
 namespace GoEngine.App.Tests;
@@ -87,5 +88,55 @@ public sealed class GameStatusLinesTests
     {
         Assert.False(GameStatusLines.ShowOutcome(isCounting: true, hasOutcome: true));
         Assert.True(GameStatusLines.ShowOutcome(isCounting: false, hasOutcome: true));
+    }
+
+    [Fact]
+    public void Заголовок_Баннера_Называет_Итог_Словами_Игрока()
+    {
+        // «Победили чёрные» игроку ничего не говорит: важно, выиграл он сам или нет
+        // (жалоба 2026-09-30).
+        var headline = GameStatusLines.ResultHeadline(true, "Победили чёрные", "7.5", GameTone.Win);
+
+        Assert.Equal("Вы победили · +7.5", headline);
+    }
+
+    [Fact]
+    public void Заголовок_Баннера_При_Проигрыше_Показывает_Перевес_Соперника()
+    {
+        var headline = GameStatusLines.ResultHeadline(true, "Победили белые", "2.5", GameTone.Loss);
+
+        Assert.Equal("Вы проиграли · −2.5", headline);
+    }
+
+    [Fact]
+    public void Заголовок_Баннера_При_Ничьей_Без_Перевеса()
+    {
+        var headline = GameStatusLines.ResultHeadline(true, "Ничья", "0", GameTone.Draw);
+
+        Assert.Equal("Ничья", headline);
+    }
+
+    [Fact]
+    public void Без_Итога_Баннер_Пуст()
+    {
+        Assert.Empty(GameStatusLines.ResultHeadline(false, string.Empty, "0", GameTone.None));
+    }
+
+    [Fact]
+    public void Подпись_Баннера_Во_Время_Подсчёта_Предварительная()
+    {
+        var detail = GameStatusLines.ResultDetail(isCounting: true, "Чёрные 0 : 5.5 Белые");
+
+        Assert.Equal("Счёт предварительно: Чёрные 0 : 5.5 Белые", detail);
+    }
+
+    [Fact]
+    public void Строка_Сведений_Собирает_Соперника_Цвет_Ход_И_Коми()
+    {
+        // Четыре отдельные строки панели заменены одной: игроку нужен не столбик, а строка.
+        // Слова короткие намеренно — иначе строка переносится в узкой панели.
+        var stats = GameStatusLines.StatsLine("20 кю · перебор", "чёрные", "12", "5.5");
+
+        Assert.Equal("Соперник: 20 кю · перебор · вы: чёрные · ход №12 · коми 5.5", stats);
     }
 }

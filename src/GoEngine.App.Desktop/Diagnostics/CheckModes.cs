@@ -29,6 +29,76 @@ internal static class CheckModes
     /// <summary>Сколько ходов игрока играет финальный smoke-тест.</summary>
     private const int SmokeMoves = 20;
 
+    /// <summary>Проверяет строки итога партии: выигрыш, проигрыш и ничья словами игрока.</summary>
+    /// <returns>0, если все три исхода называются верно; иначе 1.</returns>
+    /// <remarks>
+    /// Позиция: белая группа в углу доказанно мертва (та же, что в тестах конца партии), партия
+    /// завершена двумя пасами. Играя белыми, игрок проигрывает; играя чёрными — выигрывает.
+    /// Строку собирает та же функция, что и в виде, поэтому проверка совпадает с экраном.
+    /// </remarks>
+    public static int ResultLines()
+    {
+        var failures = 0;
+
+        foreach (var (color, tone, expected) in new[]
+        {
+            (StoneColor.Black, GameTone.Win, "Вы победили"),
+            (StoneColor.White, GameTone.Loss, "Вы проиграли")
+        })
+        {
+            var model = CreateFinishedGame(color);
+            model.ConfirmScore();
+
+            Console.WriteLine($"{(color == StoneColor.Black ? "чёрные" : "белые")}: {model.ResultHeadline} · {model.ResultDetail}");
+            Console.WriteLine($"  пленные: {model.PrisonersLine}");
+
+            if (model.ResultTone != tone || !model.ResultHeadline.StartsWith(expected, StringComparison.Ordinal))
+            {
+                Console.WriteLine($"  ошибка: ожидалось «{expected}» и тон {tone}, получено «{model.ResultHeadline}» и {model.ResultTone}");
+                failures++;
+            }
+        }
+
+        Console.WriteLine(failures == 0
+            ? "Go Engine: итог партии называется словами игрока."
+            : $"Go Engine: ошибок итога — {failures}.");
+
+        return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>Создаёт партию, завершённую двумя пасами, с доказанно мёртвой белой группой в углу.</summary>
+    /// <param name="color">Цвет игрока.</param>
+    /// <returns>Модель представления с идущим согласованием мёртвых групп.</returns>
+    private static MainViewModel CreateFinishedGame(StoneColor color)
+    {
+        var model = new MainViewModel(
+            AppSettings.From(BoardSize.Size9, DifficultyLevel.Kyu20, color, Komi.For9x9),
+            new Random(SeedForChecks));
+
+        var moves = new[]
+        {
+            Move.Play(new GoPoint(2, 0), StoneColor.Black),
+            Move.Play(new GoPoint(0, 0), StoneColor.White),
+            Move.Play(new GoPoint(2, 1), StoneColor.Black),
+            Move.Play(new GoPoint(1, 0), StoneColor.White),
+            Move.Play(new GoPoint(0, 2), StoneColor.Black),
+            Move.Play(new GoPoint(8, 8), StoneColor.White),
+            Move.Play(new GoPoint(1, 2), StoneColor.Black),
+            Move.Play(new GoPoint(8, 7), StoneColor.White),
+            Move.Pass(StoneColor.Black),
+            Move.Pass(StoneColor.White)
+        };
+
+        var loaded = model.LoadGame(new SgfGame(BoardSize.Size9, Komi.For9x9, moves, null));
+
+        if (!loaded.IsSuccess)
+        {
+            throw new DomainException($"Проверочная партия не загрузилась: {loaded.Error}");
+        }
+
+        return model;
+    }
+
     /// <summary>Проверяет, что щелчок по центру точки попадает в неё на всех размерах доски.</summary>
     /// <returns>0, если попадание точное; иначе 1.</returns>
     public static int PointMapping()
@@ -270,7 +340,7 @@ internal static class CheckModes
     {
         var logger = GoEngine.App.Services.Logging.AppLog.For("CrashTest");
 
-        GoEngine.App.Services.Logging.AppLogMessages.NewGame(logger, "9×9", "20 кю · MCTS с сетью 9×9 · 24 playout'а", "Чёрные", "5.5");
+        GoEngine.App.Services.Logging.AppLogMessages.NewGame(logger, "9×9", "20 кю · нейросеть 9×9", "Чёрные", "5.5");
         GoEngine.App.Services.Logging.AppLogMessages.MovePlayed(logger, 1, "Чёрные", "E5");
         GoEngine.App.Services.Logging.AppLogMessages.MovePlayed(logger, 2, "Белые", "C3");
         GoEngine.App.Services.Logging.AppLogMessages.ModeChanged(logger, "Партия");

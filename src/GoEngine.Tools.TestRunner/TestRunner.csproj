@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Прогон тестов в обход vstest. Причина: в этой среде testhost падает на старте с
+    Win32Exception (5) «Отказано в доступе» в Process.EnsureWatchingForExit — хост тестов
+    не может открыть родительский процесс и умирает, не выполнив ни одного теста.
+    Утилита не входит в GoEngine.sln и не является частью продукта: это инструмент проверки.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>GoEngine.Tools.TestRunner</RootNamespace>
+    <AssemblyName>GoEngine.Tools.TestRunner</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- Отчёты xunit о «плохой производительности» старого visitor'а и о неуместных здесь
+         предупреждениях не должны мешать: утилита одноразовая и живёт вне решения. -->
+    <NoWarn>$(NoWarn);CS0618</NoWarn>
+    <StartupObject>Runner</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Версии — в src/Directory.Packages.props (Central Package Management). Ядро xunit кладётся
+         рядом с утилитой: runner.utility ищет xunit.execution.dotnet.dll в своём каталоге,
+         а не в каталоге тестовой сборки. -->
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.utility" />
+  </ItemGroup>
+
+</Project>

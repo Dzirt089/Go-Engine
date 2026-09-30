@@ -1,0 +1,198 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Общие стили органов управления: ряды кнопок над доской, переключатель территории и
+       баннер итога партии. Отдельный файл нужен потому, что UiStyles.axaml описывает мобильный
+       вид целиком, а эти правила работают в обеих раскладках и различаются только размерами.
+
+       Размеры под платформу. На телефоне цель нажатия не меньше 48 точек — по этому размеру
+       уверенно попадает палец (рекомендация Android Material: 48dp), и ряд кнопок делится
+       на равные доли ширины экрана. На настольной версии цель 34 точки: курсор точнее пальца,
+       а крупные кнопки на широком экране выглядят громоздко. Размеры заданы прямо здесь,
+       а не через DynamicResource AppTouchTarget: мобильные кнопки получают 48 из того ресурса,
+       настольные — своё значение, и одно не переопределяет другое. -->
+
+  <!-- Ряд кнопок в панели настольной версии: пять действий в ряд по 320 точкам панели. -->
+  <Style Selector="StackPanel.app-action-row">
+    <Setter Property="Spacing" Value="4" />
+  </Style>
+
+  <Style Selector="Button.app-row-action">
+    <Setter Property="MinHeight" Value="34" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="2,0" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusSmall}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- Главное действие ряда: пас — акцентная кнопка. -->
+  <Style Selector="Button.app-row-action.primary">
+    <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppOnAccentBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- Ряд кнопок над доской на телефоне: четыре действия по 360 точкам экрана.
+       Доли ширины заданы в разметке (Grid ColumnDefinitions), а не стилем: ColumnDefinitions —
+       не AvaloniaProperty, и присвоить её через Setter нельзя (проверено сборкой — AVLN3000).
+       Расстояние между кнопками — отступом самих кнопок: ColumnSpacing у Grid в Avalonia 11.2
+       тоже нет (AVLN2000). -->
+  <Style Selector="Grid.app-touch-row.touch > Button, Grid.app-touch-row.touch > ToggleButton">
+    <Setter Property="Margin" Value="3,0" />
+  </Style>
+
+  <!-- Настольный ряд действий: кнопки делят ширину панели и стоят вплотную, различает их рамка.
+       Расстояние между ними задано рамкой, а не отступом: четыре кнопки на 320 точках — это
+       по 80 точек на каждую, и лишние отступы съедали подписи. -->
+  <Style Selector="Grid.app-action-row > Button, Grid.app-action-row > ToggleButton">
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+  </Style>
+
+  <Style Selector="Button.app-touch">
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="4,0" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusSmall}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Button.app-touch.primary">
+    <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppOnAccentBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- Переключатель территории: включённое состояние обязано быть видно. Без этой подсветки
+       игрок не понимал, включена разметка или нет (жалоба 2026-09-30): серый ToggleButton
+       в нажатом и в обычном состоянии выглядел одинаково. -->
+  <Style Selector="ToggleButton.app-toggle">
+    <Setter Property="MinHeight" Value="34" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="2,0" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusSmall}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- Подсветка включённого состояния ставится части шаблона, а не самой кнопке: Fluent рисует
+       фон и рамку на ContentPresenter#PART_ContentPresenter внутри шаблона ToggleButton, поэтому
+       Background на кнопке не виден вовсе. Проверено по исходнику Avalonia 11.2.1
+       (Controls/ToggleButton.xaml: внутри ^:checked стоит ^ /template/ ContentPresenter).
+       Полужирная подпись остаётся на самой кнопке: шрифт шаблон не переопределяет. -->
+  <Style Selector="ToggleButton.app-toggle:checked">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="ToggleButton.app-toggle:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AppAccentSoftBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppAccentBrush}" />
+  </Style>
+
+  <Style Selector="ToggleButton.app-touch-toggle">
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="4,0" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusSmall}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="ToggleButton.app-touch-toggle:checked">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="ToggleButton.app-touch-toggle:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AppAccentSoftBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppAccentBrush}" />
+  </Style>
+
+  <!-- Баннер итога партии: заметная карточка над доской. Цвет ставит код вида по признаку
+       «выиграл / проиграл / ничья»: игроку важно не «победили чёрные», а выиграл он сам. -->
+  <Style Selector="Border.app-banner">
+    <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusMedium}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+    <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+  </Style>
+
+  <Style Selector="Border.app-banner.result-win">
+    <Setter Property="Background" Value="{DynamicResource AppWinSoftBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppWinBorderBrush}" />
+  </Style>
+
+  <Style Selector="Border.app-banner.result-loss">
+    <Setter Property="Background" Value="{DynamicResource AppLoseSoftBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppLoseBorderBrush}" />
+  </Style>
+
+  <Style Selector="Border.app-banner.result-draw">
+    <Setter Property="Background" Value="{DynamicResource AppDrawSoftBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppDrawBorderBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.app-banner-title">
+    <Setter Property="FontSize" Value="18" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <Style Selector="Border.app-banner.result-win TextBlock.app-banner-title">
+    <Setter Property="Foreground" Value="{DynamicResource AppWinTextBrush}" />
+  </Style>
+
+  <Style Selector="Border.app-banner.result-loss TextBlock.app-banner-title">
+    <Setter Property="Foreground" Value="{DynamicResource AppLoseTextBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.app-banner-detail">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextMutedBrush}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <Style Selector="Button.app-banner-action">
+    <Setter Property="MinHeight" Value="38" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusSmall}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- Кнопка баннера на телефоне: класс touch ставит сам баннер, когда раскладка мобильная.
+       Отдельный класс, а не порядок файлов: на мобильный размер не должна влиять очерёдность
+       включения стилей — она уже один раз чуть не превратила настольную кнопку в мобильную. -->
+  <Style Selector="Button.app-banner-action.touch">
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="Padding" Value="18,0" />
+  </Style>
+
+  <Style Selector="Button.app-banner-action.primary">
+    <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppOnAccentBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+</Styles>

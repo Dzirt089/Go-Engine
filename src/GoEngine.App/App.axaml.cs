@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using GoEngine.AI;
+using GoEngine.App.Rendering;
 using GoEngine.App.Services.Logging;
 using GoEngine.App.Services.Updates;
 using GoEngine.App.Views;
@@ -65,6 +66,15 @@ public sealed partial class App : Application
     /// там голова обработчик не задаёт, и экран настроек показывает только путь к файлам.
     /// </remarks>
     public static Action<string>? OpenLogsDirectory { get; set; }
+
+    /// <summary>Проигрыватель звука ходов.</summary>
+    /// <remarks>
+    /// Задаёт голова: библиотека интерфейса не знает, чем играть WAV — <c>winmm</c> на Windows,
+    /// внешним проигрывателем на Linux, <c>SoundPool</c> на Android. По умолчанию звука нет
+    /// (<see cref="SilentSoundPlayer"/>): так приложение работает и на системе без звуковой
+    /// подсистемы, и в тестах, а вид не обращается к проигрывателю напрямую.
+    /// </remarks>
+    public static ISoundPlayer Sound { get; set; } = new SilentSoundPlayer();
 
     /// <summary>Создаёт службу обновления, если голова её настроила.</summary>
     /// <returns>Служба обновления или <c>null</c>, если установщик или каталог не заданы.</returns>

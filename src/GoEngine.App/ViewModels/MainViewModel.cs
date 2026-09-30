@@ -115,6 +115,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Коми партии.</summary>
     public string Komi => _game.Komi.ToString();
 
+    /// <summary>Перевес победителя без знака: «7.5» или «0» при ровном счёте.</summary>
+    /// <remarks>
+    /// Берётся та же величина, что называет победителя (<see cref="FinalScore.TerritoryWinner"/>
+    /// или <see cref="FinalScore.AreaWinner"/>): иначе баннер спорил бы со строкой счёта.
+    /// </remarks>
+    public double Margin
+    {
+        get
+        {
+            var score = CurrentScore;
+
+            return ScoringRule == Core.ScoringRule.Chinese ? score.AreaMargin : score.TerritoryMargin;
+        }
+    }
+
     /// <summary>Система подсчёта партии: японская (основная) или китайская.</summary>
     /// <remarks>
     /// Смена системы партию не пересоздаёт: она выбирает, по какой из двух посчитанных величин
@@ -168,35 +183,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     public string Score => CurrentScore.ToString();
 
-    /// <summary>Разбор подсчёта для панели партии: камни, территория, пленные, коми и итог.</summary>
+    /// <summary>Счёт одной строкой: сначала та система, по которой называется победитель.</summary>
     /// <remarks>
-    /// Обе системы показаны рядом: сначала та, по которой называется победитель
-    /// (<see cref="ScoringRule"/>), затем вторая. Пленные идут отдельной строкой — под японской
-    /// системой это очки, под китайской пояснение, откуда взялась разница между системами.
-    /// Нейтральные точки и число помеченных мёртвых показываются всегда: по ним видно, почему
-    /// счёт такой. Пока подсчёт не подтверждён, строка прямо об этом говорит.
+    /// Обе системы показаны рядом, но каждая — одной строкой из трёх чисел: очки сторон и коми.
+    /// Подробный разбор («территория + пленные + камни на доске») убран: на панели он занимал
+    /// четыре строки и повторял одно и то же дважды, а игроку нужен счёт, а не арифметика
+    /// (жалоба 2026-09-30). Полный разбор площади остался в <see cref="ScoreBreakdown"/> —
+    /// он показывается по переключателю «Территория».
     /// </remarks>
     public string ScoreDetail
     {
         get
         {
             var current = CurrentScore;
-            var territory = TerritoryLine(current);
-            var area = AreaLine(current);
 
             // Первой идёт основная система: победителя называет именно она.
-            var primary = ScoringRule == Core.ScoringRule.Chinese ? area : territory;
-            var secondary = ScoringRule == Core.ScoringRule.Chinese ? territory : area;
-            var lines = $"{primary} · {secondary} · {PrisonersLine(current)} · нейтрально {current.Neutral}";
+            var primary = SystemLine(current, ScoringRule);
+            var secondary = SystemLine(current, OpponentRule(ScoringRule));
 
-            if (_finalScore is not null)
-            {
-                return $"Подсчёт подтверждён · {lines} · мёртвых снято {_dead.Count}";
-            }
-
-            return IsCounting
-                ? $"Подсчёт не подтверждён: клик по группе помечает её мёртвой · {lines} · мёртвых помечено {_dead.Count}"
-                : lines;
+            return $"{primary} · {secondary}";
         }
     }
 
@@ -222,32 +227,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     public string Level => LevelChooser.Rank(CurrentLevel);
 
-    /// <summary>Чем играет AI: вид селектора и модель, если она нашлась.</summary>
-    public string Engine
-    {
-        get
-        {
-            var level = _settings.ToDifficultyLevel();
-
-            if (level.NeedsNetwork)
-            {
-                return HasModelFor(_settings.ToBoardSize())
-                    ? $"нейросеть {BoardSizes.Label(_settings.ToBoardSize())}"
-                    : "нейросеть недоступна";
-            }
-
-            if (level.Kind == SelectorKind.Random)
-            {
-                return "случайные ходы";
-            }
-
-            return level.Kind == SelectorKind.Heuristic ? "эвристики" : "MCTS без сети";
-        }
-    }
-
-    /// <summary>Уровень, движок и бюджет одной строкой: «5 дан · нейросеть 9×9 · 4 с/ход».</summary>
-    /// <remarks>Подпись собирает <see cref="LevelChooser.Describe"/>: ранг номинальный, поэтому
-    /// рядом всегда стоят движок и бюджет, а для сети — ещё и размер доски.</remarks>
+    /// <summary>Уровень и движок одной строкой: «5 дан · нейросеть 9×9» или «20 кю · перебор».</summary>
+    /// <remarks>
+    /// Подпись собирает <see cref="LevelChooser.Describe"/>: движок называется фактический —
+    /// тот, который сядет играть на этой доске, — а ранги номинальные (D-043, D-048).
+    /// Ни аббревиатур, ни служебных чисел в подписи нет: игроку они ничего не объясняют.
+    /// Своей копии слов про движок у модели представления нет: раньше здесь жило второе
+    /// свойство <c>Engine</c>, и оно единственное во всём интерфейсе продолжало говорить
+    /// «MCTS без сети».
+    /// </remarks>
     public string LevelDescription =>
         LevelChooser.Describe(CurrentLevel, _settings.ToBoardSize(), HasModelFor(_settings.ToBoardSize()));
 
@@ -267,8 +255,34 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Сколько белых камней снято за партию.</summary>
     public int CapturedWhite => _game.BlackPrisoners;
 
-    /// <summary>Снятые камни одной строкой.</summary>
-    public string Captures => $"чёрных {CapturedBlack}, белых {CapturedWhite}";
+    /// <summary>Снятые камни одной строкой: «чёрные 3 : 1 белые».</summary>
+    /// <remarks>Порядок тот же, что и в разборе счёта: сначала чёрные, потом белые.</remarks>
+    public string Captures => $"чёрные {CapturedBlack} : {CapturedWhite} белые";
+
+    /// <summary>Строка о пленных: снятые по ходам и снятые мёртвыми в заключительной позиции.</summary>
+    /// <remarks>
+    /// <para>
+    /// Мёртвые камни заключительной позиции идут в пленные того, кто их снял (правила вида спорта
+    /// «го», пп. 1.10 и 1.12), но счётчик партии их не знает: их снимает подсчёт, а не ход.
+    /// Поэтому строка называет обе величины — без второй игрок видел «пленные 0» рядом со счётом,
+    /// в котором эти камни уже учтены (жалоба 2026-09-30).
+    /// </para>
+    /// <para>
+    /// Слагаемые не смешиваются в одно число намеренно: снятые по ходам подтверждены партией,
+    /// а снятые мёртвыми — соглашением сторон, и их ещё можно отменить, сняв пометку.
+    /// </para>
+    /// </remarks>
+    public string PrisonersLine
+    {
+        get
+        {
+            var played = $"Пленные: {Captures} (в партии)";
+
+            return _dead.Count == 0
+                ? played
+                : $"{played} · снято мёртвыми: {_dead.Count} — они тоже в пленные и в очки";
+        }
+    }
 
     /// <summary>Итог завершённой партии или пустая строка, пока партия идёт.</summary>
     public string Outcome
@@ -292,6 +306,41 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Показывать ли итог партии: он есть только у завершённой.</summary>
     public bool HasOutcome => Outcome.Length > 0;
 
+    /// <summary>Крупная строка итога для баннера: кто победил и с каким перевесом.</summary>
+    /// <remarks>
+    /// Итог партии виден и в строке состояния, но её легко не заметить: на настольной версии
+    /// строка стоит среди прочих, а на телефоне прячется в шторке. Баннер называет исход
+    /// отдельно и заметно (жалоба 2026-09-30).
+    /// </remarks>
+    public string ResultHeadline => Views.GameStatusLines.ResultHeadline(
+        HasOutcome,
+        Outcome,
+        Margin.ToString(CultureInfo.InvariantCulture),
+        ResultTone);
+
+    /// <summary>Строка под заголовком баннера: счёт и оговорка о предварительном подсчёте.</summary>
+    public string ResultDetail => Views.GameStatusLines.ResultDetail(IsCounting, Score);
+
+    /// <summary>Итог глазами игрока: выиграл он, проиграл или ничья.</summary>
+    /// <remarks>
+    /// Баннер красится по этому признаку: «победили чёрные» ничего не говорит игроку, который
+    /// играет белыми. Сравнение идёт с цветом самого игрока, а не с цветом в настройках партии.
+    /// </remarks>
+    public GameTone ResultTone
+    {
+        get
+        {
+            var winner = CurrentScore.Winner;
+
+            if (winner == StoneColor.Empty)
+            {
+                return GameTone.Draw;
+            }
+
+            return winner == _settings.ToPlayerColor() ? GameTone.Win : GameTone.Loss;
+        }
+    }
+
     /// <summary>Показывать ли разметку территории, пока партия идёт.</summary>
     /// <remarks>
     /// Завершённая партия показывает территорию независимо от переключателя: по ней видно,
@@ -312,7 +361,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasTerritory));
             OnPropertyChanged(nameof(Territory));
-            OnPropertyChanged(nameof(TerritorySummary));
+            OnPropertyChanged(nameof(ScoreBreakdown));
         }
     }
 
@@ -328,12 +377,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     public IReadOnlyList<StoneColor>? Territory => HasTerritory ? Scorer.Ownership(ScoringBoard) : null;
 
-    /// <summary>Расшифровка разметки: площадь сторон, нейтральные точки и коми.</summary>
+    /// <summary>Расшифровка разметки: сколько у сторон камней и территории и сколько нейтральных точек.</summary>
     /// <remarks>
     /// Считает <see cref="Scorer.Breakdown"/>: разбор площади живёт в <c>Core</c> и используется
-    /// и подсчётом очков, и панелью партии — второго подсчёта в проекте нет.
+    /// и подсчётом очков, и панелью партии — второго подсчёта в проекте нет. Показывается только
+    /// при включённой разметке территории: это пояснение к картинке, а не постоянная строка.
     /// </remarks>
-    public string TerritorySummary
+    public string ScoreBreakdown
     {
         get
         {
@@ -344,9 +394,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             var area = Scorer.Breakdown(ScoringBoard);
 
-            return $"Площадь: чёрные {area.Black} (камни {area.BlackStones}, территория {area.BlackTerritory}), "
-                + $"белые {area.White} (камни {area.WhiteStones}, территория {area.WhiteTerritory}), "
-                + $"нейтрально {area.Neutral} · коми {_game.Komi} белым";
+            return $"На доске: чёрные {area.Black} (камни {area.BlackStones} + территория {area.BlackTerritory}) · "
+                + $"белые {area.White} (камни {area.WhiteStones} + территория {area.WhiteTerritory}) · "
+                + $"нейтрально {area.Neutral}";
         }
     }
 
@@ -584,6 +634,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     /// <summary>Подсчёт можно подтвердить: идёт согласование мёртвых групп.</summary>
     public bool CanConfirmScore => IsCounting;
+
+    /// <summary>Партия ещё не начата: на доске нет ни одного камня.</summary>
+    /// <remarks>
+    /// По этому признаку кнопка называется «Начать партию» до первого хода и «Новая партия» после
+    /// него (жалоба 2026-09-30): игрок должен видеть, что партия ждёт его первого хода, а не что
+    /// она уже идёт. Пас и сдача нового камня не ставят, но партию завершают — такие партии
+    /// начатыми не считаются только до первого настоящего хода, поэтому проверяется и ход, и статус.
+    /// </remarks>
+    public bool IsFirstMove =>
+        _game.Status == GameStatus.InProgress && !_game.Moves.Any(move => move.Type == MoveType.Play);
+
+    /// <summary>Разметку территории можно включать и выключать переключателем.</summary>
+    /// <remarks>
+    /// Завершённая партия показывает территорию всегда — переключать нечего, поэтому он
+    /// в этом состоянии скрыт: меньше кнопок, которые ничего не меняют.
+    /// </remarks>
+    public bool CanToggleTerritory => _game.Status == GameStatus.InProgress;
 
     /// <summary>Помеченные мёртвыми камни в порядке обхода доски.</summary>
     public IReadOnlyList<Point> DeadPoints => _deadPoints;
@@ -901,7 +968,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         if (milliseconds > 0)
         {
-            AppLogMessages.AiMovePlayed(_log, color, point, LevelChooser.Engine(EffectiveLevel()), milliseconds);
+            // В журнал идёт точная подпись: движок, который сядет играть на этой доске (D-045).
+            // Короткая подпись «нейросеть или перебор» годится для списка без доски, но в журнале
+            // разбора она бесполезна — по ней не видно, чем уровень играл на самом деле.
+            var level = EffectiveLevel();
+
+            AppLogMessages.AiMovePlayed(
+                _log,
+                color,
+                point,
+                LevelChooser.Describe(level, _game.Board.Size, HasModelFor(_game.Board.Size)),
+                milliseconds);
             return;
         }
 
@@ -1146,46 +1223,46 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(CanConfirmScore),
             nameof(Territory),
             nameof(HasTerritory),
-            nameof(TerritorySummary),
+            nameof(ScoreBreakdown),
             nameof(Score),
             nameof(ScoreDetail),
             nameof(Outcome),
-            nameof(HasOutcome)
+            nameof(HasOutcome),
+            nameof(ResultHeadline),
+            nameof(ResultDetail),
+            nameof(ResultTone),
+            nameof(Margin),
+            nameof(PrisonersLine)
         })
         {
             OnPropertyChanged(name);
         }
     }
 
-    /// <summary>Строка японской системы: территория плюс пленные, плюс коми белым.</summary>
+    /// <summary>Счёт по одной системе: очки сторон, коми и название системы.</summary>
     /// <param name="score">Итог подсчёта.</param>
-    /// <returns>Разбор по территории с пленными и победитель по этой величине.</returns>
-    private static string TerritoryLine(FinalScore score) =>
-        $"По территории с пленными: чёрные {score.BlackTerritoryPoints} (территория {score.BlackTerritory} + пленные {score.BlackPrisoners})"
-        + $" : белые {score.WhiteTerritoryPoints + score.Komi.Value} (территория {score.WhiteTerritory} + пленные {score.WhitePrisoners} + коми {score.Komi})"
-        + $" → {WinnerLabel(score.TerritoryWinner)}";
+    /// <param name="rule">Система подсчёта.</param>
+    /// <returns>Например, «Японская: чёрные 45 : 50.5 белые».</returns>
+    /// <remarks>
+    /// Японская величина — территория с пленными, китайская — площадь. Разбор слагаемых убран
+    /// намеренно: он нужен тому, кто проверяет подсчёт, а не тому, кто играет; для проверки
+    /// есть строка <see cref="ScoreBreakdown"/> и переключатель территории.
+    /// </remarks>
+    private static string SystemLine(FinalScore score, Core.ScoringRule rule)
+    {
+        var japanese = rule == Core.ScoringRule.Japanese;
+        var black = japanese ? score.BlackTerritoryPoints : score.BlackArea;
+        var white = japanese ? score.WhiteTerritoryPoints : score.WhiteArea;
+        var name = japanese ? "Японская" : "Китайская";
 
-    /// <summary>Строка китайской системы: камни плюс территория, плюс коми белым.</summary>
-    /// <param name="score">Итог подсчёта.</param>
-    /// <returns>Разбор по площади и победитель по этой величине.</returns>
-    private static string AreaLine(FinalScore score) =>
-        $"По площади: чёрные {score.BlackArea} (камни {score.BlackStones} + территория {score.BlackTerritory})"
-        + $" : белые {score.WhiteArea + score.Komi.Value} (камни {score.WhiteStones} + территория {score.WhiteTerritory} + коми {score.Komi})"
-        + $" → {WinnerLabel(score.AreaWinner)}";
+        return $"{name}: чёрные {black} : {white + score.Komi.Value} белые";
+    }
 
-    /// <summary>Строка пленных: под японской системой это очки, под китайской — пояснение.</summary>
-    /// <param name="score">Итог подсчёта.</param>
-    /// <returns>Кто сколько камней взял за партию и при снятии мёртвых.</returns>
-    private static string PrisonersLine(FinalScore score) =>
-        $"Пленные: чёрные взяли {score.BlackPrisoners}, белые взяли {score.WhitePrisoners}";
-
-    /// <summary>Называет победителя словами.</summary>
-    /// <param name="winner">Цвет победителя или пустой цвет при ничьей.</param>
-    /// <returns>«победили чёрные», «победили белые» или «ничья».</returns>
-    private static string WinnerLabel(StoneColor winner) =>
-        winner == StoneColor.Empty ? "ничья" :
-        winner == StoneColor.Black ? "победили чёрные" :
-        "победили белые";
+    /// <summary>Вторая система подсчёта: та, по которой победитель не называется.</summary>
+    /// <param name="rule">Основная система.</param>
+    /// <returns>Противоположная система подсчёта.</returns>
+    private static Core.ScoringRule OpponentRule(Core.ScoringRule rule) =>
+        rule == Core.ScoringRule.Japanese ? Core.ScoringRule.Chinese : Core.ScoringRule.Japanese;
 
     /// <summary>Итог по текущему состоянию: подтверждённый или предварительный.</summary>
     /// <remarks>
@@ -1225,19 +1302,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(DeadRevision),
             nameof(Status),
             nameof(Level),
-            nameof(Engine),
             nameof(LevelDescription),
             nameof(PlayerColor),
             nameof(CapturedBlack),
             nameof(CapturedWhite),
             nameof(Captures),
+            nameof(PrisonersLine),
             nameof(Outcome),
             nameof(HasOutcome),
+            nameof(ResultHeadline),
+            nameof(ResultDetail),
+            nameof(ResultTone),
+            nameof(Margin),
+            nameof(IsFirstMove),
+            nameof(CanToggleTerritory),
             nameof(CanUndo),
             nameof(CanRedo),
             nameof(HasTerritory),
             nameof(Territory),
-            nameof(TerritorySummary),
+            nameof(ScoreBreakdown),
             nameof(CurrentLevel),
             nameof(SelectedLevelIndex),
             nameof(SelectedSizeIndex),

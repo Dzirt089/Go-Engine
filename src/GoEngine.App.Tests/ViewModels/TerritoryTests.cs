@@ -23,7 +23,7 @@ public sealed class TerritoryTests
 
         Assert.False(model.HasTerritory);
         Assert.Null(model.Territory);
-        Assert.Empty(model.TerritorySummary);
+        Assert.Empty(model.ScoreBreakdown);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class TerritoryTests
         Assert.True(model.HasTerritory);
         Assert.NotNull(model.Territory);
         Assert.Equal(Size.Area, model.Territory!.Count);
-        Assert.NotEmpty(model.TerritorySummary);
+        Assert.NotEmpty(model.ScoreBreakdown);
 
         model.ShowTerritory = false;
 
@@ -77,10 +77,24 @@ public sealed class TerritoryTests
         model.ShowTerritory = true;
 
         // Три чёрных камня и замкнутый угол — 4; два белых камня — 2; остальное нейтрально.
-        Assert.Contains("чёрные 4", model.TerritorySummary, StringComparison.Ordinal);
-        Assert.Contains("белые 2", model.TerritorySummary, StringComparison.Ordinal);
-        Assert.Contains("нейтрально 75", model.TerritorySummary, StringComparison.Ordinal);
-        Assert.Contains("коми 5.5", model.TerritorySummary, StringComparison.Ordinal);
+        // Коми в расшифровке площади нет: оно стоит в строке счёта, а площадь его не включает.
+        Assert.Contains("чёрные 4", model.ScoreBreakdown, StringComparison.Ordinal);
+        Assert.Contains("белые 2", model.ScoreBreakdown, StringComparison.Ordinal);
+        Assert.Contains("нейтрально 75", model.ScoreBreakdown, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Переключатель_Территории_Доступен_Только_Пока_Партия_Идёт()
+    {
+        // В завершённой партии разметка показывается сама, и переключать нечего: кнопка скрыта,
+        // иначе она выглядит как выключенная разметка (жалоба 2026-09-30).
+        var model = Create();
+
+        Assert.True(model.CanToggleTerritory);
+
+        _ = model.LoadGame(new SgfGame(Size, Komi.For9x9, [Move.Pass(StoneColor.Black), Move.Pass(StoneColor.White)], null));
+
+        Assert.False(model.CanToggleTerritory);
     }
 
     /// <summary>Партия с замкнутым углом чёрных и двумя белыми камнями в открытой позиции.</summary>

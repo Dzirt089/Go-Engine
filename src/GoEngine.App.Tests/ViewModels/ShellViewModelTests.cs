@@ -19,7 +19,10 @@ public sealed class ShellViewModelTests
 
         Assert.True(shell.IsGameMode);
         Assert.False(shell.IsProblemMode);
-        Assert.Contains("Партия", shell.ModeHint, StringComparison.Ordinal);
+
+        // Подсказка режима — одна короткая строка о том, что делать: развёрнутое описание
+        // занимало пол-экрана и повторяло видимое (жалоба 2026-09-30).
+        Assert.Contains("доске", shell.ModeHint, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -35,6 +38,7 @@ public sealed class ShellViewModelTests
         Assert.True(shell.IsProblemMode);
         Assert.False(shell.IsGameMode);
         Assert.Contains("Задачи", shell.ModeHint, StringComparison.Ordinal);
+        Assert.Contains("подсказка", shell.ModeHint, StringComparison.Ordinal);
         Assert.Contains(nameof(ShellViewModel.IsGameMode), changed);
         Assert.Contains(nameof(ShellViewModel.IsProblemMode), changed);
         Assert.Contains(nameof(ShellViewModel.ModeHint), changed);
