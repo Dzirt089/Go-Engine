@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using GoEngine.AI;
+using GoEngine.App.Rendering;
 using GoEngine.App.Services;
 using GoEngine.App.Services.Logging;
 using GoEngine.App.Services.Updates;
@@ -70,6 +71,11 @@ public sealed partial class SettingsView : UserControl
         if (this.FindControl<ComboBox>("ScoringBox") is { } scoringBox)
         {
             scoringBox.SelectionChanged += OnScoringChanged;
+        }
+
+        if (this.FindControl<CheckBox>("SoundBox") is { } soundBox)
+        {
+            soundBox.IsCheckedChanged += OnSoundChanged;
         }
 
         if (this.FindControl<Button>("StartButton") is { } startButton)
@@ -223,6 +229,28 @@ public sealed partial class SettingsView : UserControl
         }
 
         ShowScoringHint();
+    }
+
+    /// <summary>Применяет выбор звука сразу и записывает его в файл настроек.</summary>
+    /// <param name="sender">Переключатель «Звук ходов».</param>
+    /// <param name="e">Событие смены состояния.</param>
+    /// <remarks>
+    /// Звук — не свойство партии, а выбор игрока, и действовать он должен сразу: игрок щёлкает
+    /// переключатель, чтобы стало тихо, а не чтобы «стало тихо после начала новой партии».
+    /// Поэтому выбор применяется здесь же и сразу сохраняется: без записи он терялся при выходе
+    /// с экрана кнопкой «Назад» — на телефоне это единственный способ его закрыть, и настройка
+    /// возвращалась включённой после перезапуска (проверено живым прогоном 2026-09-30, эмулятор).
+    /// Партию это не трогает: применяются только те настройки, что уже действуют.
+    /// </remarks>
+    private void OnSoundChanged(object? sender, RoutedEventArgs e)
+    {
+        var enabled = this.FindControl<CheckBox>("SoundBox")?.IsChecked != false;
+
+        Selected = Selected with { SoundEnabled = enabled };
+        StoneSoundPlayer.SoundEnabled = enabled;
+
+        // Неудачная запись не мешает играть: выбор уже действует в этой партии.
+        _ = SettingsStore.Save(Selected);
     }
 
     /// <summary>Показывает пояснение к выбранной системе подсчёта.</summary>
