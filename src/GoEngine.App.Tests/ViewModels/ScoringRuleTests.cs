@@ -99,7 +99,7 @@ public sealed class ScoringRuleTests
     }
 
     [Fact]
-    public void Во_Время_Согласования_Строка_Счёта_Идёт_По_Выбранной_Системе()
+    public void После_Конца_Партии_Строка_Счёта_Идёт_По_Выбранной_Системе()
     {
         // Обе величины считаются всегда (D-064), а строку счёта и победителя называет выбранная
         // система. Позиция из двух камней в открытой доске: территории нет ни у кого, поэтому
@@ -116,14 +116,40 @@ public sealed class ScoringRuleTests
             ],
             null));
 
-        Assert.True(model.IsCounting);
         Assert.Equal("Чёрные 0 : 5.5 Белые", model.Score);
 
         model.ScoringRule = ScoringRule.Chinese;
 
         Assert.Equal("Чёрные 1 : 6.5 Белые", model.Score);
-        Assert.StartsWith("Китайская:", model.ScoreDetail, StringComparison.Ordinal);
-        Assert.Contains("Японская:", model.ScoreDetail, StringComparison.Ordinal);
+        Assert.Contains(
+            "Китайская: чёрные 1 (камни 1 + территория 0) : 6.5 белые (камни 1 + территория 0 + коми 5.5)",
+            model.ScoreDetail,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Разбор_Счёта_Называет_Вторую_Систему_Независимо_От_Выбора()
+    {
+        // Разбор строится по обеим величинам всегда, какая бы система ни называла победителя:
+        // игроку нужен не выбор, а полный ответ «откуда что посчиталось».
+        var model = TestViewModel.Create(StoneColor.Black, DifficultyLevel.Kyu30, size: BoardSize.Size9);
+        _ = model.LoadGame(new SgfGame(
+            BoardSize.Size9,
+            Komi.For9x9,
+            [
+                Move.Play(new Point(4, 4), StoneColor.Black),
+                Move.Play(new Point(5, 5), StoneColor.White),
+                Move.Pass(StoneColor.Black),
+                Move.Pass(StoneColor.White)
+            ],
+            null));
+
+        model.ScoringRule = ScoringRule.Chinese;
+
+        Assert.Contains(
+            "Японская: чёрные 0 (территория 0 + пленные 0) : 5.5 белые (территория 0 + пленные 0 + коми 5.5)",
+            model.ScoreDetail,
+            StringComparison.Ordinal);
     }
 
     /// <summary>Строит путь к временному файлу настроек.</summary>

@@ -29,9 +29,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     /// <summary>Логгер партии: по нему после сбоя видно, что происходило перед ним.</summary>
     private readonly ILogger _log = AppLog.For<MainViewModel>();
+    /// <summary>Пометка предварительного счёта: партия идёт, позиция недоиграна.</summary>
+    private const string ProvisionalInGame =
+        "Предварительный счёт: партия идёт, позиция недоиграна — числа изменятся.";
+
     private GameState _game;
     private AppSettings _settings;
-    private bool _showTerritory;
+
+    /// <summary>Разметка территории показана: по умолчанию да — игрок не должен ничего нажимать.</summary>
+    /// <remarks>
+    /// Состояние доски видно сразу после запуска (D-070): территория, камни и помеченные мёртвые
+    /// группы. Переключатель «Территория» остаётся, но выключает разметку, а не включает её.
+    /// </remarks>
+    private bool _showTerritory = true;
 
     /// <summary>Часы партии: считают время, пока партия идёт, и замирают на паузе.</summary>
     private readonly GameClock _clock;
@@ -44,12 +54,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     private bool _gameStarted;
 
-    /// <summary>Согласование подсчёта: пометки мёртвых групп и подтверждённый итог партии.</summary>
+    /// <summary>Согласование подсчёта: пометки мёртвых групп и итог партии.</summary>
     /// <remarks>
     /// Пометки относятся к конкретной позиции, а не к партии вообще: любое изменение партии
     /// (ход, отмена, возврат, загрузка) начинает согласование заново — это делает
     /// <see cref="ScoringAgreement.Sync"/>. Мёртвые камни не снимаются с доски молча: их помечает
-    /// перебор <see cref="Endgame.ProposeDead"/> или игрок кликом. Пометки, счётчик ревизии,
+    /// перебор <see cref="Endgame.ProposeDead(Board)"/> или игрок кликом. Пометки, счётчик ревизии,
     /// счётчик предложений и подтверждённый итог живут в службе: панель партии только читает их.
     /// </remarks>
     private readonly ScoringAgreement _scoring;
@@ -93,7 +103,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         // Согласование подсчёта заводится вместе с партией: позиция нужна ему сразу, иначе счёт,
         // территория и пленные не ответили бы до первого хода. Итог по мёртвым считает партия —
         // пленных и коми знает она, а не служба согласования.
-        _scoring = new ScoringAgreement(_game.Board, _game.Status, dead => _game.FinalScore(dead, ScoringRule));
+        // Согласование считает мёртвых для любой позиции: оценка постоянная (D-070).
+        _scoring = new ScoringAgreement(
+            _game.Board,
+            _game.Status,
+            dead => _game.FinalScore(dead, ScoringRule));
         _scoring.Changed += OnDeadChanged;
 
         // Часы создаются до первого хода соперника: партия ещё не начата, и время не идёт.
@@ -167,11 +181,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             _settings = _settings with { ScoringRule = rule.Name };
 
-            // Подтверждённый итог тоже меняет систему: величины в нём уже посчитаны, а победитель
-            // и строка зависят от выбора. Без этой строки переключение после подтверждения
-            // не изменило бы ничего — счёт остался бы назван по прежней системе.
-            _scoring.ApplyRule(rule);
-
+            // Итог считается по системе из настроек: подтверждённого снимка нет, поэтому
+            // переключение сразу называет победителя по новой системе (D-070).
             NotifyAll();
         }
     }
@@ -190,31 +201,48 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     /// <summary>Счёт партии строкой по основной системе: предварительный или окончательный.</summary>
     /// <remarks>
-    /// Пока идёт согласование мёртвых, счёт предварительный: он считается по доске без помеченных
-    /// камней, поэтому пометка сразу видна в числе — игрок понимает, что именно подтверждает.
-    /// После <see cref="ConfirmScore"/> строка берётся из подтверждённого итога и не меняется.
+    /// Пока партия идёт, счёт предварительный: он считается по доске без помеченных мёртвых,
+    /// поэтому пометка программы сразу видна в числе. Как только партия закончена, число —
+    /// окончательный итог: подтверждать его не нужно (D-070).
     /// </remarks>
     public string Score => CurrentScore.ToString();
 
-    /// <summary>Счёт одной строкой: сначала та система, по которой называется победитель.</summary>
+    /// <summary>Разбор счёта: откуда взялось каждое число, по обеим системам и по мёртвым.</summary>
     /// <remarks>
-    /// Обе системы показаны рядом, но каждая — одной строкой из трёх чисел: очки сторон и коми.
-    /// Подробный разбор («территория + пленные + камни на доске») убран: на панели он занимал
-    /// четыре строки и повторял одно и то же дважды, а игроку нужен счёт, а не арифметика
-    /// (жалоба 2026-09-30). Полный разбор площади остался в <see cref="ScoreBreakdown"/> —
-    /// он показывается по переключателю «Территория».
+    /// <para>
+    /// Строка отвечает на вопрос «откуда что посчиталось»: у японской величины названы территория,
+    /// пленные и коми, у китайской — камни, территория и коми, отдельной строкой — мёртвые группы
+    /// и нейтральные точки. Числа берутся из того же итога, что и строка счёта
+    /// (<see cref="CurrentScore"/>): второго подсчёта в проекте нет, разойтись им нечем.
+    /// </para>
+    /// <para>
+    /// Пока партия идёт, счёт предварительный: позиция недоиграна (дамэ не заполнены), и числа
+    /// ещё изменятся. Об этом говорит первая строка разбора — без неё игрок принимает счёт
+    /// середины партии за окончательный (жалоба пользователя 2026-10-02).
+    /// </para>
+    /// <para>
+    /// Мёртвые называются так, как они попадают в счёт: снятые белые камни — пленные чёрных.
+    /// Нейтральные точки названы затем, что они не засчитаны никому, и без них сумма не сходится
+    /// с площадью доски.
+    /// </para>
     /// </remarks>
     public string ScoreDetail
     {
         get
         {
-            var current = CurrentScore;
+            var score = CurrentScore;
+            List<string> lines = [];
 
-            // Первой идёт основная система: победителя называет именно она.
-            var primary = SystemLine(current, ScoringRule);
-            var secondary = SystemLine(current, OpponentRule(ScoringRule));
+            if (_game.Status == GameStatus.InProgress)
+            {
+                lines.Add(ProvisionalInGame);
+            }
 
-            return $"{primary} · {secondary}";
+            lines.Add(JapaneseLine(score));
+            lines.Add(ChineseLine(score));
+            lines.Add(DeadLine(score));
+
+            return string.Join(Environment.NewLine, lines);
         }
     }
 
@@ -359,8 +387,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Margin.ToString(CultureInfo.InvariantCulture),
         ResultTone);
 
-    /// <summary>Строка под заголовком баннера: счёт и оговорка о предварительном подсчёте.</summary>
-    public string ResultDetail => Views.GameStatusLines.ResultDetail(IsCounting, Score);
+    /// <summary>Строка под заголовком баннера: только исход словами, без счёта.</summary>
+    /// <remarks>
+    /// Счёт в подписи баннера убран: он дублировал строку счёта рядом с баннером (замечание 3
+    /// пользователя 2026-10-02). Пока партия идёт, подписи нет: итог ещё не назван, и баннер
+    /// в это время скрыт (<see cref="Views.GameStatusLines.ShowOutcome"/>).
+    /// </remarks>
+    public string ResultDetail => Views.GameStatusLines.ResultDetail(Outcome);
 
     /// <summary>Итог глазами игрока: выиграл он, проиграл или ничья.</summary>
     /// <remarks>
@@ -373,15 +406,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// и доска подсвечивалась рамкой выигрыша или проигрыша с первого хода: на пустой доске
     /// победитель по коми — белые, поэтому играющий чёрными сразу видел рамку проигрыша
     /// (жалоба пользователя 2026-10-02 «подсчёт на доске ведётся некорректно»). Это же правило
-    /// действует и во время согласования мёртвых: победитель ещё не подтверждён, и подсвечивать
-    /// его нельзя — иначе вид спорил бы с баннером, который в это время молчит.
+    /// действует и во время партии: победитель ещё не назван, и подсвечивать его нельзя —
+    /// иначе вид спорил бы с баннером, который в это время молчит.
     /// </para>
     /// </remarks>
     public GameTone ResultTone
     {
         get
         {
-            if (_game.Status == GameStatus.InProgress || _scoring.IsCounting)
+            if (_game.Status == GameStatus.InProgress)
             {
                 return GameTone.None;
             }
@@ -399,9 +432,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     /// <summary>Показывать ли разметку территории, пока партия идёт.</summary>
     /// <remarks>
+    /// <para>
     /// Завершённая партия показывает территорию независимо от переключателя: по ней видно,
-    /// как посчитан счёт (<c>GO_RULES.md</c>, п. 9). Переключатель нужен, чтобы посмотреть
-    /// разделение доски, не доводя партию до конца.
+    /// как посчитан счёт (<c>GO_RULES.md</c>, п. 9).
+    /// </para>
+    /// <para>
+    /// По умолчанию разметка включена (D-070): состояние доски — территория, камни и помеченные
+    /// мёртвые группы — видно сразу, без единого нажатия. Переключатель выключает разметку, когда
+    /// она мешает смотреть на камни. На оценку позиции он не влияет: мёртвых считает программа
+    /// в любой момент, независимо от того, показана разметка или нет.
+    /// </para>
     /// </remarks>
     public bool ShowTerritory
     {
@@ -414,14 +454,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
 
             _showTerritory = value;
+
             OnPropertyChanged();
-            OnPropertyChanged(nameof(HasTerritory));
-            OnPropertyChanged(nameof(Territory));
-            OnPropertyChanged(nameof(ScoreBreakdown));
+            NotifyScoringChanged();
         }
     }
 
     /// <summary>Показывается ли разметка территории сейчас.</summary>
+    /// <remarks>
+    /// По умолчанию да — разметка включена с самого запуска (D-070). После конца партии она
+    /// показывается независимо от переключателя: по ней видно, как посчитан итог, и прятать
+    /// её в этот момент незачем.
+    /// </remarks>
     public bool HasTerritory => _showTerritory || _game.Status != GameStatus.InProgress;
 
     /// <summary>Владение точками для разметки или <c>null</c>, если разметка выключена.</summary>
@@ -691,23 +735,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Можно ли вернуть отменённый ход игрока.</summary>
     public bool CanRedo => _game.CanRedoTo(_settings.ToPlayerColor());
 
-    /// <summary>Идёт согласование мёртвых групп: партия завершена двумя пасами, подсчёт не подтверждён.</summary>
-    /// <remarks>
-    /// В это время ходы не принимаются, а клик по доске помечает группу мёртвой. Мёртвые камни
-    /// не снимаются молча: пока игрок не подтвердил подсчёт, доска остаётся как была, а счёт —
-    /// предварительным. Окончание по лимиту ходов и сдача согласования не требуют. Состояние
-    /// ведёт <see cref="ScoringAgreement"/>: панели и тестам оно нужно здесь, под своим именем.
-    /// </remarks>
-    public bool IsCounting => _scoring.IsCounting;
-
-    /// <summary>Подсчёт можно подтвердить: идёт согласование мёртвых групп.</summary>
-    /// <remarks>
-    /// Доступно сразу, как только партия завершилась двумя пасами: ничего дополнительно включать
-    /// не нужно. Согласование обязательно по правилам (D-064), но приглашение к нему — не ошибка
-    /// и не «недосчитанный» экран: счёт, территория и пленные уже показаны и верны.
-    /// </remarks>
-    public bool CanConfirmScore => _scoring.CanConfirmScore;
-
     /// <summary>Партия начата: время идёт или стоит на паузе.</summary>
     /// <remarks>
     /// Свежезапущенное приложение и «Отменить партию» оставляют партию неначатой: часы стоят
@@ -772,10 +799,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     /// <summary>Разметку территории можно включать и выключать переключателем.</summary>
     /// <remarks>
-    /// Завершённая партия показывает территорию всегда — переключать нечего, поэтому он
-    /// в этом состоянии скрыт: меньше кнопок, которые ничего не меняют.
+    /// <para>
+    /// Переключатель доступен и в идущей партии, и после её конца. Пока партия идёт, он —
+    /// единственный способ посмотреть разделение доски и перспективу партии: нажатие запрашивает
+    /// разметку: она показана с самого запуска, а кнопка позволяет её выключить. После конца партии
+    /// разметка показывается независимо от неё. Раньше кнопка исчезала вместе с партией, и посмотреть
+    /// территорию в игре было нечем (жалоба пользователя 2026-10-02: «по кнопке Территория я должен
+    /// увидеть территорию… в режиме игры»).
+    /// </para>
+    /// <para>
+    /// До первого хода переключателя нет: на пустой доске территории не бывает — все точки
+    /// нейтральны, и включать нечего. Признак — <see cref="IsFirstMove"/>: он истинно только
+    /// у идущей партии без единого поставленного камня, а завершённую партию (даже одними пасами)
+    /// переключатель не прячет.
+    /// </para>
     /// </remarks>
-    public bool CanToggleTerritory => _game.Status == GameStatus.InProgress;
+    public bool CanToggleTerritory => !IsFirstMove;
 
     /// <summary>Помеченные мёртвыми камни в порядке обхода доски.</summary>
     /// <remarks>Пометки ведёт <see cref="ScoringAgreement"/>; здесь они под именем, которое знает вид.</remarks>
@@ -791,11 +830,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Сколько раз перебор предлагал мёртвые группы за партию.</summary>
     /// <remarks>
     /// Открыт ради проверок: предложение мёртвых — самый дорогой перебор в подсчёте
-    /// (<see cref="Endgame.ProposeDead"/>, до 20 000 позиций на группу), и он обязан считаться
+    /// (<see cref="Endgame.ProposeDead(Board)"/>, до 20 000 позиций на группу), и он обязан считаться
     /// один раз на позицию. Тест читает счёт, территорию, разбор и пленных десятки раз и требует,
     /// чтобы счётчик не вырос, а проверочный режим печатает его рядом с разбором.
     /// </remarks>
     public int DeadProposalCount => _scoring.DeadProposalCount;
+
+    /// <summary>Предохранитель перебора для текущего состояния партии.</summary>
+    /// <remarks>
+    /// Правило — в <see cref="ScoringAgreement.DeadProposalBudget"/>: у оценки идущей партии
+    /// предохранитель меньше, чем у окончательного предложения, потому что оценка считается по ходу
+    /// игры и обязана быть отзывчивой. Открыт проверкам и проверочному режиму: по нему видно,
+    /// какой предел действует в этой позиции.
+    /// </remarks>
+    public int DeadProposalBudget => _scoring.DeadProposalBudget;
 
     /// <summary>Помечает или снимает пометку группы, которой принадлежит точка.</summary>
     /// <param name="point">Точка на доске: клик игрока по камню.</param>
@@ -805,19 +853,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// знает вид, и меняет то же состояние, что читают счёт, территория и пленные.
     /// </remarks>
     public bool ToggleDeadAt(Point point) => _scoring.ToggleDeadAt(point);
-
-    /// <summary>Подтверждает подсчёт: мёртвые снимаются, становятся пленными и входят в итог.</summary>
-    /// <remarks>
-    /// Итог считает партия, а хранит его согласование: вызов вне согласования и повторный вызов
-    /// ничего не делают, и панель тогда не будится зря. Вернуться к согласованию можно отменой хода.
-    /// </remarks>
-    public void ConfirmScore()
-    {
-        if (_scoring.ConfirmScore())
-        {
-            NotifyAll();
-        }
-    }
 
     /// <summary>Начинает партию: новая позиция и часы с нуля.</summary>
     /// <remarks>
@@ -1467,18 +1502,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     /// <summary>Пометки мёртвых изменились: панель показывает новый счёт и разметку.</summary>
+    /// <param name="sender">Согласование подсчёта.</param>
+    /// <param name="e">Признак события; не используется.</param>
+    private void OnDeadChanged(object? sender, EventArgs e) => NotifyScoringChanged();
+
+    /// <summary>Сообщает виду обо всём, что зависит от пометок мёртвых.</summary>
     /// <remarks>
     /// Счёт и разметка территории считаются по доске без мёртвых камней, поэтому клик по группе
-    /// меняет не только пометки: без этих уведомлений панель показывала бы старый счёт.
+    /// меняет не только пометки: без этих уведомлений панель показывала бы старый счёт. Тот же
+    /// список нужен и разметке территории: она показывает пометки и числа, а от оценки зависят
+    /// ровно эти свойства — разойдись списки, панель показала бы разметку без чисел.
     /// </remarks>
-    private void OnDeadChanged(object? sender, EventArgs e)
+    private void NotifyScoringChanged()
     {
         foreach (var name in new[]
         {
             nameof(DeadPoints),
             nameof(DeadRevision),
-            nameof(IsCounting),
-            nameof(CanConfirmScore),
             nameof(Territory),
             nameof(HasTerritory),
             nameof(ScoreBreakdown),
@@ -1497,51 +1537,46 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Счёт по одной системе: очки сторон, коми и название системы.</summary>
+    /// <summary>Японская величина со слагаемыми: территория плюс пленные, у белых ещё коми.</summary>
     /// <param name="score">Итог подсчёта.</param>
-    /// <param name="rule">Система подсчёта.</param>
-    /// <returns>Например, «Японская: чёрные 12 (территория 9 + пленные 3) : 20.5 белые».</returns>
+    /// <returns>Например, «Японская: чёрные 18 (территория 11 + пленные 7) : 22.5 белые (территория 16 + пленные 1 + коми 5.5)».</returns>
     /// <remarks>
-    /// <para>
-    /// Японская величина — территория с пленными, китайская — площадь. У японской слагаемые
-    /// названы прямо: без них соседняя строка «камни 5 + территория 3» не сходилась со счётом
-    /// (11), и это выглядело ошибкой подсчёта (жалоба пользователя 2026-10-02). Пленные берутся
-    /// из самого итога, а не из счётчиков партии: в итог входят и камни, признанные мёртвыми,
-    /// которых счётчики не знают.
-    /// </para>
-    /// <para>
-    /// У китайской слагаемых нет намеренно: там очко даёт каждый камень и каждая окружённая точка,
-    /// а пленные не считаются вовсе — разложение «камни + территория» уже показано в строке
-    /// разбора площади.
-    /// </para>
+    /// Пленные берутся из самого итога, а не из счётчиков партии: в итог входят и камни, признанные
+    /// мёртвыми, которых счётчики не знают. Без слагаемых соседняя строка разбора площади не
+    /// сходилась со счётом и выглядела ошибкой подсчёта (жалоба пользователя 2026-10-02).
     /// </remarks>
-    private static string SystemLine(FinalScore score, Core.ScoringRule rule)
+    private static string JapaneseLine(FinalScore score) =>
+        $"Японская: чёрные {score.BlackTerritoryPoints} (территория {score.BlackTerritory} + пленные {score.BlackPrisoners}) : "
+        + $"{score.WhiteTerritoryPoints + score.Komi.Value} белые (территория {score.WhiteTerritory} + пленные {score.WhitePrisoners} + коми {score.Komi.Value})";
+
+    /// <summary>Китайская величина со слагаемыми: камни плюс территория, у белых ещё коми.</summary>
+    /// <param name="score">Итог подсчёта.</param>
+    /// <returns>Например, «Китайская: чёрные 40 (камни 29 + территория 11) : 46.5 белые (камни 25 + территория 16 + коми 5.5)».</returns>
+    /// <remarks>Пленные в китайской величине не считаются: снятый камень уже вернул своё очко
+    /// территорией. Камни и территория названы отдельно — иначе число не проверить.</remarks>
+    private static string ChineseLine(FinalScore score) =>
+        $"Китайская: чёрные {score.BlackArea} (камни {score.BlackStones} + территория {score.BlackTerritory}) : "
+        + $"{score.WhiteArea + score.Komi.Value} белые (камни {score.WhiteStones} + территория {score.WhiteTerritory} + коми {score.Komi.Value})";
+
+    /// <summary>Мёртвые группы и нейтральные точки: что снято и что не засчитано никому.</summary>
+    /// <param name="score">Итог подсчёта.</param>
+    /// <returns>Например, «Мёртвые группы: белые 3 (в пленные чёрным) · чёрные 0 · нейтральных точек 0».</returns>
+    /// <remarks>Пометка означает всю группу, поэтому точек с камнями каждого цвета довольно:
+    /// список мёртвых всегда развёрнут по группам (клик и перебор разворачивают его сами).</remarks>
+    private string DeadLine(FinalScore score)
     {
-        var japanese = rule == Core.ScoringRule.Japanese;
-        var black = japanese ? score.BlackTerritoryPoints : score.BlackArea;
-        var white = japanese ? score.WhiteTerritoryPoints : score.WhiteArea;
-        var name = japanese ? "Японская" : "Китайская";
+        var dead = _scoring.DeadStones;
 
-        if (!japanese)
-        {
-            return $"{name}: чёрные {black} : {white + score.Komi.Value} белые";
-        }
+        // Пометка означает всю группу, поэтому точек с камнями каждого цвета достаточно:
+        // список мёртвых всегда развёрнут по группам (ToggleDeadAt и Endgame.ProposeDead).
+        var deadBlack = dead.Count(point => _game.Board.At(point) == StoneColor.Black);
+        var deadWhite = dead.Count - deadBlack;
 
-        var blackPrisoners = score.BlackTerritoryPoints - score.BlackTerritory;
-        var whitePrisoners = score.WhiteTerritoryPoints - score.WhiteTerritory;
-
-        return $"{name}: чёрные {black} (территория {score.BlackTerritory} + пленные {blackPrisoners}) : "
-            + $"{white + score.Komi.Value} белые (территория {score.WhiteTerritory} + пленные {whitePrisoners} + коми {score.Komi.Value})";
+        return $"Мёртвые группы: белые {deadWhite} (в пленные чёрным) · чёрные {deadBlack} · нейтральных точек {score.Neutral}";
     }
 
-    /// <summary>Вторая система подсчёта: та, по которой победитель не называется.</summary>
-    /// <param name="rule">Основная система.</param>
-    /// <returns>Противоположная система подсчёта.</returns>
-    private static Core.ScoringRule OpponentRule(Core.ScoringRule rule) =>
-        rule == Core.ScoringRule.Japanese ? Core.ScoringRule.Chinese : Core.ScoringRule.Japanese;
-
-    /// <summary>Итог по текущему состоянию: подтверждённый или предварительный.</summary>
-    /// <remarks>Считает ядро; подтверждённый итог хранит согласование, предварительный — партия.</remarks>
+    /// <summary>Итог по текущему состоянию: считается по пометкам и меняется вместе с ними.</summary>
+    /// <remarks>Считает ядро; подтверждённого снимка нет — после конца партии итог уже окончательный.</remarks>
     private FinalScore CurrentScore => _scoring.CurrentScore;
 
     /// <summary>Доска подсчёта: без помеченных мёртвых камней.</summary>
@@ -1566,8 +1601,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(ScoringRule),
             nameof(Score),
             nameof(ScoreDetail),
-            nameof(IsCounting),
-            nameof(CanConfirmScore),
             nameof(DeadPoints),
             nameof(DeadRevision),
             nameof(Status),

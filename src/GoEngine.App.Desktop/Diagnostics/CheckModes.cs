@@ -48,8 +48,9 @@ internal static class CheckModes
             (StoneColor.White, GameTone.Loss, "Вы проиграли")
         })
         {
+            // Подтверждения нет (D-070): после двух пасов итог назван сразу, и режим проверяет
+            // ровно то, что видит игрок.
             var model = CreateFinishedGame(color);
-            model.ConfirmScore();
 
             Console.WriteLine($"{(color == StoneColor.Black ? "чёрные" : "белые")}: {model.ResultHeadline} · {model.ResultDetail}");
             Console.WriteLine($"  пленные: {model.PrisonersLine}");
@@ -70,7 +71,7 @@ internal static class CheckModes
 
     /// <summary>Создаёт партию, завершённую двумя пасами, с доказанно мёртвой белой группой в углу.</summary>
     /// <param name="color">Цвет игрока.</param>
-    /// <returns>Модель представления с идущим согласованием мёртвых групп.</returns>
+    /// <returns>Модель представления завершённой партии с названным итогом.</returns>
     private static MainViewModel CreateFinishedGame(StoneColor color)
     {
         var model = new MainViewModel(

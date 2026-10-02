@@ -77,6 +77,23 @@
     <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusMedium}" />
   </Style>
 
+  <!-- Затемнение: слой поверх содержимого, на котором стоит карточка сообщения. Цвет — только
+       из темы (AppOverlayBrush): жёсткий чёрный в тёмной теме сливался бы с фоном, а светлый
+       не затемнял бы вовсе. Кисть обязана быть полупрозрачной: под затемнением видно доску,
+       и игрок понимает, что сообщение — поверх партии, а не вместо неё. -->
+  <Style Selector="Border.app-overlay">
+    <Setter Property="Background" Value="{DynamicResource AppOverlayBrush}" />
+  </Style>
+
+  <!-- Карточка на затемнении: одинаковые отступы от краёв берутся у темы. Само выравнивание
+       по центру задано разметкой карточек, а не здесь: стили применяются только у собранного
+       приложения, а положение карточки обязано быть видно и без них — его проверяет тест вида.
+       Ширину ограничивает сама карточка (MaxWidth), иначе на широком мониторе сообщение
+       растянулось бы в строку через весь экран. -->
+  <Style Selector="Border.app-overlay-card">
+    <Setter Property="Margin" Value="{DynamicResource AppPaddingPage}" />
+  </Style>
+
   <!-- Строка подписи со значением в списках сведений -->
   <Style Selector="TextBlock.app-label">
     <Setter Property="Foreground" Value="{DynamicResource AppTextMutedBrush}" />

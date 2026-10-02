@@ -9,7 +9,8 @@
   <!-- Один и тот же вид работает в настольном окне и на телефоне.
        Раскладку выбирает код вида (BoardView.axaml.cs) по правилам BoardLayoutRules:
        шире 760 точек — настольный вид: доска слева, панель управления справа;
-       уже — мобильный: доска на весь экран, действия над ней, шторка сведений снизу.
+       уже — мобильный: доска на весь экран, панель действий под ней по ширине доски,
+       шторка сведений снизу.
        Цвета берутся из темы (DynamicResource), а не задаются жёстко: иначе на тёмной теме
        системы светлый текст попадал бы на светлый фон и панель было не прочитать.
 
@@ -62,10 +63,6 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Spacing="8">
 
-            <!-- Итог партии стоит первым в панели и не уезжает при прокрутке: после конца партии
-                 игрок должен видеть исход сразу, а не искать его (жалоба 2026-09-30). -->
-            <views:GameResultBanner x:Name="DesktopResultBanner" />
-
             <!-- Время партии и два действия с ним. Строка стоит выше прочих: время игрок
                  смотрит постоянно, а не ищет в подробностях. Кнопка часов одна на два
                  состояния — «Пауза» и «Продолжить»: подпись меняет код вида. -->
@@ -101,38 +98,11 @@
                        FontWeight="SemiBold"
                        TextWrapping="Wrap" />
 
-            <!-- Счёт по обеим системам: две короткие строки вместо прежнего разбора
-                 с четырьмя повторами «территория + пленные + камни». -->
-            <TextBlock x:Name="DesktopScoreDetailText"
-                       Classes="app-label"
-                       TextWrapping="Wrap" />
-
-            <!-- Согласование мёртвых групп после двух пасов: пока идёт подсчёт, щелчок по доске
-                 помечает группу, а не играет ход. Стоит выше прочего: во время согласования
-                 это главное действие. Видна только в этом режиме. -->
-            <Border x:Name="DesktopCountingPanel"
-                    IsVisible="{Binding IsCounting}"
-                    Padding="10,8"
-                    CornerRadius="8"
-                    Background="{DynamicResource AppAccentSoftBrush}">
-              <StackPanel Spacing="6">
-                <TextBlock Text="{x:Static views:GameStatusLines.CountingInvitation}"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource AppTextBrush}" />
-                <Button x:Name="DesktopConfirmButton"
-                        Content="Посчитать"
-                        Classes="app-primary"
-                        HorizontalAlignment="Stretch"
-                        IsEnabled="{Binding CanConfirmScore}" />
-              </StackPanel>
-            </Border>
-
-            <!-- Действия в один ряд: пас, отмена, возврат, территория и новая партия.
-                 Ряд одинаков на обеих раскладках и отличается только размерами (жалоба 2026-09-30:
-                 «перенеси кнопку территория наверх, рядом с другими кнопками»). -->
-            <!-- Ряд действий: равные доли ширины панели, а не ширина по содержимому.
-                 В прошлый раз кнопки стояли в StackPanel, и подпись «Начать партию»
-                 не помещалась — кнопка уезжала за край (проверено живым прогоном 2026-09-30). -->
+            <!-- Ряд действий: пас, отмена, возврат и территория — равными долями ширины панели,
+                 а не по содержимому (жалоба 2026-09-30: «перенеси кнопку территория наверх, рядом
+                 с другими кнопками»; в StackPanel подпись «Начать партию» не помещалась и уезжала
+                 за край — проверено живым прогоном 2026-09-30). «Начать партию» стоит отдельной
+                 крупной кнопкой ниже: пять подписей в 320 точек не помещаются. -->
             <Grid x:Name="DesktopActionRow"
                   Classes="app-action-row"
                   ColumnDefinitions="*,*,*,*"
@@ -152,12 +122,15 @@
                       Content="Вернуть"
                       Classes="app-row-action"
                       IsEnabled="{Binding CanRedo}" />
+              <!-- Переключатель остаётся в ряду И КОГДА НЕДОСТУПЕН: скрытая кнопка оставляла бы
+                   четвёртую колонку пустой и ряд выглядел бы сломанным (жалоба 2026-10-02).
+                   Доступность — отдельный признак модели. -->
               <ToggleButton x:Name="TerritoryButton"
                             Grid.Column="3"
                             Content="Территория"
                             Classes="app-toggle"
                             ToolTip.Tip="Показать, кому принадлежат пустые точки"
-                            IsVisible="{Binding CanToggleTerritory}"
+                            IsEnabled="{Binding CanToggleTerritory}"
                             IsChecked="{Binding ShowTerritory}" />
             </Grid>
 
@@ -274,28 +247,18 @@
 
     </Grid>
 
-    <!-- Мобильная раскладка: доска занимает экран, действия — над доской, состояние и
-         подробности — в шторке снизу с ручкой. -->
+    <!-- Мобильная раскладка: доска занимает экран, действия — под ней, состояние и подробности —
+         в шторке снизу с ручкой. Строки итога здесь больше нет: баннер итога один на обе раскладки
+         и стоит оверлеем по центру экрана (жалоба пользователя 2026-10-02). -->
     <Grid x:Name="MobileLayout"
           IsVisible="False"
-          RowDefinitions="Auto,Auto,*,Auto"
+          RowDefinitions="Auto,*,Auto"
           Background="{DynamicResource AppBoardBackdropBrush}">
-
-      <!-- Итог партии на телефоне — отдельная строка над доской: в свёрнутой шторке его
-           не видно, а поверх доски карточка закрывала бы позицию и верхние ряды. -->
-      <Border x:Name="MobileResultHost"
-              Grid.Row="0"
-              IsVisible="False"
-              Background="{DynamicResource AppSurfaceBrush}"
-              BorderBrush="{DynamicResource AppBorderBrush}"
-              BorderThickness="0,0,0,1">
-        <views:GameResultBanner x:Name="MobileResultBanner" />
-      </Border>
 
       <!-- Шапка телефона: кто ходит и время партии, а рядом — «Пауза». Три коротких поля
            в одну строку: подробности (счёт, пленные, коми) живут в шторке, а время — то, что
            игрок смотрит постоянно, и дублировать его в панели действий незачем. -->
-      <Border Grid.Row="1"
+      <Border Grid.Row="0"
               x:Name="MobileStatus"
               Background="{DynamicResource AppSurfaceBrush}"
               BorderBrush="{DynamicResource AppBorderBrush}"
@@ -340,48 +303,35 @@
         </Grid>
       </Border>
 
-      <!-- Доска, панель действий и приглашение подтвердить подсчёт.
-           Доска и панель занимают РАЗНЫЕ строки сетки: панель действий больше не плавает
-           поверх доски, и нижние ряды не уходят под кнопки — на телефоне это было видно
-           сразу (живой прогон 2026-09-30, эмулятор API 35). -->
-      <Grid Grid.Row="2" RowDefinitions="*,Auto">
+      <!-- Доска и панель действий.
+           Доска и панель занимают РАЗНЫЕ строки сетки: панель действий не плавает поверх доски,
+           и нижние ряды не уходят под кнопки — на телефоне это было видно сразу (живой прогон
+           2026-09-30, эмулятор API 35). Между ними гарантированный зазор: верхний отступ панели
+           плюс поля доски внутри её строки. Полоса «Проверьте пометки… Посчитать» убрана:
+           оценка приходит сама, и просить игрока подтверждать её кнопкой больше не нужно
+           (жалоба пользователя 2026-10-02). -->
+      <Grid Grid.Row="1" RowDefinitions="*,Auto">
         <Panel x:Name="MobileBoardRow" Grid.Row="0">
           <Border x:Name="MobileBoardHost"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center" />
-
-        <Border x:Name="MobileCountingBar"
-                IsVisible="{Binding IsCounting}"
-                Classes="app-card"
-                Padding="10"
-                Margin="8,8,8,0"
-                VerticalAlignment="Top"
-                HorizontalAlignment="Center">
-          <StackPanel Orientation="Horizontal" Spacing="10">
-            <TextBlock Text="{x:Static views:GameStatusLines.CountingInvitationShort}"
-                       VerticalAlignment="Center"
-                       TextWrapping="Wrap"
-                       MaxWidth="170"
-                       Classes="app-value" />
-            <Button x:Name="MobileConfirmButton"
-                    Content="Посчитать"
-                    Classes="app-primary"
-                    IsEnabled="{Binding CanConfirmScore}" />
-          </StackPanel>
-        </Border>
       </Panel>
 
       <!-- Панель действий: два ряда, и в каждом — только то, что нужно во время партии.
            Часы и «Пауза» переехали в шапку, «Отменить партию», файл и настройки — в меню «Ещё»:
            пять кнопок в ряд в 360 точек не помещались и обрезали подписи
-           (жалоба пользователя 2026-10-02). -->
+           (жалоба пользователя 2026-10-02).
+           Панель идёт во всю ширину доски, а не «плавающей» карточкой по центру: раньше её ширина
+           зависела от подписей, она была уже доски и заезжала за нижний край (жалоба 2026-10-02
+           «наезжает на доску и сделан не аккуратно»). Ширину ограничивает код вида
+           (BoardLayoutRules.MobileActionBarWidth): по ширине доски, но не уже читаемой.
+           Верхний отступ — гарантированный зазор между доской и панелью. -->
       <Border x:Name="MobileActionBar"
               Grid.Row="1"
               Classes="app-card"
               Padding="8"
-              Margin="8,0,8,8"
-              VerticalAlignment="Bottom"
-              HorizontalAlignment="Center">
+              Margin="8,8,8,8"
+              HorizontalAlignment="Stretch">
           <StackPanel Spacing="8">
             <Grid x:Name="MobileActionRow" ColumnDefinitions="*,*,*,*" Classes="app-touch-row touch">
               <Button x:Name="MobilePassButton"
@@ -399,11 +349,15 @@
                       Content="Вернуть"
                       Classes="app-touch"
                       IsEnabled="{Binding CanRedo}" />
+              <!-- Переключатель остаётся в ряду и тогда, когда недоступен: скрытая кнопка
+                   оставляла четвёртую колонку пустой, и ряд выглядел сломанным (жалоба
+                   пользователя 2026-10-02; после конца партии «Территория» доступна —
+                   признак CanToggleTerritory у модели). -->
               <ToggleButton x:Name="MobileTerritoryButton"
                             Grid.Column="3"
                             Content="Территория"
                             Classes="app-touch-toggle"
-                            IsVisible="{Binding CanToggleTerritory}"
+                            IsEnabled="{Binding CanToggleTerritory}"
                             IsChecked="{Binding ShowTerritory}" />
             </Grid>
             <Grid ColumnDefinitions="*,Auto">
@@ -431,7 +385,7 @@
       <!-- Шторка сведений: свёрнута — короткое состояние, развёрнута — подробности.
            Ручка и строка состояния вместе дают цель нажатия выше 48 точек. -->
       <Border x:Name="Sheet"
-              Grid.Row="3"
+              Grid.Row="2"
               Background="{DynamicResource AppSurfaceBrush}"
               BorderBrush="{DynamicResource AppBorderBrush}"
               BorderThickness="0,1,0,0"
@@ -489,28 +443,11 @@
 
               <TextBlock x:Name="MobileStatusText" Classes="app-value" />
 
-              <!-- Пленные, счёт по основной системе и разбор обеих систем: тот же порядок,
-                   что и в настольной панели. -->
-              <TextBlock x:Name="MobilePrisonersText" Classes="app-value" FontWeight="SemiBold" />
-              <TextBlock x:Name="MobileScoreText" Classes="app-value" FontWeight="SemiBold" />
+              <!-- Здесь остаётся только объяснение счёта и статус: строка счёта (SheetSummary)
+                   и пленные (SheetSummaryDetails) уже стоят в свёрнутой шторке, и повторять их
+                   в подробностях нельзя — игрок видел одну и ту же величину дважды (жалоба
+                   пользователя 2026-10-02 «дублирование счетов»). -->
               <TextBlock x:Name="MobileScoreDetailText" Classes="app-label" TextWrapping="Wrap" />
-
-              <Border x:Name="SheetCountingPanel"
-                      IsVisible="{Binding IsCounting}"
-                      Padding="10,8"
-                      CornerRadius="8"
-                      Background="{DynamicResource AppAccentSoftBrush}">
-                <StackPanel Spacing="6">
-                  <TextBlock Text="{x:Static views:GameStatusLines.CountingInvitation}"
-                             TextWrapping="Wrap"
-                             Foreground="{DynamicResource AppTextBrush}" />
-                  <Button x:Name="SheetConfirmButton"
-                          Content="Посчитать"
-                          Classes="app-primary"
-                          HorizontalAlignment="Stretch"
-                          IsEnabled="{Binding CanConfirmScore}" />
-                </StackPanel>
-              </Border>
 
               <TextBlock x:Name="MobileBreakdownText"
                          Classes="app-label"
@@ -548,6 +485,13 @@
       </Border>
 
     </Grid>
+
+    <!-- Итог партии — один на обе раскладки, оверлеем поверх вида: затемнение и карточка
+         по центру экрана. Раньше баннеров было два (по одному на раскладку), и оба стояли полосой
+         сверху — на телефоне полоса оказывалась отдельной строкой сетки, уезжала от взгляда
+         и теснила доску (жалоба пользователя 2026-10-02). Стоит до экрана настроек: настройки
+         открываются поверх всего. -->
+    <views:GameResultBanner x:Name="ResultBanner" />
 
     <!-- Настройки поверх вида: окон на телефоне нет, поэтому тот же SettingsView показывается
          здесь. На узком экране это отдельный экран во всю высоту с заголовком и кнопкой «Назад»,

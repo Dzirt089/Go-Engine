@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using GoEngine.AI;
 using GoEngine.App.Services;
 using GoEngine.App.ViewModels;
@@ -42,23 +43,15 @@ public sealed class GameResultBannerTests
     }
 
     [Fact]
-    public void До_Подтверждения_Подсчёта_Баннер_Молчит()
+    public void Партия_Заканчивается_При_Подключённом_Баннере_И_Карточка_Появляется_Сама()
     {
-        // Согласование мёртвых групп: итог ещё не подтверждён, победитель не называется.
-        var banner = new GameResultBanner();
-        banner.Attach(CountingModel());
-
-        Assert.False(banner.IsVisible);
-    }
-
-    [Fact]
-    public void Подтверждение_Подсчёта_Показывает_Баннер_Без_Отдельной_Команды()
-    {
-        var model = CountingModel();
+        // Шага «Посчитать» больше нет: два паса завершают партию, и карточка показывается без
+        // единого нажатия (жалоба пользователя 2026-10-02 «не хочу ещё куда-то тыкать»).
+        var model = Create();
         var banner = new GameResultBanner();
         banner.Attach(model);
 
-        model.ConfirmScore();
+        _ = model.LoadGame(DeadCornerGame());
 
         Assert.True(banner.IsVisible);
     }
@@ -190,26 +183,139 @@ public sealed class GameResultBannerTests
         Assert.False(banner.IsTouch);
     }
 
+    [Fact]
+    public void Карточка_Стоит_По_Центру_Экрана()
+    {
+        // Жалоба пользователя 2026-10-02: блок с исходом стоял полосой сверху и уезжал от взгляда.
+        var banner = new GameResultBanner();
+
+        var card = Card(banner);
+
+        Assert.Equal((HorizontalAlignment.Center, VerticalAlignment.Center), (card.HorizontalAlignment, card.VerticalAlignment));
+    }
+
+    [Fact]
+    public void Карточка_Ограничена_По_Ширине()
+    {
+        // Без ограничения карточка растянулась бы в строку через весь монитор.
+        var banner = new GameResultBanner();
+
+        Assert.InRange(Card(banner).MaxWidth, 1, 900);
+    }
+
+    [Fact]
+    public void Затемнение_Растянуто_На_Весь_Вид()
+    {
+        var banner = new GameResultBanner();
+
+        var overlay = Overlay(banner);
+
+        Assert.Equal((HorizontalAlignment.Stretch, VerticalAlignment.Stretch), (overlay.HorizontalAlignment, overlay.VerticalAlignment));
+    }
+
+    [Fact]
+    public void Затемнение_Взято_Из_Темы()
+    {
+        // Цвет затемнения задаёт класс темы: жёсткий чёрный в тёмной теме сливался бы с фоном.
+        var banner = new GameResultBanner();
+
+        Assert.Contains("app-overlay", Overlay(banner).Classes);
+    }
+
+    [Fact]
+    public void Кнопка_Закрыть_Прячет_Карточку()
+    {
+        var model = FinishedModel();
+        var banner = new GameResultBanner();
+        banner.Attach(model);
+
+        ClickClose(banner);
+
+        Assert.False(banner.IsVisible);
+    }
+
+    [Fact]
+    public void Закрытая_Карточка_Не_Возвращается_От_Постороннего_Изменения()
+    {
+        // Закрытие не должно сниматься от перерисовки: иначе карточка мигала бы поверх доски,
+        // которую игрок как раз рассматривает. Переключатель разметки итог не меняет.
+        var model = FinishedModel();
+        var banner = new GameResultBanner();
+        banner.Attach(model);
+        ClickClose(banner);
+
+        model.ShowTerritory = false;
+
+        Assert.False(banner.IsVisible);
+    }
+
+    [Fact]
+    public void Закрытая_Карточка_Не_Возвращается_При_Том_Же_Итоге()
+    {
+        // Правило с двух сторон: молчит, пока итог тот же. Повторная загрузка той же
+        // завершённой позиции итог не меняет — и карточка не появляется.
+        var model = FinishedModel();
+        var banner = new GameResultBanner();
+        banner.Attach(model);
+        ClickClose(banner);
+
+        _ = model.LoadGame(DeadCornerGame());
+
+        Assert.False(banner.IsVisible);
+    }
+
+    [Fact]
+    public void Закрытая_Карточка_Возвращается_При_Другом_Итоге()
+    {
+        // «Закрыть» гасит карточку, пока итог тот же, а не навсегда: другая партия с другим
+        // результатом обязана показаться снова.
+        var model = FinishedModel();
+        var banner = new GameResultBanner();
+        banner.Attach(model);
+        ClickClose(banner);
+
+        _ = model.LoadGame(DeadCornerGame(new Komi(0.5)));
+
+        Assert.True(banner.IsVisible);
+    }
+
+    [Fact]
+    public void Мобильная_Раскладка_Делает_Крупной_И_Кнопку_Закрыть()
+    {
+        var banner = new GameResultBanner();
+
+        banner.IsTouch = true;
+
+        Assert.Contains("touch", CloseButton(banner).Classes);
+    }
+
+    [Fact]
+    public void Подпись_Баннера_Не_Повторяет_Счёт()
+    {
+        // Жалоба пользователя 2026-10-02 №3: счёт показывался трижды, в том числе в баннере.
+        // Баннер называет исход и перевес, счёт живёт в панели партии и в шторке.
+        var model = FinishedModel();
+        var banner = new GameResultBanner();
+
+        banner.Attach(model);
+
+        Assert.DoesNotContain(model.Score, Detail(banner), StringComparison.Ordinal);
+    }
+
     /// <summary>Создаёт модель представления со случайным соперником: партия в тесте идёт быстро.</summary>
     /// <returns>Модель представления партии 9×9; построение — общее для тестов.</returns>
     private static MainViewModel Create() => TestViewModel.Create(null, DifficultyLevel.Kyu30, size: Size);
 
-    /// <summary>Создаёт модель, в которой партия завершена двумя пасами, а мёртвые не подтверждены.</summary>
-    /// <returns>Модель в состоянии согласования мёртвых групп.</returns>
-    private static MainViewModel CountingModel()
+    /// <summary>Создаёт модель завершённой партии: баннеру есть что показывать.</summary>
+    /// <returns>Модель, в которой партия закончилась двумя пасами.</returns>
+    /// <remarks>
+    /// Отдельного шага подтверждения подсчёта нет: два паса завершают партию, и итог называется
+    /// сразу. Мёртвые группы при этом уже помечены перебором — их видно на доске.
+    /// </remarks>
+    private static MainViewModel FinishedModel()
     {
         var model = Create();
         _ = model.LoadGame(DeadCornerGame());
-
-        return model;
-    }
-
-    /// <summary>Создаёт модель с подтверждённым итогом: баннеру есть что показывать.</summary>
-    /// <returns>Модель завершённой партии.</returns>
-    private static MainViewModel FinishedModel()
-    {
-        var model = CountingModel();
-        model.ConfirmScore();
 
         return model;
     }
@@ -218,6 +324,23 @@ public sealed class GameResultBannerTests
     /// <param name="banner">Баннер с разметкой.</param>
     private static void ClickNewGame(GameResultBanner banner) =>
         NewGameButton(banner).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+    /// <summary>Нажимает кнопку карточки «Закрыть» так же, как её нажимает игрок.</summary>
+    /// <param name="banner">Баннер с разметкой.</param>
+    private static void ClickClose(GameResultBanner banner) =>
+        CloseButton(banner).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+    /// <summary>Кнопка «Закрыть» внутри карточки.</summary>
+    /// <param name="banner">Баннер с разметкой.</param>
+    /// <returns>Кнопка разметки; отсутствие кнопки — сломанная разметка, а не сценарий теста.</returns>
+    private static Button CloseButton(GameResultBanner banner) =>
+        banner.FindControl<Button>("CloseButton")!;
+
+    /// <summary>Затемнение под карточкой: слой, на котором стоит сообщение.</summary>
+    /// <param name="banner">Баннер с разметкой.</param>
+    /// <returns>Рамка затемнения.</returns>
+    private static Border Overlay(GameResultBanner banner) =>
+        banner.FindControl<Border>("Overlay")!;
 
     /// <summary>Кнопка «Новая партия» внутри баннера.</summary>
     /// <param name="banner">Баннер с разметкой.</param>
@@ -244,14 +367,16 @@ public sealed class GameResultBannerTests
         banner.FindControl<Border>("BannerCard")!;
 
     /// <summary>Строит партию 9×9 с мёртвой белой группой в углу, завершённую двумя пасами.</summary>
+    /// <param name="komi">Коми партии; <c>null</c> — обычное для 9×9 (5.5).</param>
     /// <returns>Прочитанная партия для <see cref="MainViewModel.LoadGame"/>.</returns>
     /// <remarks>
     /// Позиция: чёрные закрыли угол (2,0), (2,1), (0,2), (1,2), внутри остались два белых камня.
     /// Ход белых в любую из двух пустых точек угла проигрывает: чёрные отвечают и снимают группу.
+    /// Коми — параметр: та же позиция с другим коми даёт другой перевес, а значит и другой итог.
     /// </remarks>
-    private static SgfGame DeadCornerGame() => new(
+    private static SgfGame DeadCornerGame(Komi? komi = null) => new(
         Size,
-        Komi.For9x9,
+        komi ?? Komi.For9x9,
         [
             Move.Play(new Point(2, 0), StoneColor.Black),
             Move.Play(new Point(0, 0), StoneColor.White),
@@ -265,4 +390,5 @@ public sealed class GameResultBannerTests
             Move.Pass(StoneColor.White)
         ],
         null);
+
 }

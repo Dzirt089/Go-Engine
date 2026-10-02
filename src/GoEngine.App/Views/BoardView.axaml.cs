@@ -123,12 +123,9 @@ public sealed partial class BoardView : UserControl
     private readonly ScrollViewer? _sheetDetails;
     private readonly StackPanel? _sheetSummaryPanel;
     private readonly TextBlock? _desktopPrisoners;
-    private readonly TextBlock? _mobilePrisoners;
     private readonly TextBlock? _desktopScore;
-    private readonly TextBlock? _mobileScore;
     private readonly TextBlock? _desktopStatus;
     private readonly TextBlock? _mobileStatusText;
-    private readonly TextBlock? _desktopScoreDetail;
     private readonly TextBlock? _desktopScoreSystems;
     private readonly TextBlock? _mobileScoreDetail;
     private readonly TextBlock? _desktopBreakdown;
@@ -144,16 +141,14 @@ public sealed partial class BoardView : UserControl
     private readonly TextBlock? _mobileClock;
     private readonly Button? _desktopPause;
     private readonly Button? _mobilePause;
-    private readonly GameResultBanner? _desktopResultBanner;
-    private readonly GameResultBanner? _mobileResultBanner;
-    private readonly Border? _mobileResultHost;
 
-    /// <summary>Показанный сейчас баннер итога: раскладок две, и баннер в каждой свой.</summary>
+    /// <summary>Баннер итога партии: один на обе раскладки.</summary>
     /// <remarks>
-    /// Баннеры не переезжают между раскладками (в отличие от доски): у каждого своя рамка
-    /// и своё место в разметке, поэтому вид показывает тот, что стоит в текущей раскладке.
+    /// Баннер стоит оверлеем поверх вида и по центру экрана, поэтому переезжать между раскладками
+    /// ему не нужно — в отличие от доски. Раскладка меняет только размер кнопок
+    /// (<see cref="GameResultBanner.IsTouch"/>): на телефоне в карточку попадают пальцем.
     /// </remarks>
-    private GameResultBanner? _resultBanner;
+    private readonly GameResultBanner? _resultBanner;
 
     /// <summary>Таймер, по которому исчезает подсказка.</summary>
     private DispatcherTimer? _hintTimer;
@@ -231,12 +226,9 @@ public sealed partial class BoardView : UserControl
         _sheetDetails = this.FindControl<ScrollViewer>("SheetDetails");
         _sheetSummaryPanel = this.FindControl<StackPanel>("SheetSummaryPanel");
         _desktopPrisoners = this.FindControl<TextBlock>("DesktopPrisonersText");
-        _mobilePrisoners = this.FindControl<TextBlock>("MobilePrisonersText");
         _desktopScore = this.FindControl<TextBlock>("DesktopScoreText");
-        _mobileScore = this.FindControl<TextBlock>("MobileScoreText");
         _desktopStatus = this.FindControl<TextBlock>("DesktopStatusText");
         _mobileStatusText = this.FindControl<TextBlock>("MobileStatusText");
-        _desktopScoreDetail = this.FindControl<TextBlock>("DesktopScoreDetailText");
         _desktopScoreSystems = this.FindControl<TextBlock>("DesktopScoreSystemsText");
         _mobileScoreDetail = this.FindControl<TextBlock>("MobileScoreDetailText");
         _desktopBreakdown = this.FindControl<TextBlock>("DesktopBreakdownText");
@@ -252,17 +244,11 @@ public sealed partial class BoardView : UserControl
         _mobileClock = this.FindControl<TextBlock>("MobileClockText");
         _desktopPause = this.FindControl<Button>("DesktopPauseButton");
         _mobilePause = this.FindControl<Button>("MobilePauseButton");
-        _desktopResultBanner = this.FindControl<GameResultBanner>("DesktopResultBanner");
-        _mobileResultBanner = this.FindControl<GameResultBanner>("MobileResultBanner");
-        _mobileResultHost = this.FindControl<Border>("MobileResultHost");
+        _resultBanner = this.FindControl<GameResultBanner>("ResultBanner");
 
-        // Баннеры создаёт разметка без модели: подключаем их к партии здесь, иначе итог партии
-        // не доходит до экрана, а кнопка «Новая партия» в баннере мертва (D-065 §6).
-        _desktopResultBanner?.Attach(ViewModel);
-        _mobileResultBanner?.Attach(ViewModel);
-
-        // До выбора раскладки показывается настольный баннер: раскладку выберет ApplyLayout.
-        _resultBanner = _desktopResultBanner;
+        // Баннер создаёт разметка без модели: подключаем его к партии здесь, иначе итог партии
+        // не доходит до экрана, а кнопки карточки мертвы (D-065 §6).
+        _resultBanner?.Attach(ViewModel);
 
         if (_boardControl is not null)
         {
@@ -319,11 +305,6 @@ public sealed partial class BoardView : UserControl
             _desktopDetailsButton.Click += OnDetailsToggleClick;
         }
 
-        // Подтверждение подсчёта: кнопка есть в обеих раскладках, действие одно.
-        WireButton("DesktopConfirmButton", OnConfirmScoreClick);
-        WireButton("MobileConfirmButton", OnConfirmScoreClick);
-        WireButton("SheetConfirmButton", OnConfirmScoreClick);
-
         if (this.FindControl<ComboBox>("SizeBox") is { } sizeBox)
         {
             sizeBox.SelectionChanged += OnSizeChanged;
@@ -348,11 +329,18 @@ public sealed partial class BoardView : UserControl
             _mobileStatus.SizeChanged += OnMobilePartSizeChanged;
         }
 
-        // Высота панели действий меняется от подписей кнопок и от скрытой кнопки территории:
-        // по ней пересчитывается сторона доски.
+        // Высота панели действий меняется от подписей кнопок и от меню «Ещё» — вместе с ней
+        // меняется и высота строки доски. Подписка на обе части: по одной считается сторона,
+        // по другой видно, что место доски стало другим. Без второй подписки доска оставалась
+        // прежнего размера и заезжала под панель (жалоба пользователя 2026-10-02).
         if (_mobileActionBar is not null)
         {
             _mobileActionBar.SizeChanged += OnMobilePartSizeChanged;
+        }
+
+        if (_mobileBoardRow is not null)
+        {
+            _mobileBoardRow.SizeChanged += OnMobilePartSizeChanged;
         }
 
         if (_sheet is not null)
@@ -733,26 +721,12 @@ public sealed partial class BoardView : UserControl
             MoveBoard(mobile ? _mobileBoardHost : _desktopBoardHost);
         }
 
-        // Баннер показывает только текущая раскладка: у каждой он свой, со своей рамкой
-        // и своим местом. Кнопка баннера на телефоне крупнее — цель нажатия 48 точек.
-        _resultBanner = mobile ? _mobileResultBanner : _desktopResultBanner;
-
-        if (_desktopResultBanner is not null)
+        if (_resultBanner is not null)
         {
-            _desktopResultBanner.IsVisible = false;
+            // Баннер один на обе раскладки: меняется только размер цели нажатия — на телефоне
+            // по кнопкам карточки попадают пальцем.
+            _resultBanner.IsTouch = mobile;
         }
-
-        if (_mobileResultBanner is not null)
-        {
-            _mobileResultBanner.IsTouch = true;
-        }
-
-        if (_mobileResultHost is not null)
-        {
-            _mobileResultHost.IsVisible = false;
-        }
-
-        RefreshResultBanner();
 
         if (_overlay is not null)
         {
@@ -818,6 +792,7 @@ public sealed partial class BoardView : UserControl
         // Место доски считает раскладка: доска и панель действий стоят в разных строках сетки
         // (BoardView.axaml), поэтому строка доски уже не включает в себя кнопки, а её настоящая
         // высота известна после раскладки. Ширина берётся у раскладки, высота — у строки доски.
+        // Из высоты вычитается зазор: доска не должна наезжать на панель действий.
         var width = _mobileLayout.Bounds.Width - (2 * MobileBoardMargin);
         var height = (_mobileBoardRow?.Bounds.Height ?? 0) - (2 * MobileBoardMargin);
 
@@ -830,6 +805,21 @@ public sealed partial class BoardView : UserControl
 
         _mobileBoardHost.Width = side;
         _mobileBoardHost.Height = side;
+
+        // Панель действий идёт по ширине доски, но не уже читаемой: на узком экране (360×640)
+        // доска ограничена высотой, и выровненная по ней панель обрезала бы подписи кнопок.
+        // Ширину считает чистая функция, её проверяют тесты.
+        if (_mobileActionBar is not null)
+        {
+            var barWidth = BoardLayoutRules.MobileActionBarWidth(
+                side,
+                _mobileLayout.Bounds.Width - (2 * MobileActionMargin));
+
+            if (barWidth > 0)
+            {
+                _mobileActionBar.MaxWidth = barWidth;
+            }
+        }
     }
 
     /// <summary>Раскрывает и сворачивает шторку сведений.</summary>
@@ -879,15 +869,9 @@ public sealed partial class BoardView : UserControl
             _desktopPrisoners.Text = prisoners;
         }
 
-        if (_mobilePrisoners is not null)
-        {
-            _mobilePrisoners.Text = prisoners;
-        }
-
-        // Идёт согласование мёртвых групп: победитель ещё не назван, счёт предварительный.
         // Правило «что показывать» живёт в чистых функциях GameStatusLines, чтобы его проверяли
-        // тесты: пока подсчёт не подтверждён, приговор показывать нельзя.
-        var counting = ViewModel.IsCounting;
+        // тесты: пока итога нет, приговор не называется. Шага согласования подсчёта больше нет —
+        // мёртвые группы помечает перебор, а игрок правит пометки нажатием по доске (D-070).
         var verdict = ViewModel.HasOutcome;
         var paused = ViewModel.IsGamePaused;
 
@@ -895,13 +879,13 @@ public sealed partial class BoardView : UserControl
         // видеть, что партия остановлена, а не думать, что интерфейс завис.
         var status = paused
             ? PausedHeadline
-            : GameStatusLines.Headline(counting, verdict, ViewModel.Status, ViewModel.ToMove);
+            : GameStatusLines.Headline(verdict, ViewModel.Status, ViewModel.ToMove);
         var second = paused
             ? PausedDetail
-            : GameStatusLines.Detail(counting, verdict, ViewModel.Outcome, ViewModel.MoveNumber);
-        // Счёт предварительный и в согласовании, и во время партии: там позиция недоиграна,
-        // и окончательным счётом её называть нельзя (жалоба 2026-10-02).
-        var provisional = counting || ViewModel.Status == "Идёт";
+            : GameStatusLines.Detail(verdict, ViewModel.Outcome, ViewModel.MoveNumber);
+        // Счёт предварительный, пока партия идёт: позиция недоиграна, и окончательным счётом
+        // её называть нельзя (жалоба 2026-10-02).
+        var provisional = ViewModel.Status == "Идёт";
         var score = GameStatusLines.ScoreLine(provisional, ViewModel.Score);
         var detail = ViewModel.ScoreDetail;
         var breakdown = ViewModel.ScoreBreakdown;
@@ -910,7 +894,7 @@ public sealed partial class BoardView : UserControl
             ViewModel.PlayerColor.ToLowerInvariant(),
             ViewModel.MoveNumber,
             ViewModel.Komi);
-        var stone = GameStatusLines.ShowTurnStone(counting, verdict);
+        var stone = GameStatusLines.ShowTurnStone(verdict);
 
         if (_mobileTurnText is not null)
         {
@@ -938,8 +922,6 @@ public sealed partial class BoardView : UserControl
         SetText(_desktopStatus, status);
         SetText(_mobileStatusText, $"Статус: {ViewModel.Status}");
         SetText(_desktopScore, score);
-        SetText(_mobileScore, score);
-        SetText(_desktopScoreDetail, detail);
         SetText(_desktopScoreSystems, detail);
         SetText(_mobileScoreDetail, detail);
         SetText(_desktopBreakdown, breakdown);
@@ -956,7 +938,6 @@ public sealed partial class BoardView : UserControl
         SetVisible(_desktopBreakdown, breakdown.Length > 0);
         SetVisible(_mobileBreakdown, breakdown.Length > 0);
         SetVisible(_desktopPrisoners, prisoners.Length > 0 && ViewModel.Status == "Идёт");
-        SetVisible(_mobilePrisoners, prisoners.Length > 0 && ViewModel.Status == "Идёт");
 
         // До первого хода кнопка называется «Начать партию»: партия ждёт игрока, а не идёт.
         var newGameLabel = ViewModel.IsFirstMove ? StartGameLabel : NewGameLabel;
@@ -971,22 +952,10 @@ public sealed partial class BoardView : UserControl
 
         RefreshDeadMarks();
         RefreshOutcomeHighlight();
-        RefreshResultBanner();
-    }
 
-    /// <summary>Показывает баннер итога в текущей раскладке.</summary>
-    /// <remarks>
-    /// Строка баннера на телефоне — отдельная строка сетки, и она появляется вместе с баннером:
-    /// пустая рамка над доской съедала бы место на низком экране.
-    /// </remarks>
-    private void RefreshResultBanner()
-    {
+        // Баннер итога пересобирается вместе с панелью: строки карточки те же, что у строки
+        // состояния, и отдельного пути обновления у них нет.
         _resultBanner?.Refresh();
-
-        if (_mobileResultHost is not null)
-        {
-            _mobileResultHost.IsVisible = _mobileResultBanner?.IsVisible == true;
-        }
     }
 
     /// <summary>Подсвечивает доску цветом итога: выигрыш, проигрыш или ничья.</summary>
@@ -1066,11 +1035,6 @@ public sealed partial class BoardView : UserControl
         _boardControl.DeadPoints = ViewModel.DeadPoints.Count > 0 ? ViewModel.DeadPoints : null;
         _boardControl.InvalidateVisual();
     }
-
-    /// <summary>Подтверждает подсчёт: мёртвые камни снимаются и входят в итог.</summary>
-    /// <param name="sender">Кнопка «Посчитать».</param>
-    /// <param name="e">Событие нажатия.</param>
-    private void OnConfirmScoreClick(object? sender, RoutedEventArgs e) => ViewModel.ConfirmScore();
 
     /// <summary>Ходят ли чёрные.</summary>
     /// <returns><c>true</c>, если очередь чёрных.</returns>
@@ -1154,15 +1118,12 @@ public sealed partial class BoardView : UserControl
         }
 
         // Пометки мёртвых камней: список может остаться тем же объектом, поэтому доска
-        // перерисовывается и по счётчику изменений, и по самому списку.
+        // перерисовывается и по счётчику изменений, и по самому списку. Вместе с пометками
+        // меняется и счёт: мёртвые камни идут в пленные.
         if (e.PropertyName is nameof(MainViewModel.DeadPoints)
-            or nameof(MainViewModel.DeadRevision)
-            or nameof(MainViewModel.IsCounting))
+            or nameof(MainViewModel.DeadRevision))
         {
             RefreshDeadMarks();
-
-            // Вход в подсчёт и выход из него меняют и подписи: до подтверждения победитель
-            // не называется, счёт объявляется предварительным.
             RefreshSummary();
             return;
         }
@@ -1324,8 +1285,9 @@ public sealed partial class BoardView : UserControl
     /// <param name="e">Точка хода.</param>
     /// <remarks>
     /// <para>
-    /// Пока идёт согласование мёртвых групп, щелчок не играет ход, а помечает группу мёртвой
-    /// или снимает пометку: в этом режиме ходы не принимаются (контракт конца партии, T-A).
+    /// Партия окончена — щелчок не играет ход, а поправляет пометку мёртвой группы: оценку
+    /// даёт перебор, но последнее слово за игроком, а на телефоне правой кнопки нет — там
+    /// поправить оценку можно только нажатием по камню. Счёт пересчитывается сразу.
     /// </para>
     /// <para>
     /// Во время партии пометка ставится правой кнопкой (<c>MoveRequestedEventArgs.MarksDead</c>):
@@ -1334,9 +1296,9 @@ public sealed partial class BoardView : UserControl
     /// </remarks>
     private void OnMoveRequested(object? sender, MoveRequestedEventArgs e)
     {
-        // Пометка мёртвой группы: в согласовании — левой кнопкой (там ходов нет), во время
-        // партии — правой (левая занята ходом). Счёт пересчитывается сразу.
-        if (ViewModel.IsCounting || e.MarksDead)
+        // Пометка мёртвой группы: после конца партии — нажатием (ходов там нет), во время
+        // партии — правой кнопкой (левая занята ходом). Счёт пересчитывается сразу.
+        if (ViewModel.HasOutcome || e.MarksDead)
         {
             _ = ViewModel.ToggleDeadAt(e.Point);
             return;

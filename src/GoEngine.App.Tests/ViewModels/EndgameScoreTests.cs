@@ -19,22 +19,14 @@ public sealed class EndgameScoreTests
     private static readonly BoardSize Size = BoardSize.Size9;
 
     [Fact]
-    public void После_Двух_Пасов_Идёт_Согласование_Мёртвых()
+    public void После_Двух_Пасов_Итог_Назван_Сразу()
     {
+        // Шага подтверждения нет (D-070): партия кончилась — итог уже назван программой.
         var model = Create();
 
         _ = model.LoadGame(DeadCornerGame());
 
-        Assert.True(model.IsCounting);
-    }
-
-    [Fact]
-    public void Согласование_Можно_Подтвердить()
-    {
-        var model = Create();
-        _ = model.LoadGame(DeadCornerGame());
-
-        Assert.True(model.CanConfirmScore);
+        Assert.True(model.HasOutcome);
     }
 
     [Fact]
@@ -158,14 +150,31 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Разбор_Говорит_О_Предварительном_Подсчёте()
+    public void Разбор_Счёта_В_Идущей_Партии_Предварительный()
     {
-        // Пока подсчёт не подтверждён, баннер прямо об этом пишет: игрок должен видеть,
-        // что счёт ещё изменится (жалоба 2026-09-30 — прежние четыре строки разбора путали;
-        // жалоба 2026-10-02 — «счёт предварительно» заменили на спокойное «Предварительный счёт»).
+        // Пока партия идёт, разбор прямо об этом пишет: позиция недоиграна, и числа изменятся
+        // (жалоба 2026-10-02: счёт середины партии выглядел окончательным).
+        var model = Create();
+        _ = model.LoadGame(DeadCornerInProgressGame());
+
+        Assert.StartsWith("Предварительный счёт", model.ScoreDetail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void После_Двух_Пасов_Подпись_Баннера_Называет_Исход()
+    {
+        // Баннер оживает сразу: подпись — исход словами, без счёта.
         var model = CreateCountingModel();
 
-        Assert.Contains("Предварительный счёт", model.ResultDetail, StringComparison.Ordinal);
+        Assert.Equal(model.Outcome, model.ResultDetail);
+    }
+
+    [Fact]
+    public void После_Подтверждения_Подпись_Баннера_Повторяет_Исход()
+    {
+        // Счёта в подписи нет: он назван строкой счёта рядом (замечание 3 пользователя 2026-10-02).
+        var model = CreateCountingModel();
+        Assert.Equal(model.Outcome, model.ResultDetail);
     }
 
     [Fact]
@@ -193,36 +202,81 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Разбор_Называет_Обе_Системы_Одной_Строкой()
+    public void Разбор_Называет_Слагаемые_Японской_Системы()
     {
+        // Территория 4 плюс пленные 2 дают 6: без слагаемых число не сходится с разбором площади.
         var model = CreateCountingModel();
 
-        // Первой идёт основная система (японская), второй — китайская; слагаемые в подписи
-        // не расписываются: их видно в расшифровке площади.
-        Assert.Contains("Японская:", model.ScoreDetail, StringComparison.Ordinal);
-        Assert.Contains("Китайская:", model.ScoreDetail, StringComparison.Ordinal);
+        Assert.Contains(
+            "Японская: чёрные 6 (территория 4 + пленные 2) : 5.5 белые (территория 0 + пленные 0 + коми 5.5)",
+            model.ScoreDetail,
+            StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Подтверждение_Заканчивает_Согласование()
+    public void Разбор_Называет_Слагаемые_Китайской_Системы()
     {
+        // Площадь: 4 камня чёрных плюс 4 точки территории — 8; у белых 2 камня и коми 5.5.
         var model = CreateCountingModel();
 
-        model.ConfirmScore();
-
-        Assert.False(model.IsCounting);
+        Assert.Contains(
+            "Китайская: чёрные 8 (камни 4 + территория 4) : 7.5 белые (камни 2 + территория 0 + коми 5.5)",
+            model.ScoreDetail,
+            StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Подтверждение_Показывает_Итог_Словами_Игрока()
+    public void Разбор_Называет_Мёртвые_Группы_И_Нейтральные_Точки()
     {
+        // Мёртвые — те, что уходят в пленные снявшего; нейтральные — те, что не засчитаны никому.
         var model = CreateCountingModel();
 
-        model.ConfirmScore();
+        Assert.Contains(
+            "Мёртвые группы: белые 2 (в пленные чёрным) · чёрные 0 · нейтральных точек 71",
+            model.ScoreDetail,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Итог_Показывается_Словами_Игрока()
+    {
+        var model = CreateCountingModel();
 
         // Итог называется глазами игрока: цвет победителя сам по себе ничего ему не говорит.
         Assert.NotEqual(GameTone.None, model.ResultTone);
         Assert.Contains("Вы ", model.ResultHeadline, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void В_Идущей_Партии_Счёт_Сразу_Учитывает_Мёртвых()
+    {
+        // Игрок ничего не нажимает: программа сама помечает мёртвую группу, её камни уходят
+        // в пленные чёрных, а точки становятся их территорией — 4 точки и 2 пленных (D-070).
+        var model = Create();
+        _ = model.LoadGame(DeadCornerInProgressGame());
+
+        Assert.Equal("Чёрные 6 : 5.5 Белые", model.Score);
+    }
+
+    [Fact]
+    public void В_Идущей_Партии_Пометки_Есть_Без_Разметки_На_Экране()
+    {
+        // Скрытая разметка — только показ: мёртвых программа считает всегда.
+        var model = Create();
+        _ = model.LoadGame(DeadCornerInProgressGame());
+
+        model.ShowTerritory = false;
+
+        Assert.Contains(new Point(0, 0), model.DeadPoints);
+    }
+
+    [Fact]
+    public void В_Идущей_Партии_Пленные_Сразу_В_Строке()
+    {
+        var model = Create();
+        _ = model.LoadGame(DeadCornerInProgressGame());
+
+        Assert.Contains("мертвыми 2 : 0", model.PrisonersLine, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -235,23 +289,21 @@ public sealed class EndgameScoreTests
         var dead = model.DeadPoints.Count;
         var before = model.Margin;
 
-        model.ConfirmScore();
-
         Assert.True(dead > 0);
         Assert.Equal(before, model.Margin);
         Assert.Contains("мертвыми", model.PrisonersLine, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void После_Подтверждения_Пометки_Не_Меняют_Итог()
+    public void Клик_После_Конца_Партии_Меняет_Итог()
     {
+        // Правка пометки после конца партии — право игрока: итог пересчитывается сразу (D-070).
         var model = CreateCountingModel();
-        model.ConfirmScore();
         var score = model.Score;
 
         _ = model.ToggleDeadAt(new Point(0, 0));
 
-        Assert.Equal(score, model.Score);
+        Assert.NotEqual(score, model.Score);
     }
 
     [Fact]
@@ -259,8 +311,6 @@ public sealed class EndgameScoreTests
     {
         // По площади у чёрных 8, по территории с пленными — 6.
         var model = CreateCountingModel();
-        model.ConfirmScore();
-
         model.ScoringRule = ScoringRule.Chinese;
 
         Assert.Equal("Чёрные 8 : 7.5 Белые", model.Score);
@@ -280,20 +330,18 @@ public sealed class EndgameScoreTests
         var model = Create();
         var score = model.Score;
 
-        model.ConfirmScore();
-
         Assert.Equal(score, model.Score);
     }
 
     [Fact]
-    public void Отмена_После_Подтверждения_Возвращает_Партию()
+    public void Отмена_Возвращает_Партию()
     {
         var model = CreateCountingModel();
-        model.ConfirmScore();
 
         _ = model.Undo();
 
-        Assert.False(model.IsCounting);
+        // Отмена возвращает партию в игру: названного итога больше нет.
+        Assert.False(model.HasOutcome);
     }
 
     [Fact]
@@ -304,8 +352,6 @@ public sealed class EndgameScoreTests
         var model = Create();
         _ = model.LoadGame(CapturedThreeGame());
 
-        model.ConfirmScore();
-
         Assert.Equal("Чёрные 6 : 5.5 Белые", model.Score);
     }
 
@@ -314,8 +360,6 @@ public sealed class EndgameScoreTests
     {
         var model = Create();
         _ = model.LoadGame(CapturedThreeGame());
-        model.ConfirmScore();
-
         var with = Endgame.Finalize(
             model.Board,
             model.DeadPoints,
@@ -345,15 +389,13 @@ public sealed class EndgameScoreTests
         // Площадь: 4 камня чёрных + 3 точки территории = 7, у белых 1 камень + коми 5.5 = 6.5.
         var model = Create();
         _ = model.LoadGame(CapturedThreeGame());
-        model.ConfirmScore();
-
         model.ScoringRule = ScoringRule.Chinese;
 
         Assert.Equal("Чёрные 7 : 6.5 Белые", model.Score);
     }
 
     [Fact]
-    public void Пас_Завершающий_Партию_Включает_Согласование()
+    public void Пас_Завершающий_Партию_Не_Ждёт_Подтверждения()
     {
         // Партия уже приняла один пас белых: пас чёрных становится вторым подряд и завершает партию.
         // Путь живой — ход идёт через TryPlay, а не через загрузку готовой партии.
@@ -371,17 +413,17 @@ public sealed class EndgameScoreTests
 
         _ = model.Pass();
 
-        Assert.True(model.IsCounting);
+        Assert.True(model.HasOutcome);
     }
 
     [Fact]
-    public void Уведомления_Согласования_Содержат_Новые_Свойства()
+    public void Уведомления_Клика_Содержат_Новый_Счёт()
     {
         var model = CreateCountingModel();
         HashSet<string> changed = [];
         model.PropertyChanged += (_, args) => changed.Add(args.PropertyName ?? string.Empty);
 
-        model.ConfirmScore();
+        _ = model.ToggleDeadAt(new Point(0, 0));
 
         Assert.Contains(nameof(MainViewModel.ScoreDetail), changed);
     }
@@ -399,7 +441,7 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Загрузка_Завершённой_Партии_Сообщает_О_Согласовании()
+    public void Загрузка_Завершённой_Партии_Сообщает_Об_Итоге()
     {
         var model = Create();
         HashSet<string> changed = [];
@@ -407,7 +449,7 @@ public sealed class EndgameScoreTests
 
         _ = model.LoadGame(DeadCornerGame());
 
-        Assert.Contains(nameof(MainViewModel.IsCounting), changed);
+        Assert.Contains(nameof(MainViewModel.HasOutcome), changed);
     }
 
     [Fact]
@@ -419,14 +461,12 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Приёмка_Согласование_Показывает_Верную_Картину_Сразу()
+    public void Приёмка_Итог_Показан_Сразу_После_Двух_Пасов()
     {
-        // Жалоба 2026-10-02: до нажатия «Посчитать» подсчёт выглядел неверным. После двух пасов
-        // всё уже посчитано и показано, включать ничего не нужно, кнопка доступна сразу.
+        // Жалоба 2026-10-02: до нажатия «Посчитать» подсчёт выглядел неверным. Нажатия больше нет
+        // (D-070): после двух пасов всё уже посчитано и показано, и разметка видна сама.
         var model = CreateCountingModel();
 
-        Assert.True(model.IsCounting);
-        Assert.True(model.CanConfirmScore);
         Assert.True(model.HasTerritory);
         Assert.NotEmpty(model.DeadPoints);
         Assert.Equal(Endgame.ProposeDead(model.Board), model.DeadPoints);
@@ -531,7 +571,10 @@ public sealed class EndgameScoreTests
         // Площадь: 4 камня чёрных + 4 точки территории = 8, у белых 2 камня + коми 5.5 = 7.5.
         var model = CreateCountingModel();
 
-        Assert.Contains("Китайская: чёрные 8 : 7.5 белые", model.ScoreDetail, StringComparison.Ordinal);
+        Assert.Contains(
+            "Китайская: чёрные 8 (камни 4 + территория 4) : 7.5 белые (камни 2 + территория 0 + коми 5.5)",
+            model.ScoreDetail,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -546,19 +589,12 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Приёмка_До_Подтверждения_Победитель_Не_Назван_После_Подтверждения_Назван()
+    public void Приёмка_Победитель_Назван_Сразу_После_Двух_Пасов()
     {
         var model = CreateCountingModel();
 
-        // Пока пометки не подтверждены, итог не показывается: строка состояния ведёт согласование.
-        Assert.False(GameStatusLines.ShowOutcome(model.IsCounting, model.HasOutcome));
-        Assert.Equal(
-            "Согласование подсчёта",
-            GameStatusLines.Headline(model.IsCounting, model.HasOutcome, model.Status, model.ToMove));
-
-        model.ConfirmScore();
-
-        Assert.True(GameStatusLines.ShowOutcome(model.IsCounting, model.HasOutcome));
+        // Пока партия идёт, итог не показывается; после двух пасов он назван без единого нажатия.
+        Assert.True(GameStatusLines.ShowOutcome(model.HasOutcome));
         Assert.Contains("Вы ", model.ResultHeadline, StringComparison.Ordinal);
     }
 
@@ -566,8 +602,10 @@ public sealed class EndgameScoreTests
     public void Предложение_Мёртвых_Считается_Один_Раз_На_Позицию()
     {
         // Регрессия жалобы 2026-10-02: Endgame.ProposeDead перебирает до 20 000 позиций на группу,
-        // и он не должен запускаться на каждое чтение свойства — только на смену позиции.
+        // и он не должен запускаться на каждое чтение свойства — только на первую просьбу
+        // об оценке для новой позиции. Партия завершена, поэтому оценка запрошена сама собой.
         var model = CreateCountingModel();
+        _ = model.Score;
         var proposals = model.DeadProposalCount;
 
         Assert.Equal(1, proposals);
@@ -593,6 +631,7 @@ public sealed class EndgameScoreTests
         // Позиция от клика не меняется: перебор предложения не повторяется, счёт пересчитывается
         // по уже готовому списку.
         var model = CreateCountingModel();
+        _ = model.Score;
         var proposals = model.DeadProposalCount;
 
         _ = model.ToggleDeadAt(new Point(8, 8));
@@ -642,6 +681,23 @@ public sealed class EndgameScoreTests
             Move.Play(new Point(8, 8), StoneColor.White),
             Move.Pass(StoneColor.Black),
             Move.Pass(StoneColor.White)
+        ],
+        null);
+
+    /// <summary>Строит идущую партию 9×9 с доказанно мёртвой белой группой в углу.</summary>
+    /// <returns>Прочитанная партия без двух пасов: статус «идёт», разметка ещё не запрошена.</returns>
+    private static SgfGame DeadCornerInProgressGame() => new(
+        Size,
+        Komi.For9x9,
+        [
+            Move.Play(new Point(2, 0), StoneColor.Black),
+            Move.Play(new Point(0, 0), StoneColor.White),
+            Move.Play(new Point(2, 1), StoneColor.Black),
+            Move.Play(new Point(1, 0), StoneColor.White),
+            Move.Play(new Point(0, 2), StoneColor.Black),
+            Move.Play(new Point(8, 8), StoneColor.White),
+            Move.Play(new Point(1, 2), StoneColor.Black),
+            Move.Play(new Point(8, 7), StoneColor.White)
         ],
         null);
 

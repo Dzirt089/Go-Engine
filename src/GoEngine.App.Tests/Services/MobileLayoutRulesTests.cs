@@ -81,6 +81,41 @@ public sealed class MobileLayoutRulesTests
     }
 
     [Fact]
+    public void Панель_Действий_Телефона_Не_Уже_Доски()
+    {
+        // Обычный телефон: доска упирается в ширину экрана, панель по ней и выравнивается.
+        Assert.Equal(352, BoardLayoutRules.MobileActionBarWidth(352, 396));
+    }
+
+    [Fact]
+    public void Панель_Действий_Телефона_Не_Уже_Читаемой_На_Узком_Экране()
+    {
+        // 360×640: доска ограничена высотой (266 точек), и панель ровно по ней обрезала бы
+        // подписи четырёх кнопок — она берёт наименьшую читаемую ширину.
+        Assert.Equal(BoardLayoutRules.MinimumActionBarWidth, BoardLayoutRules.MobileActionBarWidth(266, 344));
+    }
+
+    [Fact]
+    public void Панель_Действий_Телефона_Не_Шире_Экрана()
+    {
+        // Ландшафт: доска маленькая, но панель шире читаемого минимума не станет — только
+        // если экран уже самого минимума.
+        Assert.Equal(BoardLayoutRules.MinimumActionBarWidth, BoardLayoutRules.MobileActionBarWidth(174, 899));
+    }
+
+    [Fact]
+    public void Очень_Узкий_Экран_Ограничивает_Панель_Действий_Собой()
+    {
+        Assert.Equal(300, BoardLayoutRules.MobileActionBarWidth(280, 300));
+    }
+
+    [Fact]
+    public void Нулевое_Место_Не_Даёт_Панели_Действий()
+    {
+        Assert.Equal(0, BoardLayoutRules.MobileActionBarWidth(300, 0));
+    }
+
+    [Fact]
     public void Координаты_Помещаются_На_Доске_9_На_9_В_Телефоне()
     {
         Assert.True(BoardLayoutRules.CoordinatesFit(352, 9));

@@ -4,39 +4,49 @@
              IsVisible="False">
 
   <!-- Баннер итога партии: одна карточка на обе раскладки, потому что сообщение одно и то же —
-       партия выиграна, проиграна или ничья. Стоит поверх доски сверху, а не в панели: панель
-       на телефоне свёрнута в шторку, и итог в ней легко не заметить (жалоба 2026-09-30).
+       партия выиграна, проиграна или ничья. Карточка стоит ПО ЦЕНТРУ экрана на затемнении:
+       полосой сверху она на телефоне оказывалась отдельной строкой сетки над доской, уезжала
+       от взгляда и мешала панели действий (жалоба пользователя 2026-10-02 «вывод блока
+       с сообщением должен быть в центре экрана»). Затемнение — кисть темы (AppOverlayBrush):
+       жёсткий чёрный в тёмной теме сливался бы с фоном, а светлый не затемнял бы вовсе.
+
        Содержимое ставит код вида (GameResultBanner.axaml.cs) — строки собирают чистые функции
        GameStatusLines, чтобы правило «что показывать» проверялось тестами. -->
-  <Border x:Name="BannerCard"
-          Classes="app-banner"
-          Margin="8,8,8,0"
-          Padding="12,10"
-          MaxWidth="420"
-          HorizontalAlignment="Center"
-          VerticalAlignment="Top">
-    <StackPanel Spacing="6">
+  <Border x:Name="Overlay" Classes="app-overlay">
+    <Border x:Name="BannerCard"
+            Classes="app-banner app-overlay-card"
+            Padding="12,10"
+            MaxWidth="420"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center">
+      <StackPanel Spacing="8">
 
-      <TextBlock x:Name="HeadlineText"
-                 Classes="app-banner-title"
-                 HorizontalAlignment="Center"
-                 TextAlignment="Center" />
+        <TextBlock x:Name="HeadlineText"
+                   Classes="app-banner-title"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center" />
 
-      <TextBlock x:Name="DetailText"
-                 Classes="app-banner-detail"
-                 HorizontalAlignment="Center"
-                 TextAlignment="Center" />
+        <TextBlock x:Name="DetailText"
+                   Classes="app-banner-detail"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center" />
 
-      <!-- Действие прямо в баннере: после конца партии игрок чаще всего начинает новую,
-           и искать для этого кнопку в другом месте не нужно. Крупный размер телефона
-           (класс touch) ставит код вида по раскладке — в разметке его нет: иначе крупной
-           стала бы и настольная кнопка, а признак раскладки потерял бы смысл. -->
-      <Button x:Name="NewGameButton"
-              Classes="app-banner-action primary"
-              Content="Новая партия"
-              HorizontalAlignment="Center" />
+        <!-- Действия прямо в карточке: после конца партии игрок чаще всего начинает новую,
+             и искать для этого кнопку в другом месте не нужно. «Закрыть» нужен затем, чтобы
+             посмотреть итоговую доску: затемнение закрывает её от нажатий, пока карточка стоит.
+             Крупный размер телефона (класс touch) ставит код вида по раскладке — в разметке его
+             нет: иначе крупной стала бы и настольная кнопка, а признак раскладки потерял бы смысл. -->
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+          <Button x:Name="NewGameButton"
+                  Classes="app-banner-action primary"
+                  Content="Новая партия" />
+          <Button x:Name="CloseButton"
+                  Classes="app-banner-action"
+                  Content="Закрыть" />
+        </StackPanel>
 
-    </StackPanel>
+      </StackPanel>
+    </Border>
   </Border>
 
 </UserControl>
