@@ -98,6 +98,34 @@ public sealed class ScoringRuleTests
         Assert.Equal(ScoringRule.Chinese, model.ScoringRule);
     }
 
+    [Fact]
+    public void Во_Время_Согласования_Строка_Счёта_Идёт_По_Выбранной_Системе()
+    {
+        // Обе величины считаются всегда (D-064), а строку счёта и победителя называет выбранная
+        // система. Позиция из двух камней в открытой доске: территории нет ни у кого, поэтому
+        // японская величина равна нулю, а китайская считает камень чёрных — расхождение ровно 1.
+        var model = TestViewModel.Create(StoneColor.Black, DifficultyLevel.Kyu30, size: BoardSize.Size9);
+        _ = model.LoadGame(new SgfGame(
+            BoardSize.Size9,
+            Komi.For9x9,
+            [
+                Move.Play(new Point(4, 4), StoneColor.Black),
+                Move.Play(new Point(5, 5), StoneColor.White),
+                Move.Pass(StoneColor.Black),
+                Move.Pass(StoneColor.White)
+            ],
+            null));
+
+        Assert.True(model.IsCounting);
+        Assert.Equal("Чёрные 0 : 5.5 Белые", model.Score);
+
+        model.ScoringRule = ScoringRule.Chinese;
+
+        Assert.Equal("Чёрные 1 : 6.5 Белые", model.Score);
+        Assert.StartsWith("Китайская:", model.ScoreDetail, StringComparison.Ordinal);
+        Assert.Contains("Японская:", model.ScoreDetail, StringComparison.Ordinal);
+    }
+
     /// <summary>Строит путь к временному файлу настроек.</summary>
     /// <returns>Путь, который тест обязан удалить за собой.</returns>
     private static string TempFile() =>

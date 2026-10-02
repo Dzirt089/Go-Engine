@@ -45,7 +45,9 @@
     <TextBlock x:Name="ScoringHintText" TextWrapping="Wrap" Foreground="#444444" />
 
     <!-- Обновления: версия видна всегда, проверка и установка — по кнопке. Проверка ходит
-         за манифестом в плавающий релиз latest, установка отличается от системы к системе. -->
+         за манифестом в плавающий релиз latest, установка отличается от системы к системе.
+         Состояние и ход загрузки берутся у общей модели обновления (App.Updates) — той же,
+         что показывает приглашение в оболочке. -->
     <TextBlock x:Name="VersionText" Margin="0,6,0,0" Foreground="#444444" />
 
     <!-- Состояние моделей нейросети: без этой строки отказ сети виден только по отсутствию
@@ -75,7 +77,16 @@
               MinHeight="44"
               IsVisible="False"
               Classes="accent" />
+      <Button x:Name="CancelUpdateButton" Content="Отмена" MinHeight="44" IsVisible="False" />
     </StackPanel>
+
+    <!-- Ход загрузки и установки: та же полоса, что и в приглашении оболочки, — состояние одно
+         на приложение, поэтому проценты здесь и там совпадают. -->
+    <ProgressBar x:Name="UpdateProgressBar"
+                 Minimum="0"
+                 Maximum="100"
+                 Height="8"
+                 IsVisible="False" />
 
     <TextBlock x:Name="UpdateStatusText" TextWrapping="Wrap" Foreground="#444444" />
 

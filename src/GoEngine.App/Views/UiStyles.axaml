@@ -17,14 +17,6 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
 
-  <!-- Кнопка на панели поверх доски: подписи вроде «Новая партия» обязаны помещаться
-       в 360 точек, поэтому кегль и внутренние отступы меньше, чем у обычной кнопки. -->
-  <Style Selector="Button.app-action-bar">
-    <Setter Property="FontSize" Value="13" />
-    <Setter Property="Padding" Value="7,0" />
-    <Setter Property="MinWidth" Value="0" />
-  </Style>
-
   <!-- Главное действие: пас и подтверждение подсчёта -->
   <Style Selector="Button.app-primary">
     <Setter Property="MinHeight" Value="{DynamicResource AppTouchTarget}" />
@@ -95,12 +87,6 @@
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="FontSize" Value="{DynamicResource AppFontBody}" />
     <Setter Property="TextWrapping" Value="Wrap" />
-  </Style>
-
-  <Style Selector="TextBlock.app-title">
-    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-    <Setter Property="FontSize" Value="{DynamicResource AppFontTitle}" />
-    <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
   <Style Selector="TextBlock.app-subtitle">

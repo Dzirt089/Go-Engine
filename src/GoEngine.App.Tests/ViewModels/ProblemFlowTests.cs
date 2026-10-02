@@ -4,7 +4,7 @@ using GoEngine.Problems;
 
 namespace GoEngine.App.Tests;
 
-/// <summary>Прохождение задач в модели представления: вердикты, подсказка на доске и честные пометки.</summary>
+/// <summary>Прохождение задач в модели представления: вердикты, подсказка на доске и подписи задач.</summary>
 /// <remarks>
 /// Проверяется весь набор задач библиотеки, а не одна выбранная: набор растёт файлами
 /// <c>Problems/*.sgf</c>, и новая задача обязана работать без правок кода. Подсказка проверяется
@@ -56,40 +56,47 @@ public sealed class ProblemFlowTests
     }
 
     [Fact]
-    public void Пометка_Об_Источнике_Меняется_Вместе_С_Задачей()
+    public void Подпись_Списка_Называет_Задачу_Шифром_И_Пометкой_О_Происхождении()
     {
-        // Регрессия: панель показывала источник первой задачи после перехода ко второй —
-        // SourceText не попадал в список изменившихся свойств, и надпись застывала.
+        // Пометка о происхождении обязана быть видна до начала решения: у задачи по решению
+        // источника исход движком не доказан. Кю из подписи убрано: у всех встроенных задач
+        // сложность одна и та же, и в списке она занимает место, ничего не различая.
         var model = new ProblemViewModel();
 
         for (var index = 0; index < model.Problems.Count; index++)
         {
-            model.Select(index);
+            var problem = model.Problems[index];
+            var label = model.Labels[index];
 
-            if (model.Current.Goal != ProblemGoal.Reference)
+            Assert.StartsWith(problem.Id, label, StringComparison.Ordinal);
+            Assert.DoesNotContain("кю", label, StringComparison.Ordinal);
+
+            if (problem.Goal == ProblemGoal.Reference)
             {
-                Assert.False(model.HasSource);
-                continue;
+                Assert.Contains("решение источника", label, StringComparison.Ordinal);
             }
-
-            Assert.True(model.HasSource, $"{model.Current.Id}: нет пометки о происхождении решения");
-            Assert.Contains(model.Current.Source, model.SourceText, StringComparison.Ordinal);
         }
     }
 
     [Fact]
-    public void Переход_К_Задаче_Сообщает_ОбИзменении_Пометки_И_Подсказки()
+    public void Условие_Меняется_Вместе_С_Задачей()
     {
+        // Регрессия: панель показывала текст предыдущей задачи после перехода к следующей —
+        // имя свойства не попадало в список изменившихся, и надпись застывала.
         var model = new ProblemViewModel();
         List<string> changed = [];
 
         model.PropertyChanged += (_, e) => changed.Add(e.PropertyName ?? string.Empty);
 
-        model.Next();
+        for (var index = 1; index < model.Problems.Count; index++)
+        {
+            changed.Clear();
+            model.Select(index);
 
-        Assert.Contains(nameof(ProblemViewModel.SourceText), changed);
-        Assert.Contains(nameof(ProblemViewModel.HintPoint), changed);
-        Assert.Contains(nameof(ProblemViewModel.Description), changed);
+            Assert.Contains(nameof(ProblemViewModel.Description), changed);
+            Assert.Equal(model.Problems[index].Description, model.Description);
+            Assert.Equal(model.Problems[index].Name, model.Title);
+        }
     }
 
     [Fact]

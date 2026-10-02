@@ -55,6 +55,29 @@
                  игрок должен видеть исход сразу, а не искать его (жалоба 2026-09-30). -->
             <views:GameResultBanner x:Name="DesktopResultBanner" />
 
+            <!-- Время партии и два действия с ним. Строка стоит выше прочих: время игрок
+                 смотрит постоянно, а не ищет в подробностях. Кнопка часов одна на два
+                 состояния — «Пауза» и «Продолжить»: подпись меняет код вида. -->
+            <Grid x:Name="DesktopClockRow" ColumnDefinitions="*,Auto,Auto" Margin="0,2,0,0">
+              <TextBlock x:Name="DesktopClockText"
+                         Classes="app-clock"
+                         TextWrapping="Wrap"
+                         VerticalAlignment="Center" />
+              <Button x:Name="DesktopPauseButton"
+                      Grid.Column="1"
+                      Content="Пауза"
+                      Classes="app-row-action"
+                      Margin="4,0,4,0"
+                      IsEnabled="{Binding CanTogglePause}"
+                      ToolTip.Tip="Остановить время партии" />
+              <Button x:Name="DesktopAbortButton"
+                      Grid.Column="2"
+                      Content="Отменить партию"
+                      Classes="app-row-action"
+                      IsEnabled="{Binding CanAbortGame}"
+                      ToolTip.Tip="Прекратить партию и вернуть доску в исходное состояние" />
+            </Grid>
+
             <!-- Состояние партии: кто ходит и что происходит. Итог называет баннер, поэтому
                  здесь его нет — иначе одно и то же сообщение стояло бы дважды. -->
             <TextBlock x:Name="DesktopStatusText"
@@ -82,7 +105,7 @@
                     CornerRadius="8"
                     Background="{DynamicResource AppAccentSoftBrush}">
               <StackPanel Spacing="6">
-                <TextBlock Text="Проверьте мёртвые группы: щелчок по группе помечает её мёртвой. Окончательный счёт — по кнопке."
+                <TextBlock Text="{x:Static views:GameStatusLines.CountingInvitation}"
                            TextWrapping="Wrap"
                            Foreground="{DynamicResource AppTextBrush}" />
                 <Button x:Name="DesktopConfirmButton"
@@ -106,7 +129,8 @@
               <Button x:Name="PassButton"
                       Grid.Column="0"
                       Content="Пас"
-                      Classes="app-row-action primary" />
+                      Classes="app-row-action primary"
+                      IsEnabled="{Binding CanPlayMove}" />
               <Button x:Name="UndoButton"
                       Grid.Column="1"
                       Content="Отменить"
@@ -125,6 +149,21 @@
                             IsVisible="{Binding CanToggleTerritory}"
                             IsChecked="{Binding ShowTerritory}" />
             </Grid>
+
+            <!-- Числа подсчёта стоят сразу под действиями, а не в свёрнутых «Подробностях»:
+                 игрок нажимает «Территорию» и обязан видеть рядом, что именно посчитано —
+                 камни, территория, пленные. Раньше эти строки лежали в свёрнутой панели,
+                 и разметка на доске оставалась без чисел (жалоба пользователя 2026-10-02).
+                 Пустые строки места не занимают: их скрывает вид по признаку «есть что сказать». -->
+            <TextBlock x:Name="DesktopPrisonersText"
+                       Classes="app-label"
+                       TextWrapping="Wrap"
+                       IsVisible="False" />
+
+            <TextBlock x:Name="DesktopBreakdownText"
+                       Classes="app-label"
+                       TextWrapping="Wrap"
+                       IsVisible="False" />
 
             <!-- Сведения о партии одной строкой: соперник, номер хода и коми. -->
             <TextBlock x:Name="DesktopStatsText"
@@ -171,12 +210,6 @@
                           HorizontalContentAlignment="Center" />
 
             <StackPanel x:Name="DesktopDetailsPanel" Spacing="6" IsVisible="False">
-              <TextBlock x:Name="DesktopPrisonersText"
-                         Classes="app-label"
-                         TextWrapping="Wrap" />
-              <TextBlock x:Name="DesktopBreakdownText"
-                         Classes="app-label"
-                         TextWrapping="Wrap" />
               <!-- Подсказка о том, почему уровней с сетью нет: строка нужна, но показывается
                    только когда есть что сказать. -->
               <TextBlock x:Name="DesktopLevelHintText"
@@ -300,7 +333,7 @@
                 VerticalAlignment="Top"
                 HorizontalAlignment="Center">
           <StackPanel Orientation="Horizontal" Spacing="10">
-            <TextBlock Text="Проверьте мёртвые группы: клик по группе помечает её"
+            <TextBlock Text="{x:Static views:GameStatusLines.CountingInvitationShort}"
                        VerticalAlignment="Center"
                        TextWrapping="Wrap"
                        MaxWidth="170"
@@ -313,9 +346,10 @@
         </Border>
       </Panel>
 
-      <!-- Панель действий: два ряда. В первом — четыре действия партии, во втором —
-           «Начать партию» во всю ширину: до первого хода это главное действие экрана.
-           Пять кнопок в один ряд в 360 точек не помещались (жалоба 2026-09-30). -->
+      <!-- Панель действий: три ряда. В первом — время партии, «Пауза» и «Отменить партию»,
+           во втором — четыре действия партии, в третьем — «Начать партию» во всю ширину:
+           до первого хода это главное действие экрана. Пять кнопок в один ряд в 360 точек
+           не помещались (жалоба 2026-09-30). -->
       <Border x:Name="MobileActionBar"
               Grid.Row="1"
                 Classes="app-card"
@@ -323,16 +357,35 @@
                 Margin="8,0,8,8"
                 VerticalAlignment="Bottom"
                 HorizontalAlignment="Center">
-          <!-- Две строки фиксированной высоты: кнопка территории прячется, когда разметка
-               включается сама, и панель не должна от этого прыгать. Во второй строке —
+          <!-- Строки фиксированной высоты: кнопка территории прячется, когда разметка
+               включается сама, и панель не должна от этого прыгать. В последней строке —
                «Начать партию» и «Файл» с сохранением и загрузкой: три кнопки в ряд здесь
                не помещаются, а файловые действия нужны редко. -->
           <StackPanel Spacing="6">
+            <!-- Время партии и два действия с ним. Строка стоит первой в панели действий и видна
+                 всегда: строка состояния на низком экране (телефон в ландшафте) прячется, а время
+                 партии игрок должен видеть и там. -->
+            <Grid x:Name="MobileClockRow" ColumnDefinitions="Auto,*,*" Classes="app-touch-row touch">
+              <TextBlock x:Name="MobileClockText"
+                         Classes="app-clock"
+                         VerticalAlignment="Center" />
+              <Button x:Name="MobilePauseButton"
+                      Grid.Column="1"
+                      Content="Пауза"
+                      Classes="app-touch"
+                      IsEnabled="{Binding CanTogglePause}" />
+              <Button x:Name="MobileAbortButton"
+                      Grid.Column="2"
+                      Content="Отменить партию"
+                      Classes="app-touch"
+                      IsEnabled="{Binding CanAbortGame}" />
+            </Grid>
             <Grid x:Name="MobileActionRow" ColumnDefinitions="*,*,*,*" Classes="app-touch-row touch">
               <Button x:Name="MobilePassButton"
                       Grid.Column="0"
                       Content="Пас"
-                      Classes="app-touch primary" />
+                      Classes="app-touch primary"
+                      IsEnabled="{Binding CanPlayMove}" />
               <Button x:Name="MobileUndoButton"
                       Grid.Column="1"
                       Content="Отменить"
@@ -442,7 +495,7 @@
                       CornerRadius="8"
                       Background="{DynamicResource AppAccentSoftBrush}">
                 <StackPanel Spacing="6">
-                  <TextBlock Text="Проверьте мёртвые группы: щелчок по группе на доске помечает её мёртвой."
+                  <TextBlock Text="{x:Static views:GameStatusLines.CountingInvitation}"
                              TextWrapping="Wrap"
                              Foreground="{DynamicResource AppTextBrush}" />
                   <Button x:Name="SheetConfirmButton"

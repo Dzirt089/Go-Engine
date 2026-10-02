@@ -23,6 +23,13 @@
     <ProjectReference Include="..\GoEngine.App\GoEngine.App.csproj" />
   </ItemGroup>
 
+  <!-- Тема — часть контракта размеров: её числа обязаны совпадать с PlatformMetrics.For.
+       Файл включён ресурсом сборки тестов, чтобы проверка читала ту же разметку, что уезжает
+       в приложение, а не копию в тестовом коде. -->
+  <ItemGroup>
+    <Content Include="..\GoEngine.App\Views\UiTheme.axaml" Link="Views\UiTheme.axaml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>

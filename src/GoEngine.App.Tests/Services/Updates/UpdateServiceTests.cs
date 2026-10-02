@@ -1,4 +1,3 @@
-using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using GoEngine.App.Services.Updates;
@@ -80,10 +79,60 @@ public sealed class UpdateServiceTests
         }
     }
 
+    [Fact]
+    public async Task Загрузка_Сообщает_Прогресс_До_Конца()
+    {
+        var directory = Directory.CreateTempSubdirectory("goengine-update-service");
+
+        try
+        {
+            var reports = new List<DownloadProgress>();
+            var service = Service(directory.FullName, new StubInstaller("win-x64"));
+            var check = new UpdateCheck(UpdateStatus.Available, Manifest("win-x64"));
+
+            var result = await service.DownloadAsync(check, new CollectingProgress(reports));
+
+            Assert.True(result.IsSuccess, result.Error);
+            Assert.Equal(100, reports[^1].Percent);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Загрузка_И_Установка_Разделены()
+    {
+        var directory = Directory.CreateTempSubdirectory("goengine-update-service");
+
+        try
+        {
+            var installer = new StubInstaller("win-x64");
+            var service = Service(directory.FullName, installer);
+            var check = new UpdateCheck(UpdateStatus.Available, Manifest("win-x64"));
+
+            // Загрузка кончается до установки: интерфейсу нужно успеть показать «Установка…».
+            var downloaded = await service.DownloadAsync(check);
+
+            Assert.True(downloaded.IsSuccess, downloaded.Error);
+            Assert.Null(installer.Installed);
+
+            var installed = service.Install(downloaded.Value!);
+
+            Assert.True(installed.IsSuccess, installed.Error);
+            Assert.Equal(downloaded.Value, installer.Installed);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
     private static UpdateService Service(string directory, IUpdateInstaller installer)
     {
         // Манифест в этих тестах приходит готовым: проверяется связка «загрузка — установка».
-        var http = new HttpClient(new StubHandler(Payload));
+        var http = new HttpClient(StubHttpHandler.Bytes(Payload));
 
         return new UpdateService(
             new UpdateChecker(http, new Uri("https://example.org/update.json"), AppVersion.Unknown),
@@ -133,14 +182,4 @@ public sealed class UpdateServiceTests
         /// <inheritdoc />
         public Result<string> OpenDownloadPage(Uri url) => Result<string>.Ok("страница открыта");
     }
-
-    /// <summary>Подставной обработчик HTTP для файла обновления.</summary>
-    /// <param name="payload">Тело ответа.</param>
-    private sealed class StubHandler(byte[] payload) : HttpMessageHandler
-    {
-        /// <inheritdoc />
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(payload) });
-    }
-
 }

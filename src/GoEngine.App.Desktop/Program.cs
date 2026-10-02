@@ -63,88 +63,11 @@ internal static class Program
     /// <returns>Код возврата процесса.</returns>
     private static int Run(string[] args)
     {
-        if (args.Contains(ModeArguments.Smoke))
+        // Проверочные режимы: таблица режимов живёт в Diagnostics/ModeRunner, здесь только выбор.
+        // Ни один режим окна не открывает, поэтому проверки идут и на сборочном агенте.
+        if (ModeRunner.TryRun(args, out var modeExitCode))
         {
-            // Проверка запуска без графической сессии: на сборочных агентах окно открыть нельзя.
-            Console.WriteLine("Go Engine: приложение собрано, точка входа работает.");
-            return 0;
-        }
-
-        if (args.Contains(ModeArguments.CrashTest))
-        {
-            // Проверка лога падений: режим намеренно завершает процесс сбоем (см. CheckModes).
-            return CheckModes.CrashTest();
-        }
-
-        if (args.Contains(ModeArguments.Check))
-        {
-            // Проверка ввода без окна: попадание щелчка в точку доски считается той же
-            // геометрией, что и на экране.
-            return CheckModes.PointMapping();
-        }
-
-        if (args.Contains(ModeArguments.Stress))
-        {
-            // Проверка нагрузки: движок играет много партий подряд, память не растёт бесконтрольно.
-            return CheckModes.Stress();
-        }
-
-        if (args.Contains(ModeArguments.EndToEnd))
-        {
-            // Финальный smoke-тест: игра, сохранение, загрузка, отмена, возврат, новый ход.
-            return CheckModes.EndToEnd();
-        }
-
-        if (args.Contains(ModeArguments.Animation))
-        {
-            // Проверка кадров анимации без окна: состояние считается той же арифметикой.
-            return CheckModes.Animation();
-        }
-
-        if (args is [ModeArguments.RenderAnimation, var framePath, ..])
-        {
-            RenderSamples.AnimationFrame(framePath);
-            Console.WriteLine($"Go Engine: кадр анимации отрисован в {framePath}.");
-            return 0;
-        }
-
-        if (args.Contains(ModeArguments.Sgf))
-        {
-            // Проверка формата без окна: партия записывается в файл и читается обратно.
-            return CheckModes.Sgf();
-        }
-
-        if (args.Contains(ModeArguments.Settings))
-        {
-            // Проверка настроек без окна: запись в файл и чтение обратно.
-            return CheckModes.Settings();
-        }
-
-        if (args.Contains(ModeArguments.Problems))
-        {
-            // Проверка режима задач без окна: та же модель, что и в виде, решает задачи по линии
-            // источника и отвергает посторонний ход.
-            return CheckModes.Problems();
-        }
-
-        if (args.Contains(ModeArguments.Result))
-        {
-            // Проверка строк итога: ими игрок читает, выиграл он или проиграл.
-            return CheckModes.ResultLines();
-        }
-
-        if (args.Contains(ModeArguments.State))
-        {
-            // Проверка панели статуса без окна: модель представления показывает данные партии.
-            return CheckModes.ViewModel();
-        }
-
-        if (args is [ModeArguments.Render, var path, ..])
-        {
-            // Проверка рисования без окна: тот же рендерер, что и на экране, пишет PNG.
-            RenderSamples.ToPng(path);
-            Console.WriteLine($"Go Engine: доска отрисована в {path}.");
-            return 0;
+            return modeExitCode;
         }
 
         // Голова решает, играть ли звук вообще: система может просить обойтись без анимаций.

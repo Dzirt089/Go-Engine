@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
@@ -15,6 +16,10 @@ namespace GoEngine.App.Views;
 /// </para>
 /// <para>
 /// Вид не знает про партию: он получает модель представления и показывает готовые строки.
+/// Разметка создаёт баннер конструктором без параметров — передать ей модель нечем, поэтому
+/// модель подключает владелец вида методом <see cref="Attach"/>. Без подключения баннер молчит,
+/// а его кнопка мертва: итог не доходил до экрана ни на настольной версии, ни на телефоне
+/// (регрессия D-065 §6).
 /// </para>
 /// </remarks>
 public sealed partial class GameResultBanner : UserControl
@@ -30,12 +35,17 @@ public sealed partial class GameResultBanner : UserControl
     /// <summary>Класс крупной кнопки для телефона: в настольной раскладке его нет.</summary>
     private const string TouchClass = "touch";
 
-    private readonly MainViewModel? _viewModel;
+    /// <summary>Подключённая модель представления; <c>null</c>, пока владелец вида не подключил баннер.</summary>
+    private MainViewModel? _viewModel;
 
     /// <summary>Создаёт баннер без модели: так его создаёт XAML.</summary>
+    /// <remarks>
+    /// Модель приходит позже — через <see cref="Attach"/> или конструктор с параметром:
+    /// у разметки нет способа передать аргумент.
+    /// </remarks>
     public GameResultBanner() => AvaloniaXamlLoader.Load(this);
 
-    /// <summary>Создаёт баннер для партии.</summary>
+    /// <summary>Создаёт баннер, сразу подключённый к партии.</summary>
     /// <param name="viewModel">Модель представления партии: из неё берутся строки итога.</param>
     /// <remarks>
     /// Модель подписывается на изменения: баннер появляется и исчезает вместе с итогом партии,
@@ -45,7 +55,23 @@ public sealed partial class GameResultBanner : UserControl
     public GameResultBanner(MainViewModel viewModel)
         : this()
     {
+        Attach(viewModel);
+    }
+
+    /// <summary>Подключает баннер к модели представления партии.</summary>
+    /// <param name="viewModel">Модель представления партии; не <c>null</c>.</param>
+    /// <remarks>
+    /// Экземпляры баннера создаёт разметка — конструктором без параметров, поэтому подписку
+    /// делает владелец вида сразу после <c>FindControl</c>. Повторный вызов безопасен: прежняя
+    /// подписка снимается, новая ставится ровно одна — раскладка и пересоздание вида могут
+    /// позвать метод ещё раз, а лишний обработчик удваивал бы и перерисовку, и запуск новой
+    /// партии по нажатию.
+    /// </remarks>
+    public void Attach(MainViewModel viewModel)
+    {
         ArgumentNullException.ThrowIfNull(viewModel);
+
+        Detach();
 
         _viewModel = viewModel;
 
@@ -54,7 +80,8 @@ public sealed partial class GameResultBanner : UserControl
             newGame.Click += OnNewGameClick;
         }
 
-        viewModel.PropertyChanged += (_, _) => Refresh();
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
+
         Refresh();
     }
 
@@ -105,6 +132,29 @@ public sealed partial class GameResultBanner : UserControl
             }
         }
     }
+
+    /// <summary>Снимает подписки прежнего подключения: иначе повторный вызов удваивал бы обработчики.</summary>
+    private void Detach()
+    {
+        if (_viewModel is { } previous)
+        {
+            previous.PropertyChanged -= OnViewModelPropertyChanged;
+        }
+
+        // Обработчик кнопки снимается тем же методом, которым ставился: лямбда не дала бы
+        // снять подписку, и после повторного Attach одно нажатие начинало бы две партии.
+        if (this.FindControl<Button>("NewGameButton") is { } newGame)
+        {
+            newGame.Click -= OnNewGameClick;
+        }
+
+        _viewModel = null;
+    }
+
+    /// <summary>Обновляет баннер по любому изменению модели: какие именно свойства влияют на итог, решает она сама.</summary>
+    /// <param name="sender">Модель представления.</param>
+    /// <param name="e">Имя изменившегося свойства; не используется — баннер читает готовые строки.</param>
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e) => Refresh();
 
     /// <summary>Начинает новую партию по текущим настройкам.</summary>
     /// <param name="sender">Кнопка «Новая партия».</param>

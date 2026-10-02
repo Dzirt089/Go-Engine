@@ -1,6 +1,7 @@
 using GoEngine.AI;
 using GoEngine.App.Services;
 using GoEngine.App.ViewModels;
+using GoEngine.App.Views;
 using GoEngine.Core;
 
 namespace GoEngine.App.Tests;
@@ -160,10 +161,11 @@ public sealed class EndgameScoreTests
     public void Разбор_Говорит_О_Предварительном_Подсчёте()
     {
         // Пока подсчёт не подтверждён, баннер прямо об этом пишет: игрок должен видеть,
-        // что счёт ещё изменится (жалоба 2026-09-30 — прежние четыре строки разбора путали).
+        // что счёт ещё изменится (жалоба 2026-09-30 — прежние четыре строки разбора путали;
+        // жалоба 2026-10-02 — «счёт предварительно» заменили на спокойное «Предварительный счёт»).
         var model = CreateCountingModel();
 
-        Assert.Contains("предварительно", model.ResultDetail, StringComparison.Ordinal);
+        Assert.Contains("Предварительный счёт", model.ResultDetail, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -179,14 +181,15 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Строка_О_Пленных_Называет_И_Снятых_Мёртвыми()
+    public void Строка_О_Пленных_Называет_Одно_Число_И_Разложение()
     {
         // Жалоба 2026-09-30: «пленные 0» рядом со счётом, в котором мёртвые камни уже учтены.
-        // Строка обязана называть обе величины.
+        // Жалоба 2026-10-02: прежняя приписка «они тоже в пленные и в очки» читалась как оговорка.
+        // Теперь строка называет одно честное число на сторону и разложение в скобках.
         var model = CreateCountingModel();
         var dead = model.DeadPoints.Count;
 
-        Assert.Contains($"снято мёртвыми: {dead}", model.PrisonersLine, StringComparison.Ordinal);
+        Assert.Equal($"Пленные: чёрные {dead} : 0 белые (в партии 0 : 0 · мертвыми {dead} : 0)", model.PrisonersLine);
     }
 
     [Fact]
@@ -236,7 +239,7 @@ public sealed class EndgameScoreTests
 
         Assert.True(dead > 0);
         Assert.Equal(before, model.Margin);
-        Assert.Contains("снято мёртвыми", model.PrisonersLine, StringComparison.Ordinal);
+        Assert.Contains("мертвыми", model.PrisonersLine, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -413,6 +416,123 @@ public sealed class EndgameScoreTests
         var model = Create();
 
         Assert.Contains("6,5", model.ScoringHint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Приёмка_Согласование_Показывает_Верную_Картину_Сразу()
+    {
+        // Жалоба 2026-10-02: до нажатия «Посчитать» подсчёт выглядел неверным. После двух пасов
+        // всё уже посчитано и показано, включать ничего не нужно, кнопка доступна сразу.
+        var model = CreateCountingModel();
+
+        Assert.True(model.IsCounting);
+        Assert.True(model.CanConfirmScore);
+        Assert.True(model.HasTerritory);
+        Assert.NotEmpty(model.DeadPoints);
+        Assert.Equal(Endgame.ProposeDead(model.Board), model.DeadPoints);
+    }
+
+    [Fact]
+    public void Приёмка_Территория_Согласования_Считается_Без_Мёртвых_Камней()
+    {
+        // Точки снятой белой группы становятся территорией чёрных: 4 камня + 4 точки,
+        // у белых остаются только два камня вдали.
+        var model = CreateCountingModel();
+
+        var territory = model.Territory!;
+
+        Assert.Equal(8, territory.Count(owner => owner == StoneColor.Black));
+        Assert.Equal(2, territory.Count(owner => owner == StoneColor.White));
+    }
+
+    [Fact]
+    public void Приёмка_Японская_Величина_Это_Территория_Плюс_Пленные_Плюс_Коми()
+    {
+        // Территория чёрных 4, пленные 2; у белых 0 и коми 5.5: 4 + 2 против 0 + 5.5.
+        // Слагаемые названы в строке прямо: без них соседний разбор площади («камни 4 + территория 4»)
+        // не сходился со счётом и выглядел ошибкой подсчёта (жалоба пользователя 2026-10-02).
+        var model = CreateCountingModel();
+
+        Assert.Equal("Чёрные 6 : 5.5 Белые", model.Score);
+        Assert.Contains(
+            "Японская: чёрные 6 (территория 4 + пленные 2) : 5.5 белые (территория 0 + пленные 0 + коми 5.5)",
+            model.ScoreDetail,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Приёмка_Китайская_Величина_Считает_Камни_И_Территорию()
+    {
+        // Площадь: 4 камня чёрных + 4 точки территории = 8, у белых 2 камня + коми 5.5 = 7.5.
+        var model = CreateCountingModel();
+
+        Assert.Contains("Китайская: чёрные 8 : 7.5 белые", model.ScoreDetail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Приёмка_Разбор_Согласования_Считается_По_Доске_Без_Мёртвых_Камней()
+    {
+        var model = CreateCountingModel();
+
+        // Территория и камни названы по сторонам, а нейтральные точки — отдельно: сумма
+        // «территория + камни + нейтрально» равна площади доски, и по строке это видно.
+        Assert.Contains("Территория — чёрные 4 · белые 0 · нейтрально 71", model.ScoreBreakdown, StringComparison.Ordinal);
+        Assert.Contains("Камни — чёрные 4 · белые 2", model.ScoreBreakdown, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Приёмка_До_Подтверждения_Победитель_Не_Назван_После_Подтверждения_Назван()
+    {
+        var model = CreateCountingModel();
+
+        // Пока пометки не подтверждены, итог не показывается: строка состояния ведёт согласование.
+        Assert.False(GameStatusLines.ShowOutcome(model.IsCounting, model.HasOutcome));
+        Assert.Equal(
+            "Согласование подсчёта",
+            GameStatusLines.Headline(model.IsCounting, model.HasOutcome, model.Status, model.ToMove));
+
+        model.ConfirmScore();
+
+        Assert.True(GameStatusLines.ShowOutcome(model.IsCounting, model.HasOutcome));
+        Assert.Contains("Вы ", model.ResultHeadline, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Предложение_Мёртвых_Считается_Один_Раз_На_Позицию()
+    {
+        // Регрессия жалобы 2026-10-02: Endgame.ProposeDead перебирает до 20 000 позиций на группу,
+        // и он не должен запускаться на каждое чтение свойства — только на смену позиции.
+        var model = CreateCountingModel();
+        var proposals = model.DeadProposalCount;
+
+        Assert.Equal(1, proposals);
+
+        for (var index = 0; index < 50; index++)
+        {
+            _ = model.Score;
+            _ = model.ScoreDetail;
+            _ = model.ScoreBreakdown;
+            _ = model.Territory;
+            _ = model.PrisonersLine;
+            _ = model.Outcome;
+            _ = model.Margin;
+            _ = model.DeadPoints;
+        }
+
+        Assert.Equal(proposals, model.DeadProposalCount);
+    }
+
+    [Fact]
+    public void Пометка_Кликом_Не_Запускает_Перебор_Заново()
+    {
+        // Позиция от клика не меняется: перебор предложения не повторяется, счёт пересчитывается
+        // по уже готовому списку.
+        var model = CreateCountingModel();
+        var proposals = model.DeadProposalCount;
+
+        _ = model.ToggleDeadAt(new Point(8, 8));
+
+        Assert.Equal(proposals, model.DeadProposalCount);
     }
 
     /// <summary>Создаёт модель представления со случайным соперником: партия в тесте идёт быстро.</summary>

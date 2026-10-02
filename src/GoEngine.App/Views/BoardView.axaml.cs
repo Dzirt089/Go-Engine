@@ -43,6 +43,10 @@ public sealed partial class BoardView : UserControl
     /// </remarks>
     private static readonly TimeSpan HintLifetime = TimeSpan.FromSeconds(8);
 
+    /// <summary>Как часто обновляется строка времени партии.</summary>
+    /// <remarks>Раз в секунду — по секундной стрелке: чаще незачем, время и так показано до секунд.</remarks>
+    private static readonly TimeSpan ClockTickInterval = TimeSpan.FromSeconds(1);
+
     /// <summary>Отступ мобильной доски от краёв отведённого места.</summary>
     private const double MobileBoardMargin = 8;
 
@@ -68,6 +72,27 @@ public sealed partial class BoardView : UserControl
 
     /// <summary>Подпись кнопки после первого хода: партия идёт, кнопка начинает новую.</summary>
     private const string NewGameLabel = "Новая партия";
+
+    /// <summary>Подпись кнопки часов, когда партия идёт.</summary>
+    private const string PauseLabel = "Пауза";
+
+    /// <summary>Подпись кнопки часов, когда партия стоит на паузе.</summary>
+    private const string ResumeLabel = "Продолжить";
+
+    /// <summary>Состояние партии на паузе словами: остановившиеся цифры об этом не скажут.</summary>
+    private const string PausedHeadline = "Пауза";
+
+    /// <summary>Пояснение к паузе: почему щелчок по доске не играет ход.</summary>
+    private const string PausedDetail = "Ходы не принимаются";
+
+    /// <summary>Слова о неначатой партии в строке времени: по нулям не видно, идут часы или стоят.</summary>
+    private const string NotStartedMark = "партия не начата";
+
+    /// <summary>Слова о паузе рядом со временем: время стоит, и это должно быть видно.</summary>
+    private const string PausedMark = "пауза";
+
+    /// <summary>Ответ на ход, сделанный на паузе: ход не играется, и игрок должен понять почему.</summary>
+    private const string PausedHint = "Партия на паузе: нажмите «Продолжить».";
 
     /// <summary>Логгер вида: сюда попадают сохранение и загрузка партии с их отказами.</summary>
     private readonly ILogger _log = AppLog.For<BoardView>();
@@ -113,6 +138,10 @@ public sealed partial class BoardView : UserControl
     private readonly ToggleButton? _desktopDetailsButton;
     private readonly Button? _desktopNewGame;
     private readonly Button? _mobileNewGame;
+    private readonly TextBlock? _desktopClock;
+    private readonly TextBlock? _mobileClock;
+    private readonly Button? _desktopPause;
+    private readonly Button? _mobilePause;
     private readonly GameResultBanner? _desktopResultBanner;
     private readonly GameResultBanner? _mobileResultBanner;
     private readonly Border? _mobileResultHost;
@@ -126,6 +155,11 @@ public sealed partial class BoardView : UserControl
 
     /// <summary>Таймер, по которому исчезает подсказка.</summary>
     private DispatcherTimer? _hintTimer;
+
+    /// <summary>Таймер строки времени партии: заводится только у идущей партии.</summary>
+    /// <remarks>Создаётся лениво: у стоящих часов таймер не нужен, а закрытый вид его отпускает
+    /// (<see cref="OnDetachedFromVisualTree"/>), иначе таймер держал бы вид и тикал впустую.</remarks>
+    private DispatcherTimer? _clockTimer;
 
     /// <summary>Настройки, с которыми играет вид: их показывает панель настроек.</summary>
     private AppSettings _settings;
@@ -211,9 +245,18 @@ public sealed partial class BoardView : UserControl
         _desktopDetailsButton = this.FindControl<ToggleButton>("DesktopDetailsButton");
         _desktopNewGame = this.FindControl<Button>("NewGameButton");
         _mobileNewGame = this.FindControl<Button>("MobileNewGameButton");
+        _desktopClock = this.FindControl<TextBlock>("DesktopClockText");
+        _mobileClock = this.FindControl<TextBlock>("MobileClockText");
+        _desktopPause = this.FindControl<Button>("DesktopPauseButton");
+        _mobilePause = this.FindControl<Button>("MobilePauseButton");
         _desktopResultBanner = this.FindControl<GameResultBanner>("DesktopResultBanner");
         _mobileResultBanner = this.FindControl<GameResultBanner>("MobileResultBanner");
         _mobileResultHost = this.FindControl<Border>("MobileResultHost");
+
+        // Баннеры создаёт разметка без модели: подключаем их к партии здесь, иначе итог партии
+        // не доходит до экрана, а кнопка «Новая партия» в баннере мертва (D-065 §6).
+        _desktopResultBanner?.Attach(ViewModel);
+        _mobileResultBanner?.Attach(ViewModel);
 
         // До выбора раскладки показывается настольный баннер: раскладку выберет ApplyLayout.
         _resultBanner = _desktopResultBanner;
@@ -239,6 +282,13 @@ public sealed partial class BoardView : UserControl
         WireButton("SettingsButton", OnSettingsClick);
         WireButton("SaveButton", OnSaveClick);
         WireButton("LoadButton", OnLoadClick);
+
+        // Часы партии: «Пауза» / «Продолжить» — одна кнопка на два состояния в каждой раскладке,
+        // а «Отменить партию» прекращает партию целиком.
+        WireButton("DesktopPauseButton", OnPauseResumeClick);
+        WireButton("MobilePauseButton", OnPauseResumeClick);
+        WireButton("DesktopAbortButton", OnAbortGameClick);
+        WireButton("MobileAbortButton", OnAbortGameClick);
 
         // Кнопки мобильной раскладки делают то же самое: обработчики общие.
         WireButton("MobilePassButton", OnPassClick);
@@ -519,6 +569,99 @@ public sealed partial class BoardView : UserControl
         }
     }
 
+    /// <summary>Обновляет строку времени партии и подпись кнопки часов.</summary>
+    /// <remarks>
+    /// Обновляются только время и подпись кнопки: панель целиком по таймеру не пересобирается,
+    /// иначе каждую секунду переписывались бы и состояние, и счёт.
+    /// </remarks>
+    private void RefreshClock()
+    {
+        var clock = ViewModel.ClockDisplay;
+
+        // Слова о состоянии идут рядом со временем: по одним цифрам не видно, идут часы или стоят.
+        var desktop = ViewModel.IsGameStarted
+            ? $"Время партии: {clock}"
+            : $"Время партии: {clock} · {NotStartedMark}";
+
+        if (ViewModel.IsGamePaused)
+        {
+            desktop = $"{desktop} · {PausedMark}";
+        }
+
+        SetText(_desktopClock, desktop);
+        SetText(
+            _mobileClock,
+            ViewModel.IsGamePaused ? $"{ViewModel.ClockShortDisplay} · {PausedMark}" : ViewModel.ClockShortDisplay);
+
+        // Кнопка часов одна на два состояния: подпись меняется вместе с состоянием партии,
+        // а доступность задаёт привязка — кнопки, которая ничего не делает, в панели нет.
+        var label = ViewModel.CanResumeClock ? ResumeLabel : PauseLabel;
+
+        SetText(_desktopPause, label);
+        SetText(_mobilePause, label);
+
+        SyncClockTimer();
+    }
+
+    /// <summary>Заводит и останавливает таймер строки времени.</summary>
+    /// <remarks>Таймер идёт только у идущей партии: у стоящих часов обновлять нечего.</remarks>
+    private void SyncClockTimer()
+    {
+        if (!ViewModel.IsGameRunning)
+        {
+            _clockTimer?.Stop();
+
+            return;
+        }
+
+        _clockTimer ??= CreateClockTimer();
+
+        if (!_clockTimer.IsEnabled)
+        {
+            _clockTimer.Start();
+        }
+    }
+
+    /// <summary>Создаёт таймер строки времени.</summary>
+    /// <returns>Таймер с подписанным тиком.</returns>
+    private DispatcherTimer CreateClockTimer()
+    {
+        var timer = new DispatcherTimer { Interval = ClockTickInterval };
+
+        timer.Tick += OnClockTick;
+
+        return timer;
+    }
+
+    /// <summary>Обновляет строку времени партии по таймеру.</summary>
+    /// <param name="sender">Таймер.</param>
+    /// <param name="e">Событие таймера.</param>
+    private void OnClockTick(object? sender, EventArgs e) => ViewModel.TickClock();
+
+    /// <inheritdoc />
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        // Вид вернулся в дерево: строку времени и таймер нужно согласовать с партией заново.
+        RefreshClock();
+    }
+
+    /// <inheritdoc />
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+
+        // Таймер живёт на диспетчере и держит вид: у закрытого вида он обязан быть остановлен,
+        // иначе тикал бы впустую до конца работы приложения.
+        if (_clockTimer is not null)
+        {
+            _clockTimer.Stop();
+            _clockTimer.Tick -= OnClockTick;
+            _clockTimer = null;
+        }
+    }
+
     /// <summary>Перестраивает раскладку при изменении размера вида.</summary>
     /// <param name="sender">Вид.</param>
     /// <param name="e">Новый размер.</param>
@@ -743,10 +886,20 @@ public sealed partial class BoardView : UserControl
         // тесты: пока подсчёт не подтверждён, приговор показывать нельзя.
         var counting = ViewModel.IsCounting;
         var verdict = ViewModel.HasOutcome;
+        var paused = ViewModel.IsGamePaused;
 
-        var status = GameStatusLines.Headline(counting, verdict, ViewModel.Status, ViewModel.ToMove);
-        var second = GameStatusLines.Detail(counting, verdict, ViewModel.Outcome, ViewModel.MoveNumber);
-        var score = GameStatusLines.ScoreLine(counting, ViewModel.Score);
+        // На паузе слова «кто ходит» ничего не объясняют: ход не принимается, и игрок обязан
+        // видеть, что партия остановлена, а не думать, что интерфейс завис.
+        var status = paused
+            ? PausedHeadline
+            : GameStatusLines.Headline(counting, verdict, ViewModel.Status, ViewModel.ToMove);
+        var second = paused
+            ? PausedDetail
+            : GameStatusLines.Detail(counting, verdict, ViewModel.Outcome, ViewModel.MoveNumber);
+        // Счёт предварительный и в согласовании, и во время партии: там позиция недоиграна,
+        // и окончательным счётом её называть нельзя (жалоба 2026-10-02).
+        var provisional = counting || ViewModel.Status == "Идёт";
+        var score = GameStatusLines.ScoreLine(provisional, ViewModel.Score);
         var detail = ViewModel.ScoreDetail;
         var breakdown = ViewModel.ScoreBreakdown;
         var stats = GameStatusLines.StatsLine(
@@ -763,7 +916,10 @@ public sealed partial class BoardView : UserControl
 
         if (_mobileMoveText is not null)
         {
-            _mobileMoveText.Text = second;
+            // Время партии идёт рядом с ходом: строка состояния — то место, куда игрок смотрит
+            // за партией, и времени там самое место (на узком экране строка обрезается редко:
+            // она последняя и без переноса).
+            _mobileMoveText.Text = ViewModel.IsGameStarted ? $"{second} · {ViewModel.ClockShortDisplay}" : second;
         }
 
         if (_mobileTurnBlack is not null)
@@ -789,12 +945,25 @@ public sealed partial class BoardView : UserControl
         SetText(_sheetSummary, score);
         SetText(_sheetSummaryDetails, prisoners);
 
+        // Числа подсчёта видит тот, кто их запросил: строки стоят рядом с «Территорией»
+        // и появляются, только когда разметка на доске включена (жалоба 2026-10-02).
+        // Исключение — пленные: пока партия идёт, это накопительная величина партии,
+        // и она нужна в панели независимо от разметки; после конца партии её сменяет итог.
+        SetVisible(_desktopBreakdown, breakdown.Length > 0);
+        SetVisible(_mobileBreakdown, breakdown.Length > 0);
+        SetVisible(_desktopPrisoners, prisoners.Length > 0 && ViewModel.Status == "Идёт");
+        SetVisible(_mobilePrisoners, prisoners.Length > 0 && ViewModel.Status == "Идёт");
+
         // До первого хода кнопка называется «Начать партию»: партия ждёт игрока, а не идёт.
         var newGameLabel = ViewModel.IsFirstMove ? StartGameLabel : NewGameLabel;
         SetText(_desktopNewGame, newGameLabel);
         SetText(_mobileNewGame, newGameLabel);
 
         SetText(_desktopLevelHint, ViewModel.LevelHint);
+
+        // Часы обновляются здесь же: смена состояния партии меняет и строку времени, и подпись
+        // кнопки. Тиканье (раз в секунду) идёт отдельным путём и панель целиком не пересобирает.
+        RefreshClock();
 
         RefreshDeadMarks();
         RefreshOutcomeHighlight();
@@ -856,6 +1025,21 @@ public sealed partial class BoardView : UserControl
         if (target is not null)
         {
             target.Content = text;
+        }
+    }
+
+    /// <summary>Показывает или прячет строку панели.</summary>
+    /// <param name="target">Строка или <c>null</c>, если её нет в этой раскладке.</param>
+    /// <param name="visible">Показывать ли строку.</param>
+    /// <remarks>
+    /// Отдельный помощник, а не привязка: строки заполняет код вида, и признак видимости
+    /// у них тот же, что у текста, — «есть что сказать».
+    /// </remarks>
+    private static void SetVisible(TextBlock? target, bool visible)
+    {
+        if (target is not null)
+        {
+            target.IsVisible = visible;
         }
     }
 
@@ -946,6 +1130,14 @@ public sealed partial class BoardView : UserControl
     /// <param name="e">Имя изменившегося свойства.</param>
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // Тиканье часов: обновляется только строка времени. Панель целиком по таймеру
+        // не пересобирается — иначе каждую секунду переписывались бы все строки состояния.
+        if (e.PropertyName is nameof(MainViewModel.ClockDisplay) or nameof(MainViewModel.ClockShortDisplay))
+        {
+            RefreshClock();
+            return;
+        }
+
         if (e.PropertyName == nameof(MainViewModel.LastMove))
         {
             _boardControl?.Animate(ViewModel.LastMove, ViewModel.LastCaptured, ViewModel.LastCapturedColor);
@@ -971,38 +1163,54 @@ public sealed partial class BoardView : UserControl
         }
 
         // Партия пересоздана (смена доски, уровня, настроек) — списки выбора должны это показать.
-        if (e.PropertyName is nameof(MainViewModel.LevelLabels)
-            or nameof(MainViewModel.SelectedLevelIndex)
-            or nameof(MainViewModel.SelectedSizeIndex)
-            or nameof(MainViewModel.LevelDescription)
-            or nameof(MainViewModel.HasLevelHint))
+        if (IsPanelProperty(e.PropertyName, ComboProperties))
         {
             SyncCombos();
             RefreshSummary();
             return;
         }
 
-        // Состояние, счёт и очередь хода показываются и на телефоне: строка состояния и шторка.
-        if (e.PropertyName is nameof(MainViewModel.ToMove)
-            or nameof(MainViewModel.Status)
-            or nameof(MainViewModel.Score)
-            or nameof(MainViewModel.Outcome)
-            or nameof(MainViewModel.MoveNumber)
-            or nameof(MainViewModel.CapturedBlack)
-            or nameof(MainViewModel.CapturedWhite)
-            or nameof(MainViewModel.Komi)
-            or nameof(MainViewModel.Board))
-        {
-            RefreshSummary();
-            return;
-        }
-
-        // Кнопка «Начать партию» / «Новая партия»: подпись меняется на первом ходу партии.
-        if (e.PropertyName is nameof(MainViewModel.IsFirstMove))
+        // Состояние, счёт, очередь хода и подписи кнопок: всё это показывает одной панелью
+        // RefreshSummary, поэтому список один — раньше он был разбит на два и один и тот же
+        // вызов стоял в двух ветках.
+        if (IsPanelProperty(e.PropertyName, PanelProperties))
         {
             RefreshSummary();
         }
     }
+
+    /// <summary>Свойства, после которых панель пересобирается целиком.</summary>
+    /// <remarks>
+    /// Список задан статически и сверяется с моделью тестом: свойство, забытое здесь, — это
+    /// застывшая надпись на экране (регрессия «панель показывает старый текст»).
+    /// </remarks>
+    internal static readonly string[] PanelProperties =
+    [
+        nameof(MainViewModel.ToMove), nameof(MainViewModel.Status), nameof(MainViewModel.Score),
+        nameof(MainViewModel.Outcome), nameof(MainViewModel.MoveNumber), nameof(MainViewModel.CapturedBlack),
+        nameof(MainViewModel.CapturedWhite), nameof(MainViewModel.Komi), nameof(MainViewModel.Board),
+        nameof(MainViewModel.IsGameStarted), nameof(MainViewModel.IsGameRunning), nameof(MainViewModel.IsGamePaused),
+        nameof(MainViewModel.IsFirstMove)
+    ];
+
+    /// <summary>Свойства, после которых панель пересобирается и списки выбора синхронизируются.</summary>
+    internal static readonly string[] ComboProperties =
+    [
+        nameof(MainViewModel.LevelLabels), nameof(MainViewModel.SelectedLevelIndex),
+        nameof(MainViewModel.SelectedSizeIndex), nameof(MainViewModel.LevelDescription),
+        nameof(MainViewModel.HasLevelHint)
+    ];
+
+    /// <summary>Входит ли изменившееся свойство в список.</summary>
+    /// <param name="propertyName">Имя свойства из уведомления; <c>null</c> — уведомление обо всех.</param>
+    /// <param name="names">Список имён.</param>
+    /// <returns><c>true</c>, если свойство в списке или имя не названо.</returns>
+    /// <remarks>
+    /// Имя <c>null</c> считается совпадением: так модель сообщает «изменилось всё», и панель
+    /// обязана пересобраться.
+    /// </remarks>
+    private static bool IsPanelProperty(string? propertyName, string[] names) =>
+        propertyName is null || Array.IndexOf(names, propertyName) >= 0;
 
     /// <summary>Показывает в списках выбора то, чем играет партия сейчас.</summary>
     private void SyncCombos()
@@ -1121,6 +1329,14 @@ public sealed partial class BoardView : UserControl
             return;
         }
 
+        if (ViewModel.IsGamePaused)
+        {
+            // Ход на паузе не играется: игрок должен увидеть, почему доска не отвечает,
+            // а не решить, что приложение сломалось.
+            ShowHint(PausedHint);
+            return;
+        }
+
         _ = ViewModel.PlayMoveAsync(e.Point);
     }
 
@@ -1139,10 +1355,35 @@ public sealed partial class BoardView : UserControl
     /// <param name="e">Событие нажатия.</param>
     private void OnRedoClick(object? sender, RoutedEventArgs e) => ViewModel.Redo();
 
-    /// <summary>Начинает новую партию по выбранным доске и уровню.</summary>
-    /// <param name="sender">Кнопка «Новая партия».</param>
+    /// <summary>Начинает партию заново: новая позиция и часы с нуля.</summary>
+    /// <param name="sender">Кнопка «Начать партию» / «Новая партия».</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnNewGameClick(object? sender, RoutedEventArgs e) => _ = ViewModel.StartNewGameAsync();
+    /// <remarks>Путь фоновый: первый ход соперника считается, пока окно остаётся живым.</remarks>
+    private void OnNewGameClick(object? sender, RoutedEventArgs e) => _ = ViewModel.StartGameAsync();
+
+    /// <summary>Останавливает партию или снимает паузу — одна кнопка на два состояния.</summary>
+    /// <param name="sender">Кнопка «Пауза» / «Продолжить».</param>
+    /// <param name="e">Событие нажатия.</param>
+    /// <remarks>
+    /// Подпись кнопки ставит вид по состоянию партии, а действие выбирается здесь: пауза
+    /// мгновенная, а продолжение может потребовать хода соперника — его считает фоновая версия.
+    /// </remarks>
+    private void OnPauseResumeClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel.CanResumeClock)
+        {
+            _ = ViewModel.ResumeGameAsync();
+
+            return;
+        }
+
+        ViewModel.PauseGame();
+    }
+
+    /// <summary>Отменяет партию: доска возвращается в состояние «партия не начата».</summary>
+    /// <param name="sender">Кнопка «Отменить партию».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnAbortGameClick(object? sender, RoutedEventArgs e) => _ = ViewModel.AbortGameAsync();
 
     /// <summary>Показывает настройки.</summary>
     /// <param name="sender">Кнопка «Настройки».</param>

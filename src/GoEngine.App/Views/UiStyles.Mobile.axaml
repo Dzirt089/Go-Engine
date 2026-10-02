@@ -77,20 +77,6 @@
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
-  <!-- Компактная кнопка ряда действий: кегль 13 и узкий отступ, но высота та же — 48: кнопка
-       становится уже, а не мельче, иначе по ней не попасть пальцем. Сейчас класс свободен:
-       ряд действий над доской помечен app-touch (UiStyles.Controls.axaml), кнопки шторки — app-action.
-       Правило оставлено готовым: как только ряд вернётся на этот класс, размеры уже верные. -->
-  <Style Selector="Button.app-action-bar">
-    <Setter Property="MinHeight" Value="{DynamicResource AppMobileTapTarget}" />
-    <Setter Property="MinWidth" Value="0" />
-    <Setter Property="Padding" Value="{DynamicResource AppMobilePaddingBar}" />
-    <Setter Property="FontSize" Value="{DynamicResource AppMobileFontAction}" />
-    <Setter Property="CornerRadius" Value="{DynamicResource AppMobileRadiusSmall}" />
-    <Setter Property="HorizontalContentAlignment" Value="Center" />
-    <Setter Property="VerticalContentAlignment" Value="Center" />
-  </Style>
-
   <!-- Главное действие телефона: пас и «Посчитать». Размеры те же, что у кнопок действия, —
        палец не должен искать мелкую кнопку среди крупных. -->
   <Style Selector="Button.app-primary">

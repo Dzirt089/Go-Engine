@@ -15,23 +15,33 @@
        (BoardLayoutRules.DecideLayout), здесь только применяется её ответ. -->
   <Grid RowDefinitions="Auto,*,Auto">
 
-    <Border x:Name="DesktopBar"
-            Grid.Row="0"
-            Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
-            BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
-            BorderThickness="0,0,0,1">
-      <StackPanel Orientation="Horizontal" Spacing="8" Margin="10,8">
-        <!-- Кнопки не меньше 44 точек по высоте: это размер, по которому попадает палец. -->
-        <ToggleButton x:Name="GameModeButton" Content="Партия" MinHeight="44" MinWidth="120" />
-        <ToggleButton x:Name="ProblemModeButton" Content="Задачи" MinHeight="44" MinWidth="120" />
-        <TextBlock x:Name="ModeHintText"
-                   Text="{Binding ModeHint}"
-                   VerticalAlignment="Center"
-                   TextWrapping="Wrap"
-                   Margin="8,0,0,0"
-                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-      </StackPanel>
-    </Border>
+    <!-- Верхняя полоса: строка режимов, а под ней — приглашение обновления. Приглашение стоит
+         полосой, а не карточкой поверх доски: обновление не должно закрывать позицию. На телефоне
+         строка режимов скрыта, и приглашение оказывается первым сверху. -->
+    <StackPanel Grid.Row="0">
+
+      <Border x:Name="DesktopBar"
+              Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+              BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+              BorderThickness="0,0,0,1">
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="10,8">
+          <!-- Кнопки не меньше 44 точек по высоте: это размер, по которому попадает палец. -->
+          <ToggleButton x:Name="GameModeButton" Content="Партия" MinHeight="44" MinWidth="120" />
+          <ToggleButton x:Name="ProblemModeButton" Content="Задачи" MinHeight="44" MinWidth="120" />
+          <TextBlock x:Name="ModeHintText"
+                     Text="{Binding ModeHint}"
+                     VerticalAlignment="Center"
+                     TextWrapping="Wrap"
+                     Margin="8,0,0,0"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+        </StackPanel>
+      </Border>
+
+      <!-- Место приглашения: карточку строит код вида (ShellView.axaml.cs) и получает
+           общую модель обновления — ту же, что и экран настроек. -->
+      <Panel x:Name="UpdateHost" HorizontalAlignment="Stretch" />
+
+    </StackPanel>
 
     <!-- Содержимое общее для обеих раскладок: виды режимов живут здесь и не пересоздаются. -->
     <Panel x:Name="ModeContent" Grid.Row="1" />

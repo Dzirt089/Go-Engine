@@ -33,22 +33,26 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private AppSettings _settings;
     private bool _showTerritory;
 
-    /// <summary>Помеченные мёртвыми камни: согласование конца партии.</summary>
+    /// <summary>Часы партии: считают время, пока партия идёт, и замирают на паузе.</summary>
+    private readonly GameClock _clock;
+
+    /// <summary>Партия начата: время идёт или стоит на паузе.</summary>
+    /// <remarks>
+    /// Отдельно от состояния самой партии: свежезапущенное приложение и «Отменить партию» дают
+    /// партию, которая ещё не начата, — время в ней не считается. Смена настроек, загрузка SGF
+    /// и первый ход игрока, наоборот, означают игру: часы идут с этого мгновения.
+    /// </remarks>
+    private bool _gameStarted;
+
+    /// <summary>Согласование подсчёта: пометки мёртвых групп и подтверждённый итог партии.</summary>
     /// <remarks>
     /// Пометки относятся к конкретной позиции, а не к партии вообще: любое изменение партии
-    /// (ход, отмена, возврат, загрузка) начинает согласование заново. Мёртвые камни не снимаются
-    /// с доски молча — их помечает перебор <see cref="Endgame.ProposeDead"/> или игрок кликом.
+    /// (ход, отмена, возврат, загрузка) начинает согласование заново — это делает
+    /// <see cref="ScoringAgreement.Sync"/>. Мёртвые камни не снимаются с доски молча: их помечает
+    /// перебор <see cref="Endgame.ProposeDead"/> или игрок кликом. Пометки, счётчик ревизии,
+    /// счётчик предложений и подтверждённый итог живут в службе: панель партии только читает их.
     /// </remarks>
-    private readonly HashSet<Point> _dead = [];
-
-    /// <summary>Помеченные камни в порядке обхода доски: список для вида, а не для поиска.</summary>
-    private IReadOnlyList<Point> _deadPoints = [];
-
-    /// <summary>Сколько раз менялись пометки мёртвых: по этому счётчику вид перерисовывает доску.</summary>
-    private int _deadRevision;
-
-    /// <summary>Подтверждённый итог партии или <c>null</c>, пока подсчёт не подтверждён.</summary>
-    private FinalScore? _finalScore;
+    private readonly ScoringAgreement _scoring;
 
     /// <summary>Отмена текущего поиска хода соперника: результат отменённого поиска не применяется.</summary>
     private CancellationTokenSource? _aiCancellation;
@@ -69,11 +73,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <param name="random">Источник случайности для AI; в тестах — с фиксированным seed.</param>
     /// <param name="evaluator">Оценка позиции нейросетью для уровней Дан; <c>null</c> — игра без сети.</param>
     /// <param name="modelSizes">Стороны доски, для которых есть модель; <c>null</c> — взять у приложения.</param>
+    /// <param name="time">Источник времени для часов партии; <c>null</c> — часы приложения.</param>
     public MainViewModel(
         AppSettings settings,
         Random random,
         IPositionEvaluator? evaluator = null,
-        IReadOnlySet<int>? modelSizes = null)
+        IReadOnlySet<int>? modelSizes = null,
+        TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(random);
@@ -83,6 +89,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _evaluator = evaluator;
         _modelSizes = modelSizes ?? global::GoEngine.App.App.ModelSizes;
         _game = CreateGame(settings);
+
+        // Согласование подсчёта заводится вместе с партией: позиция нужна ему сразу, иначе счёт,
+        // территория и пленные не ответили бы до первого хода. Итог по мёртвым считает партия —
+        // пленных и коми знает она, а не служба согласования.
+        _scoring = new ScoringAgreement(_game.Board, _game.Status, dead => _game.FinalScore(dead, ScoringRule));
+        _scoring.Changed += OnDeadChanged;
+
+        // Часы создаются до первого хода соперника: партия ещё не начата, и время не идёт.
+        _clock = new GameClock(time);
+        _clock.Changed += OnClockChanged;
 
         RefreshLabels();
         LogNewGame();
@@ -154,10 +170,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             // Подтверждённый итог тоже меняет систему: величины в нём уже посчитаны, а победитель
             // и строка зависят от выбора. Без этой строки переключение после подтверждения
             // не изменило бы ничего — счёт остался бы назван по прежней системе.
-            if (_finalScore is { } final)
-            {
-                _finalScore = final with { Rule = rule };
-            }
+            _scoring.ApplyRule(rule);
 
             NotifyAll();
         }
@@ -259,28 +272,42 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <remarks>Порядок тот же, что и в разборе счёта: сначала чёрные, потом белые.</remarks>
     public string Captures => $"чёрные {CapturedBlack} : {CapturedWhite} белые";
 
-    /// <summary>Строка о пленных: снятые по ходам и снятые мёртвыми в заключительной позиции.</summary>
+    /// <summary>Пленные одной строкой: сколько камней взяла каждая сторона и из чего это сложилось.</summary>
     /// <remarks>
     /// <para>
-    /// Мёртвые камни заключительной позиции идут в пленные того, кто их снял (правила вида спорта
-    /// «го», пп. 1.10 и 1.12), но счётчик партии их не знает: их снимает подсчёт, а не ход.
-    /// Поэтому строка называет обе величины — без второй игрок видел «пленные 0» рядом со счётом,
-    /// в котором эти камни уже учтены (жалоба 2026-09-30).
+    /// Пленные называются по тому, кто их взял: «чёрные 5» — пять снятых чёрными камней. Это ровно
+    /// та величина, которая входит в японскую систему слагаемым к территории
+    /// (<see cref="FinalScore.BlackTerritoryPoints"/>), поэтому по строке игрок проверяет счёт,
+    /// а не догадывается, что имелось в виду.
     /// </para>
     /// <para>
-    /// Слагаемые не смешиваются в одно число намеренно: снятые по ходам подтверждены партией,
-    /// а снятые мёртвыми — соглашением сторон, и их ещё можно отменить, сняв пометку.
+    /// Слагаемых два: камни, снятые ходами партии (<see cref="GameState.BlackPrisoners"/>), и камни,
+    /// признанные мёртвыми в заключительной позиции (правила вида спорта «го», пп. 1.10 и 1.12).
+    /// Второе слагаемое счётчик партии не знает — его снимает подсчёт, а не ход, — поэтому строка
+    /// называет разложение в скобках. Без него игрок видел «пленные 0» рядом со счётом, в котором
+    /// эти камни уже учтены (жалоба 2026-09-30). Пока пометок нет, слагаемое одно и скобки не нужны.
     /// </para>
     /// </remarks>
     public string PrisonersLine
     {
         get
         {
-            var played = $"Пленные: {Captures} (в партии)";
+            var blackPlayed = _game.BlackPrisoners;
+            var whitePlayed = _game.WhitePrisoners;
+            var dead = _scoring.DeadStones;
 
-            return _dead.Count == 0
-                ? played
-                : $"{played} · снято мёртвыми: {_dead.Count} — они тоже в пленные и в очки";
+            if (dead.Count == 0)
+            {
+                return $"Пленные: чёрные {blackPlayed} : {whitePlayed} белые";
+            }
+
+            // Пометка означает всю группу, поэтому точек с камнями каждого цвета достаточно:
+            // список мёртвых всегда развёрнут по группам (ToggleDeadAt и Endgame.ProposeDead).
+            var deadBlack = dead.Count(point => _game.Board.At(point) == StoneColor.Black);
+            var deadWhite = dead.Count - deadBlack;
+
+            return $"Пленные: чёрные {blackPlayed + deadWhite} : {whitePlayed + deadBlack} белые "
+                + $"(в партии {blackPlayed} : {whitePlayed} · мертвыми {deadWhite} : {deadBlack})";
         }
     }
 
@@ -294,9 +321,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return string.Empty;
             }
 
-            // Победителя называет та же величина, что стоит в строке счёта: иначе панель спорила бы
-            // сама с собой. После подтверждения это зафиксированный итог, до него — текущий счёт
-            // по доске без помеченных мёртвых камней.
+            // Сдача и лимит ходов не проходят согласование, и победителя в них называет партия,
+            // а не счёт доски: сдавшийся проигрывает независимо от того, что стоит на доске.
+            // Раньше победитель брался только из счёта, и игрок, сдавшийся при перевесе,
+            // объявлялся победителем (найдено разведкой 2026-10-02).
+            if (_game.Status == GameStatus.FinishedByResign || _game.Status == GameStatus.FinishedByMoveLimit)
+            {
+                var finished = _game.Finish();
+
+                if (finished.IsSuccess && finished.Value.Winner is { } taken)
+                {
+                    return $"Победили {(taken == StoneColor.Black ? "чёрные" : "белые")}";
+                }
+            }
+
+            // Два паса: победителя называет та же величина, что стоит в строке счёта, иначе панель
+            // спорила бы сама с собой. После подтверждения это зафиксированный итог, до него —
+            // текущий счёт по доске без помеченных мёртвых камней.
             var winner = CurrentScore.Winner;
 
             return winner == StoneColor.Empty ? "Ничья" : $"Победили {(winner == StoneColor.Black ? "чёрные" : "белые")}";
@@ -323,13 +364,28 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     /// <summary>Итог глазами игрока: выиграл он, проиграл или ничья.</summary>
     /// <remarks>
+    /// <para>
     /// Баннер красится по этому признаку: «победили чёрные» ничего не говорит игроку, который
     /// играет белыми. Сравнение идёт с цветом самого игрока, а не с цветом в настройках партии.
+    /// </para>
+    /// <para>
+    /// Пока итог не назван, тон — <see cref="GameTone.None"/>. Раньше здесь всегда стоял цвет,
+    /// и доска подсвечивалась рамкой выигрыша или проигрыша с первого хода: на пустой доске
+    /// победитель по коми — белые, поэтому играющий чёрными сразу видел рамку проигрыша
+    /// (жалоба пользователя 2026-10-02 «подсчёт на доске ведётся некорректно»). Это же правило
+    /// действует и во время согласования мёртвых: победитель ещё не подтверждён, и подсвечивать
+    /// его нельзя — иначе вид спорил бы с баннером, который в это время молчит.
+    /// </para>
     /// </remarks>
     public GameTone ResultTone
     {
         get
         {
+            if (_game.Status == GameStatus.InProgress || _scoring.IsCounting)
+            {
+                return GameTone.None;
+            }
+
             var winner = CurrentScore.Winner;
 
             if (winner == StoneColor.Empty)
@@ -394,9 +450,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             var area = Scorer.Breakdown(ScoringBoard);
 
-            return $"На доске: чёрные {area.Black} (камни {area.BlackStones} + территория {area.BlackTerritory}) · "
-                + $"белые {area.White} (камни {area.WhiteStones} + территория {area.WhiteTerritory}) · "
-                + $"нейтрально {area.Neutral}";
+            // Компактно и в две строки: панель партии — 320 точек, прежняя формулировка
+            // («чёрные 8 (камни 4 + территория 4) · белые 2 (камни 2 + территория 0) · нейтрально 75»)
+            // занимала четыре строки и вытесняла действия партии с экрана.
+            // Нейтральные точки — это те, что не засчитаны никому: без них сумма не сходится
+            // с площадью доски, и игрок принимает нейтраль за потерянную территорию.
+            return $"Территория — чёрные {area.BlackTerritory} · белые {area.WhiteTerritory} · нейтрально {area.Neutral}"
+                + Environment.NewLine
+                + $"Камни — чёрные {area.BlackStones} · белые {area.WhiteStones}";
         }
     }
 
@@ -551,13 +612,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Играет ход игрока, затем ход AI, если очередь за ним.</summary>
     /// <param name="point">Точка хода.</param>
     /// <returns><c>true</c>, если ход принят.</returns>
+    /// <remarks>На паузе ход отклоняется, а доска не меняется: пауза останавливает и время, и игру.</remarks>
     public bool PlayMove(Point point)
     {
-        if (_isThinking || !TryPlay(Move.Play(point, _game.ToMove)))
+        if (!CanPlayMove || _isThinking || !TryPlay(Move.Play(point, _game.ToMove)))
         {
             return false;
         }
 
+        MarkStartedIfNeeded();
         ShowAiMoveIfNeeded();
 
         return true;
@@ -574,11 +637,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     public async Task<bool> PlayMoveAsync(Point point)
     {
-        if (_isThinking || !TryPlay(Move.Play(point, _game.ToMove)))
+        if (!CanPlayMove || _isThinking || !TryPlay(Move.Play(point, _game.ToMove)))
         {
             return false;
         }
 
+        MarkStartedIfNeeded();
         NotifyAll();
         await PlayAiTurnAsync().ConfigureAwait(true);
 
@@ -593,11 +657,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     public bool Pass()
     {
-        if (_isThinking || !TryPlay(Move.Pass(_game.ToMove)))
+        if (!CanPlayMove || _isThinking || !TryPlay(Move.Pass(_game.ToMove)))
         {
             return false;
         }
 
+        MarkStartedIfNeeded();
         ShowAiMoveIfNeeded();
 
         return true;
@@ -607,11 +672,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <returns><c>true</c>, если пас игрока принят.</returns>
     public async Task<bool> PassAsync()
     {
-        if (_isThinking || !TryPlay(Move.Pass(_game.ToMove)))
+        if (!CanPlayMove || _isThinking || !TryPlay(Move.Pass(_game.ToMove)))
         {
             return false;
         }
 
+        MarkStartedIfNeeded();
         NotifyAll();
         await PlayAiTurnAsync().ConfigureAwait(true);
 
@@ -629,12 +695,70 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <remarks>
     /// В это время ходы не принимаются, а клик по доске помечает группу мёртвой. Мёртвые камни
     /// не снимаются молча: пока игрок не подтвердил подсчёт, доска остаётся как была, а счёт —
-    /// предварительным. Окончание по лимиту ходов и сдача согласования не требуют.
+    /// предварительным. Окончание по лимиту ходов и сдача согласования не требуют. Состояние
+    /// ведёт <see cref="ScoringAgreement"/>: панели и тестам оно нужно здесь, под своим именем.
     /// </remarks>
-    public bool IsCounting => _game.Status == GameStatus.FinishedByTwoPasses && _finalScore is null;
+    public bool IsCounting => _scoring.IsCounting;
 
     /// <summary>Подсчёт можно подтвердить: идёт согласование мёртвых групп.</summary>
-    public bool CanConfirmScore => IsCounting;
+    /// <remarks>
+    /// Доступно сразу, как только партия завершилась двумя пасами: ничего дополнительно включать
+    /// не нужно. Согласование обязательно по правилам (D-064), но приглашение к нему — не ошибка
+    /// и не «недосчитанный» экран: счёт, территория и пленные уже показаны и верны.
+    /// </remarks>
+    public bool CanConfirmScore => _scoring.CanConfirmScore;
+
+    /// <summary>Партия начата: время идёт или стоит на паузе.</summary>
+    /// <remarks>
+    /// Свежезапущенное приложение и «Отменить партию» оставляют партию неначатой: часы стоят
+    /// на нуле, кнопка называется «Начать партию». Смена настроек, загрузка партии и первый ход
+    /// игрока партию начинают — это и есть игра, и время в ней считается.
+    /// </remarks>
+    public bool IsGameStarted => _gameStarted;
+
+    /// <summary>Партия идёт: начата и не на паузе.</summary>
+    public bool IsGameRunning => _gameStarted && _clock.IsRunning;
+
+    /// <summary>Партия на паузе: время стоит, ходы не принимаются.</summary>
+    /// <remarks>
+    /// Завершённая партия паузой не считается: её часы просто останавливаются
+    /// (<see cref="GameClock.Stop"/>), поэтому «Пауза» в панели не показывается,
+    /// а «Продолжить» не предлагается.
+    /// </remarks>
+    public bool IsGamePaused => _clock.IsPaused;
+
+    /// <summary>Время партии строкой: «ММ:СС», а после часа — «Ч:ММ:СС».</summary>
+    public string ClockDisplay => _clock.Display;
+
+    /// <summary>Время партии коротко: всегда «ММ:СС» — для узкой строки на телефоне.</summary>
+    public string ClockShortDisplay => _clock.ShortDisplay;
+
+    /// <summary>Сколько идёт партия: точное время, а не округлённая строка.</summary>
+    /// <remarks>
+    /// Нужно проверочному режиму <c>--clock</c> и тестам: строка времени округляет до секунд,
+    /// а «идут ли часы» видно только по приросту времени.
+    /// </remarks>
+    public TimeSpan GameTime => _clock.Elapsed;
+
+    /// <summary>Часы можно остановить: партия идёт прямо сейчас.</summary>
+    public bool CanPauseClock => IsGameRunning;
+
+    /// <summary>Часы можно продолжить: партия стоит на паузе.</summary>
+    public bool CanResumeClock => _gameStarted && _clock.IsPaused;
+
+    /// <summary>Кнопка часов доступна: есть что останавливать или продолжать.</summary>
+    public bool CanTogglePause => CanPauseClock || CanResumeClock;
+
+    /// <summary>Партию можно отменить: она начата.</summary>
+    /// <remarks>
+    /// До старта отменять нечего — партия и так в исходном состоянии. После «Отменить партию»
+    /// кнопка снова недоступна, пока игрок не начнёт партию.
+    /// </remarks>
+    public bool CanAbortGame => _gameStarted;
+
+    /// <summary>Ход разрешён: партия не на паузе.</summary>
+    /// <remarks>Пауза — не украшение: на ней ходы отклоняются по-настоящему, а не только на вид.</remarks>
+    public bool CanPlayMove => !_clock.IsPaused;
 
     /// <summary>Партия ещё не начата: на доске нет ни одного камня.</summary>
     /// <remarks>
@@ -654,70 +778,145 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool CanToggleTerritory => _game.Status == GameStatus.InProgress;
 
     /// <summary>Помеченные мёртвыми камни в порядке обхода доски.</summary>
-    public IReadOnlyList<Point> DeadPoints => _deadPoints;
+    /// <remarks>Пометки ведёт <see cref="ScoringAgreement"/>; здесь они под именем, которое знает вид.</remarks>
+    public IReadOnlyList<Point> DeadPoints => _scoring.DeadPoints;
 
     /// <summary>Сколько раз менялись пометки мёртвых.</summary>
     /// <remarks>
     /// Вид перерисовывает доску по этому счётчику: список <see cref="DeadPoints"/> может остаться
     /// тем же объектом, и подписка на него одного изменения не заметит.
     /// </remarks>
-    public int DeadRevision => _deadRevision;
+    public int DeadRevision => _scoring.DeadRevision;
+
+    /// <summary>Сколько раз перебор предлагал мёртвые группы за партию.</summary>
+    /// <remarks>
+    /// Открыт ради проверок: предложение мёртвых — самый дорогой перебор в подсчёте
+    /// (<see cref="Endgame.ProposeDead"/>, до 20 000 позиций на группу), и он обязан считаться
+    /// один раз на позицию. Тест читает счёт, территорию, разбор и пленных десятки раз и требует,
+    /// чтобы счётчик не вырос, а проверочный режим печатает его рядом с разбором.
+    /// </remarks>
+    public int DeadProposalCount => _scoring.DeadProposalCount;
 
     /// <summary>Помечает или снимает пометку группы, которой принадлежит точка.</summary>
     /// <param name="point">Точка на доске: клик игрока по камню.</param>
     /// <returns><c>true</c>, если пометки изменились.</returns>
     /// <remarks>
-    /// Помечается вся группа: камень живёт и умирает вместе с ней, частично мёртвой группы не
-    /// бывает. Повторный клик снимает пометку — до подтверждения игрок может передумать.
-    /// Вне согласования, по пустой точке и по точке вне доски метод ничего не делает и возвращает
-    /// <c>false</c>: виду не нужно самому проверять состояние партии.
+    /// Правила пометок — в <see cref="ScoringAgreement"/>: здесь метод стоит под именем, которое
+    /// знает вид, и меняет то же состояние, что читают счёт, территория и пленные.
     /// </remarks>
-    public bool ToggleDeadAt(Point point)
-    {
-        if (!IsCounting || !point.IsOnBoard(_game.Board.Size) || _game.Board.At(point) == StoneColor.Empty)
-        {
-            return false;
-        }
-
-        var stones = GroupTracker.FindGroup(_game.Board, point).Stones;
-
-        if (_dead.Contains(point))
-        {
-            foreach (var stone in stones)
-            {
-                _ = _dead.Remove(stone);
-            }
-        }
-        else
-        {
-            foreach (var stone in stones)
-            {
-                _ = _dead.Add(stone);
-            }
-        }
-
-        _deadRevision++;
-        RefreshDeadPoints();
-        NotifyDeadChanged();
-
-        return true;
-    }
+    public bool ToggleDeadAt(Point point) => _scoring.ToggleDeadAt(point);
 
     /// <summary>Подтверждает подсчёт: мёртвые снимаются, становятся пленными и входят в итог.</summary>
     /// <remarks>
-    /// До подтверждения счёт предварительный, после — окончательный. Повторный вызов ничего
-    /// не делает: подтверждать нечего. Вернуться к согласованию можно отменой хода — она снова
-    /// открывает партию и сбрасывает пометки.
+    /// Итог считает партия, а хранит его согласование: вызов вне согласования и повторный вызов
+    /// ничего не делают, и панель тогда не будится зря. Вернуться к согласованию можно отменой хода.
     /// </remarks>
     public void ConfirmScore()
     {
-        if (!IsCounting)
+        if (_scoring.ConfirmScore())
+        {
+            NotifyAll();
+        }
+    }
+
+    /// <summary>Начинает партию: новая позиция и часы с нуля.</summary>
+    /// <remarks>
+    /// Кнопка «Начать партию» до первого хода и «Новая партия» после него делает одно и то же:
+    /// партия начинается заново, а время считается с этого мгновения. Первый ход соперника
+    /// (когда игрок играет белыми) считается на месте; интерфейс пользуется
+    /// <see cref="StartGameAsync"/>, чтобы окно не замирало на время поиска.
+    /// </remarks>
+    public void StartGame() => ApplySettings(_settings);
+
+    /// <summary>Начинает партию и считает первый ход соперника в фоне.</summary>
+    /// <returns>Задача, завершающаяся после ответа соперника.</returns>
+    public Task StartGameAsync() => ApplySettingsAsync(_settings);
+
+    /// <summary>Ставит партию на паузу: время стоит, ходы не принимаются, соперник не думает.</summary>
+    /// <remarks>
+    /// Пауза настоящая, а не косметическая: ходы и пас отклоняются (<see cref="CanPlayMove"/>),
+    /// а поиск хода соперника отменяется — его результат не должен прийти в остановленную партию.
+    /// </remarks>
+    public void PauseGame()
+    {
+        if (!IsGameRunning)
         {
             return;
         }
 
-        _finalScore = _game.FinalScore(_dead, ScoringRule);
+        CancelThinking();
+        _clock.Pause();
         NotifyAll();
+    }
+
+    /// <summary>Снимает паузу: время идёт дальше, ходы снова принимаются.</summary>
+    /// <remarks>
+    /// Если пауза застала соперника за раздумьями, его ход отменён, и партия ждёт его ответа.
+    /// Синхронный путь его не доигрывает: это делает фоновая версия метода, которой пользуется
+    /// интерфейс, — иначе окно замирало бы на время поиска.
+    /// </remarks>
+    public void ResumeGame()
+    {
+        if (!CanResumeClock)
+        {
+            return;
+        }
+
+        _clock.Resume();
+        NotifyAll();
+    }
+
+    /// <summary>Снимает паузу и считает ответ соперника в фоне.</summary>
+    /// <returns>Задача, завершающаяся после ответа соперника.</returns>
+    public async Task ResumeGameAsync()
+    {
+        if (!CanResumeClock)
+        {
+            return;
+        }
+
+        _clock.Resume();
+        NotifyAll();
+        await PlayAiTurnAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>Отменяет партию: всё возвращается в состояние «партия не начата».</summary>
+    /// <remarks>
+    /// Партия начинается заново, но начатой не считается: часы обнулены и стоят, ходы очищены,
+    /// доска пуста, а если игрок играет белыми — соперник снова делает первый ход, как при новой
+    /// партии. Ходы при этом доступны: первый ход снова начнёт партию — ровно так же, как в только
+    /// что запущенном приложении. Доигрывание хода соперника — в <see cref="AbortGameAsync"/>.
+    /// </remarks>
+    public void AbortGame()
+    {
+        PrepareAborted();
+        ShowAiMoveIfNeeded();
+        NotifyAll();
+    }
+
+    /// <summary>Отменяет партию и считает первый ход соперника в фоне.</summary>
+    /// <returns>Задача, завершающаяся после ответа соперника.</returns>
+    public async Task AbortGameAsync()
+    {
+        PrepareAborted();
+        NotifyAll();
+        await PlayAiTurnAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>Пульс часов: вид зовёт его раз в секунду, чтобы строка времени обновилась.</summary>
+    /// <remarks>
+    /// Время считается по запросу, поэтому пересчитывать нечего: тик лишь сообщает панели,
+    /// что строку пора показать заново. У стоящих часов тика нет — панель не будится зря.
+    /// </remarks>
+    public void TickClock() => _clock.Tick();
+
+    /// <summary>Отменяет партию без хода соперника — общая часть синхронного и фонового путей.</summary>
+    private void PrepareAborted()
+    {
+        CancelThinking();
+        _gameStarted = false;
+        _clock.Reset();
+        BeginGame(_settings);
     }
 
     /// <summary>Отменяет ход игрока вместе с ответом AI.</summary>
@@ -737,8 +936,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return false;
         }
 
-        SyncDeadMarks();
+        _scoring.Sync(_game.Board, _game.Status);
         ShowAiMoveIfNeeded();
+        SyncClockWithGame();
         NotifyAll();
 
         return true;
@@ -756,7 +956,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return false;
         }
 
-        SyncDeadMarks();
+        _scoring.Sync(_game.Board, _game.Status);
+        SyncClockWithGame();
         NotifyAll();
 
         return true;
@@ -887,17 +1088,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _settings.ToScoringRule(),
             _settings.SoundEnabled);
 
-        SyncDeadMarks();
+        _scoring.Sync(_game.Board, _game.Status);
+
+        // Загруженная партия — это игра: время в ней считается с этого мгновения. Если партия
+        // в файле уже завершена, часы тут же остановятся на нуле (см. StopClockIfFinished).
+        MarkStarted();
 
         return Result.Ok();
     }
 
     /// <summary>Начинает новую партию по текущим настройкам.</summary>
-    public void StartNewGame() => ApplySettings(_settings);
+    /// <remarks>
+    /// То же, что <see cref="StartGame"/>: имя осталось ради окна и баннера итога,
+    /// где кнопка называется «Новая партия».
+    /// </remarks>
+    public void StartNewGame() => StartGame();
 
     /// <summary>Начинает новую партию и считает первый ход соперника в фоне.</summary>
     /// <returns>Задача, завершающаяся после ответа соперника.</returns>
-    public Task StartNewGameAsync() => ApplySettingsAsync(_settings);
+    public Task StartNewGameAsync() => StartGameAsync();
 
     /// <summary>Применяет настройки и начинает новую партию.</summary>
     /// <param name="settings">Новые настройки партии.</param>
@@ -907,6 +1116,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         LogSettings(settings);
         BeginGame(settings);
+
+        // Смена настроек, доски и уровня означают игру: часы идут с этого мгновения, а не ждут
+        // нажатия «Начать партию». Иначе игрок, поменявший доску, играл бы без счёта времени,
+        // и «Пауза» была бы недоступна в идущей партии.
+        MarkStarted();
+
         ShowAiMoveIfNeeded();
         NotifyAll();
     }
@@ -921,6 +1136,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         LogSettings(settings);
         BeginGame(settings);
+        MarkStarted();
         NotifyAll();
         await PlayAiTurnAsync().ConfigureAwait(true);
     }
@@ -932,8 +1148,76 @@ public sealed class MainViewModel : INotifyPropertyChanged
         CancelThinking();
         _settings = settings;
         _game = CreateGame(settings);
-        SyncDeadMarks();
+        _scoring.Sync(_game.Board, _game.Status);
         LogNewGame();
+    }
+
+    /// <summary>Отмечает партию начатой и запускает часы с нуля.</summary>
+    /// <remarks>
+    /// Единственное место, где партия становится начатой по воле приложения: кнопка «Начать
+    /// партию», смена настроек, доски или уровня, загрузка партии. Первый ход игрока — тоже
+    /// начало партии, но об этом просит <see cref="MarkStartedIfNeeded"/>.
+    /// </remarks>
+    private void MarkStarted()
+    {
+        _gameStarted = true;
+        _clock.Start();
+        StopClockIfFinished();
+    }
+
+    /// <summary>Начинает партию первым ходом игрока, если её ещё не начинали.</summary>
+    /// <remarks>
+    /// Игрок вправе начать играть, не нажимая «Начать партию»: щелчок по доске — тоже начало игры,
+    /// и время партии обязано считаться с него. Кнопка нужна, чтобы начать партию явно и обнулить
+    /// время, а не как единственный вход в игру: запрет ходов до нажатия сломал бы и проверочные
+    /// режимы (<c>--state</c>, <c>--e2e</c>), которые ходят по доске сразу после создания модели.
+    /// </remarks>
+    private void MarkStartedIfNeeded()
+    {
+        if (!_gameStarted)
+        {
+            MarkStarted();
+        }
+    }
+
+    /// <summary>Останавливает часы, если партия завершилась: время законченной партии не растёт.</summary>
+    /// <remarks>
+    /// Это не пауза: игрок партию не останавливал, и «Продолжить» предлагать нечего
+    /// (<see cref="GameClock.Stop"/>).
+    /// </remarks>
+    private void StopClockIfFinished()
+    {
+        if (_game.Status != GameStatus.InProgress)
+        {
+            _clock.Stop();
+        }
+    }
+
+    /// <summary>Приводит часы в согласие с партией после отмены и возврата хода.</summary>
+    /// <remarks>
+    /// Партия завершилась — часы останавливаются. Отмена хода возвращает завершённую партию
+    /// в игру, и время продолжает считаться с накопленного: игрок не теряет уже сыгранное время,
+    /// а паузой это не считается — партия просто снова идёт.
+    /// </remarks>
+    private void SyncClockWithGame()
+    {
+        if (_game.Status != GameStatus.InProgress)
+        {
+            _clock.Stop();
+            return;
+        }
+
+        if (_gameStarted && !_clock.IsRunning && !_clock.IsPaused)
+        {
+            _clock.Resume();
+        }
+    }
+
+    /// <summary>Часы изменились: панель показывает новое время партии.</summary>
+    private void OnClockChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(ClockDisplay));
+        OnPropertyChanged(nameof(ClockShortDisplay));
     }
 
     /// <summary>Пишет в лог смену настроек партии.</summary>
@@ -1041,7 +1325,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         var playerColor = _settings.ToPlayerColor();
 
-        if (_game.Status != GameStatus.InProgress || _game.ToMove == playerColor)
+        // На паузе соперник не думает: его ход не должен прийти в остановленную партию.
+        if (_clock.IsPaused || _game.Status != GameStatus.InProgress || _game.ToMove == playerColor)
         {
             return;
         }
@@ -1054,7 +1339,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            while (_game.Status == GameStatus.InProgress && _game.ToMove != playerColor)
+            // Пауза во время раздумий выходит из цикла: необязательно ждать, пока поиск заметит отмену.
+            while (_game.Status == GameStatus.InProgress && _game.ToMove != playerColor && !_clock.IsPaused)
             {
                 var moveNumber = _game.MoveNumber;
                 var from = AppLog.Time.GetTimestamp();
@@ -1169,53 +1455,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
         // Пленных ведёт партия (GameState), а пометки мёртвых относятся к прежней позиции: после
         // любого принятого хода согласование начинается заново. Заодно партия сама сообщает,
         // не завершилась ли она двумя пасами, — по этому признаку и включается согласование.
-        SyncDeadMarks();
+        _scoring.Sync(_game.Board, _game.Status);
 
         LogMove(move, aiMilliseconds);
         LogFinishedIfNeeded();
 
+        // Партия завершилась этим ходом — время партии больше не считается.
+        StopClockIfFinished();
+
         return true;
     }
 
-    /// <summary>Приводит согласование мёртвых в соответствие с партией.</summary>
-    /// <remarks>
-    /// Пометки живут ровно столько, сколько живёт позиция: любой ход, отмена, возврат, загрузка
-    /// и новая партия их обнуляют — мёртвая группа одной позиции ничего не значит в другой.
-    /// Как только партия завершается двумя пасами, перебор предлагает то, что доказано
-    /// (<see cref="Endgame.ProposeDead"/>): игрок видит готовое предложение и правит его кликами.
-    /// Подтверждённый итог при этом сбрасывается — он относился к прежней позиции.
-    /// </remarks>
-    private void SyncDeadMarks()
-    {
-        _finalScore = null;
-
-        // Перебор предлагает только доказанные группы и ничего не утверждает о сэки и глазах:
-        // ложное «мёртвая» испортило бы счёт молча, поэтому предложение осторожное.
-        HashSet<Point> proposed = _game.Status == GameStatus.FinishedByTwoPasses
-            ? [.. Endgame.ProposeDead(_game.Board)]
-            : [];
-
-        if (_dead.SetEquals(proposed))
-        {
-            return;
-        }
-
-        _dead.Clear();
-        _dead.UnionWith(proposed);
-        _deadRevision++;
-        RefreshDeadPoints();
-    }
-
-    /// <summary>Обновляет список помеченных камней для вида: порядок — как у обхода доски.</summary>
-    private void RefreshDeadPoints() =>
-        _deadPoints = [.. _dead.OrderBy(static point => point.Y).ThenBy(static point => point.X)];
-
-    /// <summary>Сообщает об изменении пометок мёртвых и всего, что от них зависит.</summary>
+    /// <summary>Пометки мёртвых изменились: панель показывает новый счёт и разметку.</summary>
     /// <remarks>
     /// Счёт и разметка территории считаются по доске без мёртвых камней, поэтому клик по группе
     /// меняет не только пометки: без этих уведомлений панель показывала бы старый счёт.
     /// </remarks>
-    private void NotifyDeadChanged()
+    private void OnDeadChanged(object? sender, EventArgs e)
     {
         foreach (var name in new[]
         {
@@ -1244,11 +1500,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Счёт по одной системе: очки сторон, коми и название системы.</summary>
     /// <param name="score">Итог подсчёта.</param>
     /// <param name="rule">Система подсчёта.</param>
-    /// <returns>Например, «Японская: чёрные 45 : 50.5 белые».</returns>
+    /// <returns>Например, «Японская: чёрные 12 (территория 9 + пленные 3) : 20.5 белые».</returns>
     /// <remarks>
-    /// Японская величина — территория с пленными, китайская — площадь. Разбор слагаемых убран
-    /// намеренно: он нужен тому, кто проверяет подсчёт, а не тому, кто играет; для проверки
-    /// есть строка <see cref="ScoreBreakdown"/> и переключатель территории.
+    /// <para>
+    /// Японская величина — территория с пленными, китайская — площадь. У японской слагаемые
+    /// названы прямо: без них соседняя строка «камни 5 + территория 3» не сходилась со счётом
+    /// (11), и это выглядело ошибкой подсчёта (жалоба пользователя 2026-10-02). Пленные берутся
+    /// из самого итога, а не из счётчиков партии: в итог входят и камни, признанные мёртвыми,
+    /// которых счётчики не знают.
+    /// </para>
+    /// <para>
+    /// У китайской слагаемых нет намеренно: там очко даёт каждый камень и каждая окружённая точка,
+    /// а пленные не считаются вовсе — разложение «камни + территория» уже показано в строке
+    /// разбора площади.
+    /// </para>
     /// </remarks>
     private static string SystemLine(FinalScore score, Core.ScoringRule rule)
     {
@@ -1257,7 +1522,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var white = japanese ? score.WhiteTerritoryPoints : score.WhiteArea;
         var name = japanese ? "Японская" : "Китайская";
 
-        return $"{name}: чёрные {black} : {white + score.Komi.Value} белые";
+        if (!japanese)
+        {
+            return $"{name}: чёрные {black} : {white + score.Komi.Value} белые";
+        }
+
+        var blackPrisoners = score.BlackTerritoryPoints - score.BlackTerritory;
+        var whitePrisoners = score.WhiteTerritoryPoints - score.WhiteTerritory;
+
+        return $"{name}: чёрные {black} (территория {score.BlackTerritory} + пленные {blackPrisoners}) : "
+            + $"{white + score.Komi.Value} белые (территория {score.WhiteTerritory} + пленные {whitePrisoners} + коми {score.Komi.Value})";
     }
 
     /// <summary>Вторая система подсчёта: та, по которой победитель не называется.</summary>
@@ -1267,19 +1541,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         rule == Core.ScoringRule.Japanese ? Core.ScoringRule.Chinese : Core.ScoringRule.Japanese;
 
     /// <summary>Итог по текущему состоянию: подтверждённый или предварительный.</summary>
-    /// <remarks>
-    /// Считает Core одной функцией от доски, пометок, пленных партии и выбранной системы.
-    /// Отдельного «предварительного» подсчёта в модели нет: иначе он разошёлся бы с итогом.
-    /// </remarks>
-    private FinalScore CurrentScore => _finalScore ?? _game.FinalScore(_dead, ScoringRule);
+    /// <remarks>Считает ядро; подтверждённый итог хранит согласование, предварительный — партия.</remarks>
+    private FinalScore CurrentScore => _scoring.CurrentScore;
 
     /// <summary>Доска подсчёта: без помеченных мёртвых камней.</summary>
-    /// <remarks>
-    /// Территория и владение считаются по ней, а не по игровой доске: мёртвый камень внутри
-    /// чужого владения не должен отменять территорию соперника. Кэша нет намеренно — пометки
-    /// меняются кликами, и сбрасывать кэш пришлось бы в каждом месте, где меняется партия.
-    /// </remarks>
-    private Board ScoringBoard => _dead.Count == 0 ? _game.Board : Endgame.ClearedBoard(_game.Board, _dead);
+    /// <remarks>Территория и владение считаются по ней, а не по игровой доске: иначе мёртвый камень
+    /// внутри чужого владения отменял бы территорию соперника.</remarks>
+    private Board ScoringBoard => _scoring.ScoringBoard;
 
     /// <summary>Сообщает об изменении всех свойств партии.</summary>
     /// <remarks>Свойства выводятся из одной партии, поэтому после хода меняются все сразу.</remarks>
@@ -1316,6 +1584,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(ResultDetail),
             nameof(ResultTone),
             nameof(Margin),
+            nameof(IsGameStarted),
+            nameof(IsGameRunning),
+            nameof(IsGamePaused),
+            nameof(ClockDisplay),
+            nameof(ClockShortDisplay),
+            nameof(CanPauseClock),
+            nameof(CanResumeClock),
+            nameof(CanTogglePause),
+            nameof(CanAbortGame),
+            nameof(CanPlayMove),
             nameof(IsFirstMove),
             nameof(CanToggleTerritory),
             nameof(CanUndo),

@@ -94,11 +94,20 @@ public sealed class UpdateService
         return asset.IsSuccess ? asset.Value!.Size : 0;
     }
 
-    /// <summary>Скачивает и устанавливает обновление.</summary>
+    /// <summary>Скачивает файл обновления для платформы, сообщая о ходе по байтам.</summary>
     /// <param name="check">Результат проверки, в котором нашлось обновление.</param>
+    /// <param name="progress">Отчёт о ходе загрузки; <c>null</c> — без отчётов.</param>
     /// <param name="cancellationToken">Признак отмены.</param>
-    /// <returns>Сообщение игроку об исходе.</returns>
-    public async Task<Result<string>> DownloadAndInstallAsync(UpdateCheck check, CancellationToken cancellationToken = default)
+    /// <returns>Полный путь к скачанному файлу или причина отказа.</returns>
+    /// <remarks>
+    /// Загрузка отделена от установки ради подписи состояния: интерфейсу нужно показать
+    /// «Скачивание… N%», а затем «Установка…», и момент между ними виден только здесь.
+    /// Обычный путь для тех, кому это не нужно, — <see cref="DownloadAndInstallAsync(UpdateCheck, CancellationToken)"/>.
+    /// </remarks>
+    public async Task<Result<string>> DownloadAsync(
+        UpdateCheck check,
+        IProgress<DownloadProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         var asset = check.Manifest.AssetFor(_installer.PlatformKey);
 
@@ -107,7 +116,9 @@ public sealed class UpdateService
             return Result<string>.Fail(asset.Error!);
         }
 
-        var downloaded = await _downloader.DownloadAsync(asset.Value!, _downloadDirectory, cancellationToken).ConfigureAwait(false);
+        var downloaded = await _downloader
+            .DownloadAsync(asset.Value!, _downloadDirectory, progress, cancellationToken)
+            .ConfigureAwait(false);
 
         if (!downloaded.IsSuccess)
         {
@@ -118,7 +129,22 @@ public sealed class UpdateService
 
         AppLogMessages.UpdateDownloaded(_log, check.Version.ToString(), downloaded.Value!);
 
-        var installed = _installer.Install(downloaded.Value!);
+        return downloaded;
+    }
+
+    /// <summary>Устанавливает скачанный файл средствами платформы.</summary>
+    /// <param name="filePath">Полный путь к скачанному файлу.</param>
+    /// <returns>Сообщение игроку об исходе.</returns>
+    /// <remarks>
+    /// Метод синхронный: установщик только запускает установку средствами системы и сразу
+    /// возвращает слово игроку. На Android после этого приложение уходит в системный установщик —
+    /// это нормальный ход событий, а не сбой.
+    /// </remarks>
+    public Result<string> Install(string filePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+
+        var installed = _installer.Install(filePath);
 
         if (!installed.IsSuccess)
         {
@@ -126,6 +152,31 @@ public sealed class UpdateService
         }
 
         return installed;
+    }
+
+    /// <summary>Скачивает и устанавливает обновление.</summary>
+    /// <param name="check">Результат проверки, в котором нашлось обновление.</param>
+    /// <param name="cancellationToken">Признак отмены.</param>
+    /// <returns>Сообщение игроку об исходе.</returns>
+    public Task<Result<string>> DownloadAndInstallAsync(UpdateCheck check, CancellationToken cancellationToken = default) =>
+        DownloadAndInstallAsync(check, null, cancellationToken);
+
+    /// <summary>Скачивает и устанавливает обновление, сообщая о ходе загрузки.</summary>
+    /// <param name="check">Результат проверки, в котором нашлось обновление.</param>
+    /// <param name="progress">Отчёт о ходе загрузки; <c>null</c> — без отчётов.</param>
+    /// <param name="cancellationToken">Признак отмены.</param>
+    /// <returns>Сообщение игроку об исходе.</returns>
+    /// <remarks>Связка двух шагов: <see cref="DownloadAsync"/> и <see cref="Install"/>.</remarks>
+    public async Task<Result<string>> DownloadAndInstallAsync(
+        UpdateCheck check,
+        IProgress<DownloadProgress>? progress,
+        CancellationToken cancellationToken = default)
+    {
+        var downloaded = await DownloadAsync(check, progress, cancellationToken).ConfigureAwait(false);
+
+        return downloaded.IsSuccess
+            ? Install(downloaded.Value!)
+            : Result<string>.Fail(downloaded.Error!);
     }
 
     /// <summary>Открывает страницу выпуска: запасной путь, когда установка из приложения невозможна.</summary>

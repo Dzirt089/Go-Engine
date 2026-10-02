@@ -30,23 +30,19 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// <summary>Задача решена.</summary>
     public const string SolvedText = "Задача решена";
 
-    /// <summary>Подсказка о правилах режима: показывается всегда.</summary>
-    public const string GuideText =
-        "Ход не решает задачу — доска остаётся прежней. Подсказка показывает первый правильный ход.";
-
     /// <remarks>
     /// Список ведётся руками, поэтому в нём обязаны быть <b>все</b> свойства, зависящие от задачи:
-    /// пропущенное имя — это застывшая надпись на экране. Так уже было с <see cref="SourceText"/>:
-    /// после перехода к следующей задаче панель продолжала показывать источник предыдущей, то есть
-    /// говорила игроку неправду о происхождении решения.
+    /// пропущенное имя — это застывшая надпись на экране. Так уже было с пометкой об источнике
+    /// решения: после перехода к следующей задаче панель продолжала показывать источник
+    /// предыдущей, то есть говорила игроку неправду о происхождении решения.
     /// </remarks>
     private static readonly string[] PropertyNames =
     [
         nameof(Current), nameof(Board), nameof(LastMove), nameof(Title), nameof(GoalText), nameof(ToMoveText),
-        nameof(SizeText), nameof(RankText), nameof(Description), nameof(HasDescription), nameof(SourceText),
-        nameof(HasSource), nameof(Verdict), nameof(HasVerdict), nameof(IsSolved), nameof(CanBack),
-        nameof(CanHint), nameof(HintPoint), nameof(CanGoPrevious), nameof(CanGoNext), nameof(StatusText),
-        nameof(SelectedIndex), nameof(LastCaptured), nameof(LastCapturedColor)
+        nameof(SizeText), nameof(Description), nameof(HasDescription), nameof(Verdict), nameof(HasVerdict),
+        nameof(IsSolved), nameof(CanBack), nameof(CanHint), nameof(HintPoint), nameof(CanGoPrevious),
+        nameof(CanGoNext), nameof(StatusText), nameof(SelectedIndex), nameof(LastCaptured),
+        nameof(LastCapturedColor)
     ];
 
     private readonly IReadOnlyList<Problem> _problems;
@@ -91,9 +87,6 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// <summary>Все задачи, доступные в режиме задач.</summary>
     public IReadOnlyList<Problem> Problems => _problems;
 
-    /// <summary>Подсказка о правилах режима: показывается в панели всегда.</summary>
-    public string Guide => GuideText;
-
     /// <summary>Текущая задача.</summary>
     public Problem Current => _session.Problem;
 
@@ -126,36 +119,20 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
 
     /// <summary>Условие задачи так, как оно записано в источнике или автором.</summary>
     /// <remarks>
-    /// Показывается игроку целиком: у задачи по решению источника условие взято с сайта, и оно же
-    /// оговаривает, что решение не проверено движком. Прятать формулировку нельзя — тогда игрок
-    /// судит о задаче по одному названию.
+    /// Показывается игроку целиком: у задачи по решению источника условие взято с сайта. Прятать
+    /// формулировку нельзя — тогда игрок судит о задаче по одному названию. Пояснения о правилах
+    /// режима в панель не выводятся: они повторяются от задачи к задаче и решать не помогают.
     /// </remarks>
     public string Description => Current.Description;
 
     /// <summary>Есть ли у задачи собственное условие для игрока.</summary>
     public bool HasDescription => Description.Length > 0;
 
-    /// <summary>Честная пометка о происхождении решения; пусто у задач, проверенных движком.</summary>
-    /// <remarks>
-    /// У задачи по решению источника (<see cref="ProblemGoal.Reference"/>) исход движком не доказан:
-    /// перебор не подтверждает ни снятие группы, ни два глаза, ни ко. Игрок обязан видеть и это,
-    /// и то, что другие правильные продолжения приложение отклонит.
-    /// </remarks>
-    public string SourceText => Current.Goal == ProblemGoal.Reference
-        ? $"Решение: {Current.Source}. Движком не проверялось: принимается линия источника, другие продолжения приложение отклонит."
-        : string.Empty;
-
-    /// <summary>Есть ли что сказать о происхождении решения.</summary>
-    public bool HasSource => SourceText.Length > 0;
-
     /// <summary>Чей ход в текущей позиции.</summary>
     public string ToMoveText => StoneColorLabels.Label(_session.ToMove);
 
     /// <summary>Размер доски задачи.</summary>
     public string SizeText => BoardSizes.Label(Current.Size);
-
-    /// <summary>Номинальная сложность задачи в кю.</summary>
-    public string RankText => string.Create(CultureInfo.InvariantCulture, $"{Current.Rank} кю");
 
     /// <summary>Словами о результате последнего хода; пусто, пока ходов не было.</summary>
     public string Verdict => _verdict;
@@ -415,18 +392,27 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         return null;
     }
 
-    /// <summary>Подпись задачи для списка: шифр, цель, сложность и пометки.</summary>
+    /// <summary>Подпись задачи для списка: шифр, цель и пометки.</summary>
     /// <param name="problem">Задача.</param>
-    /// <returns>Например, «ts-001 · по решению источника · 20 кю».</returns>
+    /// <returns>Например, «ts-001 · по решению источника» или «ts-005 · обеспечить жизнь без ко».</returns>
+    /// <remarks>
+    /// Кю в подписи нет: у всех встроенных задач сложность одна и та же, и в списке она занимает
+    /// место, ничего не различая. Пометка о виде задачи остаётся: у задачи по решению источника
+    /// исход движком не доказан, и игрок должен видеть это до того, как начнёт решать.
+    /// </remarks>
     private static string LabelOf(Problem problem)
     {
+        // Вид задачи называется один раз: у задач по решению источника текст цели уже содержит
+        // слова «по решению источника», и вторая такая же пометка удлиняла подпись вдвое
+        // («ts-001 · по решению источника · решение источника»), а место в списке на телефоне
+        // дорогое. Пометка добавляется только там, где формулировка цели молчит о происхождении:
+        // игрок обязан видеть, что исход движком не доказан, до того как начнёт решать.
         var label = string.Create(
             CultureInfo.InvariantCulture,
-            $"{problem.Id} · {problem.Goal.Descriptions ?? problem.Goal.Name} · {problem.Rank} кю");
+            $"{problem.Id} · {problem.Goal.Descriptions ?? problem.Goal.Name}");
 
-        // Пометка о виде задачи обязана быть в списке: у задачи по решению источника исход
-        // движком не доказан, и игрок должен видеть это до того, как начнёт решать.
-        if (problem.Goal == ProblemGoal.Reference)
+        if (problem.Goal == ProblemGoal.Reference
+            && !label.Contains("решение источника", StringComparison.Ordinal))
         {
             label += " · решение источника";
         }

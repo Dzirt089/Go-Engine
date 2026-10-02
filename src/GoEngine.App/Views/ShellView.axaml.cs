@@ -26,6 +26,7 @@ public sealed partial class ShellView : UserControl
     private readonly ToggleButton? _problemButton;
     private readonly Border? _desktopBar;
     private readonly Border? _mobileNav;
+    private readonly UpdateBanner? _updateBanner;
 
     /// <summary>Применённая раскладка: <c>null</c> — ещё не выбрана.</summary>
     private LayoutMode? _layout;
@@ -72,6 +73,15 @@ public sealed partial class ShellView : UserControl
             _content.Children.Add(ProblemArea);
         }
 
+        if (this.FindControl<Panel>("UpdateHost") is { } updateHost)
+        {
+            // Приглашение обновления — общее для обеих раскладок: карточка показывает состояние
+            // той же модели, что и экран настроек, поэтому проверка в них одна.
+            _updateBanner = new UpdateBanner(shell.Updates);
+
+            updateHost.Children.Add(_updateBanner);
+        }
+
         if (_gameButton is not null)
         {
             _gameButton.Click += OnGameClick;
@@ -111,6 +121,10 @@ public sealed partial class ShellView : UserControl
             // На телефоне стартовый экран — это раздел настроек: его подсвечивает нижняя навигация.
             Shell.ShowSettingsScreen();
         }
+
+        // Проверка обновления при первом показе оболочки: приложение offline-first, поэтому она
+        // идёт в фоне и при отказе молчит — игрок в это время уже может ходить по доске.
+        _ = Shell.CheckUpdatesOnStartAsync();
     }
 
     /// <summary>Приложение живёт одним видом, а не окном: так устроена мобильная голова.</summary>
@@ -222,6 +236,12 @@ public sealed partial class ShellView : UserControl
         if (_mobileNav is not null)
         {
             _mobileNav.IsVisible = layout == LayoutMode.Mobile;
+        }
+
+        if (_updateBanner is not null)
+        {
+            // На телефоне кнопки приглашения крупнее: цель нажатия там — палец, а не курсор.
+            _updateBanner.IsTouch = layout == LayoutMode.Mobile;
         }
     }
 

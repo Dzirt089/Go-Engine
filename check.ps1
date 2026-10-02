@@ -26,6 +26,13 @@ $src = Join-Path $root 'src'
 $app = Join-Path $src 'GoEngine.App.Desktop/GoEngine.App.Desktop.csproj'
 $failures = 0
 
+# Временный каталог — в рабочей копии, и он же нужен ВСЕМ шагам, а не только тестам:
+# проверочные режимы пишут туда файлы SGF, настроек и обновления, а пользовательский
+# временный каталог в некоторых средах закрыт (отказ доступа выглядел бы как дефект игры).
+$env:TEMP = Join-Path $root 'artifacts/test-temp'
+$env:TMP = $env:TEMP
+New-Item -ItemType Directory -Path $env:TEMP -Force | Out-Null
+
 function Invoke-Step {
     param([string] $Title, [scriptblock] $Action)
 
@@ -94,7 +101,7 @@ Invoke-Step 'сборка решения' { dotnet build (Join-Path $src 'GoEngi
 Invoke-Step 'тесты' { Invoke-Tests }
 
 # Режим задач обязателен в гейте: жалоба «задачи не работают» не должна ловиться игроком.
-$modes = @('--smoke', '--check', '--state', '--settings', '--sgf', '--animation', '--problems', '--result', '--e2e')
+$modes = @('--smoke', '--check', '--state', '--settings', '--sgf', '--animation', '--problems', '--result', '--territory', '--clock', '--update', '--e2e')
 if (-not $SkipStress) { $modes += '--stress' }
 
 foreach ($mode in $modes) {

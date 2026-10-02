@@ -196,6 +196,54 @@ public sealed class ProblemViewModelTests
         Assert.Contains(nameof(ProblemViewModel.StatusText), changed);
     }
 
+    [Fact]
+    public void Смена_Задачи_Оповещает_О_Всех_Зависимых_От_Неё_Свойствах()
+    {
+        // Регрессия: список оповещаемых имён ведётся руками, и пропущенное имя — это застывшая
+        // надпись на экране: панель показывала текст предыдущей задачи. Проверка держит список
+        // в согласии с моделью после правок панели.
+        var model = new ProblemViewModel();
+        List<string> changed = [];
+
+        model.PropertyChanged += (_, e) => changed.Add(e.PropertyName ?? string.Empty);
+
+        model.Next();
+
+        string[] dependent =
+        [
+            nameof(ProblemViewModel.Current), nameof(ProblemViewModel.Board), nameof(ProblemViewModel.Title),
+            nameof(ProblemViewModel.GoalText), nameof(ProblemViewModel.ToMoveText), nameof(ProblemViewModel.SizeText),
+            nameof(ProblemViewModel.Description), nameof(ProblemViewModel.HasDescription),
+            nameof(ProblemViewModel.Verdict), nameof(ProblemViewModel.HasVerdict), nameof(ProblemViewModel.IsSolved),
+            nameof(ProblemViewModel.CanBack), nameof(ProblemViewModel.CanHint), nameof(ProblemViewModel.HintPoint),
+            nameof(ProblemViewModel.CanGoPrevious), nameof(ProblemViewModel.CanGoNext),
+            nameof(ProblemViewModel.StatusText), nameof(ProblemViewModel.SelectedIndex),
+            nameof(ProblemViewModel.LastMove), nameof(ProblemViewModel.LastCaptured),
+            nameof(ProblemViewModel.LastCapturedColor)
+        ];
+
+        Assert.All(dependent, name => Assert.Contains(name, changed));
+    }
+
+    [Fact]
+    public void Оповещение_Называет_Только_Существующие_Свойства()
+    {
+        // Регрессия: имя удалённого свойства остаётся в списке оповещения молча, и поймать его
+        // можно только по имени в событии. Здесь список сверяется с самой моделью.
+        var model = new ProblemViewModel();
+        var known = typeof(ProblemViewModel)
+            .GetProperties()
+            .Select(property => property.Name)
+            .ToHashSet(StringComparer.Ordinal);
+        List<string> changed = [];
+
+        model.PropertyChanged += (_, e) => changed.Add(e.PropertyName ?? string.Empty);
+
+        model.Next();
+
+        Assert.All(changed, name => Assert.Contains(name, known));
+    }
+
     /// <summary>Возвращает самый дальний от цели пустой ход: он заведомо не решает задачу.</summary>
     /// <param name="model">Модель задачи.</param>
     /// <returns>Точка хода.</returns>

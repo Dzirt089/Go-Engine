@@ -14,6 +14,8 @@ namespace GoEngine.App.Diagnostics;
 /// Каждый режим печатает результат и возвращает 0 при успехе. Проверки идут на тех же классах,
 /// что и игра: рендерер, модель представления, хранилища. Режимы собраны здесь, а не в точке
 /// входа, чтобы `Program` оставался тем, чем называется, — запуском приложения.
+/// Проверки, выросшие в свои единицы, лежат рядом: подсчёт территории — `TerritoryCheck`,
+/// часы партии — `ClockCheck`, обновление — `UpdateCheck`.
 /// </remarks>
 internal static class CheckModes
 {
@@ -559,7 +561,12 @@ internal static class CheckModes
     /// <param name="condition">Условие проверки.</param>
     /// <param name="description">Что проверялось.</param>
     /// <returns>0, если условие выполнено; иначе 1.</returns>
-    private static int Expect(bool condition, string description)
+    /// <remarks>
+    /// Помощник общий: им пользуются и проверки, вынесенные в свои единицы (<see cref="ClockCheck"/>,
+    /// <see cref="UpdateCheck"/>). Сообщение о нарушении обязано оставаться одним и тем же —
+    /// на него смотрят разборы прогонов.
+    /// </remarks>
+    internal static int Expect(bool condition, string description)
     {
         if (!condition)
         {
@@ -569,4 +576,20 @@ internal static class CheckModes
 
         return 0;
     }
+
+    /// <summary>Проверяет часы партии: старт, пауза, продолжение, отмена и запрет ходов на паузе.</summary>
+    /// <returns>0, если время партии считается верно; иначе 1.</returns>
+    /// <remarks>
+    /// Тело проверки живёт в <see cref="ClockCheck"/>: своя единица на свою проверку — как подсчёт
+    /// территории в <see cref="TerritoryCheck"/>. Здесь остаётся вход из <c>Program</c>.
+    /// </remarks>
+    public static int Clock() => ClockCheck.Run();
+
+    /// <summary>Проверяет приглашение обновления и ход загрузки без сети: HTTP и манифест подставные.</summary>
+    /// <returns>0, если состояния, проценты и тексты верны; иначе 1.</returns>
+    /// <remarks>
+    /// Тело проверки живёт в <see cref="UpdateCheck"/> вместе с подставными обработчиком HTTP и
+    /// установщиком: своя единица на свою проверку. Здесь остаётся вход из <c>Program</c>.
+    /// </remarks>
+    public static int Update() => UpdateCheck.Run();
 }

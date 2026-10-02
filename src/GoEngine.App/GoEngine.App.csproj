@@ -29,6 +29,13 @@
     <AvaloniaResource Include="Assets/**" />
   </ItemGroup>
 
+  <!-- Списки свойств, по которым вид пересобирает панель, — внутренние детали вида (срез
+       рефакторинга 2026-10-02). Тестам нужен к ним доступ, чтобы сверять их с моделью
+       представления, а публичный API библиотеки при этом не расширяется. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="GoEngine.App.Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="../GoEngine.Core/GoEngine.Core.csproj" />
     <ProjectReference Include="../GoEngine.AI/GoEngine.AI.csproj" />

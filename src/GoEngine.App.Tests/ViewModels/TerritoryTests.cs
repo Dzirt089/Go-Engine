@@ -67,6 +67,44 @@ public sealed class TerritoryTests
 
         Assert.Equal(StoneColor.Black, territory[0]);
         Assert.Equal(StoneColor.Empty, territory[(4 * Size.Value) + 4]);
+
+        // Три камня чёрных и замкнутый угол — четыре точки; два белых камня — две.
+        // Мёртвых меток во время партии нет: их ставит только согласование после двух пасов.
+        Assert.Equal(4, territory.Count(owner => owner == StoneColor.Black));
+        Assert.Equal(2, territory.Count(owner => owner == StoneColor.White));
+        Assert.Empty(model.DeadPoints);
+        Assert.False(model.IsCounting);
+    }
+
+    [Fact]
+    public void Во_Время_Партии_Разбор_Называет_Камни_Территорию_И_Нейтральные_Точки()
+    {
+        // Разбор считается по реальной доске партии: три камня чёрных плюс точка замкнутого угла,
+        // два белых камня без территории, остальные 75 точек нейтральны.
+        var model = Create(StoneColor.White);
+        _ = model.LoadGame(CornerGame());
+        model.ShowTerritory = true;
+
+        Assert.Contains("Территория — чёрные 1 · белые 0 · нейтрально 75", model.ScoreBreakdown, StringComparison.Ordinal);
+        Assert.Contains("Камни — чёрные 3 · белые 2", model.ScoreBreakdown, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Разбор_Не_Прячется_За_Режимом_Согласования()
+    {
+        // Во время партии разбор показывает переключатель «Территория», после двух пасов разметка
+        // включается сама: строка разбора не привязана к одному режиму (жалоба 2026-10-02).
+        var model = Create(StoneColor.White);
+        _ = model.LoadGame(CornerGame());
+        model.ShowTerritory = true;
+
+        Assert.NotEmpty(model.ScoreBreakdown);
+
+        model.ShowTerritory = false;
+        _ = model.LoadGame(new SgfGame(Size, Komi.For9x9, [Move.Pass(StoneColor.Black), Move.Pass(StoneColor.White)], null));
+
+        Assert.True(model.HasTerritory);
+        Assert.NotEmpty(model.ScoreBreakdown);
     }
 
     [Fact]
@@ -78,8 +116,9 @@ public sealed class TerritoryTests
 
         // Три чёрных камня и замкнутый угол — 4; два белых камня — 2; остальное нейтрально.
         // Коми в расшифровке площади нет: оно стоит в строке счёта, а площадь его не включает.
-        Assert.Contains("чёрные 4", model.ScoreBreakdown, StringComparison.Ordinal);
-        Assert.Contains("белые 2", model.ScoreBreakdown, StringComparison.Ordinal);
+        // Территория и камни названы отдельными строками: без этого разбор не сходился со счётом.
+        Assert.Contains("Территория — чёрные 1 · белые 0", model.ScoreBreakdown, StringComparison.Ordinal);
+        Assert.Contains("Камни — чёрные 3 · белые 2", model.ScoreBreakdown, StringComparison.Ordinal);
         Assert.Contains("нейтрально 75", model.ScoreBreakdown, StringComparison.Ordinal);
     }
 

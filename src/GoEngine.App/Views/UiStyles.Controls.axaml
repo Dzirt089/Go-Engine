@@ -12,11 +12,6 @@
        а не через DynamicResource AppTouchTarget: мобильные кнопки получают 48 из того ресурса,
        настольные — своё значение, и одно не переопределяет другое. -->
 
-  <!-- Ряд кнопок в панели настольной версии: пять действий в ряд по 320 точкам панели. -->
-  <Style Selector="StackPanel.app-action-row">
-    <Setter Property="Spacing" Value="4" />
-  </Style>
-
   <Style Selector="Button.app-row-action">
     <Setter Property="MinHeight" Value="34" />
     <Setter Property="MinWidth" Value="0" />
@@ -193,6 +188,17 @@
     <Setter Property="Foreground" Value="{DynamicResource AppOnAccentBrush}" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- Время партии: цифры стоят рядом с кнопками, и время обязано читаться с одного взгляда.
+       Кегль крупнее подписи и полужирный: в этой строке главное — время, а не пояснение.
+       Стиль общий для настольной панели и телефона: строки времени одинаковы, различается
+       только раскладка вокруг них. -->
+  <Style Selector="TextBlock.app-clock">
+    <Setter Property="FontSize" Value="16" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 
 </Styles>

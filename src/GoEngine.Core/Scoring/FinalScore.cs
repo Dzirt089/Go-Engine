@@ -1,5 +1,7 @@
 namespace GoEngine.Core;
 
+using System.Globalization;
+
 /// <summary>Итог подсчёта партии: камни, территория, пленные, нейтральные точки и коми.</summary>
 /// <param name="BlackStones">Чёрные камни на доске после снятия согласованных мёртвых.</param>
 /// <param name="BlackTerritory">Пустые точки, окружённые только чёрными, на доске без мёртвых камней.</param>
@@ -92,13 +94,28 @@ public readonly record struct FinalScore(
     /// <summary>Возвращает итог строкой по основной системе: «Чёрные 14 : 11.5 Белые».</summary>
     /// <returns>Очки обеих сторон вместе с коми у белых по системе <see cref="Rule"/>.</returns>
     /// <remarks>
+    /// <para>
     /// Строка показывает основную систему, а не всегда площадь: при японской в ней стоят
     /// территория с пленными, иначе панель партии показывала бы не тот счёт, по которому назван
     /// победитель. Разбор обеих систем целиком даёт интерфейс.
+    /// </para>
+    /// <para>
+    /// Числа печатаются инвариантно: строка счёта уходит и в журнал, и в проверочные режимы,
+    /// и в отчёт приёмки, а разделитель дроби не должен зависеть от культуры машины. Строка
+    /// сведений панели печатает коми так же (приложение собирается с <c>InvariantGlobalization</c>,
+    /// но полагаться на настройку сборки в формате счёта не стоит). Разделитель — точка: так коми
+    /// записано в правилах и в файле настроек.
+    /// </para>
     /// </remarks>
-    public override string ToString() => Rule == ScoringRule.Chinese
-        ? $"Чёрные {BlackArea} : {WhiteArea + Komi.Value} Белые"
-        : $"Чёрные {BlackTerritoryPoints} : {WhiteTerritoryPoints + Komi.Value} Белые";
+    public override string ToString()
+    {
+        var black = (Rule == ScoringRule.Chinese ? BlackArea : BlackTerritoryPoints)
+            .ToString(CultureInfo.InvariantCulture);
+        var white = (Rule == ScoringRule.Chinese ? WhiteArea + Komi.Value : WhiteTerritoryPoints + Komi.Value)
+            .ToString(CultureInfo.InvariantCulture);
+
+        return $"Чёрные {black} : {white} Белые";
+    }
 
     /// <summary>Сравнивает две величины с коми и называет сторону.</summary>
     /// <param name="black">Величина чёрных.</param>

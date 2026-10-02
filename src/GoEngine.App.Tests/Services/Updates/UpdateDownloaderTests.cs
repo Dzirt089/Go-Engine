@@ -107,6 +107,69 @@ public sealed class UpdateDownloaderTests
         }
     }
 
+    [Fact]
+    public async Task Загрузка_Сообщает_Ход_По_Байтам()
+    {
+        var directory = NewDirectory();
+        var reports = new List<DownloadProgress>();
+
+        try
+        {
+            var asset = Asset(Payload);
+            var result = await Downloader(Payload, HttpStatusCode.OK)
+                .DownloadAsync(asset, directory, new CollectingProgress(reports));
+
+            Assert.True(result.IsSuccess, result.Error);
+            Assert.Equal(Payload.Length, reports[^1].Received);
+            Assert.Equal(100, reports[^1].Percent);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Загрузка_Начинает_Отчёт_С_Нуля()
+    {
+        var directory = NewDirectory();
+        var reports = new List<DownloadProgress>();
+
+        try
+        {
+            // Нулевой отчёт нужен полосе хода: без него она появляется только после первой порции.
+            await Downloader(Payload, HttpStatusCode.OK)
+                .DownloadAsync(Asset(Payload), directory, new CollectingProgress(reports));
+
+            Assert.Equal(0, reports[0].Received);
+            Assert.Equal(Payload.Length, reports[0].Total);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Загрузка_Прерывается_По_Отмене()
+    {
+        var directory = NewDirectory();
+
+        try
+        {
+            // Отменённый признак — ожидаемый исход: загрузка возвращает причину, а не исключение.
+            var result = await Downloader(Payload, HttpStatusCode.OK)
+                .DownloadAsync(Asset(Payload), directory, new CancellationToken(canceled: true));
+
+            Assert.False(result.IsSuccess);
+            Assert.Contains("прервана", result.Error, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static string NewDirectory()
     {
         var directory = Path.Combine(Path.GetTempPath(), "goengine-update-tests", Guid.NewGuid().ToString("N"));
@@ -122,15 +185,5 @@ public sealed class UpdateDownloaderTests
         Convert.ToHexString(SHA256.HashData(payload)));
 
     private static UpdateDownloader Downloader(byte[] payload, HttpStatusCode status) =>
-        new(new HttpClient(new StubHandler(status, payload)));
-
-    /// <summary>Подставной обработчик HTTP: отдаёт заранее заданные байты.</summary>
-    /// <param name="status">Код ответа.</param>
-    /// <param name="payload">Тело ответа.</param>
-    private sealed class StubHandler(HttpStatusCode status, byte[] payload) : HttpMessageHandler
-    {
-        /// <inheritdoc />
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(status) { Content = new ByteArrayContent(payload) });
-    }
+        new(new HttpClient(StubHttpHandler.Bytes(payload, status)));
 }

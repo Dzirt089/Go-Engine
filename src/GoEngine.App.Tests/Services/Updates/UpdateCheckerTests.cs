@@ -60,7 +60,7 @@ public sealed class UpdateCheckerTests
     [Fact]
     public async Task Проверка_Переживает_Отсутствие_Сети()
     {
-        var http = new HttpClient(new StubHandler(_ => throw new HttpRequestException("сеть недоступна")));
+        var http = new HttpClient(new StubHttpHandler(_ => throw new HttpRequestException("сеть недоступна")));
         var checker = new UpdateChecker(http, new Uri("https://example.org/update.json"), new AppVersion(0, 2, 9));
 
         var result = await checker.CheckAsync();
@@ -72,7 +72,7 @@ public sealed class UpdateCheckerTests
     [Fact]
     public async Task Проверка_Переживает_Таймаут()
     {
-        var http = new HttpClient(new StubHandler(_ => throw new TaskCanceledException("время вышло")));
+        var http = new HttpClient(new StubHttpHandler(_ => throw new TaskCanceledException("время вышло")));
         var checker = new UpdateChecker(http, new Uri("https://example.org/update.json"), new AppVersion(0, 2, 9));
 
         var result = await checker.CheckAsync();
@@ -120,20 +120,8 @@ public sealed class UpdateCheckerTests
         HttpStatusCode status = HttpStatusCode.OK,
         bool? localBuild = null)
     {
-        var http = new HttpClient(new StubHandler(_ => new HttpResponseMessage(status)
-        {
-            Content = new StringContent(body ?? string.Empty)
-        }));
+        var http = new HttpClient(StubHttpHandler.Text(body ?? string.Empty, status));
 
         return new UpdateChecker(http, new Uri("https://example.org/update.json"), current, localBuild);
-    }
-
-    /// <summary>Подставной обработчик HTTP: сеть в тестах не нужна.</summary>
-    /// <param name="responder">Что вернуть на запрос.</param>
-    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
-    {
-        /// <inheritdoc />
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(responder(request));
     }
 }

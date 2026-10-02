@@ -25,6 +25,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     private bool _problemsMode;
     private bool _settingsScreen;
 
+    /// <summary>Проверка обновления при запуске уже начата: второй раз она не идёт.</summary>
+    private bool _updateCheckStarted;
+
     /// <summary>Логгер режимов: в логе видно, чем игрок занимался до сбоя.</summary>
     private readonly ILogger _log = AppLog.For<ShellViewModel>();
 
@@ -35,11 +38,15 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <param name="startOnSettings">
     /// Показать настройки до партии: так делает мобильная голова, где игрок сам начинает матч.
     /// </param>
+    /// <param name="updates">
+    /// Модель обновления: приглашение и ход загрузки. <c>null</c> — общая модель приложения.
+    /// </param>
     public ShellViewModel(
         AppSettings settings,
         MainViewModel game,
         ProblemViewModel problems,
-        bool startOnSettings = false)
+        bool startOnSettings = false,
+        UpdateViewModel? updates = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(game);
@@ -49,6 +56,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         Game = game;
         Problems = problems;
         StartOnSettings = startOnSettings;
+        Updates = updates ?? global::GoEngine.App.App.Updates;
     }
 
     /// <inheritdoc />
@@ -69,6 +77,13 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 
     /// <summary>Модель представления задач: живёт, пока приложение открыто.</summary>
     public ProblemViewModel Problems { get; }
+
+    /// <summary>Приглашение обновления и ход загрузки: общее с экраном настроек состояние.</summary>
+    /// <remarks>
+    /// Модель приходит снаружи и по умолчанию берётся у приложения: проверка из настроек и
+    /// приглашение в оболочке должны говорить об одном обновлении, а не о двух разных.
+    /// </remarks>
+    public UpdateViewModel Updates { get; }
 
     /// <summary>Показан режим партии.</summary>
     public bool IsGameMode => !_problemsMode;
@@ -103,17 +118,40 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <param name="evaluator">Оценка позиции нейросетью для уровней Дан; <c>null</c> — без сети.</param>
     /// <param name="problems">Задачи; <c>null</c> — взять встроенную библиотеку.</param>
     /// <param name="startOnSettings">Показать настройки до партии (мобильная версия).</param>
+    /// <param name="updates">Модель обновления; <c>null</c> — общая модель приложения.</param>
     /// <returns>Оболочка с двумя режимами.</returns>
     public static ShellViewModel Create(
         AppSettings settings,
         IPositionEvaluator? evaluator = null,
         IReadOnlyList<Problem>? problems = null,
-        bool startOnSettings = false) =>
+        bool startOnSettings = false,
+        UpdateViewModel? updates = null) =>
         new(
             settings,
             new MainViewModel(settings, Random.Shared, evaluator),
             problems is null ? new ProblemViewModel() : new ProblemViewModel(problems),
-            startOnSettings);
+            startOnSettings,
+            updates);
+
+    /// <summary>Проверяет обновление при первом показе оболочки: один раз, в фоне и молча.</summary>
+    /// <returns>Задача проверки; повторные вызовы ничего не делают.</returns>
+    /// <remarks>
+    /// Приложение offline-first: проверка не задерживает ни запуск, ни первый ход игрока, а её
+    /// отказ (нет сети, нет манифеста) — обычное дело, которое видно в логе, а не на экране.
+    /// Приглашение появляется, только если обновление действительно есть. Возвращаемая задача
+    /// нужна проверкам: они ждут её, чтобы утверждать об исходе; вид её не ожидает.
+    /// </remarks>
+    public async Task CheckUpdatesOnStartAsync()
+    {
+        if (_updateCheckStarted)
+        {
+            return;
+        }
+
+        _updateCheckStarted = true;
+
+        await Updates.CheckAsync(silent: true).ConfigureAwait(true);
+    }
 
     /// <summary>Показывает режим партии.</summary>
     public void ShowGame() => SetMode(problems: false);

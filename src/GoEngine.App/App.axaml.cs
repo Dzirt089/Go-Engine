@@ -6,6 +6,7 @@ using GoEngine.AI;
 using GoEngine.App.Rendering;
 using GoEngine.App.Services.Logging;
 using GoEngine.App.Services.Updates;
+using GoEngine.App.ViewModels;
 using GoEngine.App.Views;
 
 namespace GoEngine.App;
@@ -82,6 +83,20 @@ public sealed partial class App : Application
         UpdateInstaller is { } installer && !string.IsNullOrWhiteSpace(UpdateDownloadDirectory)
             ? UpdateService.CreateDefault(installer, UpdateDownloadDirectory)
             : null;
+
+    /// <summary>Модель обновления: общая для приглашения в оболочке и блока обновлений в настройках.</summary>
+    /// <remarks>
+    /// Одна на приложение: иначе проверка в настройках и приглашение при запуске показывали бы
+    /// разные состояния одного и того же обновления, а скачивание шло бы дважды. Собирается при
+    /// первом обращении, а не при загрузке типа: головы задают установщик и каталог после старта,
+    /// и раньше этого собрать службу не из чего.
+    /// </remarks>
+    public static UpdateViewModel Updates => _updates.Value;
+
+    /// <summary>Отложенная сборка модели обновления.</summary>
+    private static readonly Lazy<UpdateViewModel> _updates = new(
+        static () => new UpdateViewModel(CreateUpdateService()),
+        LazyThreadSafetyMode.ExecutionAndPublication);
 
     /// <inheritdoc />
     public override void Initialize() => AvaloniaXamlLoader.Load(this);

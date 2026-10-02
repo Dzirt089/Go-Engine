@@ -23,7 +23,7 @@ step() {
 step "сборка решения" dotnet build "$src/GoEngine.sln" --nologo
 step "тесты" dotnet test "$src/GoEngine.sln" --nologo
 
-modes=(--smoke --check --state --settings --sgf --animation --e2e)
+modes=(--smoke --check --state --settings --sgf --animation --problems --result --territory --clock --update --e2e)
 if [ "${1:-}" != "--skip-stress" ]; then
   modes+=(--stress)
 fi
