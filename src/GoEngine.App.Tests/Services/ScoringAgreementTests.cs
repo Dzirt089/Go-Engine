@@ -31,12 +31,38 @@ public sealed class ScoringAgreementTests
     }
 
     [Fact]
-    public void Идущая_Партия_Не_Помечает_Камни()
+    public void В_Идущей_Партии_Игрок_Помечает_Камни_Сам()
     {
-        // Камень в центре есть, но партия не завершена: помечать мёртвых нечего.
+        // Живой подсчёт: игрок вправе сказать «эта группа мертва» в любой момент, и счёт
+        // пересчитывается сразу. Движок при этом ничего не выдумывает — пометку ставит человек
+        // (жалоба пользователя 2026-10-02: пленные и территория нужны не только в конце партии).
         var agreement = AgreementFor(BoardWithCenterStone(), GameStatus.InProgress);
 
-        Assert.False(agreement.ToggleDeadAt(new Point(4, 4)));
+        Assert.True(agreement.ToggleDeadAt(new Point(4, 4)));
+        Assert.Equal([new Point(4, 4)], agreement.DeadPoints);
+    }
+
+    [Fact]
+    public void В_Идущей_Партии_Пометка_Меняет_Счёт()
+    {
+        // Пометка «мертва» отдаёт камни в пленные и точки — в территорию соперника.
+        var agreement = AgreementFor(BoardWithCenterStone(), GameStatus.InProgress);
+        var before = agreement.CurrentScore;
+
+        _ = agreement.ToggleDeadAt(new Point(4, 4));
+
+        Assert.NotEqual(before, agreement.CurrentScore);
+    }
+
+    [Fact]
+    public void Повторная_Пометка_Снимается_Тем_Же_Кликом()
+    {
+        var agreement = AgreementFor(BoardWithCenterStone(), GameStatus.InProgress);
+
+        _ = agreement.ToggleDeadAt(new Point(4, 4));
+        _ = agreement.ToggleDeadAt(new Point(4, 4));
+
+        Assert.Empty(agreement.DeadPoints);
     }
 
     [Fact]
@@ -228,17 +254,19 @@ public sealed class ScoringAgreementTests
     }
 
     [Fact]
-    public void Правка_Кликов_Не_Закрепляется_Повторной_Синхронизацией()
+    public void Ручная_Правка_Переживает_Синхронизацию()
     {
-        // Синхронизация возвращает пометки к предложению перебора: кэш предложения тот же,
-        // но список мёртвых собирается из него, а не накапливает клики.
+        // Игрок вправе спорить с перебором: живая группа в дальнем углу помечена мёртвой вручную,
+        // и пересчёт предложения (та же позиция, то же состояние) обязан оставить пометку в силе.
+        // Раньше синхронизация возвращала набор к предложению и молча стирала выбор игрока.
         var board = CountingBoard();
         var agreement = AgreementFor(board, GameStatus.FinishedByTwoPasses);
         _ = agreement.ToggleDeadAt(new Point(8, 8));
 
         agreement.Sync(board, GameStatus.FinishedByTwoPasses);
 
-        Assert.DoesNotContain(new Point(8, 8), agreement.DeadPoints);
+        Assert.Contains(new Point(8, 8), agreement.DeadPoints);
+        Assert.Contains(new Point(0, 0), agreement.DeadPoints);
     }
 
     [Fact]

@@ -433,6 +433,71 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
+    public void Приёмка_Помеченная_Группа_Идёт_В_Пленные_Победителю()
+    {
+        // Требование пользователя 2026-10-02: «мёртвые группы должны считаться пленными,
+        // а территория засчитываться победителю». Помеченные белые камни (0,0) и (1,0) уходят
+        // в пленные чёрных: в строке пленных это «мертвыми 2 : 0», в счёте они прибавляются
+        // к территории чёрных.
+        var model = CreateCountingModel();
+
+        Assert.Contains("мертвыми 2 : 0", model.PrisonersLine, StringComparison.Ordinal);
+
+        var score = Endgame.Finalize(
+            model.Board,
+            model.DeadPoints,
+            Komi.For9x9,
+            model.CapturedWhite,
+            model.CapturedBlack,
+            ScoringRule.Japanese);
+
+        Assert.Equal(2, score.BlackPrisoners);
+        Assert.Equal(4, score.BlackTerritory);
+        Assert.Equal(0, score.WhiteTerritory);
+    }
+
+    [Fact]
+    public void Приёмка_Точки_Мёртвой_Группы_Принадлежат_Победителю()
+    {
+        // Разметка территории — та же величина, что входит в счёт: точки снятой группы
+        // окрашены цветом победителя, а не остались нейтральными.
+        var model = CreateCountingModel();
+        var territory = model.Territory!;
+
+        Assert.Equal(StoneColor.Black, territory[(0 * Size.Value) + 0]);
+        Assert.Equal(StoneColor.Black, territory[(0 * Size.Value) + 1]);
+    }
+
+    [Fact]
+    public void Приёмка_Снятие_Пометки_Возвращает_Счёт_Как_Был()
+    {
+        // Обратная сторона требования: пока группа не помечена, её камни живые и очков
+        // победителю не приносят. Снятие пометки обязано вернуть счёт ровно к прежнему —
+        // и пленных, и территорию.
+        var model = CreateCountingModel();
+
+        // Счёт без ручных пометок — эталон: к нему обязано вернуться после снятия.
+        var before = Endgame.Finalize(
+            model.Board, [], Komi.For9x9, model.CapturedWhite, model.CapturedBlack, ScoringRule.Japanese);
+
+        // Игрок снимает пометку с целой группы: перебор её предлагал, игрок с ним не согласен.
+        _ = model.ToggleDeadAt(new Point(0, 0));
+
+        var after = Endgame.Finalize(
+            model.Board,
+            [.. model.DeadPoints.Where(point => point.Y != 0 || point.X > 1)],
+            Komi.For9x9,
+            model.CapturedWhite,
+            model.CapturedBlack,
+            ScoringRule.Japanese);
+
+        // Группа (0,0)-(1,0) больше не мёртвая: её камни не пленные, её точки не территория.
+        Assert.Equal(before.BlackPrisoners, after.BlackPrisoners);
+        Assert.Equal(before.BlackTerritory, after.BlackTerritory);
+        Assert.Equal(before.WhiteArea, after.WhiteArea);
+    }
+
+    [Fact]
     public void Приёмка_Территория_Согласования_Считается_Без_Мёртвых_Камней()
     {
         // Точки снятой белой группы становятся территорией чёрных: 4 камня + 4 точки,

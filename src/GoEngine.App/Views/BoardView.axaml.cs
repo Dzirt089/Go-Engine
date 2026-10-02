@@ -77,7 +77,7 @@ public sealed partial class BoardView : UserControl
     private const string PauseLabel = "Пауза";
 
     /// <summary>Подпись кнопки часов, когда партия стоит на паузе.</summary>
-    private const string ResumeLabel = "Продолжить";
+    private const string ResumeLabel = "Дальше";
 
     /// <summary>Состояние партии на паузе словами: остановившиеся цифры об этом не скажут.</summary>
     private const string PausedHeadline = "Пауза";
@@ -85,10 +85,11 @@ public sealed partial class BoardView : UserControl
     /// <summary>Пояснение к паузе: почему щелчок по доске не играет ход.</summary>
     private const string PausedDetail = "Ходы не принимаются";
 
-    /// <summary>Слова о неначатой партии в строке времени: по нулям не видно, идут часы или стоят.</summary>
-    private const string NotStartedMark = "партия не начата";
-
     /// <summary>Слова о паузе рядом со временем: время стоит, и это должно быть видно.</summary>
+    /// <remarks>
+    /// Состояние «партия не начата» в строке времени больше не пишется: подпись переносилась
+    /// на две строки в панели 320 точек, а состояние видно по строке статуса и кнопке старта.
+    /// </remarks>
     private const string PausedMark = "пауза";
 
     /// <summary>Ответ на ход, сделанный на паузе: ход не играется, и игрок должен понять почему.</summary>
@@ -128,6 +129,7 @@ public sealed partial class BoardView : UserControl
     private readonly TextBlock? _desktopStatus;
     private readonly TextBlock? _mobileStatusText;
     private readonly TextBlock? _desktopScoreDetail;
+    private readonly TextBlock? _desktopScoreSystems;
     private readonly TextBlock? _mobileScoreDetail;
     private readonly TextBlock? _desktopBreakdown;
     private readonly TextBlock? _mobileBreakdown;
@@ -235,6 +237,7 @@ public sealed partial class BoardView : UserControl
         _desktopStatus = this.FindControl<TextBlock>("DesktopStatusText");
         _mobileStatusText = this.FindControl<TextBlock>("MobileStatusText");
         _desktopScoreDetail = this.FindControl<TextBlock>("DesktopScoreDetailText");
+        _desktopScoreSystems = this.FindControl<TextBlock>("DesktopScoreSystemsText");
         _mobileScoreDetail = this.FindControl<TextBlock>("MobileScoreDetailText");
         _desktopBreakdown = this.FindControl<TextBlock>("DesktopBreakdownText");
         _mobileBreakdown = this.FindControl<TextBlock>("MobileBreakdownText");
@@ -288,7 +291,6 @@ public sealed partial class BoardView : UserControl
         WireButton("DesktopPauseButton", OnPauseResumeClick);
         WireButton("MobilePauseButton", OnPauseResumeClick);
         WireButton("DesktopAbortButton", OnAbortGameClick);
-        WireButton("MobileAbortButton", OnAbortGameClick);
 
         // Кнопки мобильной раскладки делают то же самое: обработчики общие.
         WireButton("MobilePassButton", OnPassClick);
@@ -305,6 +307,12 @@ public sealed partial class BoardView : UserControl
         // тот же, что у кнопок настольной панели.
         WireMenuItem("MobileSaveMenuItem", OnSaveClick);
         WireMenuItem("MobileLoadMenuItem", OnLoadClick);
+
+        // Меню «Ещё» на телефоне: редкие действия не занимают место в панели.
+        WireMenuItem("MobileMoreAbortItem", OnAbortGameClick);
+        WireMenuItem("MobileMoreSaveItem", OnSaveClick);
+        WireMenuItem("MobileMoreLoadItem", OnLoadClick);
+        WireMenuItem("MobileMoreSettingsItem", OnSettingsClick);
 
         if (_desktopDetailsButton is not null)
         {
@@ -576,17 +584,12 @@ public sealed partial class BoardView : UserControl
     /// </remarks>
     private void RefreshClock()
     {
-        var clock = ViewModel.ClockDisplay;
-
-        // Слова о состоянии идут рядом со временем: по одним цифрам не видно, идут часы или стоят.
-        var desktop = ViewModel.IsGameStarted
-            ? $"Время партии: {clock}"
-            : $"Время партии: {clock} · {NotStartedMark}";
-
-        if (ViewModel.IsGamePaused)
-        {
-            desktop = $"{desktop} · {PausedMark}";
-        }
+        // Время — это время: подпись «Время партии: 00:00» переносилась на две строки в панели
+        // 320 точек, поэтому состояние партии называется отдельно (его показывает строка статуса),
+        // а рядом со временем остаётся только пометка паузы.
+        var desktop = ViewModel.IsGamePaused
+            ? $"{ViewModel.ClockShortDisplay} · {PausedMark}"
+            : ViewModel.ClockShortDisplay;
 
         SetText(_desktopClock, desktop);
         SetText(
@@ -937,6 +940,7 @@ public sealed partial class BoardView : UserControl
         SetText(_desktopScore, score);
         SetText(_mobileScore, score);
         SetText(_desktopScoreDetail, detail);
+        SetText(_desktopScoreSystems, detail);
         SetText(_mobileScoreDetail, detail);
         SetText(_desktopBreakdown, breakdown);
         SetText(_mobileBreakdown, breakdown);
@@ -1056,9 +1060,10 @@ public sealed partial class BoardView : UserControl
             return;
         }
 
-        var dead = ViewModel.IsCounting ? ViewModel.DeadPoints : null;
-
-        _boardControl.DeadPoints = dead;
+        // Пометки видны всегда, когда они есть: и в согласовании (их предложил перебор),
+        // и во время партии (их поставил игрок правой кнопкой). Скрывать их значило бы показывать
+        // счёт, не показывая, из чего он сложился (жалоба пользователя 2026-10-02).
+        _boardControl.DeadPoints = ViewModel.DeadPoints.Count > 0 ? ViewModel.DeadPoints : null;
         _boardControl.InvalidateVisual();
     }
 
@@ -1318,12 +1323,20 @@ public sealed partial class BoardView : UserControl
     /// <param name="sender">Доска.</param>
     /// <param name="e">Точка хода.</param>
     /// <remarks>
+    /// <para>
     /// Пока идёт согласование мёртвых групп, щелчок не играет ход, а помечает группу мёртвой
     /// или снимает пометку: в этом режиме ходы не принимаются (контракт конца партии, T-A).
+    /// </para>
+    /// <para>
+    /// Во время партии пометка ставится правой кнопкой (<c>MoveRequestedEventArgs.MarksDead</c>):
+    /// левая занята ходом, и отбирать её под пометки нельзя.
+    /// </para>
     /// </remarks>
     private void OnMoveRequested(object? sender, MoveRequestedEventArgs e)
     {
-        if (ViewModel.IsCounting)
+        // Пометка мёртвой группы: в согласовании — левой кнопкой (там ходов нет), во время
+        // партии — правой (левая занята ходом). Счёт пересчитывается сразу.
+        if (ViewModel.IsCounting || e.MarksDead)
         {
             _ = ViewModel.ToggleDeadAt(e.Point);
             return;

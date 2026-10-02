@@ -228,10 +228,16 @@ public sealed class BoardControl : Control
 
         base.OnPointerPressed(e);
 
-        if (PointAt(e.GetPosition(this)) is { } point)
+        if (PointAt(e.GetPosition(this)) is not { } point)
         {
-            MoveRequested?.Invoke(this, new MoveRequestedEventArgs(point));
+            return;
         }
+
+        // Правая кнопка — пометка мёртвой группы: ею игрок говорит «это пленные», и счёт
+        // пересчитывается сразу, не дожидаясь конца партии.
+        var marksDead = e.GetCurrentPoint(this).Properties.IsRightButtonPressed;
+
+        MoveRequested?.Invoke(this, new MoveRequestedEventArgs(point, marksDead));
     }
 
     /// <inheritdoc />

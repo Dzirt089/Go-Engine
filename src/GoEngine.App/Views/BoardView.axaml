@@ -25,6 +25,17 @@
       <MenuItem x:Name="MobileSaveMenuItem" Header="Сохранить партию" />
       <MenuItem x:Name="MobileLoadMenuItem" Header="Загрузить партию" />
     </MenuFlyout>
+
+    <!-- Меню «Ещё»: редкие действия телефона. Каждое называет себя словами, а не значком:
+         значкового шрифта в проекте нет, а рисованные пиктограммы на маленьком экране
+         угадываются хуже подписи. -->
+    <MenuFlyout x:Key="MobileMoreFlyout">
+      <MenuItem x:Name="MobileMoreAbortItem" Header="Отменить партию" />
+      <MenuItem x:Name="MobileMoreSaveItem" Header="Сохранить партию" />
+      <MenuItem x:Name="MobileMoreLoadItem" Header="Загрузить партию" />
+      <Separator />
+      <MenuItem x:Name="MobileMoreSettingsItem" Header="Настройки" />
+    </MenuFlyout>
   </UserControl.Resources>
 
   <Panel x:Name="Root">
@@ -150,13 +161,11 @@
                             IsChecked="{Binding ShowTerritory}" />
             </Grid>
 
-            <!-- Числа подсчёта стоят сразу под действиями, а не в свёрнутых «Подробностях»:
-                 игрок нажимает «Территорию» и обязан видеть рядом, что именно посчитано —
-                 камни, территория, пленные. Раньше эти строки лежали в свёрнутой панели,
-                 и разметка на доске оставалась без чисел (жалоба пользователя 2026-10-02).
-                 Пустые строки места не занимают: их скрывает вид по признаку «есть что сказать». -->
+            <!-- Числа подсчёта стоят сразу под действиями: игрок нажимает «Территорию» и обязан
+                 видеть рядом, что именно посчитано — камни, территория, пленные. Пустые строки
+                 места не занимают: их скрывает вид по признаку «есть что сказать». -->
             <TextBlock x:Name="DesktopPrisonersText"
-                       Classes="app-label"
+                       Classes="app-value"
                        TextWrapping="Wrap"
                        IsVisible="False" />
 
@@ -164,11 +173,6 @@
                        Classes="app-label"
                        TextWrapping="Wrap"
                        IsVisible="False" />
-
-            <!-- Сведения о партии одной строкой: соперник, номер хода и коми. -->
-            <TextBlock x:Name="DesktopStatsText"
-                       Classes="app-label"
-                       TextWrapping="Wrap" />
 
             <!-- Списки доски и уровня: ими игрок выбирает, с чем играть, поэтому они видны
                  всегда. Списки заполняет код вида (BoardView.axaml.cs), а не привязка: список
@@ -199,9 +203,9 @@
                        IsVisible="False"
                        Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
 
-            <!-- Подробности свёрнуты по умолчанию: постоянные строки про пленных и площадь
-                 занимали пол-панели и повторяли то, что и так видно на доске. Разворачивает
-                 их игрок, а не приложение за него. -->
+            <!-- Подробности свёрнуты по умолчанию: соперник, ход, коми, разбор счёта и подсказка
+                 об уровнях — то, что нужно не каждый ход. Содержимое обязано быть: кнопка,
+                 раскрывающая пустую панель, выглядит сломанной (жалоба пользователя 2026-10-02). -->
             <ToggleButton x:Name="DesktopDetailsButton"
                           Content="Подробности"
                           Classes="app-toggle"
@@ -210,6 +214,18 @@
                           HorizontalContentAlignment="Center" />
 
             <StackPanel x:Name="DesktopDetailsPanel" Spacing="6" IsVisible="False">
+              <!-- Сведения о партии одной строкой: соперник, номер хода и коми. -->
+              <TextBlock x:Name="DesktopStatsText"
+                         Classes="app-label"
+                         TextWrapping="Wrap" />
+
+              <!-- Разбор обеих систем словами: он нужен тому, кто проверяет счёт, а не тому,
+                   кто играет. Отдельное имя: строка короткого счёта стоит выше и заполняется
+                   тем же текстом, но живёт всегда. -->
+              <TextBlock x:Name="DesktopScoreSystemsText"
+                         Classes="app-label"
+                         TextWrapping="Wrap" />
+
               <!-- Подсказка о том, почему уровней с сетью нет: строка нужна, но показывается
                    только когда есть что сказать. -->
               <TextBlock x:Name="DesktopLevelHintText"
@@ -276,16 +292,17 @@
         <views:GameResultBanner x:Name="MobileResultBanner" />
       </Border>
 
-      <!-- Строка состояния: кто ходит и номер хода. Подробности (счёт, пленные, коми) — в шторке:
-           на узком экране одна строка несёт одно главное сообщение. -->
+      <!-- Шапка телефона: кто ходит и время партии, а рядом — «Пауза». Три коротких поля
+           в одну строку: подробности (счёт, пленные, коми) живут в шторке, а время — то, что
+           игрок смотрит постоянно, и дублировать его в панели действий незачем. -->
       <Border Grid.Row="1"
               x:Name="MobileStatus"
               Background="{DynamicResource AppSurfaceBrush}"
               BorderBrush="{DynamicResource AppBorderBrush}"
               BorderThickness="0,0,0,1"
-              Padding="12,4"
+              Padding="12,6"
               MinHeight="{DynamicResource AppStatusHeight}">
-        <Grid ColumnDefinitions="Auto,*,Auto">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
           <!-- Камень того, кто ходит: чёрный залит, белый — с обводкой, иначе он пропадал бы
                на светлой строке состояния. -->
           <Panel VerticalAlignment="Center">
@@ -303,15 +320,23 @@
           </Panel>
           <TextBlock x:Name="MobileTurnText"
                      Grid.Column="1"
-                     Margin="8,0,0,0"
+                     Margin="8,0,8,0"
                      VerticalAlignment="Center"
                      FontWeight="SemiBold"
                      TextTrimming="CharacterEllipsis" />
-          <TextBlock x:Name="MobileMoveText"
+          <TextBlock x:Name="MobileClockText"
                      Grid.Column="2"
+                     Margin="0,0,8,0"
                      VerticalAlignment="Center"
-                     Classes="app-label"
+                     Classes="app-clock"
                      TextTrimming="CharacterEllipsis" />
+          <Button x:Name="MobilePauseButton"
+                  Grid.Column="3"
+                  Content="Пауза"
+                  MinWidth="76"
+                  VerticalAlignment="Center"
+                  Classes="app-action"
+                  IsEnabled="{Binding CanTogglePause}" />
         </Grid>
       </Border>
 
@@ -346,40 +371,18 @@
         </Border>
       </Panel>
 
-      <!-- Панель действий: три ряда. В первом — время партии, «Пауза» и «Отменить партию»,
-           во втором — четыре действия партии, в третьем — «Начать партию» во всю ширину:
-           до первого хода это главное действие экрана. Пять кнопок в один ряд в 360 точек
-           не помещались (жалоба 2026-09-30). -->
+      <!-- Панель действий: два ряда, и в каждом — только то, что нужно во время партии.
+           Часы и «Пауза» переехали в шапку, «Отменить партию», файл и настройки — в меню «Ещё»:
+           пять кнопок в ряд в 360 точек не помещались и обрезали подписи
+           (жалоба пользователя 2026-10-02). -->
       <Border x:Name="MobileActionBar"
               Grid.Row="1"
-                Classes="app-card"
-                Padding="6"
-                Margin="8,0,8,8"
-                VerticalAlignment="Bottom"
-                HorizontalAlignment="Center">
-          <!-- Строки фиксированной высоты: кнопка территории прячется, когда разметка
-               включается сама, и панель не должна от этого прыгать. В последней строке —
-               «Начать партию» и «Файл» с сохранением и загрузкой: три кнопки в ряд здесь
-               не помещаются, а файловые действия нужны редко. -->
-          <StackPanel Spacing="6">
-            <!-- Время партии и два действия с ним. Строка стоит первой в панели действий и видна
-                 всегда: строка состояния на низком экране (телефон в ландшафте) прячется, а время
-                 партии игрок должен видеть и там. -->
-            <Grid x:Name="MobileClockRow" ColumnDefinitions="Auto,*,*" Classes="app-touch-row touch">
-              <TextBlock x:Name="MobileClockText"
-                         Classes="app-clock"
-                         VerticalAlignment="Center" />
-              <Button x:Name="MobilePauseButton"
-                      Grid.Column="1"
-                      Content="Пауза"
-                      Classes="app-touch"
-                      IsEnabled="{Binding CanTogglePause}" />
-              <Button x:Name="MobileAbortButton"
-                      Grid.Column="2"
-                      Content="Отменить партию"
-                      Classes="app-touch"
-                      IsEnabled="{Binding CanAbortGame}" />
-            </Grid>
+              Classes="app-card"
+              Padding="8"
+              Margin="8,0,8,8"
+              VerticalAlignment="Bottom"
+              HorizontalAlignment="Center">
+          <StackPanel Spacing="8">
             <Grid x:Name="MobileActionRow" ColumnDefinitions="*,*,*,*" Classes="app-touch-row touch">
               <Button x:Name="MobilePassButton"
                       Grid.Column="0"
@@ -404,6 +407,8 @@
                             IsChecked="{Binding ShowTerritory}" />
             </Grid>
             <Grid ColumnDefinitions="*,Auto">
+              <!-- Главное действие экрана: до первого хода — старт партии, после — новая.
+                   Подпись меняет код вида, как и в настольной панели. -->
               <Button x:Name="MobileNewGameButton"
                       Grid.Column="0"
                       Content="Начать партию"
@@ -411,12 +416,13 @@
                       HorizontalAlignment="Stretch" />
               <!-- Расстояние между кнопками — отступом: RowSpacing и ColumnSpacing у Grid
                    в Avalonia 11.2 нет (проверено сборкой, AVLN2000). -->
-              <Button x:Name="MobileFileButton"
+              <Button x:Name="MobileMoreButton"
                       Grid.Column="1"
-                      Content="Файл"
+                      Content="Ещё"
                       Classes="app-touch"
-                      Margin="6,0,0,0"
-                      Flyout="{StaticResource FileActionsFlyout}" />
+                      MinWidth="72"
+                      Margin="8,0,0,0"
+                      Flyout="{StaticResource MobileMoreFlyout}" />
             </Grid>
           </StackPanel>
         </Border>
