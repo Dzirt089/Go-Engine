@@ -1,6 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.LogicalTree;
+using GoEngine.AI;
 using GoEngine.App.Services;
+using GoEngine.App.ViewModels;
 using GoEngine.App.Views;
 using GoEngine.Core;
 
@@ -119,6 +121,20 @@ public sealed class SettingsViewTests
     }
 
     [Fact]
+    public void Событие_Смены_Системы_Несёт_Выбранное_Правило()
+    {
+        // Правило идёт в самом событии: у выбора одна точка правды, и хозяин вида не читает
+        // список повторно (H1: настольное окно показывает свой экземпляр вида).
+        var view = new SettingsView(AppSettings.Default);
+        ScoringRule? reported = null;
+        view.ScoringRuleChanged += (_, rule) => reported = rule;
+
+        view.FindControl<ComboBox>("ScoringBox")!.SelectedIndex = 1;
+
+        Assert.Equal(ScoringRule.Chinese, reported);
+    }
+
+    [Fact]
     public void Смена_Системы_Подсчёта_Попадает_В_Выбранные_Настройки()
     {
         var view = new SettingsView(AppSettings.Default);
@@ -137,6 +153,23 @@ public sealed class SettingsViewTests
             "в новой партии",
             view.FindControl<TextBlock>("NewGameHintText")!.Text ?? string.Empty,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Подписка_Применяет_Смену_Системы_К_Партии()
+    {
+        // Общий шов обоих хозяев настроек: и вид партии на телефоне, и настольное окно применяют
+        // выбранное правило через него (H1). Само окно в тестах не построить — оконной платформы
+        // нет, — поэтому проверяется тот же шов на виде настроек.
+        var view = new SettingsView(AppSettings.Default);
+        var game = new MainViewModel(
+            AppSettings.From(BoardSize.Size9, DifficultyLevel.Kyu20, StoneColor.Black, Komi.For9x9),
+            new Random(TestViewModel.Seed));
+        SettingsView.ApplyScoringRuleOnChange(view, game);
+
+        view.FindControl<ComboBox>("ScoringBox")!.SelectedIndex = 1;
+
+        Assert.Equal(ScoringRule.Chinese, game.ScoringRule);
     }
 
     [Fact]

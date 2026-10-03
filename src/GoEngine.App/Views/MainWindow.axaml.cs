@@ -118,6 +118,13 @@ public sealed partial class MainWindow : Window
         // Наличие модели считает модель представления: у неё те же оценщик и набор размеров,
         // что у приложения, но окно не читает статические поля само (D-059).
         var dialog = new SettingsWindow(_settings, ViewModel.HasModelFor);
+
+        // Система подсчёта действует сразу, как и на телефоне: окно показывает свой экземпляр
+        // вида настроек, поэтому подписку ставит хозяин окна — тем же общим способом, что и вид
+        // партии. Партия не пересоздаётся: система лишь выбирает, по какой величине называть
+        // победителя (H1).
+        SettingsView.ApplyScoringRuleOnChange(dialog.Settings, ViewModel);
+
         var accepted = await dialog.ShowDialog<bool>(this);
 
         if (!accepted)

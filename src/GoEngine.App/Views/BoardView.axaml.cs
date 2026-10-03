@@ -262,7 +262,8 @@ public sealed partial class BoardView : UserControl
 
             // Правило подсчёта — не свойство партии: оно вступает в силу сразу, поэтому вид
             // партии применяет его к текущей игре, не дожидаясь новой (жалоба 2026-10-03).
-            _settingsView.ScoringRuleChanged += OnScoringRuleChanged;
+            // Подписка одна на оба хозяина настроек — у самого вида (H1).
+            SettingsView.ApplyScoringRuleOnChange(_settingsView, ViewModel);
         }
 
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -1144,21 +1145,6 @@ public sealed partial class BoardView : UserControl
         _ = SettingsStore.Save(_settings);
 
         HideSettings();
-    }
-
-    /// <summary>Применяет смену системы подсчёта к текущей партии.</summary>
-    /// <param name="sender">Вид настроек.</param>
-    /// <param name="e">Признак смены системы.</param>
-    /// <remarks>
-    /// Партия не пересоздаётся: обе величины Core считает всегда, а система лишь выбирает,
-    /// по какой из них называть победителя, — счёт на панели и итог меняются сразу.
-    /// </remarks>
-    private void OnScoringRuleChanged(object? sender, EventArgs e)
-    {
-        if (_settingsView is not null)
-        {
-            ViewModel.ScoringRule = _settingsView.SelectedScoringRule;
-        }
     }
 
     /// <summary>Прячет панель настроек.</summary>

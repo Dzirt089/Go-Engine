@@ -137,11 +137,36 @@ public sealed partial class SettingsView : UserControl
 
     /// <summary>Игрок сменил систему подсчёта: счёт и победителя называет она.</summary>
     /// <remarks>
+    /// <para>
     /// Отдельное событие, а не молчаливое изменение <see cref="Selected"/>: правило — не свойство
     /// партии, оно действует сразу, и хозяин вида обязан применить его к текущей партии
     /// (жалоба пользователя 2026-10-03). Звук вид применяет сам: он тоже не свойство партии.
+    /// </para>
+    /// <para>
+    /// Выбранное правило идёт в самом событии, а не читается хозяином из вида повторно: так
+    /// у правила одна точка правды — список, из которого его выбрал игрок (H1: настольное окно
+    /// показывает свой экземпляр вида, и до этой правки выбор до партии не доходил).
+    /// </para>
     /// </remarks>
-    public event EventHandler? ScoringRuleChanged;
+    public event EventHandler<ScoringRule>? ScoringRuleChanged;
+
+    /// <summary>Подписывает смену системы подсчёта на партию: одно место для обоих хозяев вида.</summary>
+    /// <param name="settings">Вид настроек: источник выбора.</param>
+    /// <param name="game">Партия: правило применяется к ней сразу.</param>
+    /// <remarks>
+    /// Хозяев двое — мобильный вид партии и настольное окно, — и оба обязаны применить правило
+    /// к текущей партии одинаково (H1: до этой правки настольное окно показывало свой экземпляр
+    /// вида, и выбор до партии не доходил). Логика применения живёт здесь одна, а не строкой
+    /// в каждом хозяине; тест проверяет её на виде настроек, потому что окно без оконной платформы
+    /// в тестах не построить, а живьём его смотрит независимая проверка.
+    /// </remarks>
+    public static void ApplyScoringRuleOnChange(SettingsView settings, MainViewModel game)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(game);
+
+        settings.ScoringRuleChanged += (_, rule) => game.ScoringRule = rule;
+    }
 
     /// <summary>Правило подсчёта, выбранное сейчас в списке.</summary>
     /// <remarks>
@@ -339,7 +364,7 @@ public sealed partial class SettingsView : UserControl
 
         // В файл выбор попадёт при закрытии экрана: там его сохраняют и остальные настройки,
         // а тест не должен переписывать настройки игрока на каждой смене списка.
-        ScoringRuleChanged?.Invoke(this, EventArgs.Empty);
+        ScoringRuleChanged?.Invoke(this, rule);
     }
 
     /// <summary>Наличие модели по статическим данным приложения: запасной источник ответа.</summary>

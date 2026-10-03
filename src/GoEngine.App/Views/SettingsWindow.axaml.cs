@@ -65,6 +65,15 @@ public sealed partial class SettingsWindow : Window
         _view.Accept();
     }
 
+    /// <summary>Вид настроек окна: хозяин подписывает его на партию и читает выбор.</summary>
+    /// <remarks>
+    /// Внутренний, а не публичный: снаружи окно обязано оставаться окном настроек, а не ссылкой
+    /// на своё содержимое. Нужен хозяину (<c>MainWindow</c>): правило подсчёта применяется
+    /// к партии через общую подписку <see cref="SettingsView.ApplyScoringRuleOnChange"/>,
+    /// и ему нужен именно вид — того же вида, что и на телефоне (H1).
+    /// </remarks>
+    internal SettingsView Settings => _view;
+
     /// <summary>Настройки, выбранные в окне.</summary>
     public AppSettings Selected => _view.Selected;
 }
