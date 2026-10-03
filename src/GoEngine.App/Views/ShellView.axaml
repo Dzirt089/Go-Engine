@@ -50,7 +50,7 @@
             Background="{DynamicResource AppSurfaceBrush}"
             BorderBrush="{DynamicResource AppBorderBrush}"
             BorderThickness="0,1,0,0">
-      <Grid ColumnDefinitions="*,*,*" Height="{DynamicResource AppNavHeight}">
+      <Grid ColumnDefinitions="*,*,*,*" Height="{DynamicResource AppNavHeight}">
 
         <Button x:Name="NavGameButton"
                 Grid.Column="0"
@@ -87,6 +87,21 @@
             <Path Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center"
                   Data="M4,7 h16 v1.8 h-16 z M9,4.6 h3 v6.6 h-3 z M4,15 h16 v1.8 h-16 z M15,12.6 h3 v6.6 h-3 z" />
             <TextBlock Text="Настройки" />
+          </StackPanel>
+        </Button>
+
+        <!-- «Меню» — не раздел, а кнопка: она открывает карточку по центру экрана с действиями,
+             которые на телефоне не помещаются в ряд (новая партия, отмена партии, файлы,
+             настройки). Поэтому подсветки активного раздела у неё нет (замечание 2026-10-03). -->
+        <Button x:Name="NavMenuButton"
+                Grid.Column="3"
+                Classes="app-nav"
+                AutomationProperties.Name="Меню">
+          <StackPanel Spacing="3" VerticalAlignment="Center">
+            <!-- Три полосы: значок меню без значкового шрифта. -->
+            <Path Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center"
+                  Data="M4,6.5 h16 v2 h-16 z M4,11 h16 v2 h-16 z M4,15.5 h16 v2 h-16 z" />
+            <TextBlock Text="Меню" />
           </StackPanel>
         </Button>
 

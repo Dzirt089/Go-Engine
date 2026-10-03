@@ -96,6 +96,10 @@ public sealed partial class ShellView : UserControl
         WireButton("NavProblemButton", OnNavProblemClick);
         WireButton("NavSettingsButton", OnNavSettingsClick);
 
+        // «Меню» — не раздел: кнопка открывает карточку меню поверх вида партии и не меняет
+        // подсветку разделов (замечание пользователя 2026-10-03).
+        WireButton("NavMenuButton", OnNavMenuClick);
+
         if (GameArea is not null)
         {
             // Экран настроек закрывается и кнопкой «Назад» внутри вида партии: подсветка раздела
@@ -157,6 +161,7 @@ public sealed partial class ShellView : UserControl
     private void OnNavGameClick(object? sender, RoutedEventArgs e)
     {
         GameArea?.CloseSettingsScreen();
+        GameArea?.CloseMenu();
         Shell.ShowGame();
     }
 
@@ -166,8 +171,18 @@ public sealed partial class ShellView : UserControl
     private void OnNavProblemClick(object? sender, RoutedEventArgs e)
     {
         GameArea?.CloseSettingsScreen();
+        GameArea?.CloseMenu();
         Shell.ShowProblems();
     }
+
+    /// <summary>Открывает меню партии: раздел при этом не меняется.</summary>
+    /// <param name="sender">Кнопка «Меню».</param>
+    /// <param name="e">Событие нажатия.</param>
+    /// <remarks>
+    /// Меню принадлежит партии: в нём новая партия, отмена партии, файлы и настройки.
+    /// Кнопка — переключатель: повторное нажатие убирает карточку.
+    /// </remarks>
+    private void OnNavMenuClick(object? sender, RoutedEventArgs e) => GameArea?.ToggleMenu();
 
     /// <summary>Открывает раздел настроек из нижней навигации.</summary>
     /// <param name="sender">Кнопка раздела.</param>
@@ -178,6 +193,7 @@ public sealed partial class ShellView : UserControl
     /// </remarks>
     private void OnNavSettingsClick(object? sender, RoutedEventArgs e)
     {
+        GameArea?.CloseMenu();
         Shell.ShowSettingsScreen();
         GameArea?.ShowSettings();
     }

@@ -115,6 +115,7 @@ public sealed partial class BoardView : UserControl
     private readonly Ellipse? _mobileTurnWhite;
     private readonly Border? _mobileStatus;
     private readonly Border? _mobileActionBar;
+    private readonly Border? _menuOverlay;
     private readonly Panel? _mobileBoardRow;
     private readonly Border? _sheet;
     private readonly TextBlock? _sheetSummary;
@@ -136,7 +137,7 @@ public sealed partial class BoardView : UserControl
     private readonly StackPanel? _desktopDetails;
     private readonly ToggleButton? _desktopDetailsButton;
     private readonly Button? _desktopNewGame;
-    private readonly Button? _mobileNewGame;
+    private readonly Button? _menuNewGame;
     private readonly TextBlock? _desktopClock;
     private readonly TextBlock? _mobileClock;
     private readonly Button? _desktopPause;
@@ -218,6 +219,7 @@ public sealed partial class BoardView : UserControl
         _mobileTurnWhite = this.FindControl<Ellipse>("MobileTurnWhite");
         _mobileStatus = this.FindControl<Border>("MobileStatus");
         _mobileActionBar = this.FindControl<Border>("MobileActionBar");
+        _menuOverlay = this.FindControl<Border>("MenuOverlay");
         _mobileBoardRow = this.FindControl<Panel>("MobileBoardRow");
         _sheet = this.FindControl<Border>("Sheet");
         _sheetSummary = this.FindControl<TextBlock>("SheetSummary");
@@ -239,7 +241,7 @@ public sealed partial class BoardView : UserControl
         _desktopDetails = this.FindControl<StackPanel>("DesktopDetailsPanel");
         _desktopDetailsButton = this.FindControl<ToggleButton>("DesktopDetailsButton");
         _desktopNewGame = this.FindControl<Button>("NewGameButton");
-        _mobileNewGame = this.FindControl<Button>("MobileNewGameButton");
+        _menuNewGame = this.FindControl<Button>("MenuNewGameButton");
         _desktopClock = this.FindControl<TextBlock>("DesktopClockText");
         _mobileClock = this.FindControl<TextBlock>("MobileClockText");
         _desktopPause = this.FindControl<Button>("DesktopPauseButton");
@@ -282,23 +284,20 @@ public sealed partial class BoardView : UserControl
         WireButton("MobilePassButton", OnPassClick);
         WireButton("MobileUndoButton", OnUndoClick);
         WireButton("MobileRedoButton", OnRedoClick);
-        WireButton("MobileNewGameButton", OnNewGameClick);
         WireButton("MobileSaveButton", OnSaveClick);
         WireButton("MobileLoadButton", OnLoadClick);
         WireButton("MobileSettingsButton", OnSettingsClick);
         WireButton("SettingsBackButton", OnSettingsBackClick);
         WireButton("SheetToggleButton", OnSheetToggleClick);
 
-        // Файловые действия телефона живут в меню кнопки «Файл»: у пунктов меню обработчик
-        // тот же, что у кнопок настольной панели.
-        WireMenuItem("MobileSaveMenuItem", OnSaveClick);
-        WireMenuItem("MobileLoadMenuItem", OnLoadClick);
-
-        // Меню «Ещё» на телефоне: редкие действия не занимают место в панели.
-        WireMenuItem("MobileMoreAbortItem", OnAbortGameClick);
-        WireMenuItem("MobileMoreSaveItem", OnSaveClick);
-        WireMenuItem("MobileMoreLoadItem", OnLoadClick);
-        WireMenuItem("MobileMoreSettingsItem", OnSettingsClick);
+        // Меню партии на телефоне: те же действия, что у кнопок настольной панели, — своих
+        // обработчиков у пунктов меню нет, они лишь закрывают карточку перед действием.
+        WireButton("MenuNewGameButton", OnMenuNewGameClick);
+        WireButton("MenuAbortButton", OnMenuAbortClick);
+        WireButton("MenuSaveButton", OnMenuSaveClick);
+        WireButton("MenuLoadButton", OnMenuLoadClick);
+        WireButton("MenuSettingsButton", OnMenuSettingsClick);
+        WireButton("MenuCloseButton", OnMenuCloseClick);
 
         if (_desktopDetailsButton is not null)
         {
@@ -365,6 +364,43 @@ public sealed partial class BoardView : UserControl
 
     /// <summary>Модель представления партии.</summary>
     public MainViewModel ViewModel { get; }
+
+    /// <summary>Показывает меню партии: карточку по центру экрана.</summary>
+    /// <remarks>
+    /// Меню открывает кнопка «Меню» в нижней навигации оболочки: на телефоне это единственный вход
+    /// к «Начать партию», отмене партии, файлам и настройкам — в ряду действий они не помещались
+    /// (замечание пользователя 2026-10-03). Действия меню те же, что у кнопок настольной панели.
+    /// </remarks>
+    public void ShowMenu()
+    {
+        if (_menuOverlay is not null)
+        {
+            _menuOverlay.IsVisible = true;
+        }
+    }
+
+    /// <summary>Закрывает меню партии без действий.</summary>
+    public void CloseMenu()
+    {
+        if (_menuOverlay is not null)
+        {
+            _menuOverlay.IsVisible = false;
+        }
+    }
+
+    /// <summary>Открывает меню, если оно закрыто, и закрывает, если открыто.</summary>
+    /// <remarks>Кнопка «Меню» в навигации — переключатель: повторное нажатие убирает карточку.</remarks>
+    public void ToggleMenu()
+    {
+        if (_menuOverlay?.IsVisible == true)
+        {
+            CloseMenu();
+
+            return;
+        }
+
+        ShowMenu();
+    }
 
     /// <summary>Показывает настройки: в окне, если окно есть, иначе отдельным экраном.</summary>
     public void ShowSettings()
@@ -942,7 +978,7 @@ public sealed partial class BoardView : UserControl
         // До первого хода кнопка называется «Начать партию»: партия ждёт игрока, а не идёт.
         var newGameLabel = ViewModel.IsFirstMove ? StartGameLabel : NewGameLabel;
         SetText(_desktopNewGame, newGameLabel);
-        SetText(_mobileNewGame, newGameLabel);
+        SetText(_menuNewGame, newGameLabel);
 
         SetText(_desktopLevelHint, ViewModel.LevelHint);
 
@@ -1029,10 +1065,13 @@ public sealed partial class BoardView : UserControl
             return;
         }
 
-        // Пометки видны всегда, когда они есть: и в согласовании (их предложил перебор),
-        // и во время партии (их поставил игрок правой кнопкой). Скрывать их значило бы показывать
-        // счёт, не показывая, из чего он сложился (жалоба пользователя 2026-10-02).
-        _boardControl.DeadPoints = ViewModel.DeadPoints.Count > 0 ? ViewModel.DeadPoints : null;
+        // Крестики — часть разметки подсчёта, а не постоянная картинка: без включённой разметки
+        // доска обязана оставаться чистой, иначе игрок видит пометки, которых не просил
+        // (замечание пользователя 2026-10-03: «показывать мёртвые группы только по кнопке
+        // территория»). Знаки территории ведёт сама модель: Territory = null без разметки.
+        _boardControl.DeadPoints = ViewModel.HasTerritory && ViewModel.DeadPoints.Count > 0
+            ? ViewModel.DeadPoints
+            : null;
         _boardControl.InvalidateVisual();
     }
 
@@ -1258,16 +1297,6 @@ public sealed partial class BoardView : UserControl
         }
     }
 
-    /// <summary>Подписывает пункт меню на обработчик.</summary>
-    /// <param name="name">Имя пункта.</param>
-    /// <param name="handler">Обработчик нажатия.</param>
-    private void WireMenuItem(string name, EventHandler<RoutedEventArgs> handler)
-    {
-        if (this.FindControl<MenuItem>(name) is { } item)
-        {
-            item.Click += handler;
-        }
-    }
 
     /// <summary>Раскрывает и сворачивает подробности настольной панели.</summary>
     /// <param name="sender">Переключатель «Подробности».</param>
@@ -1364,6 +1393,60 @@ public sealed partial class BoardView : UserControl
     /// <param name="sender">Кнопка «Настройки».</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnSettingsClick(object? sender, RoutedEventArgs e) => ShowSettings();
+
+    /// <summary>Меню: начинает новую партию тем же путём, что кнопка панели.</summary>
+    /// <param name="sender">Кнопка «Начать партию» в меню.</param>
+    /// <param name="e">Событие нажатия.</param>
+    /// <remarks>
+    /// Карточка закрывается до действия: дальше игрок смотрит на доску, а не на меню.
+    /// Своей логики у пунктов нет — они зовут те же обработчики, что и настольная панель.
+    /// </remarks>
+    private void OnMenuNewGameClick(object? sender, RoutedEventArgs e)
+    {
+        CloseMenu();
+        OnNewGameClick(sender, e);
+    }
+
+    /// <summary>Меню: отменяет партию тем же путём, что кнопка панели.</summary>
+    /// <param name="sender">Кнопка «Отменить партию» в меню.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnMenuAbortClick(object? sender, RoutedEventArgs e)
+    {
+        CloseMenu();
+        OnAbortGameClick(sender, e);
+    }
+
+    /// <summary>Меню: сохраняет партию тем же путём, что кнопка панели.</summary>
+    /// <param name="sender">Кнопка «Сохранить партию» в меню.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnMenuSaveClick(object? sender, RoutedEventArgs e)
+    {
+        CloseMenu();
+        OnSaveClick(sender, e);
+    }
+
+    /// <summary>Меню: загружает партию тем же путём, что кнопка панели.</summary>
+    /// <param name="sender">Кнопка «Загрузить партию» в меню.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnMenuLoadClick(object? sender, RoutedEventArgs e)
+    {
+        CloseMenu();
+        OnLoadClick(sender, e);
+    }
+
+    /// <summary>Меню: открывает настройки тем же путём, что кнопка панели.</summary>
+    /// <param name="sender">Кнопка «Настройки» в меню.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnMenuSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        CloseMenu();
+        OnSettingsClick(sender, e);
+    }
+
+    /// <summary>Меню: закрывает карточку без действий.</summary>
+    /// <param name="sender">Кнопка «Закрыть» в меню.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnMenuCloseClick(object? sender, RoutedEventArgs e) => CloseMenu();
 
     /// <summary>Сохраняет партию.</summary>
     /// <param name="sender">Кнопка «Сохранить».</param>

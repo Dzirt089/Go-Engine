@@ -9,9 +9,16 @@ namespace GoEngine.App.Tests;
 
 /// <summary>Разметка территории: что показывается, что считается и когда включается.</summary>
 /// <remarks>
+/// <para>
 /// Заход 1: пользователь просил видеть, кому принадлежат пустые точки, и различать территорию
 /// чёрных, белых и нейтральные точки. Считает её <see cref="Scorer.Ownership"/>; тесты держат
 /// и состав разметки, и расшифровку в панели партии.
+/// </para>
+/// <para>
+/// Жалоба 2026-10-03: крестики мёртвых групп и знаки территории рисовались без нажатия. Теперь
+/// разметка — только по кнопке «Территория» (D-071), а числа (счёт, пленные, территория, камни)
+/// считаются и показываются всегда.
+/// </para>
 /// </remarks>
 public sealed class TerritoryTests
 {
@@ -19,49 +26,74 @@ public sealed class TerritoryTests
     private static readonly BoardSize Size = BoardSize.Size9;
 
     [Fact]
-    public void Территория_Показана_Сразу_После_Запуска()
+    public void Разметка_Выключена_По_Умолчанию()
     {
-        // Решение D-070: игрок не должен ничего нажимать, чтобы увидеть состояние доски.
+        // Регрессия жалобы 2026-10-03: крестики мёртвых и знаки территории рисовались без нажатия.
         var model = Create();
-
-        Assert.True(model.HasTerritory);
-    }
-
-    [Fact]
-    public void Территория_Скрывается_Выключенным_Переключателем()
-    {
-        // Переключатель остался выключателем разметки: выключили — на доске её нет.
-        var model = Create();
-        model.ShowTerritory = false;
 
         Assert.False(model.HasTerritory);
     }
 
     [Fact]
-    public void Разметка_Покрывает_Всю_Доску()
+    public void Выключенная_Разметка_Не_Отдаёт_Владение()
+    {
+        // Доска чистая: владение точками не считается, рисовать нечего.
+        var model = Create();
+
+        Assert.Null(model.Territory);
+    }
+
+    [Fact]
+    public void Разметка_Включается_Переключателем()
     {
         var model = Create();
+
+        model.ShowTerritory = true;
 
         Assert.Equal(Size.Area, model.Territory!.Count);
     }
 
     [Fact]
-    public void Выключенная_Разметка_Не_Отдаёт_Владение()
+    public void Разметка_Выключается_Тем_Же_Переключателем()
     {
         var model = Create();
+        model.ShowTerritory = true;
+
         model.ShowTerritory = false;
 
         Assert.Null(model.Territory);
     }
 
     [Fact]
-    public void Территория_Показывается_Сама_После_Двух_Пасов()
+    public void Разметка_Знаков_Меняется_От_Переключателя()
+    {
+        var model = Create();
+        var hidden = model.HasTerritory;
+
+        model.ShowTerritory = true;
+
+        Assert.True(!hidden && model.HasTerritory);
+    }
+
+    [Fact]
+    public void После_Двух_Пасов_Разметка_Сама_Не_Появляется()
+    {
+        // Регрессия жалобы 2026-10-03: конец партии включал разметку без нажатия. Теперь доска
+        // остаётся чистой, пока игрок не нажмёт «Территория».
+        var model = Create();
+        _ = model.LoadGame(new SgfGame(Size, Komi.For9x9, [Move.Pass(StoneColor.Black), Move.Pass(StoneColor.White)], null));
+
+        Assert.False(model.HasTerritory);
+    }
+
+    [Fact]
+    public void После_Двух_Пасов_Разметка_Включается_Кнопкой()
     {
         var model = Create();
         _ = model.LoadGame(new SgfGame(Size, Komi.For9x9, [Move.Pass(StoneColor.Black), Move.Pass(StoneColor.White)], null));
 
-        Assert.NotEqual("Идёт", model.Status);
-        Assert.True(model.HasTerritory);
+        model.ShowTerritory = true;
+
         Assert.NotNull(model.Territory);
     }
 
@@ -100,21 +132,26 @@ public sealed class TerritoryTests
     }
 
     [Fact]
-    public void Разбор_Не_Прячется_За_Режимом_Согласования()
+    public void Числа_Видны_При_Выключенной_Разметке()
     {
-        // Во время партии разбор показывает переключатель «Территория», после двух пасов разметка
-        // включается сама: строка разбора не привязана к одному режиму (жалоба 2026-10-02).
+        // Регрессия жалобы 2026-10-03: числа — это оценка позиции, они не прячутся за кнопкой.
         var model = Create(StoneColor.White);
         _ = model.LoadGame(CornerGame());
+
+        Assert.False(model.HasTerritory);
+        Assert.NotEmpty(model.ScoreBreakdown);
+    }
+
+    [Fact]
+    public void Числа_Не_Меняются_От_Переключателя()
+    {
+        var model = Create(StoneColor.White);
+        _ = model.LoadGame(CornerGame());
+        var hidden = (model.Score, model.PrisonersLine, model.ScoreBreakdown);
+
         model.ShowTerritory = true;
 
-        Assert.NotEmpty(model.ScoreBreakdown);
-
-        model.ShowTerritory = false;
-        _ = model.LoadGame(new SgfGame(Size, Komi.For9x9, [Move.Pass(StoneColor.Black), Move.Pass(StoneColor.White)], null));
-
-        Assert.True(model.HasTerritory);
-        Assert.NotEmpty(model.ScoreBreakdown);
+        Assert.Equal(hidden, (model.Score, model.PrisonersLine, model.ScoreBreakdown));
     }
 
     [Fact]
@@ -136,8 +173,8 @@ public sealed class TerritoryTests
     public void Переключатель_Территории_Доступен_В_Идущей_И_В_Завершённой_Партии()
     {
         // Жалоба пользователя 2026-10-02: «по кнопке Территория я должен увидеть территорию…
-        // в режиме игры». Пока партия идёт, кнопка — единственный способ запросить оценку;
-        // после конца партии разметка включается сама, но выключить её тоже должно быть чем.
+        // в режиме игры»; жалоба 2026-10-03: показывать её только по кнопке. Кнопка есть и в игре,
+        // и после конца партии — разметка нигде не включается сама.
         var model = Create();
         _ = model.LoadGame(CornerGame());
 
@@ -160,8 +197,8 @@ public sealed class TerritoryTests
     [Fact]
     public void Разметка_В_Идущей_Партии_Помечает_Мёртвую_Группу()
     {
-        // Оценка запрошена переключателем — программу просят определить мёртвых, и она это делает
-        // до конца партии: угловая белая группа помечена, точка стала территорией чёрных.
+        // Мёртвых считает программа в любой момент (оценка постоянная), а кнопка лишь показывает
+        // разметку: угловая белая группа помечена, точка стала территорией чёрных.
         var model = Create(StoneColor.White);
         _ = model.LoadGame(DeadCornerGame());
 
@@ -173,7 +210,7 @@ public sealed class TerritoryTests
     [Fact]
     public void В_Идущей_Партии_Пометки_Есть_Без_Нажатий()
     {
-        // Разметка включена по умолчанию, и мёртвых определяет программа (D-070).
+        // Оценка постоянная: мёртвых программа считает без нажатий, хотя на доске их не рисует.
         var model = Create(StoneColor.White);
         _ = model.LoadGame(DeadCornerGame());
 

@@ -62,12 +62,12 @@ internal static class TerritoryCheck
         return failures == 0 ? 0 : 1;
     }
 
-    /// <summary>Проверяет подсчёт идущей партии: оценка постоянная, нажатий не требуется.</summary>
+    /// <summary>Проверяет идущую партию: числа без нажатий, разметка — по кнопке.</summary>
     /// <returns>Число невыполненных проверок.</returns>
     /// <remarks>
-    /// Игрок ничего не нажимает (D-070): разметка включена с запуска, мёртвые группы помечает
-    /// программа, и счёт считает их с первого чтения. Переключатель только скрывает разметку
-    /// на экране — на оценку позиции он не влияет.
+    /// Оценка постоянная (мёртвых считает программа), но рисуется она только по кнопке
+    /// «Территория» (D-071): доска по умолчанию чистая. Числа — счёт, пленные, территория,
+    /// камни — видны всегда и от переключателя не зависят.
     /// </remarks>
     private static int CountInProgress()
     {
@@ -77,33 +77,38 @@ internal static class TerritoryCheck
 
         var expected = ExpectedNumbers(model, GameKomi);
 
-        Console.WriteLine("— идущая партия без единого нажатия —");
-        Console.WriteLine($"Пометки мёртвых: {model.DeadPoints.Count} — {string.Join(", ", model.DeadPoints)}");
-        Console.WriteLine($"Разметка территории: {model.ScoreBreakdown}");
+        Console.WriteLine("— идущая партия: доска чистая —");
+        Console.WriteLine($"Разметка: {model.HasTerritory} (владение {(model.Territory is null ? "не считается" : "посчитано")})");
+        Console.WriteLine($"Числа: {model.ScoreBreakdown.Replace(Environment.NewLine, " · ")}");
         Console.WriteLine($"Пленные: {model.PrisonersLine}");
         Console.WriteLine($"Счёт: {model.Score}");
-        Console.WriteLine($"Разбор: {model.ScoreDetail}");
+        Console.WriteLine($"Пометки мёртвых (для чисел): {model.DeadPoints.Count} — {string.Join(", ", model.DeadPoints)}");
         Console.WriteLine($"Предохранитель перебора: {model.DeadProposalBudget} узлов");
 
-        failures += Check(model.HasTerritory, "разметка показана сразу, без нажатий");
+        failures += Check(!model.HasTerritory, "разметка выключена, пока игрок не нажал кнопку");
+        failures += Check(model.Territory is null, "выключенная разметка не отдаёт владение точками");
+        failures += Check(model.HasTerritory is false && model.ScoreBreakdown.Length > 0, "числа видны и без разметки");
+        failures += Check(model.Score == expected.JapaneseLine, "счёт считается без разметки на доске");
         failures += Check(model.CanToggleTerritory, "переключатель территории доступен в идущей партии");
         failures += Check(model.DeadPoints.Count > 0, "программа сама пометила мёртвую группу в идущей партии");
-        failures += Check(
-            model.DeadPoints.SequenceEqual(Endgame.ProposeDead(model.Board)),
-            "пометки идущей партии совпадают с перебором ядра");
-        failures += Counts(model, expected);
         failures += Check(model.DeadProposalCount == 1, "предложение мёртвых считается один раз на позицию");
         failures += Check(
             model.DeadProposalBudget == Endgame.EstimateNodesPerPosition,
             $"в идущей партии действует предохранитель оценки: ожидалось {Endgame.EstimateNodesPerPosition}, получено {model.DeadProposalBudget}");
 
-        model.ShowTerritory = false;
+        var hiddenScore = model.Score;
 
-        Console.WriteLine($"— разметка выключена: пометки {model.DeadPoints.Count}, переборов {model.DeadProposalCount} —");
+        model.ShowTerritory = true;
 
-        failures += Check(model.DeadPoints.Count > 0, "скрытая разметка не отменяет пометок: их считает программа");
-        failures += Check(model.DeadProposalCount == 1, "выключение разметки не запускает перебор заново");
-        failures += Check(model.Score == expected.JapaneseLine, "скрытая разметка не меняет счёт");
+        Console.WriteLine($"— кнопка нажата: владение {(model.Territory is null ? "нет" : "есть")}, счёт {model.Score} —");
+
+        failures += Check(model.HasTerritory && model.Territory is not null, "кнопка включает разметку доски");
+        failures += Check(model.Score == hiddenScore, "числа не меняются от включения разметки");
+        failures += Check(
+            model.DeadPoints.SequenceEqual(Endgame.ProposeDead(model.Board)),
+            "пометки совпадают с перебором ядра");
+        failures += Counts(model, expected);
+        failures += Check(model.DeadProposalCount == 1, "включение разметки не запускает перебор заново");
 
         return failures;
     }
@@ -136,7 +141,12 @@ internal static class TerritoryCheck
         failures += Check(
             model.DeadProposalBudget == Endgame.MaxNodesPerPosition,
             $"в конце партии действует окончательный предохранитель: ожидалось {Endgame.MaxNodesPerPosition}, получено {model.DeadProposalBudget}");
-        failures += Check(model.DeadPoints.Count > 0, "перебор предложил мёртвую группу, и она видна на доске");
+        failures += Check(!model.HasTerritory, "конец партии не включает разметку сам");
+        failures += Check(model.DeadPoints.Count > 0, "перебор предложил мёртвую группу: она учтена в числах");
+        failures += Check(model.Score == expected.JapaneseLine, "числа посчитаны без разметки на доске");
+
+        model.ShowTerritory = true;
+
         failures += Counts(model, expected);
         failures += Check(
             GameStatusLines.ShowOutcome(model.HasOutcome),

@@ -114,8 +114,9 @@ public sealed class EndgameScoreTests
     public void Территория_Считается_По_Доске_Без_Мёртвых_Камней()
     {
         // Точка снятого белого камня (0,0) становится территорией чёрных: её область окружена
-        // только чёрными камнями (2,0), (2,1), (0,2), (1,2).
+        // только чёрными камнями (2,0), (2,1), (0,2), (1,2). Разметка — по кнопке (D-071).
         var model = CreateCountingModel();
+        model.ShowTerritory = true;
 
         Assert.Equal(StoneColor.Black, model.Territory![0]);
     }
@@ -126,6 +127,7 @@ public sealed class EndgameScoreTests
         // Живые камни в углу делят область с чёрными, и территории не достаётся никому:
         // чёрными остаются только четыре их камня. Именно поэтому мёртвую группу помечают.
         var model = CreateCountingModel();
+        model.ShowTerritory = true;
         _ = model.ToggleDeadAt(new Point(0, 0));
 
         Assert.Equal(4, model.Territory!.Count(owner => owner == StoneColor.Black));
@@ -464,10 +466,11 @@ public sealed class EndgameScoreTests
     public void Приёмка_Итог_Показан_Сразу_После_Двух_Пасов()
     {
         // Жалоба 2026-10-02: до нажатия «Посчитать» подсчёт выглядел неверным. Нажатия больше нет
-        // (D-070): после двух пасов всё уже посчитано и показано, и разметка видна сама.
+        // (D-070): после двух пасов всё посчитано. Жалоба 2026-10-03: рисуется это только по кнопке
+        // (D-071), а числа и пометки готовы сразу.
         var model = CreateCountingModel();
 
-        Assert.True(model.HasTerritory);
+        Assert.False(model.HasTerritory);
         Assert.NotEmpty(model.DeadPoints);
         Assert.Equal(Endgame.ProposeDead(model.Board), model.DeadPoints);
     }
@@ -502,6 +505,8 @@ public sealed class EndgameScoreTests
         // Разметка территории — та же величина, что входит в счёт: точки снятой группы
         // окрашены цветом победителя, а не остались нейтральными.
         var model = CreateCountingModel();
+        model.ShowTerritory = true;
+
         var territory = model.Territory!;
 
         Assert.Equal(StoneColor.Black, territory[(0 * Size.Value) + 0]);
@@ -543,6 +548,7 @@ public sealed class EndgameScoreTests
         // Точки снятой белой группы становятся территорией чёрных: 4 камня + 4 точки,
         // у белых остаются только два камня вдали.
         var model = CreateCountingModel();
+        model.ShowTerritory = true;
 
         var territory = model.Territory!;
 

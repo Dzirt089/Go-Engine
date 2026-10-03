@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.LogicalTree;
 using GoEngine.AI;
@@ -21,6 +22,11 @@ namespace GoEngine.App.Tests;
 /// и в «Подробностях».
 /// </para>
 /// <para>
+/// Замечания 2026-10-03: крестики мёртвых групп и знаки территории — только по кнопке «Территория»
+/// (доска чистая, числа посчитанного видны всегда), а действия партии («Начать партию», отмена,
+/// файлы, настройки) переехали из ряда и меню «Ещё» в карточку «Меню» по центру экрана.
+/// </para>
+/// <para>
 /// Проверки идут по разметке и логическому дереву: окно в этой среде не открывается
 /// (<c>AGENTS.md</c>, п. 14), а сторона доски и ширина панели считаются чистыми функциями
 /// <c>BoardLayoutRules</c> — их проверяет <c>MobileLayoutRulesTests</c>.
@@ -30,6 +36,12 @@ public sealed class BoardViewTests
 {
     /// <summary>Колонки ряда действий телефона: четыре действия партии, по одному на колонку.</summary>
     private static readonly int[] ActionColumns = [0, 1, 2, 3];
+
+    /// <summary>Пункты меню партии: пять действий, которые не помещаются в ряд телефона.</summary>
+    private static readonly string[] MenuCaptions =
+    [
+        "Начать партию", "Отменить партию", "Сохранить партию", "Загрузить партию", "Настройки"
+    ];
 
     [Fact]
     public void В_Настольной_Панели_Счёт_Показан_Один_Раз()
@@ -155,56 +167,177 @@ public sealed class BoardViewTests
     }
 
     [Fact]
-    public void Разметка_Территории_Включена_По_Умолчанию_На_Телефоне()
+    public void Разметка_Территории_Выключена_По_Умолчанию_На_Телефоне()
     {
+        // Доска чистая до нажатия: крестики и знаки территории игрок просит сам (D-071).
         var (view, _) = Create();
 
-        Assert.True(view.FindControl<ToggleButton>("MobileTerritoryButton")!.IsChecked);
+        Assert.False(view.FindControl<ToggleButton>("MobileTerritoryButton")!.IsChecked);
     }
 
     [Fact]
-    public void Разметка_Территории_Включена_По_Умолчанию_В_Панели_Партии()
+    public void Разметка_Территории_Выключена_По_Умолчанию_В_Панели_Партии()
     {
         var (view, _) = Create();
 
-        Assert.True(view.FindControl<ToggleButton>("TerritoryButton")!.IsChecked);
+        Assert.False(view.FindControl<ToggleButton>("TerritoryButton")!.IsChecked);
     }
 
     [Fact]
-    public void Числа_Разметки_Видны_Сразу_Без_Нажатий()
+    public void Числа_Разметки_Видны_Даже_При_Выключенной_Разметке()
     {
+        // Переключатель прячет картинку на доске, а не счёт: числа посчитанного видны всегда.
         var (view, _) = Create();
 
         Assert.True(view.FindControl<TextBlock>("MobileBreakdownText")!.IsVisible);
     }
 
     [Fact]
-    public void Территория_Показана_На_Доске_Сразу()
+    public void Территория_Не_Показана_Пока_Разметка_Выключена()
     {
-        // Разметка включена по умолчанию: игрок видит её, не нажимая ничего (D-070).
         var (view, _) = Create();
 
-        Assert.NotNull(view.FindControl<BoardControl>("Board")!.Territory);
+        Assert.Null(view.FindControl<BoardControl>("Board")!.Territory);
     }
 
     [Fact]
-    public void Крестики_Мёртвых_Групп_Показаны_Сразу()
+    public void Крестики_Мёртвых_Групп_Не_Рисуются_Пока_Разметка_Выключена()
     {
-        // Оценку даёт перебор: в законченной партии мёртвые группы помечены без кнопки «Посчитать».
+        // Оценку перебор даёт и без разметки, но крестики — часть картинки: пока игрок не нажал
+        // «Территорию», доска остаётся чистой (замечание пользователя 2026-10-03).
         var (view, model) = Create();
         Finish(model);
+
+        Assert.Null(view.FindControl<BoardControl>("Board")!.DeadPoints);
+    }
+
+    [Fact]
+    public void Крестики_Мёртвых_Групп_Видны_При_Включённой_Разметке()
+    {
+        var (view, model) = Create();
+        Finish(model);
+
+        model.ShowTerritory = true;
 
         Assert.NotEmpty(view.FindControl<BoardControl>("Board")!.DeadPoints!);
     }
 
     [Fact]
-    public void Переключатель_Скрывает_Разметку_Территории()
+    public void Переключатель_Включает_Разметку_Территории()
     {
         var (view, model) = Create();
 
-        model.ShowTerritory = false;
+        model.ShowTerritory = true;
 
-        Assert.Null(view.FindControl<BoardControl>("Board")!.Territory);
+        Assert.NotNull(view.FindControl<BoardControl>("Board")!.Territory);
+    }
+
+    [Fact]
+    public void Кнопки_Новая_Партия_В_Мобильном_Ряду_Больше_Нет()
+    {
+        // Действия переехали в меню: ряд стал короче и ровнее (замечание 2026-10-03).
+        var (view, _) = Create();
+
+        Assert.Null(view.FindControl<Button>("MobileNewGameButton"));
+    }
+
+    [Fact]
+    public void Кнопки_Ещё_В_Мобильном_Ряду_Больше_Нет()
+    {
+        var (view, _) = Create();
+
+        Assert.Null(view.FindControl<Button>("MobileMoreButton"));
+    }
+
+    [Fact]
+    public void Меню_Скрыто_При_Запуске()
+    {
+        var (view, _) = Create();
+
+        Assert.False(MenuOverlay(view).IsVisible);
+    }
+
+    [Fact]
+    public void Меню_Открывается()
+    {
+        var (view, _) = Create();
+
+        view.ShowMenu();
+
+        Assert.True(MenuOverlay(view).IsVisible);
+    }
+
+    [Fact]
+    public void Меню_Закрывается()
+    {
+        var (view, _) = Create();
+        view.ShowMenu();
+
+        view.CloseMenu();
+
+        Assert.False(MenuOverlay(view).IsVisible);
+    }
+
+    [Fact]
+    public void Меню_Стоит_По_Центру_Экрана()
+    {
+        var (view, _) = Create();
+
+        var card = view.FindControl<Border>("MenuCard")!;
+
+        Assert.Equal((HorizontalAlignment.Center, VerticalAlignment.Center), (card.HorizontalAlignment, card.VerticalAlignment));
+    }
+
+    [Fact]
+    public void Меню_Наложено_На_Затемнение()
+    {
+        var (view, _) = Create();
+
+        Assert.Contains("app-overlay", MenuOverlay(view).Classes);
+    }
+
+    [Fact]
+    public void Меню_Содержит_Пять_Пунктов()
+    {
+        var (view, _) = Create();
+
+        Assert.Equal(
+            MenuCaptions,
+            ButtonsIn(MenuOverlay(view)).Select(button => button.Content as string).Where(MenuCaptions.Contains).ToArray());
+    }
+
+    [Fact]
+    public void Меню_Закрывается_Перед_Действием()
+    {
+        // Нажали «Начать партию» в меню — карточка уходит, игрок смотрит на доску.
+        var (view, _) = Create();
+        view.ShowMenu();
+
+        Click(view.FindControl<Button>("MenuNewGameButton")!);
+
+        Assert.False(MenuOverlay(view).IsVisible);
+    }
+
+    [Fact]
+    public void Кнопка_Закрыть_Убирает_Меню()
+    {
+        var (view, _) = Create();
+        view.ShowMenu();
+
+        Click(view.FindControl<Button>("MenuCloseButton")!);
+
+        Assert.False(MenuOverlay(view).IsVisible);
+    }
+
+    [Fact]
+    public void Меню_Повторным_Нажатием_Закрывается()
+    {
+        var (view, _) = Create();
+        view.ShowMenu();
+
+        view.ToggleMenu();
+
+        Assert.False(MenuOverlay(view).IsVisible);
     }
 
     [Fact]
@@ -335,6 +468,21 @@ public sealed class BoardViewTests
         root.GetLogicalDescendants()
             .OfType<TextBlock>()
             .Count(block => block.Text?.Contains(text, StringComparison.Ordinal) == true);
+
+    /// <summary>Карточка меню партии: слой затемнения.</summary>
+    /// <param name="view">Вид партии.</param>
+    /// <returns>Рамка меню.</returns>
+    private static Border MenuOverlay(BoardView view) => view.FindControl<Border>("MenuOverlay")!;
+
+    /// <summary>Все кнопки части разметки.</summary>
+    /// <param name="root">Корень разметки.</param>
+    /// <returns>Кнопки в порядке обхода дерева.</returns>
+    private static IReadOnlyList<Button> ButtonsIn(ILogical root) =>
+        [.. root.GetLogicalDescendants().OfType<Button>()];
+
+    /// <summary>Нажимает кнопку так же, как её нажимает игрок.</summary>
+    /// <param name="button">Кнопка разметки.</param>
+    private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
     /// <summary>Кнопки разметки с такой подписью.</summary>
     /// <param name="root">Корень разметки: вид целиком или его часть.</param>

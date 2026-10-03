@@ -65,14 +65,18 @@
                            IsVisible="{Binding HasDescription}"
                            TextWrapping="Wrap" />
 
-                <TextBlock Text="Задача" Margin="0,8,0,0" />
-                <!-- Список заполняет код вида, а не привязка: список выбора сбрасывает индекс при подмене
-                     ItemsSource и вернул бы его в модель — та же причина, что и в панели партии. -->
-                <ComboBox x:Name="ProblemBox"
-                          MinHeight="44"
-                          HorizontalAlignment="Stretch" />
               </StackPanel>
             </Expander>
+
+            <!-- Выбор задачи стоит в главном окне панели, сразу под «Условием», а не внутри него:
+                 свёрнутое условие прятало список, и игрок не видел, из чего выбирать
+                 (замечание пользователя 2026-10-03). Список заполняет код вида, а не привязка:
+                 список выбора сбрасывает индекс при подмене ItemsSource и вернул бы его в модель —
+                 та же причина, что и в панели партии. -->
+            <TextBlock Text="Задача" Margin="0,8,0,0" />
+            <ComboBox x:Name="ProblemBox"
+                      MinHeight="44"
+                      HorizontalAlignment="Stretch" />
 
           </StackPanel>
         </ScrollViewer>

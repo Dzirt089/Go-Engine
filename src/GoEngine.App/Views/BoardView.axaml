@@ -18,27 +18,6 @@
        представления и чистые функции GameStatusLines, а вид только подставляет их. Правило
        записано после жалобы 2026-09-30: одна и та же мысль стояла в трёх местах сразу. -->
 
-  <UserControl.Resources>
-    <!-- Файловые действия телефона: сохранить и загрузить. Отдельная кнопка «Файл» с меню
-         вместо двух кнопок — так строка действий остаётся читаемой в 360 точках, а редкие
-         действия не спорят за место с ходом партии. -->
-    <MenuFlyout x:Key="FileActionsFlyout">
-      <MenuItem x:Name="MobileSaveMenuItem" Header="Сохранить партию" />
-      <MenuItem x:Name="MobileLoadMenuItem" Header="Загрузить партию" />
-    </MenuFlyout>
-
-    <!-- Меню «Ещё»: редкие действия телефона. Каждое называет себя словами, а не значком:
-         значкового шрифта в проекте нет, а рисованные пиктограммы на маленьком экране
-         угадываются хуже подписи. -->
-    <MenuFlyout x:Key="MobileMoreFlyout">
-      <MenuItem x:Name="MobileMoreAbortItem" Header="Отменить партию" />
-      <MenuItem x:Name="MobileMoreSaveItem" Header="Сохранить партию" />
-      <MenuItem x:Name="MobileMoreLoadItem" Header="Загрузить партию" />
-      <Separator />
-      <MenuItem x:Name="MobileMoreSettingsItem" Header="Настройки" />
-    </MenuFlyout>
-  </UserControl.Resources>
-
   <Panel x:Name="Root">
 
     <!-- Настольная раскладка. Панель справа прокручивается и содержит то, что не поместилось:
@@ -317,10 +296,11 @@
                 VerticalAlignment="Center" />
       </Panel>
 
-      <!-- Панель действий: два ряда, и в каждом — только то, что нужно во время партии.
-           Часы и «Пауза» переехали в шапку, «Отменить партию», файл и настройки — в меню «Ещё»:
-           пять кнопок в ряд в 360 точек не помещались и обрезали подписи
-           (жалоба пользователя 2026-10-02).
+      <!-- Панель действий: один ряд, и в нём — только ход партии: пас, отмена, возврат
+           и разметка территории. Часы и «Пауза» стоят в шапке, «Новая партия», «Отменить партию»,
+           файлы и настройки переехали в меню (кнопка «Меню» в нижней навигации): в 360 точках
+           пять кнопок в ряд не помещались (жалоба пользователя 2026-10-02), а теперь ряд стал
+           ровным и компактным.
            Панель идёт во всю ширину доски, а не «плавающей» карточкой по центру: раньше её ширина
            зависела от подписей, она была уже доски и заезжала за нижний край (жалоба 2026-10-02
            «наезжает на доску и сделан не аккуратно»). Ширину ограничивает код вида
@@ -332,7 +312,6 @@
               Padding="8"
               Margin="8,8,8,8"
               HorizontalAlignment="Stretch">
-          <StackPanel Spacing="8">
             <Grid x:Name="MobileActionRow" ColumnDefinitions="*,*,*,*" Classes="app-touch-row touch">
               <Button x:Name="MobilePassButton"
                       Grid.Column="0"
@@ -360,26 +339,7 @@
                             IsEnabled="{Binding CanToggleTerritory}"
                             IsChecked="{Binding ShowTerritory}" />
             </Grid>
-            <Grid ColumnDefinitions="*,Auto">
-              <!-- Главное действие экрана: до первого хода — старт партии, после — новая.
-                   Подпись меняет код вида, как и в настольной панели. -->
-              <Button x:Name="MobileNewGameButton"
-                      Grid.Column="0"
-                      Content="Начать партию"
-                      Classes="app-touch primary"
-                      HorizontalAlignment="Stretch" />
-              <!-- Расстояние между кнопками — отступом: RowSpacing и ColumnSpacing у Grid
-                   в Avalonia 11.2 нет (проверено сборкой, AVLN2000). -->
-              <Button x:Name="MobileMoreButton"
-                      Grid.Column="1"
-                      Content="Ещё"
-                      Classes="app-touch"
-                      MinWidth="72"
-                      Margin="8,0,0,0"
-                      Flyout="{StaticResource MobileMoreFlyout}" />
-            </Grid>
-          </StackPanel>
-        </Border>
+      </Border>
       </Grid>
 
       <!-- Шторка сведений: свёрнута — короткое состояние, развёрнута — подробности.
@@ -449,10 +409,14 @@
                    пользователя 2026-10-02 «дублирование счетов»). -->
               <TextBlock x:Name="MobileScoreDetailText" Classes="app-label" TextWrapping="Wrap" />
 
+              <!-- Числа разметки видны всегда: переключатель «Территория» показывает и прячет
+                   картинку на доске, а не счёт (D-071, замечание пользователя 2026-10-03).
+                   Видимость строки ставит код вида по признаку «есть что сказать» — так же,
+                   как у настольной строки разбора. -->
               <TextBlock x:Name="MobileBreakdownText"
                          Classes="app-label"
                          TextWrapping="Wrap"
-                         IsVisible="{Binding HasTerritory}" />
+                         IsVisible="False" />
 
               <TextBlock x:Name="MobileStatsText" Classes="app-label" TextWrapping="Wrap" />
 
@@ -485,6 +449,57 @@
       </Border>
 
     </Grid>
+
+    <!-- Меню партии: всплывающая карточка по центру экрана. Сюда переехали действия, которые
+         на телефоне стояли второй строкой панели и в меню «Ещё»: «Начать партию»/«Новая партия»,
+         «Отменить партию», файлы и настройки. Ряд действий стал короче и ровнее, а редкие
+         действия не пропали (замечание пользователя 2026-10-03). Открывает меню кнопка «Меню»
+         в нижней навигации оболочки; закрывается кнопкой «Закрыть». -->
+    <Border x:Name="MenuOverlay"
+            IsVisible="False"
+            Classes="app-overlay">
+      <Border x:Name="MenuCard"
+              Classes="app-banner app-overlay-card"
+              Padding="12,10"
+              MaxWidth="420"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="app-subtitle"
+                     Text="Меню"
+                     HorizontalAlignment="Center" />
+
+          <!-- Подпись главного действия меняет код вида: до первого хода — «Начать партию»,
+               после — «Новая партия» (та же логика, что и в настольной панели). -->
+          <Button x:Name="MenuNewGameButton"
+                  Content="Начать партию"
+                  Classes="app-primary"
+                  HorizontalAlignment="Stretch" />
+          <Button x:Name="MenuAbortButton"
+                  Content="Отменить партию"
+                  Classes="app-action"
+                  HorizontalAlignment="Stretch"
+                  IsEnabled="{Binding CanAbortGame}" />
+          <Button x:Name="MenuSaveButton"
+                  Content="Сохранить партию"
+                  Classes="app-action"
+                  HorizontalAlignment="Stretch" />
+          <Button x:Name="MenuLoadButton"
+                  Content="Загрузить партию"
+                  Classes="app-action"
+                  HorizontalAlignment="Stretch" />
+          <Button x:Name="MenuSettingsButton"
+                  Content="Настройки"
+                  Classes="app-action"
+                  HorizontalAlignment="Stretch" />
+          <Button x:Name="MenuCloseButton"
+                  Content="Закрыть"
+                  Classes="app-action"
+                  HorizontalAlignment="Stretch"
+                  Margin="0,4,0,0" />
+        </StackPanel>
+      </Border>
+    </Border>
 
     <!-- Итог партии — один на обе раскладки, оверлеем поверх вида: затемнение и карточка
          по центру экрана. Раньше баннеров было два (по одному на раскладку), и оба стояли полосой
