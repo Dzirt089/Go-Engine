@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using GoEngine.AI;
 using GoEngine.App.Services;
@@ -150,9 +151,50 @@ public sealed class SettingsViewTests
         var view = new SettingsView(AppSettings.Default);
 
         Assert.Contains(
-            "в новой партии",
+            "Сохранить",
             view.FindControl<TextBlock>("NewGameHintText")!.Text ?? string.Empty,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Внизу_Экрана_Есть_Кнопка_Сохранить()
+    {
+        // Регрессия 2026-10-03: у экрана настроек не было ни сохранения, ни отмены.
+        var view = new SettingsView(AppSettings.Default);
+
+        Assert.Equal("Сохранить", view.FindControl<Button>("SaveButton")!.Content);
+    }
+
+    [Fact]
+    public void Внизу_Экрана_Есть_Кнопка_Отмена()
+    {
+        var view = new SettingsView(AppSettings.Default);
+
+        Assert.Equal("Отмена", view.FindControl<Button>("CancelButton")!.Content);
+    }
+
+    [Fact]
+    public void Кнопка_Сохранить_Сообщает_О_Согласии()
+    {
+        var view = new SettingsView(AppSettings.Default);
+        var accepted = false;
+        view.Accepted += (_, _) => accepted = true;
+
+        Click(view.FindControl<Button>("SaveButton")!);
+
+        Assert.True(accepted);
+    }
+
+    [Fact]
+    public void Кнопка_Отмена_Сообщает_Об_Отказе()
+    {
+        var view = new SettingsView(AppSettings.Default);
+        var cancelled = false;
+        view.Cancelled += (_, _) => cancelled = true;
+
+        Click(view.FindControl<Button>("CancelButton")!);
+
+        Assert.True(cancelled);
     }
 
     [Fact]
@@ -211,6 +253,10 @@ public sealed class SettingsViewTests
     /// <param name="view">Вид настроек.</param>
     /// <returns>Переключатель подразделов.</returns>
     private static TabControl Tabs(SettingsView view) => view.FindControl<TabControl>("SettingsTabs")!;
+
+    /// <summary>Нажимает кнопку так же, как её нажимает игрок.</summary>
+    /// <param name="button">Кнопка разметки.</param>
+    private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
     /// <summary>Находит элемент управления настроек по имени.</summary>
     /// <param name="view">Вид настроек.</param>

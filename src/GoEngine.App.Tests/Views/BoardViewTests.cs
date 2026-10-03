@@ -353,11 +353,21 @@ public sealed class BoardViewTests
     }
 
     [Fact]
-    public void Заголовок_Экрана_Настроек_Закрывается_Кнопкой_Готово()
+    public void Экран_Настроек_Закрывается_Кнопкой_Сохранить()
+    {
+        // Регрессия 2026-10-03: у экрана настроек не было кнопок — игрок не мог ни применить
+        // выбор, ни отказаться от него.
+        var (view, _) = Create();
+
+        Assert.Equal("Сохранить", SettingsButton(view, "SaveButton").Content);
+    }
+
+    [Fact]
+    public void Экран_Настроек_Закрывается_Кнопкой_Отмена()
     {
         var (view, _) = Create();
 
-        Assert.Equal("Готово", view.FindControl<Button>("SettingsBackButton")!.Content);
+        Assert.Equal("Отмена", SettingsButton(view, "CancelButton").Content);
     }
 
     [Fact]
@@ -381,28 +391,107 @@ public sealed class BoardViewTests
     }
 
     [Fact]
-    public void Закрытие_Настроек_После_Меню_Начинает_Новую_Партию()
+    public void Сохранение_Из_Меню_Начинает_Новую_Партию()
     {
         var (view, model) = Create();
         var board = model.Board;
 
         Click(view.FindControl<Button>("MenuNewGameButton")!);
-        Click(view.FindControl<Button>("SettingsBackButton")!);
+        Click(SettingsButton(view, "SaveButton"));
 
         Assert.NotSame(board, model.Board);
     }
 
     [Fact]
-    public void Закрытие_Настроек_Из_Раздела_Партию_Не_Начинает()
+    public void Отмена_Из_Меню_Партию_Не_Начинает()
     {
-        // Вход из раздела «Настройки» — просмотр и правка: партия остаётся той же.
+        var (view, model) = Create();
+        var board = model.Board;
+
+        Click(view.FindControl<Button>("MenuNewGameButton")!);
+        Click(SettingsButton(view, "CancelButton"));
+
+        Assert.Same(board, model.Board);
+    }
+
+    [Fact]
+    public void Сохранение_Из_Раздела_Партию_Не_Начинает()
+    {
+        // Размер доски, цвет и коми не менялись: партия продолжается, меняется только выбор
+        // (жалоба 2026-10-03 «не синхронизирован уровень AI»).
         var (view, model) = Create();
         var board = model.Board;
 
         view.ShowSettings();
-        Click(view.FindControl<Button>("SettingsBackButton")!);
+        Click(SettingsButton(view, "SaveButton"));
 
         Assert.Same(board, model.Board);
+    }
+
+    [Fact]
+    public void Отмена_Из_Раздела_Партию_Не_Начинает()
+    {
+        var (view, model) = Create();
+        var board = model.Board;
+
+        view.ShowSettings();
+        Click(SettingsButton(view, "CancelButton"));
+
+        Assert.Same(board, model.Board);
+    }
+
+    [Fact]
+    public void Настройки_Открываются_С_Настройками_Партии()
+    {
+        // Диалог обязан показывать то, чем играет партия: раньше он открывался со своей копией
+        // настроек и показывал «25 кю», когда панель играла «10 кю» (регрессия 2026-10-03).
+        var (view, model) = Create();
+        model.ApplySettings(AppSettings.From(
+            BoardSize.Size13, DifficultyLevel.Kyu20, StoneColor.White, Komi.For13x13, ScoringRule.Japanese));
+
+        view.ShowSettings();
+
+        Assert.Equal(BoardSize.Size13.Value, SettingsArea(view).Collect().BoardSize);
+    }
+
+    [Fact]
+    public void Сохранение_Уровня_Меняет_Настройки_Партии()
+    {
+        var (view, model) = Create();
+        view.ShowSettings();
+        SettingsBox(view, "LevelBox").SelectedIndex = 1;
+
+        Click(SettingsButton(view, "SaveButton"));
+
+        Assert.Equal(SettingsArea(view).Collect().ToDifficultyLevel(), model.Settings.ToDifficultyLevel());
+    }
+
+    [Fact]
+    public void Сохранение_Размера_Доски_Начинает_Новую_Партию()
+    {
+        // Размер доски — свойство позиции: продолжать партию на другой доске нельзя.
+        var (view, model) = Create();
+        var board = model.Board;
+        view.ShowSettings();
+        SettingsBox(view, "SizeBox").SelectedIndex = 1;
+
+        Click(SettingsButton(view, "SaveButton"));
+
+        Assert.NotSame(board, model.Board);
+    }
+
+    [Fact]
+    public void Отмена_Возвращает_Систему_Подсчёта()
+    {
+        // Правило подсчёта действует сразу, пока экран открыт: «Отмена» обязана вернуть прежнее
+        // (жалоба 2026-10-03 «не хватает кнопки отмена»).
+        var (view, model) = Create();
+        view.ShowSettings();
+        ScoringBox(view).SelectedIndex = 1;
+
+        Click(SettingsButton(view, "CancelButton"));
+
+        Assert.Equal(ScoringRule.Japanese, model.ScoringRule);
     }
 
     [Fact]
@@ -560,11 +649,29 @@ public sealed class BoardViewTests
             .OfType<TextBlock>()
             .Count(block => block.Text?.Contains(text, StringComparison.Ordinal) == true);
 
+    /// <summary>Вид настроек внутри вида партии.</summary>
+    /// <param name="view">Вид партии.</param>
+    /// <returns>Вид настроек; его отсутствие — сломанная разметка, а не сценарий теста.</returns>
+    private static SettingsView SettingsArea(BoardView view) => view.FindControl<SettingsView>("SettingsArea")!;
+
+    /// <summary>Кнопка низа экрана настроек: «Сохранить» или «Отмена».</summary>
+    /// <param name="view">Вид партии.</param>
+    /// <param name="name">Имя кнопки в разметке вида настроек.</param>
+    /// <returns>Кнопка разметки.</returns>
+    private static Button SettingsButton(BoardView view, string name) =>
+        SettingsArea(view).FindControl<Button>(name)!;
+
+    /// <summary>Список настроек по имени: доска, уровень или система подсчёта.</summary>
+    /// <param name="view">Вид партии.</param>
+    /// <param name="name">Имя списка в разметке вида настроек.</param>
+    /// <returns>Список разметки.</returns>
+    private static ComboBox SettingsBox(BoardView view, string name) =>
+        SettingsArea(view).FindControl<ComboBox>(name)!;
+
     /// <summary>Список систем подсчёта внутри вида настроек.</summary>
     /// <param name="view">Вид партии.</param>
     /// <returns>Список выбора системы подсчёта.</returns>
-    private static ComboBox ScoringBox(BoardView view) =>
-        view.FindControl<SettingsView>("SettingsArea")!.FindControl<ComboBox>("ScoringBox")!;
+    private static ComboBox ScoringBox(BoardView view) => SettingsBox(view, "ScoringBox");
 
     /// <summary>Список подразделов настроек внутри вида партии.</summary>
     /// <param name="view">Вид партии.</param>

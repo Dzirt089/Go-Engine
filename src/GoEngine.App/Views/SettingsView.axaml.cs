@@ -109,6 +109,18 @@ public sealed partial class SettingsView : UserControl
             logsButton.Click += OnOpenLogsClick;
         }
 
+        // Низ экрана: «Сохранить» применяет выбор, «Отмена» закрывает настройки без изменений.
+        // Решение принимает хозяин вида — он один знает, начинать ли партию (жалоба 2026-10-03).
+        if (this.FindControl<Button>("SaveButton") is { } saveButton)
+        {
+            saveButton.Click += OnSaveClick;
+        }
+
+        if (this.FindControl<Button>("CancelButton") is { } cancelButton)
+        {
+            cancelButton.Click += OnCancelClick;
+        }
+
         if (this.FindControl<TextBlock>("VersionText") is { } versionText)
         {
             // Показываем версию без хвоста коммита, а полную строку — в подсказке: она нужна
@@ -134,6 +146,13 @@ public sealed partial class SettingsView : UserControl
     /// а не две кнопки в разных углах экрана.
     /// </remarks>
     public event EventHandler? Accepted;
+
+    /// <summary>Игрок отказался от изменений: экран закрывается, ничего не применяя.</summary>
+    /// <remarks>
+    /// Нужен ровно затем, чтобы у «Сохранить» была пара: без второго выхода игрок либо применял
+    /// случайный выбор, либо не мог закрыть экран (жалоба пользователя 2026-10-03).
+    /// </remarks>
+    public event EventHandler? Cancelled;
 
     /// <summary>Игрок сменил систему подсчёта: счёт и победителя называет она.</summary>
     /// <remarks>
@@ -280,16 +299,13 @@ public sealed partial class SettingsView : UserControl
         ShowScoringHint();
     }
 
-    /// <summary>Применяет выбор звука сразу и записывает его в файл настроек.</summary>
+    /// <summary>Применяет выбор звука сразу: игрок щёлкает переключатель, чтобы стало тихо.</summary>
     /// <param name="sender">Переключатель «Звук ходов».</param>
     /// <param name="e">Событие смены состояния.</param>
     /// <remarks>
-    /// Звук — не свойство партии, а выбор игрока, и действовать он должен сразу: игрок щёлкает
-    /// переключатель, чтобы стало тихо, а не чтобы «стало тихо после начала новой партии».
-    /// Поэтому выбор применяется здесь же и сразу сохраняется: без записи он терялся при выходе
-    /// с экрана кнопкой «Назад» — на телефоне это единственный способ его закрыть, и настройка
-    /// возвращалась включённой после перезапуска (проверено живым прогоном 2026-09-30, эмулятор).
-    /// Партию это не трогает: применяются только те настройки, что уже действуют.
+    /// Звук — не свойство партии, а выбор игрока, и действует он сразу, не дожидаясь «Сохранить».
+    /// В файл выбор попадает при сохранении настроек, а «Отмена» возвращает прежний: у экрана
+    /// теперь два явных выхода, и терять выбор при закрытии негде (жалоба пользователя 2026-10-03).
     /// </remarks>
     private void OnSoundChanged(object? sender, RoutedEventArgs e)
     {
@@ -297,9 +313,6 @@ public sealed partial class SettingsView : UserControl
 
         Selected = Selected with { SoundEnabled = enabled };
         StoneSoundPlayer.SoundEnabled = enabled;
-
-        // Неудачная запись не мешает играть: выбор уже действует в этой партии.
-        _ = SettingsStore.Save(Selected);
     }
 
     /// <summary>Показывает пояснения по обеим системам подсчёта и чем они отличаются.</summary>
@@ -366,6 +379,16 @@ public sealed partial class SettingsView : UserControl
         // а тест не должен переписывать настройки игрока на каждой смене списка.
         ScoringRuleChanged?.Invoke(this, rule);
     }
+
+    /// <summary>Нажимает «Сохранить»: значения собраны, о согласии сообщено.</summary>
+    /// <param name="sender">Кнопка «Сохранить».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnSaveClick(object? sender, RoutedEventArgs e) => Accept();
+
+    /// <summary>Нажимает «Отмена»: экран закрывается, ничего не применяя.</summary>
+    /// <param name="sender">Кнопка «Отмена».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnCancelClick(object? sender, RoutedEventArgs e) => Cancel();
 
     /// <summary>Наличие модели по статическим данным приложения: запасной источник ответа.</summary>
     /// <param name="size">Размер доски.</param>
@@ -454,12 +477,15 @@ public sealed partial class SettingsView : UserControl
         return Selected;
     }
 
-    /// <summary>Собирает настройки и сообщает о согласии.</summary>
+    /// <summary>Собирает настройки и сообщает о согласии: так работает кнопка «Сохранить».</summary>
     public void Accept()
     {
         _ = Collect();
         Accepted?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>Сообщает об отказе: так работает кнопка «Отмена».</summary>
+    public void Cancel() => Cancelled?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Показывает подраздел «Партия».</summary>
     /// <remarks>С него начинается выбор перед новой партией: «Новая партия» в меню открывает

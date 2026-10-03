@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
+using GoEngine.App.Rendering;
 using GoEngine.App.Services;
 using GoEngine.App.ViewModels;
 using GoEngine.Core;
@@ -18,21 +19,14 @@ namespace GoEngine.App.Views;
 /// </remarks>
 public sealed partial class MainWindow : Window
 {
-    private AppSettings _settings;
-
     /// <summary>Создаёт окно партии.</summary>
-    public MainWindow() : this(SettingsStore.Load())
+    /// <remarks>
+    /// Своей копии настроек у окна нет: их единственный источник — модель представления партии.
+    /// Пока копия была, диалог настроек показывал «25 кю», когда панель играла «10 кю»
+    /// (жалоба пользователя 2026-10-03 «не синхронизирован уровень AI»).
+    /// </remarks>
+    public MainWindow()
     {
-    }
-
-    /// <summary>Создаёт окно партии с готовыми настройками.</summary>
-    /// <param name="settings">Настройки партии.</param>
-    public MainWindow(AppSettings settings)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-
-        _settings = settings;
-
         AvaloniaXamlLoader.Load(this);
 
         DataContext = ViewModel;
@@ -121,7 +115,10 @@ public sealed partial class MainWindow : Window
     {
         // Наличие модели считает модель представления: у неё те же оценщик и набор размеров,
         // что у приложения, но окно не читает статические поля само (D-059).
-        var dialog = new SettingsWindow(_settings, ViewModel.HasModelFor);
+        // Настройки для показа берутся у модели представления: она один источник правды,
+        // и диалог не может разойтись с панелью партии (жалоба 2026-10-03).
+        var openedWith = ViewModel.Settings;
+        var dialog = new SettingsWindow(openedWith, ViewModel.HasModelFor);
 
         // Система подсчёта действует сразу, как и на телефоне: окно показывает свой экземпляр
         // вида настроек, поэтому подписку ставит хозяин окна — тем же общим способом, что и вид
@@ -133,20 +130,22 @@ public sealed partial class MainWindow : Window
 
         if (!accepted)
         {
+            // «Отмена» и крестик окна: правило подсчёта и звук действуют сразу, пока окно
+            // открыто, поэтому возвращаем их по снимку на входе — ни партия, ни файл не тронуты
+            // (жалоба пользователя 2026-10-03 «не хватает кнопки отмена»).
+            ViewModel.ScoringRule = openedWith.ToScoringRule();
+            StoneSoundPlayer.SoundEnabled = openedWith.SoundEnabled;
+
             return;
         }
 
-        _settings = dialog.Selected;
+        var chosen = dialog.Selected;
 
-        // Закрытие настроек партию НЕ пересоздаёт (H1b, замечание 5 «из настроек убрать кнопку
-        // начать партию»): игрок посмотрел и поправил настройки, а не попросил новую партию.
-        // Размер доски, уровень, цвет и коми сохраняются и вступят в силу в новой партии;
-        // правило подсчёта и звук применились сразу, пока окно было открыто (подписка выше).
-        _ = SettingsStore.Save(_settings);
-
-        // Файл и партия не должны разъезжаться: без этого следующая «Новая партия» началась бы
-        // по прежним настройкам, хотя игрок выбрал другие.
-        ViewModel.RememberSettings(_settings);
+        // «Сохранить»: выбор попадает в файл и приводится в соответствие с партией — уровень
+        // начинает играть со следующего хода соперника, а новый размер доски, цвет или коми
+        // начинают новую партию. Иначе панель и настройки снова разошлись бы (жалоба 2026-10-03).
+        _ = SettingsStore.Save(chosen);
+        _ = ViewModel.ApplyChosenSettings(chosen);
     }
 
     /// <summary>Сохраняет партию в SGF.</summary>

@@ -14,9 +14,6 @@ public sealed partial class SettingsWindow : Window
 {
     private readonly SettingsView _view;
 
-    /// <summary>Согласие уже собрано: повторное закрытие проходит без отмены.</summary>
-    private bool _accepted;
-
     /// <summary>Создаёт окно настроек со значениями по умолчанию.</summary>
     public SettingsWindow() : this(AppSettings.Default)
     {
@@ -37,32 +34,12 @@ public sealed partial class SettingsWindow : Window
             ?? throw new DomainException("В окне настроек нет вида настроек: разметка повреждена.");
 
         _view.Initialize(current, modelAvailable);
+
+        // Два выхода из окна, как у любого диалога настроек: «Сохранить» закрывает с согласием,
+        // «Отмена» — без него. Крестик окна значит «Отмена»: по умолчанию ShowDialog<bool>
+        // возвращает false, и ничего не применяется (правило H1b, жалоба 2026-10-03).
         _view.Accepted += (_, _) => Close(true);
-
-        // Кнопок «Отмена» и «Начать партию» в настройках больше нет: окно закрывается крестиком,
-        // и закрытие означает согласие — как раньше означала кнопка «Начать партию»
-        // (жалоба пользователя 2026-10-03). Сначала собираются значения, потом окно закрывается.
-        Closing += OnClosing;
-    }
-
-    /// <summary>Собирает выбранные настройки перед закрытием окна.</summary>
-    /// <param name="sender">Окно.</param>
-    /// <param name="e">Признак закрытия: первый раз отменяется, чтобы значения успели собраться.</param>
-    /// <remarks>
-    /// <c>Accept</c> поднимает <see cref="SettingsView.Accepted"/>, и обработчик закрывает окно
-    /// повторно — уже с результатом. Без этой развилки закрытие крестиком вернуло бы отказ,
-    /// и настройки игрока пропали бы.
-    /// </remarks>
-    private void OnClosing(object? sender, WindowClosingEventArgs e)
-    {
-        if (_accepted)
-        {
-            return;
-        }
-
-        _accepted = true;
-        e.Cancel = true;
-        _view.Accept();
+        _view.Cancelled += (_, _) => Close(false);
     }
 
     /// <summary>Вид настроек окна: хозяин подписывает его на партию и читает выбор.</summary>

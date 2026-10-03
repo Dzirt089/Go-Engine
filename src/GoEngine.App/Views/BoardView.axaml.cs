@@ -151,8 +151,14 @@ public sealed partial class BoardView : UserControl
     /// (<see cref="OnDetachedFromVisualTree"/>), иначе таймер держал бы вид и тикал впустую.</remarks>
     private DispatcherTimer? _clockTimer;
 
-    /// <summary>Настройки, с которыми играет вид: их показывает панель настроек.</summary>
-    private AppSettings _settings;
+    /// <summary>Снимок настроек на входе в экран: по нему «Отмена» возвращает применённое сразу.</summary>
+    /// <remarks>
+    /// Значения для показа берутся у модели представления (<c>ViewModel.Settings</c>) — она один
+    /// источник правды, и своих копий настроек вид больше не держит (жалоба 2026-10-03
+    /// «не синхронизирован уровень AI»). Снимок нужен только затем, чтобы отменить то, что
+    /// действует немедленно: правило подсчёта и звук.
+    /// </remarks>
+    private AppSettings _settingsOnOpen = AppSettings.Default;
 
     /// <summary>Состояние списка размеров: программное обновление не считается выбором игрока.</summary>
     private readonly ComboState _sizeCombo = new();
@@ -191,8 +197,6 @@ public sealed partial class BoardView : UserControl
     public BoardView(AppSettings settings, IPositionEvaluator? evaluator = null, MainViewModel? viewModel = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
-
-        _settings = settings;
 
         // Настройка звука применяется сразу: до первого хода она уже должна действовать.
         StoneSoundPlayer.SoundEnabled = settings.SoundEnabled;
@@ -259,6 +263,7 @@ public sealed partial class BoardView : UserControl
         if (_settingsView is not null)
         {
             _settingsView.Accepted += OnSettingsAccepted;
+            _settingsView.Cancelled += OnSettingsCancelled;
 
             // Правило подсчёта — не свойство партии: оно вступает в силу сразу, поэтому вид
             // партии применяет его к текущей игре, не дожидаясь новой (жалоба 2026-10-03).
@@ -289,7 +294,6 @@ public sealed partial class BoardView : UserControl
         WireButton("MobileSaveButton", OnSaveClick);
         WireButton("MobileLoadButton", OnLoadClick);
         WireButton("MobileSettingsButton", OnSettingsClick);
-        WireButton("SettingsBackButton", OnSettingsBackClick);
         WireButton("SheetToggleButton", OnSheetToggleClick);
 
         // Меню партии на телефоне: те же действия, что у кнопок настольной панели, — своих
@@ -407,6 +411,11 @@ public sealed partial class BoardView : UserControl
     /// <summary>Показывает настройки: в окне, если окно есть, иначе отдельным экраном.</summary>
     public void ShowSettings()
     {
+        // Снимок на входе: «Отмена» вернёт по нему то, что действует немедленно, — правило
+        // подсчёта и звук. Снимается до всех ветвей, чтобы он был свежим и для телефона,
+        // и для настольного окна.
+        _settingsOnOpen = ViewModel.Settings;
+
         // На телефоне настройки — отдельный экран, даже если окно умеет показать диалог:
         // диалог шириной 440 на экране 360 не помещается, а на Android окна нет вовсе.
         if (_layoutMode != LayoutMode.Mobile && SettingsRequested is not null)
@@ -415,7 +424,9 @@ public sealed partial class BoardView : UserControl
             return;
         }
 
-        _settingsView?.Initialize(_settings, ViewModel.HasModelFor);
+        // Значения для показа берутся у модели: она один источник правды, поэтому диалог
+        // не может показать «25 кю», когда партия играет «10 кю» (жалоба 2026-10-03).
+        _settingsView?.Initialize(_settingsOnOpen, ViewModel.HasModelFor);
 
         if (_overlay is not null)
         {
@@ -444,9 +455,12 @@ public sealed partial class BoardView : UserControl
         _settingsView?.SelectGameTab();
     }
 
-    /// <summary>Закрывает экран настроек без изменений.</summary>
-    /// <remarks>Нужно оболочке: переход в другой раздел нижней навигации закрывает настройки.</remarks>
-    public void CloseSettingsScreen() => HideSettings();
+    /// <summary>Закрывает экран настроек без изменений: переход в другой раздел — это отмена.</summary>
+    /// <remarks>
+    /// Нужно оболочке: переход в другой раздел нижней навигации закрывает настройки, а игрок
+    /// их не сохранял. Значит, и применять нечего — работает та же отмена со снимком на входе.
+    /// </remarks>
+    public void CloseSettingsScreen() => CancelSettings();
 
     /// <summary>Спрашивает файл и записывает в него партию.</summary>
     /// <returns>Задача сохранения.</returns>
@@ -885,44 +899,6 @@ public sealed partial class BoardView : UserControl
         UpdateMobileBoardSize();
     }
 
-    /// <summary>Закрывает экран настроек кнопкой «Готово».</summary>
-    /// <param name="sender">Кнопка «Готово».</param>
-    /// <param name="e">Событие нажатия.</param>
-    private void OnSettingsBackClick(object? sender, RoutedEventArgs e) => FinishSettings();
-
-    /// <summary>Завершает настройку: применяет выбор, а из меню — начинает новую партию.</summary>
-    /// <remarks>
-    /// Значения применяются при закрытии экрана (жалоба пользователя 2026-10-03). Исключение —
-    /// вход из раздела «Настройки»: там игрок смотрит и правит настройки, но новую партию
-    /// не просил, поэтому выбор только сохраняется и вступит в силу со следующей партии.
-    /// </remarks>
-    private void FinishSettings()
-    {
-        if (_startGameAfterSettings && _settingsView is not null)
-        {
-            // «Готово» после «Новой партии» из меню: согласие применяет настройки и пересоздаёт
-            // партию (OnSettingsAccepted) — второго пути старта нет.
-            _settingsView.Accept();
-
-            return;
-        }
-
-        if (_settingsView is { } view)
-        {
-            var chosen = view.Collect();
-
-            // Файл переписывается только на настоящее изменение: закрытие экрана без правок
-            // не трогает настройки игрока.
-            if (chosen != _settings)
-            {
-                _settings = chosen;
-                _ = SettingsStore.Save(_settings);
-            }
-        }
-
-        HideSettings();
-    }
-
     /// <summary>Обновляет короткое состояние вида: строку состояния, шторку и строки партии.</summary>
     /// <remarks>
     /// Строка состояния несёт одно главное сообщение — кто ходит; счёт, пленные и коми стоят
@@ -1122,9 +1098,16 @@ public sealed partial class BoardView : UserControl
     /// </remarks>
     private bool IsBlackTurn() => ViewModel.ToMove == StoneColorLabels.Label(StoneColor.Black);
 
-    /// <summary>Применяет настройки, выбранные в панели настроек, и убирает её.</summary>
+    /// <summary>Применяет выбор кнопки «Сохранить» и убирает экран настроек.</summary>
     /// <param name="sender">Вид настроек.</param>
     /// <param name="e">Событие согласия.</param>
+    /// <remarks>
+    /// Два разных входа — две разные судьбы партии. Из меню «Новая партия» сохранение начинает
+    /// партию с выбранными настройками (первый ход соперника считается в фоне). Обычный вход
+    /// (раздел «Настройки») партию не пересоздаёт, если не изменились её свойства: уровень AI
+    /// начинает играть со следующего хода соперника, а новый размер доски, цвет или коми
+    /// начинают новую партию — иначе панель и экран настроек снова разошлись бы (жалоба 2026-10-03).
+    /// </remarks>
     private void OnSettingsAccepted(object? sender, EventArgs e)
     {
         if (_settingsView is null)
@@ -1132,17 +1115,44 @@ public sealed partial class BoardView : UserControl
             return;
         }
 
-        _settings = _settingsView.Selected;
+        var chosen = _settingsView.Selected;
 
         // Звук — выбор игрока: он живёт в настройках, а решает о звуке обвязка звука.
-        StoneSoundPlayer.SoundEnabled = _settings.SoundEnabled;
+        StoneSoundPlayer.SoundEnabled = chosen.SoundEnabled;
 
-        // Партия начинается сразу, а первый ход соперника считается в фоне: иначе окно
-        // замирало бы на время поиска, а анимация хода не была бы видна.
-        _ = ViewModel.ApplySettingsAsync(_settings);
+        if (_startGameAfterSettings)
+        {
+            // «Новая партия» из меню: партия начинается сразу, первый ход соперника — в фоне,
+            // иначе окно замирало бы на время поиска, а анимация хода не была бы видна.
+            _ = ViewModel.ApplySettingsAsync(chosen);
+        }
+        else
+        {
+            // Обычный вход: модель сама решает, продолжать партию или начать новую.
+            _ = ViewModel.ApplyChosenSettings(chosen);
+        }
 
         // Неудачная запись настроек не мешает играть: значения уже применены к партии.
-        _ = SettingsStore.Save(_settings);
+        _ = SettingsStore.Save(chosen);
+
+        HideSettings();
+    }
+
+    /// <summary>Закрывает настройки кнопкой «Отмена»: выбор не применяется.</summary>
+    /// <param name="sender">Вид настроек.</param>
+    /// <param name="e">Событие отказа.</param>
+    /// <remarks>
+    /// Правило подсчёта и звук действуют сразу, пока экран открыт, поэтому «Отмена» возвращает
+    /// их по снимку, снятому при открытии: ни партия, ни файл настроек не меняются
+    /// (жалоба пользователя 2026-10-03 «не хватает кнопки отмена»).
+    /// </remarks>
+    private void OnSettingsCancelled(object? sender, EventArgs e) => CancelSettings();
+
+    /// <summary>Возвращает партию и звук к снимку на входе и закрывает настройки.</summary>
+    private void CancelSettings()
+    {
+        ViewModel.ScoringRule = _settingsOnOpen.ToScoringRule();
+        StoneSoundPlayer.SoundEnabled = _settingsOnOpen.SoundEnabled;
 
         HideSettings();
     }

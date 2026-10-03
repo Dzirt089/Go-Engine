@@ -509,8 +509,8 @@
     <views:GameResultBanner x:Name="ResultBanner" />
 
     <!-- Настройки — полноценный экран во всю высоту вида, а не карточка: подразделов три,
-         и в карточке 460×640 они не помещались (жалоба пользователя 2026-10-03). Сверху заголовок
-         и кнопка «Готово»: она применяет выбор и закрывает экран. На настольной раскладке те же
+         и в карточке 460×640 они не помещались (жалоба пользователя 2026-10-03). Сверху заголовок,
+         внизу — «Сохранить» и «Отмена» из самого вида настроек. На настольной раскладке те же
          настройки показывает окно (SettingsWindow) — этот экран там не открывается. -->
     <Border x:Name="SettingsOverlay"
             IsVisible="False"
@@ -525,21 +525,14 @@
                   Padding="10,8"
                   BorderBrush="{DynamicResource AppBorderBrush}"
                   BorderThickness="0,0,0,1">
-            <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Grid.Column="0"
-                         Classes="app-subtitle"
-                         Text="Настройки"
-                         VerticalAlignment="Center" />
-              <Button x:Name="SettingsBackButton"
-                      Grid.Column="1"
-                      Classes="app-action"
-                      Content="Готово"
-                      AutomationProperties.Name="Готово" />
-            </Grid>
+            <TextBlock Classes="app-subtitle"
+                       Text="Настройки"
+                       VerticalAlignment="Center" />
           </Border>
-          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <views:SettingsView x:Name="SettingsArea" />
-          </ScrollViewer>
+
+          <!-- Прокрутка и низ экрана — внутри самого вида настроек: общий вид сам делит место
+               между подразделами и кнопками «Сохранить»/«Отмена». -->
+          <views:SettingsView x:Name="SettingsArea" Grid.Row="1" />
         </Grid>
       </Border>
     </Border>
