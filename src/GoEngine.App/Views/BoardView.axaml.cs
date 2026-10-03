@@ -61,12 +61,6 @@ public sealed partial class BoardView : UserControl
     /// </remarks>
     private const double CompactHeight = 460;
 
-    /// <summary>Класс фона экрана настроек: на телефоне он закрывает вид целиком.</summary>
-    private const string SettingsScreenClass = "app-settings-screen";
-
-    /// <summary>Класс карточки настроек: на телефоне она растягивается на весь экран.</summary>
-    private const string SettingsCardClass = "app-settings-card-mobile";
-
     /// <summary>Подпись кнопки до первого хода: партия ещё не начата.</summary>
     private const string StartGameLabel = "Начать партию";
 
@@ -104,8 +98,6 @@ public sealed partial class BoardView : UserControl
     private readonly Border? _desktopBoardHost;
     private readonly Border? _mobileBoardHost;
     private readonly Border? _overlay;
-    private readonly Border? _settingsCard;
-    private readonly Border? _settingsHeader;
     private readonly SettingsView? _settingsView;
     private readonly TextBlock? _hint;
     private readonly TextBlock? _mobileHint;
@@ -174,6 +166,14 @@ public sealed partial class BoardView : UserControl
     /// <summary>Шторка развёрнута: подробности показаны.</summary>
     private bool _detailsExpanded;
 
+    /// <summary>Экран настроек открыт перед новой партией: «Готово» начнёт её.</summary>
+    /// <remarks>
+    /// Разница между «Новой партией» в меню (закрытие начинает партию) и разделом «Настройки»
+    /// (обычный просмотр и правка, партия не пересоздаётся) держится в одном месте — здесь.
+    /// Иначе кнопка «Готово» вела бы себя по-разному в двух кусках кода.
+    /// </remarks>
+    private bool _startGameAfterSettings;
+
     /// <summary>Создаёт вид с настройками из файла и оценкой сети, заданной головой.</summary>
     public BoardView() : this(SettingsStore.Load(), global::GoEngine.App.App.Evaluator)
     {
@@ -208,8 +208,6 @@ public sealed partial class BoardView : UserControl
         _desktopBoardHost = this.FindControl<Border>("DesktopBoardHost");
         _mobileBoardHost = this.FindControl<Border>("MobileBoardHost");
         _overlay = this.FindControl<Border>("SettingsOverlay");
-        _settingsCard = this.FindControl<Border>("SettingsCard");
-        _settingsHeader = this.FindControl<Border>("SettingsHeader");
         _settingsView = this.FindControl<SettingsView>("SettingsArea");
         _hint = this.FindControl<TextBlock>("Hint");
         _mobileHint = this.FindControl<TextBlock>("MobileHint");
@@ -261,7 +259,10 @@ public sealed partial class BoardView : UserControl
         if (_settingsView is not null)
         {
             _settingsView.Accepted += OnSettingsAccepted;
-            _settingsView.Cancelled += OnSettingsCancelled;
+
+            // Правило подсчёта — не свойство партии: оно вступает в силу сразу, поэтому вид
+            // партии применяет его к текущей игре, не дожидаясь новой (жалоба 2026-10-03).
+            _settingsView.ScoringRuleChanged += OnScoringRuleChanged;
         }
 
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -421,6 +422,25 @@ public sealed partial class BoardView : UserControl
         }
 
         SettingsShown?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Показывает настройки перед новой партией: «Готово» начнёт её.</summary>
+    /// <remarks>
+    /// Так действует «Новая партия» в меню: игрок сначала выбирает, чем играть, и только потом
+    /// партия начинается (жалоба пользователя 2026-10-03). В настольной раскладке настройки
+    /// показывает окно, и о закрытии решает оно — там признак не нужен.
+    /// </remarks>
+    public void ShowSettingsForNewGame()
+    {
+        _startGameAfterSettings = true;
+        ShowSettings();
+
+        if (_overlay?.IsVisible != true)
+        {
+            _startGameAfterSettings = false;
+        }
+
+        _settingsView?.SelectGameTab();
     }
 
     /// <summary>Закрывает экран настроек без изменений.</summary>
@@ -764,21 +784,6 @@ public sealed partial class BoardView : UserControl
             _resultBanner.IsTouch = mobile;
         }
 
-        if (_overlay is not null)
-        {
-            _overlay.Classes.Set(SettingsScreenClass, mobile);
-        }
-
-        if (_settingsCard is not null)
-        {
-            _settingsCard.Classes.Set(SettingsCardClass, mobile);
-        }
-
-        if (_settingsHeader is not null)
-        {
-            // Заголовок с кнопкой «Назад» нужен только экрану телефона.
-            _settingsHeader.IsVisible = mobile;
-        }
     }
 
     /// <summary>Переносит доску в другую раскладку.</summary>
@@ -879,10 +884,43 @@ public sealed partial class BoardView : UserControl
         UpdateMobileBoardSize();
     }
 
-    /// <summary>Закрывает экран настроек кнопкой «Назад».</summary>
-    /// <param name="sender">Кнопка «Назад».</param>
+    /// <summary>Закрывает экран настроек кнопкой «Готово».</summary>
+    /// <param name="sender">Кнопка «Готово».</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnSettingsBackClick(object? sender, RoutedEventArgs e) => HideSettings();
+    private void OnSettingsBackClick(object? sender, RoutedEventArgs e) => FinishSettings();
+
+    /// <summary>Завершает настройку: применяет выбор, а из меню — начинает новую партию.</summary>
+    /// <remarks>
+    /// Значения применяются при закрытии экрана (жалоба пользователя 2026-10-03). Исключение —
+    /// вход из раздела «Настройки»: там игрок смотрит и правит настройки, но новую партию
+    /// не просил, поэтому выбор только сохраняется и вступит в силу со следующей партии.
+    /// </remarks>
+    private void FinishSettings()
+    {
+        if (_startGameAfterSettings && _settingsView is not null)
+        {
+            // «Готово» после «Новой партии» из меню: согласие применяет настройки и пересоздаёт
+            // партию (OnSettingsAccepted) — второго пути старта нет.
+            _settingsView.Accept();
+
+            return;
+        }
+
+        if (_settingsView is { } view)
+        {
+            var chosen = view.Collect();
+
+            // Файл переписывается только на настоящее изменение: закрытие экрана без правок
+            // не трогает настройки игрока.
+            if (chosen != _settings)
+            {
+                _settings = chosen;
+                _ = SettingsStore.Save(_settings);
+            }
+        }
+
+        HideSettings();
+    }
 
     /// <summary>Обновляет короткое состояние вида: строку состояния, шторку и строки партии.</summary>
     /// <remarks>
@@ -1108,19 +1146,32 @@ public sealed partial class BoardView : UserControl
         HideSettings();
     }
 
-    /// <summary>Убирает панель настроек без изменений.</summary>
+    /// <summary>Применяет смену системы подсчёта к текущей партии.</summary>
     /// <param name="sender">Вид настроек.</param>
-    /// <param name="e">Событие отказа.</param>
-    private void OnSettingsCancelled(object? sender, EventArgs e) => HideSettings();
+    /// <param name="e">Признак смены системы.</param>
+    /// <remarks>
+    /// Партия не пересоздаётся: обе величины Core считает всегда, а система лишь выбирает,
+    /// по какой из них называть победителя, — счёт на панели и итог меняются сразу.
+    /// </remarks>
+    private void OnScoringRuleChanged(object? sender, EventArgs e)
+    {
+        if (_settingsView is not null)
+        {
+            ViewModel.ScoringRule = _settingsView.SelectedScoringRule;
+        }
+    }
 
     /// <summary>Прячет панель настроек.</summary>
     /// <remarks>
     /// О закрытии сообщается оболочке: на телефоне настройки — раздел нижней навигации,
-    /// и подсветка должна вернуться к партии.
+    /// и подсветка должна вернуться к партии. Решение «начать партию после настроек» снимается
+    /// вместе с экраном: переход в другой раздел не должен оставлять его в силе.
     /// </remarks>
     private void HideSettings()
     {
         var visible = _overlay?.IsVisible == true;
+
+        _startGameAfterSettings = false;
 
         if (_overlay is not null)
         {
@@ -1394,17 +1445,20 @@ public sealed partial class BoardView : UserControl
     /// <param name="e">Событие нажатия.</param>
     private void OnSettingsClick(object? sender, RoutedEventArgs e) => ShowSettings();
 
-    /// <summary>Меню: начинает новую партию тем же путём, что кнопка панели.</summary>
+    /// <summary>Меню: показывает настройки партии перед новой партией.</summary>
     /// <param name="sender">Кнопка «Начать партию» в меню.</param>
     /// <param name="e">Событие нажатия.</param>
     /// <remarks>
-    /// Карточка закрывается до действия: дальше игрок смотрит на доску, а не на меню.
-    /// Своей логики у пунктов нет — они зовут те же обработчики, что и настольная панель.
+    /// Карточка меню закрывается, а вместо неё открывается экран настроек на подразделе «Партия»:
+    /// партия начнётся, когда игрок закроет его кнопкой «Готово» (жалоба пользователя 2026-10-03).
     /// </remarks>
     private void OnMenuNewGameClick(object? sender, RoutedEventArgs e)
     {
+        _ = sender;
+        _ = e;
+
         CloseMenu();
-        OnNewGameClick(sender, e);
+        ShowSettingsForNewGame();
     }
 
     /// <summary>Меню: отменяет партию тем же путём, что кнопка панели.</summary>

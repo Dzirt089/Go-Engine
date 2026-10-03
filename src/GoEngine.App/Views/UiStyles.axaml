@@ -113,19 +113,15 @@
   </Style>
 
 
-  <!-- Экран настроек телефона: тот же SettingsView, но во всю высоту, без карточки по центру. -->
-  <Style Selector="Border.app-settings-screen">
-    <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
-  </Style>
-
-  <Style Selector="Border.app-settings-card-mobile">
-    <Setter Property="MaxWidth" Value="Infinity" />
-    <Setter Property="MaxHeight" Value="Infinity" />
-    <Setter Property="CornerRadius" Value="0" />
-    <Setter Property="HorizontalAlignment" Value="Stretch" />
-    <Setter Property="VerticalAlignment" Value="Stretch" />
-    <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
-    <Setter Property="BorderThickness" Value="0" />
+  <!-- Подразделы настроек: три вкладки в одну строку — «Партия», «Подсчёт», «О программе».
+       Отступы и кегль умеренные: на экране 360 точек три подписи обязаны помещаться целиком,
+       а не уезжать под прокрутку. Ленту вкладок тема Fluent рисует сама. -->
+  <Style Selector="TabControl.app-settings-tabs TabItem">
+    <Setter Property="FontSize" Value="{DynamicResource AppFontBody}" />
+    <Setter Property="Padding" Value="12,8" />
+    <Setter Property="MinHeight" Value="{DynamicResource AppTouchTarget}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
 
 </Styles>

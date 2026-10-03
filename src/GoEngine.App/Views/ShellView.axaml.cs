@@ -1,7 +1,5 @@
 using System.ComponentModel;
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
@@ -18,6 +16,14 @@ namespace GoEngine.App.Views;
 /// Раскладка выбирается по ширине вида (<see cref="BoardLayoutRules.DecideLayout"/>): на широком
 /// экране — прежняя строка режимов сверху, на телефоне — нижняя навигация с тремя разделами:
 /// партия, задачи и настройки. Настройки на телефоне — отдельный экран, а не окно-диалог.
+/// <para>
+/// При запуске оболочка открывается на разделе «Партия» — экрана настроек вместо доски нет
+/// (замечание 2026-10-03). На телефоне над доской сразу показана карточка «Меню»
+/// (<see cref="BoardView.ShowMenu"/>): там это единственный вход к действиям партии, а настольное
+/// окно стартует без неё — у него есть меню-бар и мышь, и карточка поверх доски только мешала бы.
+/// Раскладку выбирает <see cref="BoardLayoutRules.DecideLayout"/> по ширине вида, решение о карточке
+/// принимается там же, где применяется раскладка (<see cref="ApplyLayout"/>).
+/// </para>
 /// </remarks>
 public sealed partial class ShellView : UserControl
 {
@@ -31,17 +37,17 @@ public sealed partial class ShellView : UserControl
     /// <summary>Применённая раскладка: <c>null</c> — ещё не выбрана.</summary>
     private LayoutMode? _layout;
 
+    /// <summary>Стартовое «Меню» ещё не решено: до первого измерения размер вида неизвестен.</summary>
+    private bool _startMenuPending = true;
+
     /// <summary>Создаёт оболочку с настройками из файла и оценкой сети, заданной головой.</summary>
     /// <remarks>
-    /// Мобильная голова открывает приложение сразу на доске, поэтому там партия начинается
-    /// с экрана настроек: игрок сам решает, с какой доской и уровнем играть. Настольная версия
-    /// работает как прежде — партия и меню видны сразу.
+    /// Стартовое состояние у обеих голов одно: приложение открывается на разделе «Партия», экрана
+    /// настроек нет. Карточку «Меню» при запуске получает только мобильная раскладка — её выбирает
+    /// размер вида, а не платформа (<see cref="ApplyLayout"/>).
     /// </remarks>
     public ShellView()
-        : this(ShellViewModel.Create(
-            SettingsStore.Load(),
-            global::GoEngine.App.App.Evaluator,
-            startOnSettings: IsSingleViewLifetime()))
+        : this(ShellViewModel.Create(SettingsStore.Load(), global::GoEngine.App.App.Evaluator))
     {
     }
 
@@ -114,27 +120,15 @@ public sealed partial class ShellView : UserControl
         shell.PropertyChanged += OnShellPropertyChanged;
         SizeChanged += OnViewSizeChanged;
 
+        // Раскладка применяется здесь, а стартовое «Меню» открывается в ApplyLayout: до первого
+        // измерения Bounds пуст, и решать по нулю нельзя (см. комментарий там).
         UpdateMode();
         ApplyLayout(Bounds.Width, Bounds.Height);
-
-        if (shell.StartOnSettings)
-        {
-            // Отмена на стартовом экране ничего не ломает: за ним уже готовая партия.
-            GameArea?.ShowSettings();
-
-            // На телефоне стартовый экран — это раздел настроек: его подсвечивает нижняя навигация.
-            Shell.ShowSettingsScreen();
-        }
 
         // Проверка обновления при первом показе оболочки: приложение offline-first, поэтому она
         // идёт в фоне и при отказе молчит — игрок в это время уже может ходить по доске.
         _ = Shell.CheckUpdatesOnStartAsync();
     }
-
-    /// <summary>Приложение живёт одним видом, а не окном: так устроена мобильная голова.</summary>
-    /// <returns><c>true</c>, если режим жизненного цикла — единственный вид.</returns>
-    private static bool IsSingleViewLifetime() =>
-        Application.Current?.ApplicationLifetime is ISingleViewApplicationLifetime;
 
     /// <summary>Модель оболочки.</summary>
     public ShellViewModel Shell { get; }
@@ -236,6 +230,22 @@ public sealed partial class ShellView : UserControl
     private void ApplyLayout(double width, double height)
     {
         var layout = BoardLayoutRules.DecideLayout(width, height);
+
+        // Стартовое «Меню» открывается только в мобильной раскладке: на телефоне это единственный
+        // вход к действиям партии, а настольному окну карточка поверх доски мешала бы — у него есть
+        // меню-бар и мышь (замечание пользователя 2026-10-03: «окно меню должно быть первым активным
+        // окном над партией» — речь про Android). Решаем по настоящему размеру: до первого измерения
+        // Bounds пуст, а DecideLayout(0, 0) отвечает «настольная» — по нулю решение было бы неверным.
+        // Показываем после UpdateMode: раздел «Партия» уже выбран, и вид партии видим.
+        if (_startMenuPending && width > 0 && height > 0)
+        {
+            _startMenuPending = false;
+
+            if (layout == LayoutMode.Mobile)
+            {
+                GameArea?.ShowMenu();
+            }
+        }
 
         if (_layout == layout)
         {

@@ -12,7 +12,10 @@ namespace GoEngine.App.ViewModels;
 /// Режимы не смешиваются: партия живёт в <see cref="MainViewModel"/> и своём виде, задачи —
 /// в <see cref="ProblemViewModel"/> и своём. Оболочка только показывает одно или другое и владеет
 /// обоими моделями, поэтому переключение режима партию не пересоздаёт: вернувшись в «Партию»,
-/// игрок видит ту же позицию (<c>DECISIONS.md</c>, D-061).
+/// игрок видит ту же позицию (<c>DECISIONS.md</c>, D-061). По той же причине стартового экрана
+/// настроек здесь нет: приложение открывается на разделе «Партия», а первым окном над ней вид
+/// показывает карточку «Меню» (<see cref="GoEngine.App.Views.BoardView.ShowMenu"/>) — настройки
+/// открывает игрок, а не запуск (замечание пользователя 2026-10-03).
 /// </remarks>
 public sealed class ShellViewModel : INotifyPropertyChanged
 {
@@ -35,9 +38,6 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <param name="settings">Настройки партии: их же получает вид партии.</param>
     /// <param name="game">Модель представления партии.</param>
     /// <param name="problems">Модель представления задач.</param>
-    /// <param name="startOnSettings">
-    /// Показать настройки до партии: так делает мобильная голова, где игрок сам начинает матч.
-    /// </param>
     /// <param name="updates">
     /// Модель обновления: приглашение и ход загрузки. <c>null</c> — общая модель приложения.
     /// </param>
@@ -45,7 +45,6 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         AppSettings settings,
         MainViewModel game,
         ProblemViewModel problems,
-        bool startOnSettings = false,
         UpdateViewModel? updates = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -55,7 +54,6 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         Settings = settings;
         Game = game;
         Problems = problems;
-        StartOnSettings = startOnSettings;
         Updates = updates ?? global::GoEngine.App.App.Updates;
     }
 
@@ -64,13 +62,6 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 
     /// <summary>Настройки партии: их показывает экран настроек.</summary>
     public AppSettings Settings { get; }
-
-    /// <summary>Партия начинается с экрана настроек: игрок сам нажимает «Начать партию».</summary>
-    /// <remarks>
-    /// Так ведёт себя мобильная версия: там приложение открывается сразу на доске, и без
-    /// стартового экрана матч начинался бы сам. Настольная версия показывает партию как прежде.
-    /// </remarks>
-    public bool StartOnSettings { get; }
 
     /// <summary>Модель представления партии: живёт, пока приложение открыто.</summary>
     public MainViewModel Game { get; }
@@ -117,20 +108,17 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <param name="settings">Настройки партии.</param>
     /// <param name="evaluator">Оценка позиции нейросетью для уровней Дан; <c>null</c> — без сети.</param>
     /// <param name="problems">Задачи; <c>null</c> — взять встроенную библиотеку.</param>
-    /// <param name="startOnSettings">Показать настройки до партии (мобильная версия).</param>
     /// <param name="updates">Модель обновления; <c>null</c> — общая модель приложения.</param>
     /// <returns>Оболочка с двумя режимами.</returns>
     public static ShellViewModel Create(
         AppSettings settings,
         IPositionEvaluator? evaluator = null,
         IReadOnlyList<Problem>? problems = null,
-        bool startOnSettings = false,
         UpdateViewModel? updates = null) =>
         new(
             settings,
             new MainViewModel(settings, Random.Shared, evaluator),
             problems is null ? new ProblemViewModel() : new ProblemViewModel(problems),
-            startOnSettings,
             updates);
 
     /// <summary>Проверяет обновление при первом показе оболочки: один раз, в фоне и молча.</summary>

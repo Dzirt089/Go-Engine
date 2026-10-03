@@ -50,6 +50,14 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
 
+  <!-- Вкладки настроек на телефоне: три подписи в 360 точках, поэтому кегль и отступы меньше
+       настольных. Иначе «О программе» уезжало бы за край экрана. -->
+  <Style Selector="TabControl.app-settings-tabs TabItem">
+    <Setter Property="FontSize" Value="{DynamicResource AppMobileFontAction}" />
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="MinHeight" Value="{DynamicResource AppMobileTapTarget}" />
+  </Style>
+
   <!-- Включённый переключатель обязан быть видно: без подсветки игрок не понимает, включена
        разметка территории или нет (жалоба 2026-09-30). Цвета ставятся части шаблона
        PART_ContentPresenter, а не самому ToggleButton: шаблон Fluent рисует подложку и рамку

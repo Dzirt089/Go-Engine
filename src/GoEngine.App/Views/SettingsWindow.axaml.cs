@@ -14,6 +14,9 @@ public sealed partial class SettingsWindow : Window
 {
     private readonly SettingsView _view;
 
+    /// <summary>Согласие уже собрано: повторное закрытие проходит без отмены.</summary>
+    private bool _accepted;
+
     /// <summary>Создаёт окно настроек со значениями по умолчанию.</summary>
     public SettingsWindow() : this(AppSettings.Default)
     {
@@ -35,7 +38,31 @@ public sealed partial class SettingsWindow : Window
 
         _view.Initialize(current, modelAvailable);
         _view.Accepted += (_, _) => Close(true);
-        _view.Cancelled += (_, _) => Close(false);
+
+        // Кнопок «Отмена» и «Начать партию» в настройках больше нет: окно закрывается крестиком,
+        // и закрытие означает согласие — как раньше означала кнопка «Начать партию»
+        // (жалоба пользователя 2026-10-03). Сначала собираются значения, потом окно закрывается.
+        Closing += OnClosing;
+    }
+
+    /// <summary>Собирает выбранные настройки перед закрытием окна.</summary>
+    /// <param name="sender">Окно.</param>
+    /// <param name="e">Признак закрытия: первый раз отменяется, чтобы значения успели собраться.</param>
+    /// <remarks>
+    /// <c>Accept</c> поднимает <see cref="SettingsView.Accepted"/>, и обработчик закрывает окно
+    /// повторно — уже с результатом. Без этой развилки закрытие крестиком вернуло бы отказ,
+    /// и настройки игрока пропали бы.
+    /// </remarks>
+    private void OnClosing(object? sender, WindowClosingEventArgs e)
+    {
+        if (_accepted)
+        {
+            return;
+        }
+
+        _accepted = true;
+        e.Cancel = true;
+        _view.Accept();
     }
 
     /// <summary>Настройки, выбранные в окне.</summary>

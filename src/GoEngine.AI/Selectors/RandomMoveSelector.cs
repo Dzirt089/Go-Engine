@@ -35,9 +35,12 @@ public sealed class RandomMoveSelector : IMoveSelector
     /// <summary>Выбирает ход по позиции и цвету, минуя партию.</summary>
     /// <param name="board">Позиция.</param>
     /// <param name="color">Цвет, который ходит.</param>
-    /// <returns>Легальный ход или пас, если легальных ходов нет.</returns>
+    /// <returns>Легальный ход или пас, если легальных ходов нет или все они убыточны.</returns>
     /// <remarks>
     /// Перегрузка нужна анализу и MCTS: там позиция есть, а партии может и не быть.
+    /// Ходы, которые заведомо только кормят соперника, отсекает <see cref="PrisonerPolicy"/>:
+    /// уровень остаётся случайным, но перестаёт отдавать камни в свои мёртвые группы
+    /// (жалоба 2026-10-03). Если полезных ходов не осталось, уровень пасует.
     /// </remarks>
     public Move SelectMove(Board board, StoneColor color)
     {
@@ -47,8 +50,14 @@ public sealed class RandomMoveSelector : IMoveSelector
         var legalMoves = LegalMoves.For(board, color);
 
         // Пас разрешён всегда (GO_RULES.md, п. 3): если ходить некуда, игрок пропускает ход.
-        return legalMoves.Count == 0
-            ? Move.Pass(color)
-            : legalMoves[_random.Next(legalMoves.Count)];
+        if (legalMoves.Count == 0)
+        {
+            return Move.Pass(color);
+        }
+
+        var allowed = PrisonerPolicy.Instance.Apply(board, color, legalMoves);
+        var pool = allowed.EverythingAllowed ? legalMoves : allowed.Moves;
+
+        return pool.Count == 0 ? Move.Pass(color) : pool[_random.Next(pool.Count)];
     }
 }

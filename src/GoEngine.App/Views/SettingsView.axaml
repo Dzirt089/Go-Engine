@@ -2,102 +2,143 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="GoEngine.App.Views.SettingsView">
 
-  <!-- Настройки партии одним куском: настольное окно (SettingsWindow) показывает их в окне,
-       а мобильный вид — поверх доски, потому что окон на телефоне нет. Логика одна. -->
-  <StackPanel Margin="16" Spacing="10">
+  <!-- Настройки тремя подразделами: «Партия» (чем играем), «Подсчёт» (как считаются очки)
+       и «О программе» (версия, модели, логи, обновление). Один и тот же вид показывают настольное
+       окно (SettingsWindow) и мобильный экран во всю высоту (BoardView): логика одна.
+       Кнопки «Начать партию» здесь нет: настройки применяются при закрытии экрана, а партию
+       начинает тот, кто экран открыл (жалоба пользователя 2026-10-03). -->
+  <TabControl x:Name="SettingsTabs" Classes="app-settings-tabs">
 
-    <TextBlock Text="Размер доски" FontWeight="SemiBold" />
-    <ComboBox x:Name="SizeBox" HorizontalAlignment="Stretch" MinHeight="44" />
+    <!-- Подраздел «Партия»: размер доски, уровень соперника, цвет игрока, коми и звук. -->
+    <TabItem Header="Партия">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16" Spacing="10">
 
-    <TextBlock Text="Уровень AI" FontWeight="SemiBold" />
-    <ComboBox x:Name="LevelBox" HorizontalAlignment="Stretch" MinHeight="44" />
+          <TextBlock Text="Размер доски" FontWeight="SemiBold" />
+          <ComboBox x:Name="SizeBox" HorizontalAlignment="Stretch" MinHeight="44" />
 
-    <TextBlock Text="Мой цвет" FontWeight="SemiBold" />
-    <ComboBox x:Name="ColorBox" HorizontalAlignment="Stretch" MinHeight="44" />
+          <TextBlock Text="Уровень AI" FontWeight="SemiBold" />
+          <ComboBox x:Name="LevelBox" HorizontalAlignment="Stretch" MinHeight="44" />
 
-    <TextBlock Text="Коми" FontWeight="SemiBold" />
-    <NumericUpDown x:Name="KomiBox"
-                   Minimum="0"
-                   Maximum="20"
-                   Increment="0.5"
-                   FormatString="0.0"
-                   MinHeight="44"
-                   HorizontalAlignment="Stretch" />
+          <TextBlock Text="Мой цвет" FontWeight="SemiBold" />
+          <ComboBox x:Name="ColorBox" HorizontalAlignment="Stretch" MinHeight="44" />
 
-    <!-- Звук ходов: короткий стук камня вместе с анимацией. Игрок вправе его выключить —
-         в турнирном зале, в транспорте или просто потому, что не нужен. -->
-    <CheckBox x:Name="SoundBox"
-              Content="Звук ходов"
-              MinHeight="44"
-              IsChecked="True" />
+          <TextBlock Text="Коми" FontWeight="SemiBold" />
+          <NumericUpDown x:Name="KomiBox"
+                         Minimum="0"
+                         Maximum="20"
+                         Increment="0.5"
+                         FormatString="0.0"
+                         MinHeight="44"
+                         HorizontalAlignment="Stretch" />
 
-    <!-- Система подсчёта: основная японская или китайская. Обе величины считаются всегда,
-         выбор решает, какая называется победителем. Подписи берутся у самих правил
-         (ScoringRule.Descriptions), а не пишутся здесь строками. -->
-    <TextBlock Text="Правила подсчёта" FontWeight="SemiBold" Margin="0,6,0,0" />
-    <ComboBox x:Name="ScoringBox" MinHeight="44" HorizontalAlignment="Stretch">
-      <ComboBox.ItemTemplate>
-        <DataTemplate>
-          <TextBlock Text="{Binding}" TextWrapping="Wrap" MaxWidth="320" />
-        </DataTemplate>
-      </ComboBox.ItemTemplate>
-    </ComboBox>
-    <TextBlock x:Name="ScoringHintText" TextWrapping="Wrap" Foreground="#444444" />
+          <!-- Звук ходов: короткий стук камня вместе с анимацией. Игрок вправе его выключить —
+               в турнирном зале, в транспорте или просто потому, что не нужен. -->
+          <CheckBox x:Name="SoundBox"
+                    Content="Звук ходов"
+                    MinHeight="44"
+                    IsChecked="True" />
 
-    <!-- Обновления: версия видна всегда, проверка и установка — по кнопке. Проверка ходит
+          <!-- Подсказка о том, когда что вступает в силу: без неё игрок не понимает, почему
+               после смены доски или уровня ничего не изменилось, а счёт уже считается по-новому
+               (жалоба пользователя 2026-10-03). -->
+          <TextBlock x:Name="NewGameHintText"
+                     Classes="app-label"
+                     TextWrapping="Wrap"
+                     Margin="0,8,0,0"
+                     Text="Размер доски, уровень, цвет и коми вступают в силу в новой партии: «Новая партия» в меню открывает эти настройки и начинает партию. Правило подсчёта и звук действуют сразу." />
+
+        </StackPanel>
+      </ScrollViewer>
+    </TabItem>
+
+    <!-- Подраздел «Подсчёт»: какая система называет победителя и что входит в очки.
+         Пояснения берутся у самих правил (ScoringRule.Descriptions) и из подсказки
+         MainViewModel.ScoringHint — своих формулировок правил вид не придумывает. -->
+    <TabItem Header="Подсчёт">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16" Spacing="10">
+
+          <TextBlock Text="Система подсчёта" FontWeight="SemiBold" />
+          <ComboBox x:Name="ScoringBox" MinHeight="44" HorizontalAlignment="Stretch">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" TextWrapping="Wrap" MaxWidth="320" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+
+          <!-- Пояснение к выбранной системе: строка меняется вместе с выбором. -->
+          <TextBlock x:Name="ScoringHintText" TextWrapping="Wrap" />
+
+          <TextBlock Text="Японская система (для РФ)" FontWeight="SemiBold" Margin="0,6,0,0" />
+          <TextBlock x:Name="JapaneseText" Classes="app-label" TextWrapping="Wrap" />
+
+          <TextBlock Text="Китайская система" FontWeight="SemiBold" Margin="0,6,0,0" />
+          <TextBlock x:Name="ChineseText" Classes="app-label" TextWrapping="Wrap" />
+
+          <TextBlock Text="Чем отличаются" FontWeight="SemiBold" Margin="0,6,0,0" />
+          <TextBlock x:Name="DifferenceText" Classes="app-label" TextWrapping="Wrap" />
+
+        </StackPanel>
+      </ScrollViewer>
+    </TabItem>
+
+    <!-- Подраздел «О программе»: версия, модели, логи, сбой прошлого запуска и обновление.
+         Обновления: версия видна всегда, проверка и установка — по кнопке. Проверка ходит
          за манифестом в плавающий релиз latest, установка отличается от системы к системе.
          Состояние и ход загрузки берутся у общей модели обновления (App.Updates) — той же,
          что показывает приглашение в оболочке. -->
-    <TextBlock x:Name="VersionText" Margin="0,6,0,0" Foreground="#444444" />
+    <TabItem Header="О программе">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16" Spacing="10">
 
-    <!-- Состояние моделей нейросети: без этой строки отказ сети виден только по отсутствию
-         уровней с нейросетью, и причину на телефоне узнать нечем. -->
-    <TextBlock x:Name="ModelsText" Margin="0,2,0,0" Foreground="#444444" TextWrapping="Wrap" />
+          <TextBlock x:Name="VersionText" Foreground="#444444" />
 
-    <!-- Логи: путь виден всегда, папку открывает настольная голова — на телефоне открывать нечего. -->
-    <TextBlock x:Name="LogsText" Margin="0,2,0,0" Foreground="#444444" TextWrapping="Wrap" />
+          <!-- Состояние моделей нейросети: без этой строки отказ сети виден только по отсутствию
+               уровней с нейросетью, и причину на телефоне узнать нечем. -->
+          <TextBlock x:Name="ModelsText" Foreground="#444444" TextWrapping="Wrap" />
 
-    <!-- Сбой прошлого запуска: показывается один раз, копия лога остаётся в каталоге логов. -->
-    <TextBlock x:Name="CrashText"
-               Margin="0,2,0,0"
-               Foreground="#8A2B2B"
-               TextWrapping="Wrap"
-               IsVisible="False" />
+          <!-- Логи: путь виден всегда, папку открывает настольная голова — на телефоне открывать
+               нечего. -->
+          <TextBlock x:Name="LogsText" Foreground="#444444" TextWrapping="Wrap" />
 
-    <Button x:Name="OpenLogsButton"
-            Content="Открыть папку с логами"
-            MinHeight="44"
-            HorizontalAlignment="Left"
-            IsVisible="False" />
+          <!-- Сбой прошлого запуска: показывается один раз, копия лога остаётся в каталоге логов. -->
+          <TextBlock x:Name="CrashText"
+                     Foreground="#8A2B2B"
+                     TextWrapping="Wrap"
+                     IsVisible="False" />
 
-    <StackPanel Orientation="Horizontal" Spacing="8">
-      <Button x:Name="CheckUpdatesButton" Content="Проверить обновления" MinHeight="44" />
-      <Button x:Name="InstallUpdateButton"
-              Content="Скачать и установить"
-              MinHeight="44"
-              IsVisible="False"
-              Classes="accent" />
-      <Button x:Name="CancelUpdateButton" Content="Отмена" MinHeight="44" IsVisible="False" />
-    </StackPanel>
+          <Button x:Name="OpenLogsButton"
+                  Content="Открыть папку с логами"
+                  MinHeight="44"
+                  HorizontalAlignment="Left"
+                  IsVisible="False" />
 
-    <!-- Ход загрузки и установки: та же полоса, что и в приглашении оболочки, — состояние одно
-         на приложение, поэтому проценты здесь и там совпадают. -->
-    <ProgressBar x:Name="UpdateProgressBar"
-                 Minimum="0"
-                 Maximum="100"
-                 Height="8"
-                 IsVisible="False" />
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+            <Button x:Name="CheckUpdatesButton" Content="Проверить обновления" MinHeight="44" />
+            <Button x:Name="InstallUpdateButton"
+                    Content="Скачать и установить"
+                    MinHeight="44"
+                    IsVisible="False"
+                    Classes="accent" />
+            <Button x:Name="CancelUpdateButton" Content="Отмена" MinHeight="44" IsVisible="False" />
+          </StackPanel>
 
-    <TextBlock x:Name="UpdateStatusText" TextWrapping="Wrap" Foreground="#444444" />
+          <!-- Ход загрузки и установки: та же полоса, что и в приглашении оболочки, — состояние одно
+               на приложение, поэтому проценты здесь и там совпадают. -->
+          <ProgressBar x:Name="UpdateProgressBar"
+                       Minimum="0"
+                       Maximum="100"
+                       Height="8"
+                       IsVisible="False" />
 
-    <StackPanel Orientation="Horizontal"
-                HorizontalAlignment="Right"
-                Spacing="8"
-                Margin="0,8,0,0">
-      <Button x:Name="CancelButton" Content="Отмена" MinHeight="44" />
-      <Button x:Name="StartButton" Content="Начать партию" IsDefault="True" MinHeight="44" Classes="accent" />
-    </StackPanel>
+          <TextBlock x:Name="UpdateStatusText" TextWrapping="Wrap" Foreground="#444444" />
 
-  </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </TabItem>
+
+  </TabControl>
 
 </UserControl>

@@ -508,38 +508,33 @@
          открываются поверх всего. -->
     <views:GameResultBanner x:Name="ResultBanner" />
 
-    <!-- Настройки поверх вида: окон на телефоне нет, поэтому тот же SettingsView показывается
-         здесь. На узком экране это отдельный экран во всю высоту с заголовком и кнопкой «Назад»,
-         на настольной версии — карточка по центру, а кнопка «Настройки» открывает окно
-         (SettingsWindow). -->
+    <!-- Настройки — полноценный экран во всю высоту вида, а не карточка: подразделов три,
+         и в карточке 460×640 они не помещались (жалоба пользователя 2026-10-03). Сверху заголовок
+         и кнопка «Готово»: она применяет выбор и закрывает экран. На настольной раскладке те же
+         настройки показывает окно (SettingsWindow) — этот экран там не открывается. -->
     <Border x:Name="SettingsOverlay"
             IsVisible="False"
-            Background="{DynamicResource AppOverlayBrush}">
+            Background="{DynamicResource AppBackgroundBrush}">
       <Border x:Name="SettingsCard"
-              MaxWidth="460"
-              MaxHeight="640"
-              VerticalAlignment="Center"
-              HorizontalAlignment="Center"
-              CornerRadius="8"
-              Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch"
+              Background="{DynamicResource AppBackgroundBrush}">
         <Grid RowDefinitions="Auto,*">
           <Border x:Name="SettingsHeader"
                   Grid.Row="0"
-                  IsVisible="False"
                   Padding="10,8"
                   BorderBrush="{DynamicResource AppBorderBrush}"
                   BorderThickness="0,0,0,1">
-            <Grid ColumnDefinitions="Auto,*,Auto">
-              <Button x:Name="SettingsBackButton"
-                      Classes="app-action"
-                      Content="Назад"
-                      AutomationProperties.Name="Назад" />
-              <TextBlock Grid.Column="1"
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0"
                          Classes="app-subtitle"
-                         Text="Партия"
-                         HorizontalAlignment="Center"
+                         Text="Настройки"
                          VerticalAlignment="Center" />
-              <Border Grid.Column="2" Width="66" />
+              <Button x:Name="SettingsBackButton"
+                      Grid.Column="1"
+                      Classes="app-action"
+                      Content="Готово"
+                      AutomationProperties.Name="Готово" />
             </Grid>
           </Border>
           <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">

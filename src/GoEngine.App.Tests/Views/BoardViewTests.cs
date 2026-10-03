@@ -341,6 +341,97 @@ public sealed class BoardViewTests
     }
 
     [Fact]
+    public void Экран_Настроек_Растянут_На_Весь_Вид()
+    {
+        // Полноценный экран, а не карточка по центру: ни ограничений ширины, ни скруглений.
+        var (view, _) = Create();
+        var card = view.FindControl<Border>("SettingsCard")!;
+
+        Assert.Equal(
+            (double.PositiveInfinity, double.PositiveInfinity, default(Avalonia.CornerRadius)),
+            (card.MaxWidth, card.MaxHeight, card.CornerRadius));
+    }
+
+    [Fact]
+    public void Заголовок_Экрана_Настроек_Закрывается_Кнопкой_Готово()
+    {
+        var (view, _) = Create();
+
+        Assert.Equal("Готово", view.FindControl<Button>("SettingsBackButton")!.Content);
+    }
+
+    [Fact]
+    public void Новая_Партия_Из_Меню_Открывает_Настройки()
+    {
+        var (view, _) = Create();
+
+        Click(view.FindControl<Button>("MenuNewGameButton")!);
+
+        Assert.True(view.FindControl<Border>("SettingsOverlay")!.IsVisible);
+    }
+
+    [Fact]
+    public void Новая_Партия_Из_Меню_Открывает_Подраздел_Партия()
+    {
+        var (view, _) = Create();
+
+        Click(view.FindControl<Button>("MenuNewGameButton")!);
+
+        Assert.Equal(0, SettingsTabs(view).SelectedIndex);
+    }
+
+    [Fact]
+    public void Закрытие_Настроек_После_Меню_Начинает_Новую_Партию()
+    {
+        var (view, model) = Create();
+        var board = model.Board;
+
+        Click(view.FindControl<Button>("MenuNewGameButton")!);
+        Click(view.FindControl<Button>("SettingsBackButton")!);
+
+        Assert.NotSame(board, model.Board);
+    }
+
+    [Fact]
+    public void Закрытие_Настроек_Из_Раздела_Партию_Не_Начинает()
+    {
+        // Вход из раздела «Настройки» — просмотр и правка: партия остаётся той же.
+        var (view, model) = Create();
+        var board = model.Board;
+
+        view.ShowSettings();
+        Click(view.FindControl<Button>("SettingsBackButton")!);
+
+        Assert.Same(board, model.Board);
+    }
+
+    [Fact]
+    public void Смена_Системы_Подсчёта_В_Настройках_Действует_Сразу()
+    {
+        // Игрок переключает «японская/китайская» и ждёт, что победителя назовут по новой системе
+        // в текущей партии, а не в следующей (жалоба пользователя 2026-10-03).
+        var (view, model) = Create();
+        view.ShowSettings();
+
+        ScoringBox(view).SelectedIndex = 1;
+
+        Assert.Equal(ScoringRule.Chinese, model.ScoringRule);
+    }
+
+    [Fact]
+    public void Смена_Системы_Подсчёта_Меняет_Строку_Счёта_Панели()
+    {
+        var (view, model) = Create();
+        Finish(model);
+        view.ShowSettings();
+        var before = view.FindControl<TextBlock>("DesktopScoreText")!.Text;
+
+        ScoringBox(view).SelectedIndex = 1;
+
+        Assert.NotEqual(before, view.FindControl<TextBlock>("DesktopScoreText")!.Text);
+    }
+
+    [Fact]
     public void Ряд_Действий_Телефона_Делится_На_Четыре_Колонки()
     {
         var (view, _) = Create();
@@ -468,6 +559,18 @@ public sealed class BoardViewTests
         root.GetLogicalDescendants()
             .OfType<TextBlock>()
             .Count(block => block.Text?.Contains(text, StringComparison.Ordinal) == true);
+
+    /// <summary>Список систем подсчёта внутри вида настроек.</summary>
+    /// <param name="view">Вид партии.</param>
+    /// <returns>Список выбора системы подсчёта.</returns>
+    private static ComboBox ScoringBox(BoardView view) =>
+        view.FindControl<SettingsView>("SettingsArea")!.FindControl<ComboBox>("ScoringBox")!;
+
+    /// <summary>Список подразделов настроек внутри вида партии.</summary>
+    /// <param name="view">Вид партии.</param>
+    /// <returns>Переключатель подразделов.</returns>
+    private static TabControl SettingsTabs(BoardView view) =>
+        view.FindControl<SettingsView>("SettingsArea")!.FindControl<TabControl>("SettingsTabs")!;
 
     /// <summary>Карточка меню партии: слой затемнения.</summary>
     /// <param name="view">Вид партии.</param>

@@ -13,12 +13,19 @@ using GoEngine.Core;
 
 namespace GoEngine.App.Views;
 
-/// <summary>Настройки партии: размер доски, уровень AI, цвет игрока и коми.</summary>
+/// <summary>Настройки тремя подразделами: партия, подсчёт и о программе.</summary>
 /// <remarks>
-/// Вид не хранит настройки сам: он собирает их из полей и сообщает о согласии событием
-/// <see cref="Accepted"/> (готовые значения — в <see cref="Selected"/>). Кто показывает этот
-/// вид — решает вызывающий: настольное окно <see cref="SettingsWindow"/> или мобильный вид
-/// <see cref="BoardView"/> поверх доски. Логика выбора доски и уровня одна на всех.
+/// <para>
+/// Вид не хранит настройки сам: он собирает их из полей (<see cref="Collect"/>) и сообщает
+/// о согласии событием <see cref="Accepted"/>. Кто показывает этот вид — решает вызывающий:
+/// настольное окно <see cref="SettingsWindow"/> или мобильный экран во всю высоту
+/// (<see cref="BoardView"/>). Логика выбора доски и уровня одна на всех.
+/// </para>
+/// <para>
+/// Кнопки «Начать партию» здесь больше нет (жалоба пользователя 2026-10-03): настройки
+/// применяются при закрытии экрана, а начинает партию тот, кто экран открыл, — на телефоне
+/// разницу держит <see cref="BoardView"/>.
+/// </para>
 /// </remarks>
 public sealed partial class SettingsView : UserControl
 {
@@ -82,16 +89,6 @@ public sealed partial class SettingsView : UserControl
             soundBox.IsCheckedChanged += OnSoundChanged;
         }
 
-        if (this.FindControl<Button>("StartButton") is { } startButton)
-        {
-            startButton.Click += OnStartClick;
-        }
-
-        if (this.FindControl<Button>("CancelButton") is { } cancelButton)
-        {
-            cancelButton.Click += OnCancelClick;
-        }
-
         if (this.FindControl<Button>("CheckUpdatesButton") is { } checkButton)
         {
             checkButton.Click += OnCheckUpdatesClick;
@@ -123,17 +120,35 @@ public sealed partial class SettingsView : UserControl
 
         ShowModels();
         ShowLogs();
+        ShowScoringSystems();
         Initialize(current);
     }
 
     /// <summary>Настройки, выбранные в виде.</summary>
     public AppSettings Selected { get; private set; } = AppSettings.Default;
 
-    /// <summary>Игрок согласился с настройками.</summary>
+    /// <summary>Игрок закончил настройку: значения собраны, о согласии сообщено.</summary>
+    /// <remarks>
+    /// Событие поднимает <see cref="Accept"/> — его зовут хозяева вида: мобильный экран по кнопке
+    /// «Готово» и настольное окно при закрытии. Своей кнопки у вида нет: одно место решения,
+    /// а не две кнопки в разных углах экрана.
+    /// </remarks>
     public event EventHandler? Accepted;
 
-    /// <summary>Игрок отказался от изменений.</summary>
-    public event EventHandler? Cancelled;
+    /// <summary>Игрок сменил систему подсчёта: счёт и победителя называет она.</summary>
+    /// <remarks>
+    /// Отдельное событие, а не молчаливое изменение <see cref="Selected"/>: правило — не свойство
+    /// партии, оно действует сразу, и хозяин вида обязан применить его к текущей партии
+    /// (жалоба пользователя 2026-10-03). Звук вид применяет сам: он тоже не свойство партии.
+    /// </remarks>
+    public event EventHandler? ScoringRuleChanged;
+
+    /// <summary>Правило подсчёта, выбранное сейчас в списке.</summary>
+    /// <remarks>
+    /// Нужно тому, кто показывает вид: правило вступает в силу сразу, а не с новой партией,
+    /// поэтому о смене сообщается событием <see cref="ScoringRuleChanged"/>.
+    /// </remarks>
+    public ScoringRule SelectedScoringRule => ScoringRules[SelectedIndex("ScoringBox")];
 
     /// <summary>Показывает каталог логов, сообщение о сбое прошлого запуска и кнопку открытия папки.</summary>
     /// <remarks>
@@ -262,6 +277,35 @@ public sealed partial class SettingsView : UserControl
         _ = SettingsStore.Save(Selected);
     }
 
+    /// <summary>Показывает пояснения по обеим системам подсчёта и чем они отличаются.</summary>
+    /// <remarks>
+    /// Формулировки берутся у самих правил (<c>ScoringRule.Descriptions</c>) и из подсказки
+    /// модели представления (<c>MainViewModel.ScoringHint</c>), которая опирается на
+    /// <c>GO_RULES.md</c>, пп. 7–9: своих правил вид не придумывает — иначе объяснение разошлось бы
+    /// с подсчётом.
+    /// </remarks>
+    private void ShowScoringSystems()
+    {
+        if (this.FindControl<TextBlock>("JapaneseText") is { } japanese)
+        {
+            japanese.Text = ScoringRule.Japanese.Descriptions ?? ScoringRule.Japanese.Name;
+        }
+
+        if (this.FindControl<TextBlock>("ChineseText") is { } chinese)
+        {
+            chinese.Text = ScoringRule.Chinese.Descriptions ?? ScoringRule.Chinese.Name;
+        }
+
+        if (this.FindControl<TextBlock>("DifferenceText") is { } difference)
+        {
+            difference.Text =
+                "Территория в обеих системах считается по доске без мёртвых камней. "
+                + "Китайская считает площадь: свои камни на доске плюс территория, пленные в очках "
+                + "не участвуют. Японская считает территорию и пленные, а камень, снятый как мёртвый, "
+                + "приносит очко как пленный. Коми в обеих системах добавляется белым.";
+        }
+    }
+
     /// <summary>Показывает пояснение к выбранной системе подсчёта.</summary>
     private void ShowScoringHint()
     {
@@ -271,10 +315,32 @@ public sealed partial class SettingsView : UserControl
         }
     }
 
-    /// <summary>Обновляет пояснение при смене системы подсчёта.</summary>
+    /// <summary>Обновляет пояснение и сразу применяет смену системы подсчёта.</summary>
     /// <param name="sender">Список систем.</param>
     /// <param name="e">Событие смены выбора.</param>
-    private void OnScoringChanged(object? sender, SelectionChangedEventArgs e) => ShowScoringHint();
+    /// <remarks>
+    /// Правило подсчёта действует немедленно: игрок переключает систему и ждёт, что счёт
+    /// и победитель назовутся по новой. Как и звук, выбор сохраняется сразу; партия при этом
+    /// не пересоздаётся — правило лишь выбирает, по какой из двух посчитанных величин называется
+    /// победитель. Заполнение списка при открытии экрана сменой не считается.
+    /// </remarks>
+    private void OnScoringChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        ShowScoringHint();
+
+        var rule = SelectedScoringRule;
+
+        if (rule == Selected.ToScoringRule())
+        {
+            return;
+        }
+
+        Selected = Selected with { ScoringRule = rule.Name };
+
+        // В файл выбор попадёт при закрытии экрана: там его сохраняют и остальные настройки,
+        // а тест не должен переписывать настройки игрока на каждой смене списка.
+        ScoringRuleChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>Наличие модели по статическим данным приложения: запасной источник ответа.</summary>
     /// <param name="size">Размер доски.</param>
@@ -338,16 +404,18 @@ public sealed partial class SettingsView : UserControl
     /// <returns>Размер доски.</returns>
     private BoardSize SelectedSize() => BoardSizes.At(SelectedIndex("SizeBox"));
 
-    /// <summary>Собирает настройки из полей и сообщает о согласии.</summary>
-    /// <param name="sender">Кнопка «Начать партию».</param>
-    /// <param name="e">Событие нажатия.</param>
-    private void OnStartClick(object? sender, RoutedEventArgs e)
+    /// <summary>Собирает настройки из полей вида.</summary>
+    /// <returns>Настройки, выбранные сейчас.</returns>
+    /// <remarks>
+    /// Отдельно от <see cref="Accept"/>: мобильный экран, открытый из раздела «Настройки»,
+    /// сохраняет выбор, но не пересоздаёт партию, — ему нужны значения без согласия.
+    /// </remarks>
+    public AppSettings Collect()
     {
         var size = SelectedSize();
         var level = LevelChooser.Resolve(CurrentLevel(), size, _modelAvailable(size));
         var color = StoneColorLabels.At(SelectedIndex("ColorBox"));
         var komi = this.FindControl<NumericUpDown>("KomiBox")?.Value ?? (decimal)Selected.Komi;
-
         var sound = this.FindControl<CheckBox>("SoundBox")?.IsChecked != false;
 
         Selected = AppSettings.From(
@@ -358,13 +426,26 @@ public sealed partial class SettingsView : UserControl
             ScoringRules[SelectedIndex("ScoringBox")],
             sound);
 
+        return Selected;
+    }
+
+    /// <summary>Собирает настройки и сообщает о согласии.</summary>
+    public void Accept()
+    {
+        _ = Collect();
         Accepted?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Сообщает об отказе от изменений.</summary>
-    /// <param name="sender">Кнопка «Отмена».</param>
-    /// <param name="e">Событие нажатия.</param>
-    private void OnCancelClick(object? sender, RoutedEventArgs e) => Cancelled?.Invoke(this, EventArgs.Empty);
+    /// <summary>Показывает подраздел «Партия».</summary>
+    /// <remarks>С него начинается выбор перед новой партией: «Новая партия» в меню открывает
+    /// настройки именно на нём.</remarks>
+    public void SelectGameTab()
+    {
+        if (this.FindControl<TabControl>("SettingsTabs") is { } tabs)
+        {
+            tabs.SelectedIndex = 0;
+        }
+    }
 
     /// <summary>Подписывается на модель обновления, пока вид показан.</summary>
     /// <param name="e">Признак подключения к дереву видов.</param>
