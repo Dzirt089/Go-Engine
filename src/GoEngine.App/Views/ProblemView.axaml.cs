@@ -20,8 +20,8 @@ public sealed partial class ProblemView : UserControl
 {
     /// <summary>Наименьшая высота панели в вертикальной раскладке.</summary>
     /// <remarks>
-    /// Вердикт и два ряда кнопок занимают около 150 точек; остальное — описание задачи, и оно
-    /// прокручивается. Меньше этой границы панель отдавать нельзя: кнопки режима уехали бы
+    /// Вердикт и два ряда кнопок занимают около 150 точек; остальное — цель задачи и её выбор,
+    /// и они прокручиваются. Меньше этой границы панель отдавать нельзя: кнопки режима уехали бы
     /// за край экрана, и игрок не смог бы ни подсказать ход, ни отменить его.
     /// </remarks>
     private const double MinimumPanelHeight = 280;
@@ -34,7 +34,6 @@ public sealed partial class ProblemView : UserControl
     private readonly Border? _panel;
     private readonly ComboBox? _problemBox;
     private readonly TextBlock? _heading;
-    private readonly Expander? _details;
 
     /// <summary>Состояние списка задач: программное обновление не считается выбором игрока.</summary>
     private readonly ComboState _problemCombo = new();
@@ -64,7 +63,6 @@ public sealed partial class ProblemView : UserControl
         _panel = this.FindControl<Border>("Panel");
         _problemBox = this.FindControl<ComboBox>("ProblemBox");
         _heading = this.FindControl<TextBlock>("Heading");
-        _details = this.FindControl<Expander>("Details");
 
         if (_boardControl is not null)
         {
@@ -224,13 +222,6 @@ public sealed partial class ProblemView : UserControl
             // На телефоне заголовок панели дублирует подпись раздела в нижней навигации,
             // а его высота нужна описанию задачи.
             _heading.IsVisible = !narrow;
-        }
-
-        if (_details is not null)
-        {
-            // На телефоне подробности свёрнуты: развёрнутое описание не помещается в панель
-            // и обрывалось на середине строки прямо над кнопками.
-            _details.IsExpanded = !narrow;
         }
 
         _boardControl.Height = narrow ? NarrowBoardHeight(width, height) : double.NaN;

@@ -65,7 +65,7 @@ public sealed class ProblemLineTests
         var problem = ProblemLibrary.ById(id);
         Assert.NotNull(problem);
 
-        // Второго основания accept у задачи по решению источника нет: принимается ровно линия,
+        // Второго основания accept у задачи из источника нет: принимается ровно линия,
         // поэтому любой легальный ход вне набора принимаемых — «не решает задачу».
         Assert.Equal(ProblemGoal.Reference, problem.Goal);
 

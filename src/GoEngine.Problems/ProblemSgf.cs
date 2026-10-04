@@ -131,7 +131,7 @@ public static class ProblemSgf
             description = Property(root, "C");
         }
 
-        // SO — источник решения. У задачи по решению источника он обязателен: исход движком не
+        // SO — источник решения. У задачи из источника он обязателен: исход движком не
         // проверен, и игрок обязан видеть, откуда взято решение.
         var source = Property(root, "SO");
 
@@ -139,12 +139,12 @@ public static class ProblemSgf
         {
             if (string.IsNullOrWhiteSpace(source))
             {
-                return Result<Problem>.Fail("Задача по решению источника должна указывать источник (SO).");
+                return Result<Problem>.Fail("Задача из источника должна указывать источник (SO).");
             }
 
             if (string.IsNullOrWhiteSpace(description))
             {
-                return Result<Problem>.Fail("Задача по решению источника должна содержать формулировку (GC).");
+                return Result<Problem>.Fail("Задача из источника должна содержать формулировку (GC).");
             }
         }
 

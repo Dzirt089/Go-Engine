@@ -32,14 +32,13 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
 
     /// <remarks>
     /// Список ведётся руками, поэтому в нём обязаны быть <b>все</b> свойства, зависящие от задачи:
-    /// пропущенное имя — это застывшая надпись на экране. Так уже было с пометкой об источнике
-    /// решения: после перехода к следующей задаче панель продолжала показывать источник
-    /// предыдущей, то есть говорила игроку неправду о происхождении решения.
+    /// пропущенное имя — это застывшая надпись на экране. Так уже было с текстом цели: после
+    /// перехода к следующей задаче панель продолжала показывать формулировку предыдущей.
     /// </remarks>
     private static readonly string[] PropertyNames =
     [
         nameof(Current), nameof(Board), nameof(LastMove), nameof(Title), nameof(GoalText), nameof(ToMoveText),
-        nameof(SizeText), nameof(Description), nameof(HasDescription), nameof(Verdict), nameof(HasVerdict),
+        nameof(SizeText), nameof(Verdict), nameof(HasVerdict),
         nameof(IsSolved), nameof(CanBack), nameof(CanHint), nameof(HintPoint), nameof(CanGoPrevious),
         nameof(CanGoNext), nameof(StatusText), nameof(SelectedIndex), nameof(LastCaptured),
         nameof(LastCapturedColor)
@@ -114,19 +113,19 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// <summary>Название задачи.</summary>
     public string Title => Current.Name;
 
-    /// <summary>Цель задачи словами: «убить группу», «обеспечить жизнь группы», «убить группу, не снимая…».</summary>
-    public string GoalText => Current.Goal.Descriptions ?? Current.Goal.Name;
-
-    /// <summary>Условие задачи так, как оно записано в источнике или автором.</summary>
+    /// <summary>Цель задачи словами: формулировка задачи так, как она записана в источнике или автором.</summary>
     /// <remarks>
-    /// Показывается игроку целиком: у задачи по решению источника условие взято с сайта. Прятать
-    /// формулировку нельзя — тогда игрок судит о задаче по одному названию. Пояснения о правилах
+    /// Формулировка задачи (<see cref="Problem.Description"/>) и есть цель для игрока, поэтому она
+    /// показывается целиком и в одном месте. Отдельной строки «условие» в панели нет: два текста
+    /// об одном и том же читались как две разные вещи, а «целью» при этом называлось служебное
+    /// слово о происхождении решения, которое о задаче не говорило ничего (замечание пользователя
+    /// 2026-10-04). Если формулировки у задачи нет, цель называется словами самого движка:
+    /// «убить группу», «обеспечить жизнь группы», «убить группу, не снимая…». Пояснения о правилах
     /// режима в панель не выводятся: они повторяются от задачи к задаче и решать не помогают.
     /// </remarks>
-    public string Description => Current.Description;
-
-    /// <summary>Есть ли у задачи собственное условие для игрока.</summary>
-    public bool HasDescription => Description.Length > 0;
+    public string GoalText => Current.Description.Length > 0
+        ? Current.Description
+        : Current.Goal.Descriptions ?? Current.Goal.Name;
 
     /// <summary>Чей ход в текущей позиции.</summary>
     public string ToMoveText => StoneColorLabels.Label(_session.ToMove);
@@ -172,7 +171,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     public string StatusText =>
         string.Create(CultureInfo.InvariantCulture, $"Задача {_index + 1} из {_problems.Count}");
 
-    /// <summary>Подписи задач для списка выбора: шифр, цель и сложность.</summary>
+    /// <summary>Подписи задач для списка выбора: номер и название задачи.</summary>
     public IReadOnlyList<string> Labels => _labels;
 
     /// <summary>Выбранная задача в списке; установка переключает задачу.</summary>
@@ -392,30 +391,18 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         return null;
     }
 
-    /// <summary>Подпись задачи для списка: шифр, цель и пометки.</summary>
+    /// <summary>Подпись задачи для списка: номер и название.</summary>
     /// <param name="problem">Задача.</param>
-    /// <returns>Например, «ts-001 · по решению источника» или «ts-005 · обеспечить жизнь без ко».</returns>
+    /// <returns>Например, «ts-001 · Спасти пять камней».</returns>
     /// <remarks>
-    /// Кю в подписи нет: у всех встроенных задач сложность одна и та же, и в списке она занимает
-    /// место, ничего не различая. Пометка о виде задачи остаётся: у задачи по решению источника
-    /// исход движком не доказан, и игрок должен видеть это до того, как начнёт решать.
+    /// В подписи только то, что различает задачи, — номер и название. Ни вида задачи, ни кю здесь
+    /// нет: кю у всех встроенных задач одно и то же, а служебная пометка о виде повторялась
+    /// у каждой задачи и цели игрока не называла (замечание пользователя 2026-10-04). Слабая задача
+    /// помечается: это характеристика качества контента, а не служебное слово о происхождении.
     /// </remarks>
     private static string LabelOf(Problem problem)
     {
-        // Вид задачи называется один раз: у задач по решению источника текст цели уже содержит
-        // слова «по решению источника», и вторая такая же пометка удлиняла подпись вдвое
-        // («ts-001 · по решению источника · решение источника»), а место в списке на телефоне
-        // дорогое. Пометка добавляется только там, где формулировка цели молчит о происхождении:
-        // игрок обязан видеть, что исход движком не доказан, до того как начнёт решать.
-        var label = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{problem.Id} · {problem.Goal.Descriptions ?? problem.Goal.Name}");
-
-        if (problem.Goal == ProblemGoal.Reference
-            && !label.Contains("решение источника", StringComparison.Ordinal))
-        {
-            label += " · решение источника";
-        }
+        var label = string.Create(CultureInfo.InvariantCulture, $"{problem.Id} · {problem.Name}");
 
         return problem.IsWeak ? label + " · слабая" : label;
     }

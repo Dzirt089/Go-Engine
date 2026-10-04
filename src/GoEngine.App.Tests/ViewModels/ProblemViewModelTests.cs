@@ -213,7 +213,6 @@ public sealed class ProblemViewModelTests
         [
             nameof(ProblemViewModel.Current), nameof(ProblemViewModel.Board), nameof(ProblemViewModel.Title),
             nameof(ProblemViewModel.GoalText), nameof(ProblemViewModel.ToMoveText), nameof(ProblemViewModel.SizeText),
-            nameof(ProblemViewModel.Description), nameof(ProblemViewModel.HasDescription),
             nameof(ProblemViewModel.Verdict), nameof(ProblemViewModel.HasVerdict), nameof(ProblemViewModel.IsSolved),
             nameof(ProblemViewModel.CanBack), nameof(ProblemViewModel.CanHint), nameof(ProblemViewModel.HintPoint),
             nameof(ProblemViewModel.CanGoPrevious), nameof(ProblemViewModel.CanGoNext),

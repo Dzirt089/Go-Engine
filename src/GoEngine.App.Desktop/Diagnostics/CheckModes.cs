@@ -354,7 +354,7 @@ internal static class CheckModes
             "Проверка лога падений (--crash-test): это намеренный сбой, а не ошибка игры.");
     }
 
-    /// <summary>Проверяет режим задач: пометку о виде, линию источника и отказ постороннего хода.</summary>
+    /// <summary>Проверяет режим задач: подписи списка, линию решения и отказ постороннего хода.</summary>
     /// <returns>0, если выбранные задачи решаются по линии и отвергают посторонний ход; иначе 1.</returns>
     /// <remarks>
     /// Режим идёт через ту же модель, что и вид (<see cref="ProblemViewModel"/>): ход передаётся в её
@@ -371,12 +371,12 @@ internal static class CheckModes
 
         foreach (var problem in model.Problems)
         {
-            var kind = problem.Goal == ProblemGoal.Reference ? "решение источника" : "проверена движком";
-
+            // Печатается то, что игрок видит в списке задач: номер и название. Служебной пометки
+            // о виде задачи нет — в подписи списка её тоже нет (замечание пользователя 2026-10-04).
             Console.WriteLine(
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"  {problem.Id}: {problem.Size.Value}×{problem.Size.Value}, {problem.Goal.Name}, {kind}"));
+                    $"  {problem.Id}: {problem.Size.Value}×{problem.Size.Value}, {problem.Name}, цель: {problem.Goal.Descriptions ?? problem.Goal.Name}"));
         }
 
         foreach (var id in probes)

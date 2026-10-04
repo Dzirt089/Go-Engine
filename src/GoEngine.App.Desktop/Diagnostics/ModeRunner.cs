@@ -45,7 +45,7 @@ internal static class ModeRunner
         new(ModeArguments.Animation, "кадры анимации камней", CheckModes.Animation),
         new(ModeArguments.Sgf, "запись и чтение партии в SGF", CheckModes.Sgf),
         new(ModeArguments.Settings, "запись и чтение настроек", CheckModes.Settings),
-        new(ModeArguments.Problems, "режим задач: линия источника и отказ постороннего хода", CheckModes.Problems),
+        new(ModeArguments.Problems, "режим задач: подписи и линия решения", CheckModes.Problems),
         new(ModeArguments.Result, "строки итога партии", CheckModes.ResultLines),
         new(ModeArguments.State, "панель статуса партии", CheckModes.ViewModel),
         new(ModeArguments.Territory, "подсчёт территории и пленных", TerritoryCheck.Run),

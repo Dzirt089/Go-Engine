@@ -5,11 +5,13 @@ using GoEngine.App.Views;
 
 namespace GoEngine.App.Tests;
 
-/// <summary>Тесты вида задач: выбор задачи стоит в главном окне панели.</summary>
+/// <summary>Тесты вида задач: выбор задачи стоит в главном окне панели, отдельного «Условия» нет.</summary>
 /// <remarks>
 /// Жалоба пользователя 2026-10-03: список задач лежал внутри свёртки «Условие», и выбрать задачу
-/// было нечем — списка не видно, пока не раскроешь условие. Список переехал в главное окно панели,
-/// сразу под условием; имена в разметке не менялись, поэтому код вида его по-прежнему находит.
+/// было нечем — списка не видно, пока не раскроешь условие. Список переехал в главное окно панели;
+/// имена в разметке не менялись, поэтому код вида его по-прежнему находит. Жалоба 2026-10-04:
+/// свёртка «Условие» повторяла то же, что цель, и убрана совсем — формулировка задачи показывается
+/// целью задачи, а не отдельной строкой.
 /// </remarks>
 public sealed class ProblemViewTests
 {
@@ -40,5 +42,26 @@ public sealed class ProblemViewTests
         Assert.Contains(
             parent.GetLogicalChildren().OfType<TextBlock>(),
             text => string.Equals(text.Text, "Задача", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Отдельной_Свёртки_Условия_В_Панели_Нет()
+    {
+        // Свёртка «Условие» говорила то же, что цель, и прятала под своим заголовком формулировку
+        // задачи (замечание пользователя 2026-10-04). Разметка больше не знает ни одного Expander.
+        var view = new ProblemView(new ProblemViewModel());
+
+        Assert.Empty(view.GetLogicalDescendants().OfType<Expander>());
+    }
+
+    [Fact]
+    public void Цель_Показывается_Формулировкой_Задачи()
+    {
+        var view = new ProblemView(new ProblemViewModel());
+        var goal = view.FindControl<TextBlock>("Goal")?.Text ?? string.Empty;
+
+        Assert.StartsWith("Цель:", goal, StringComparison.Ordinal);
+        Assert.Contains(view.ViewModel.GoalText, goal, StringComparison.Ordinal);
+        Assert.DoesNotContain("решение источника", goal, StringComparison.Ordinal);
     }
 }

@@ -56,12 +56,14 @@ public sealed class ProblemFlowTests
     }
 
     [Fact]
-    public void Подпись_Списка_Называет_Задачу_Шифром_И_Пометкой_О_Происхождении()
+    public void Подпись_Списка_Называет_Номер_И_Название_Задачи()
     {
-        // Пометка о происхождении обязана быть видна до начала решения: у задачи по решению
-        // источника исход движком не доказан. Кю из подписи убрано: у всех встроенных задач
-        // сложность одна и та же, и в списке она занимает место, ничего не различая.
+        // В подписи только то, что различает задачи: номер и название. Служебных слов о виде
+        // задачи в списке быть не должно: они повторялись у каждой задачи и о самой задаче
+        // не говорили (замечание пользователя 2026-10-04). Кю из подписи убрано раньше —
+        // у всех встроенных задач сложность одна и та же, и в списке она ничего не различает.
         var model = new ProblemViewModel();
+        string[] service = ["по решению источника", "решение источника", "движком не проверялось"];
 
         for (var index = 0; index < model.Problems.Count; index++)
         {
@@ -69,17 +71,14 @@ public sealed class ProblemFlowTests
             var label = model.Labels[index];
 
             Assert.StartsWith(problem.Id, label, StringComparison.Ordinal);
+            Assert.Contains(problem.Name, label, StringComparison.Ordinal);
             Assert.DoesNotContain("кю", label, StringComparison.Ordinal);
-
-            if (problem.Goal == ProblemGoal.Reference)
-            {
-                Assert.Contains("решение источника", label, StringComparison.Ordinal);
-            }
+            Assert.DoesNotContain(service, word => label.Contains(word, StringComparison.Ordinal));
         }
     }
 
     [Fact]
-    public void Условие_Меняется_Вместе_С_Задачей()
+    public void Цель_Меняется_Вместе_С_Задачей()
     {
         // Регрессия: панель показывала текст предыдущей задачи после перехода к следующей —
         // имя свойства не попадало в список изменившихся, и надпись застывала.
@@ -93,23 +92,26 @@ public sealed class ProblemFlowTests
             changed.Clear();
             model.Select(index);
 
-            Assert.Contains(nameof(ProblemViewModel.Description), changed);
-            Assert.Equal(model.Problems[index].Description, model.Description);
+            Assert.Contains(nameof(ProblemViewModel.GoalText), changed);
+            Assert.Equal(model.Problems[index].Description, model.GoalText);
             Assert.Equal(model.Problems[index].Name, model.Title);
         }
     }
 
     [Fact]
-    public void Условие_Задачи_Показывается_Игроку()
+    public void Цель_Задачи_Показывается_Формулировкой_Из_Источника()
     {
+        // Цель задачи — формулировка из источника, а не служебное слово о происхождении решения:
+        // игрок должен прочитать, что от него требуется (замечание пользователя 2026-10-04).
         var model = new ProblemViewModel();
 
-        Assert.True(model.HasDescription, "у задачи нет условия для игрока");
-        Assert.False(string.IsNullOrWhiteSpace(model.Description));
+        Assert.False(string.IsNullOrWhiteSpace(model.GoalText));
+        Assert.Equal(model.Current.Description, model.GoalText);
+        Assert.DoesNotContain("решение источника", model.GoalText, StringComparison.Ordinal);
 
         model.Next();
 
-        Assert.Equal(model.Current.Description, model.Description);
+        Assert.Equal(model.Current.Description, model.GoalText);
     }
 
     [Fact]
