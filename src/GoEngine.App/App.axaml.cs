@@ -70,6 +70,14 @@ public sealed partial class App : Application
     /// </remarks>
     public static Action<string>? OpenLogsDirectory { get; set; }
 
+    /// <summary>Выход из приложения: задаёт голова, знающая, чем закрывается программа.</summary>
+    /// <remarks>
+    /// На настольной системе это остановка цикла сообщений (<c>desktop.Shutdown</c>), на Android —
+    /// завершение задачи приложения. Головы задают обработчик при запуске; <c>null</c> — закрывать
+    /// нечем, и выход из общего меню ничего не делает (так ведут себя проверки без окна).
+    /// </remarks>
+    public static Action? ExitRequested { get; set; }
+
     /// <summary>Проигрыватель звука ходов.</summary>
     /// <remarks>
     /// Задаёт голова: библиотека интерфейса не знает, чем играть WAV — <c>winmm</c> на Windows,
@@ -78,6 +86,14 @@ public sealed partial class App : Application
     /// подсистемы, и в тестах, а вид не обращается к проигрывателю напрямую.
     /// </remarks>
     public static ISoundPlayer Sound { get; set; } = new SilentSoundPlayer();
+
+    /// <summary>Закрывает программу: выход из общего меню.</summary>
+    /// <remarks>
+    /// Спрашивать подтверждение — дело вида (<see cref="GoEngine.App.Views.ShellView"/>): здесь
+    /// только само закрытие. Обработчика нет — выходим из игры молча: проверочные режимы и тесты
+    /// работают без окна, и падать на нажатии «Выход» они не должны.
+    /// </remarks>
+    public static void RequestExit() => ExitRequested?.Invoke();
 
     /// <summary>Создаёт службу обновления, если голова её настроила.</summary>
     /// <returns>Служба обновления или <c>null</c>, если установщик или каталог не заданы.</returns>
@@ -117,6 +133,13 @@ public sealed partial class App : Application
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
                 desktop.MainWindow = new MainWindow();
+
+                // На настольной системе программа закрывается остановкой цикла сообщений. Голова
+                // может задать свой обработчик раньше — тогда остаётся он.
+                if (ExitRequested is null)
+                {
+                    ExitRequested = () => desktop.Shutdown();
+                }
                 break;
 
             case ISingleViewApplicationLifetime mobile:

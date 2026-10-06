@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
@@ -8,20 +9,28 @@ using GoEngine.App.ViewModels;
 
 namespace GoEngine.App.Views;
 
-/// <summary>Оболочка приложения: переключатель режимов «Партия» и «Задачи».</summary>
+/// <summary>Оболочка приложения: разделы «Партия», «Задачи» и общее меню.</summary>
 /// <remarks>
-/// Оба режима живут одновременно: виды не пересоздаются, меняется только видимость. Поэтому
-/// переключение режима не сбрасывает партию — вернувшись в «Партию», игрок видит ту же позицию.
+/// <para>
+/// Все три раздела живут одновременно: виды не пересоздаются, меняется только видимость. Поэтому
+/// переключение раздела не сбрасывает партию — вернувшись в «Партию», игрок видит ту же позицию.
 /// Тот же вид используется настольным окном и мобильной головой (<c>GoEngine.App.Android</c>).
 /// Раскладка выбирается по ширине вида (<see cref="BoardLayoutRules.DecideLayout"/>): на широком
-/// экране — прежняя строка режимов сверху, на телефоне — нижняя навигация с тремя разделами:
-/// партия, задачи и настройки. Настройки на телефоне — отдельный экран, а не окно-диалог.
+/// экране — прежняя строка режимов сверху, на телефоне — нижняя навигация с тремя разделами.
+/// </para>
+/// <para>
+/// Настройки и меню партии в навигации не стоят: они принадлежат партии и открываются из её шапки
+/// (<see cref="BoardView"/>). Общее меню — раздел приложения (<see cref="AppMenuView"/>): выбор
+/// режима, «О программе» и выход. «О программе» показывается вложенным экраном поверх содержимого,
+/// а не отдельным разделом: так у раздела «Меню» есть своя глубина, а нижняя навигация остаётся
+/// видимой (замечание пользователя 2026-10-06; <c>DECISIONS.md</c>, D-075).
+/// </para>
 /// <para>
 /// При запуске оболочка открывается на разделе «Партия» — экрана настроек вместо доски нет
-/// (замечание 2026-10-03). На телефоне над доской сразу показана карточка «Меню»
+/// (замечание 2026-10-03). На телефоне над доской сразу показана шторка меню партии
 /// (<see cref="BoardView.ShowMenu"/>): там это единственный вход к действиям партии, а настольное
-/// окно стартует без неё — у него есть меню-бар и мышь, и карточка поверх доски только мешала бы.
-/// Раскладку выбирает <see cref="BoardLayoutRules.DecideLayout"/> по ширине вида, решение о карточке
+/// окно стартует без неё — у него есть меню-бар и мышь, и шторка поверх доски только мешала бы.
+/// Раскладку выбирает <see cref="BoardLayoutRules.DecideLayout"/> по ширине вида, решение о меню
 /// принимается там же, где применяется раскладка (<see cref="ApplyLayout"/>).
 /// </para>
 /// </remarks>
@@ -32,19 +41,22 @@ public sealed partial class ShellView : UserControl
     private readonly ToggleButton? _problemButton;
     private readonly Border? _desktopBar;
     private readonly Border? _mobileNav;
+    private readonly Border? _aboutOverlay;
+    private readonly Border? _exitOverlay;
+    private readonly AboutView? _aboutArea;
     private readonly UpdateBanner? _updateBanner;
 
     /// <summary>Применённая раскладка: <c>null</c> — ещё не выбрана.</summary>
     private LayoutMode? _layout;
 
-    /// <summary>Стартовое «Меню» ещё не решено: до первого измерения размер вида неизвестен.</summary>
+    /// <summary>Стартовое меню партии ещё не решено: до первого измерения размер вида неизвестен.</summary>
     private bool _startMenuPending = true;
 
     /// <summary>Создаёт оболочку с настройками из файла и оценкой сети, заданной головой.</summary>
     /// <remarks>
     /// Стартовое состояние у обеих голов одно: приложение открывается на разделе «Партия», экрана
-    /// настроек нет. Карточку «Меню» при запуске получает только мобильная раскладка — её выбирает
-    /// размер вида, а не платформа (<see cref="ApplyLayout"/>).
+    /// настроек нет. Шторку меню партии при запуске получает только мобильная раскладка — её
+    /// выбирает размер вида, а не платформа (<see cref="ApplyLayout"/>).
     /// </remarks>
     public ShellView()
         : this(ShellViewModel.Create(SettingsStore.Load(), global::GoEngine.App.App.Evaluator))
@@ -52,7 +64,7 @@ public sealed partial class ShellView : UserControl
     }
 
     /// <summary>Создаёт оболочку с готовой моделью.</summary>
-    /// <param name="shell">Модель оболочки: обе модели режимов и настройки партии.</param>
+    /// <param name="shell">Модель оболочки: модели режимов, настройки партии и модель обновления.</param>
     public ShellView(ShellViewModel shell)
     {
         ArgumentNullException.ThrowIfNull(shell);
@@ -68,21 +80,26 @@ public sealed partial class ShellView : UserControl
         _problemButton = this.FindControl<ToggleButton>("ProblemModeButton");
         _desktopBar = this.FindControl<Border>("DesktopBar");
         _mobileNav = this.FindControl<Border>("MobileNav");
+        _aboutOverlay = this.FindControl<Border>("AboutOverlay");
+        _exitOverlay = this.FindControl<Border>("ExitOverlay");
+        _aboutArea = this.FindControl<AboutView>("AboutArea");
 
         if (_content is not null)
         {
-            // Модели берутся у оболочки: у вида партии и вида задач они те же, что в модели оболочки.
+            // Модели берутся у оболочки: у видов партии, задач и меню они те же, что в модели оболочки.
             GameArea = new BoardView(shell.Settings, global::GoEngine.App.App.Evaluator, shell.Game);
             ProblemArea = new ProblemView(shell.Problems);
+            MenuArea = new AppMenuView(shell);
 
             _content.Children.Add(GameArea);
             _content.Children.Add(ProblemArea);
+            _content.Children.Add(MenuArea);
         }
 
         if (this.FindControl<Panel>("UpdateHost") is { } updateHost)
         {
             // Приглашение обновления — общее для обеих раскладок: карточка показывает состояние
-            // той же модели, что и экран настроек, поэтому проверка в них одна.
+            // той же модели, что и экран «О программе», поэтому проверка в них одна.
             _updateBanner = new UpdateBanner(shell.Updates);
 
             updateHost.Children.Add(_updateBanner);
@@ -100,27 +117,23 @@ public sealed partial class ShellView : UserControl
 
         WireButton("NavGameButton", OnNavGameClick);
         WireButton("NavProblemButton", OnNavProblemClick);
-        WireButton("NavSettingsButton", OnNavSettingsClick);
-
-        // «Меню» — не раздел: кнопка открывает карточку меню поверх вида партии и не меняет
-        // подсветку разделов (замечание пользователя 2026-10-03).
         WireButton("NavMenuButton", OnNavMenuClick);
+        WireButton("AboutBackButton", OnAboutBackClick);
+        WireButton("ExitCancelButton", OnExitCancelClick);
+        WireButton("ExitConfirmButton", OnExitConfirmClick);
 
-        if (GameArea is not null)
+        if (MenuArea is not null)
         {
-            // Экран настроек закрывается и кнопкой «Назад» внутри вида партии: подсветка раздела
-            // нижней навигации должна вернуться к партии.
-            GameArea.SettingsClosed += OnSettingsClosed;
-
-            // Экран настроек открывается и кнопкой в шторке: подсветка раздела настроек
-            // в нижней навигации должна включаться в любом случае.
-            GameArea.SettingsShown += OnSettingsShown;
+            // «О программе» и выход — действия раздела «Меню»: показывает их оболочка, потому что
+            // оба перекрывают её целиком, а не только содержимое раздела.
+            MenuArea.AboutRequested += OnAboutRequested;
+            MenuArea.ExitRequested += OnExitRequested;
         }
 
         shell.PropertyChanged += OnShellPropertyChanged;
         SizeChanged += OnViewSizeChanged;
 
-        // Раскладка применяется здесь, а стартовое «Меню» открывается в ApplyLayout: до первого
+        // Раскладка применяется здесь, а стартовое меню партии открывается в ApplyLayout: до первого
         // измерения Bounds пуст, и решать по нулю нельзя (см. комментарий там).
         UpdateMode();
         ApplyLayout(Bounds.Width, Bounds.Height);
@@ -139,6 +152,57 @@ public sealed partial class ShellView : UserControl
     /// <summary>Вид задач.</summary>
     public ProblemView? ProblemArea { get; }
 
+    /// <summary>Раздел общего меню: режим, «О программе» и выход.</summary>
+    public AppMenuView? MenuArea { get; }
+
+    /// <summary>Показан ли сейчас экран «О программе».</summary>
+    public bool IsAboutShown => _aboutOverlay?.IsVisible == true;
+
+    /// <summary>Показано ли подтверждение выхода.</summary>
+    public bool IsExitConfirmShown => _exitOverlay?.IsVisible == true;
+
+    /// <summary>Показывает «О программе» вложенным экраном раздела «Меню».</summary>
+    /// <remarks>
+    /// Сведения перечитываются при каждом показе: экран создан один раз при запуске, а модели
+    /// к тому моменту могли быть ещё не загружены.
+    /// </remarks>
+    public void ShowAbout()
+    {
+        _aboutArea?.Refresh();
+
+        if (_aboutOverlay is not null)
+        {
+            _aboutOverlay.IsVisible = true;
+        }
+    }
+
+    /// <summary>Закрывает экран «О программе»: игрок возвращается в раздел «Меню».</summary>
+    public void HideAbout()
+    {
+        if (_aboutOverlay is not null)
+        {
+            _aboutOverlay.IsVisible = false;
+        }
+    }
+
+    /// <summary>Показывает подтверждение выхода из игры.</summary>
+    public void ShowExitConfirm()
+    {
+        if (_exitOverlay is not null)
+        {
+            _exitOverlay.IsVisible = true;
+        }
+    }
+
+    /// <summary>Закрывает подтверждение выхода: игра продолжается.</summary>
+    public void HideExitConfirm()
+    {
+        if (_exitOverlay is not null)
+        {
+            _exitOverlay.IsVisible = false;
+        }
+    }
+
     /// <summary>Показывает режим партии.</summary>
     /// <param name="sender">Кнопка режима.</param>
     /// <param name="e">Событие нажатия.</param>
@@ -152,9 +216,12 @@ public sealed partial class ShellView : UserControl
     /// <summary>Открывает раздел партии из нижней навигации.</summary>
     /// <param name="sender">Кнопка раздела.</param>
     /// <param name="e">Событие нажатия.</param>
+    /// <remarks>
+    /// Уход из раздела закрывает то, что партии не принадлежит: шторку меню партии и «О программе».
+    /// </remarks>
     private void OnNavGameClick(object? sender, RoutedEventArgs e)
     {
-        GameArea?.CloseSettingsScreen();
+        HideAbout();
         GameArea?.CloseMenu();
         Shell.ShowGame();
     }
@@ -164,50 +231,64 @@ public sealed partial class ShellView : UserControl
     /// <param name="e">Событие нажатия.</param>
     private void OnNavProblemClick(object? sender, RoutedEventArgs e)
     {
+        HideAbout();
         GameArea?.CloseSettingsScreen();
         GameArea?.CloseMenu();
         Shell.ShowProblems();
     }
 
-    /// <summary>Открывает меню партии: раздел при этом не меняется.</summary>
+    /// <summary>Открывает раздел общего меню.</summary>
     /// <param name="sender">Кнопка «Меню».</param>
     /// <param name="e">Событие нажатия.</param>
     /// <remarks>
-    /// Меню принадлежит партии: в нём новая партия, отмена партии, файлы и настройки.
-    /// Кнопка — переключатель: повторное нажатие убирает карточку.
+    /// Раздел занимает место содержимого: партия и задачи остаются в памяти и не сбрасываются,
+    /// а «О программе» и подтверждение выхода закрываются, чтобы раздел открывался с начала.
     /// </remarks>
-    private void OnNavMenuClick(object? sender, RoutedEventArgs e) => GameArea?.ToggleMenu();
-
-    /// <summary>Открывает раздел настроек из нижней навигации.</summary>
-    /// <param name="sender">Кнопка раздела.</param>
-    /// <param name="e">Событие нажатия.</param>
-    /// <remarks>
-    /// Экран настроек принадлежит виду партии: там живут настройки и применение к партии.
-    /// Оболочка только подсвечивает раздел.
-    /// </remarks>
-    private void OnNavSettingsClick(object? sender, RoutedEventArgs e)
+    private void OnNavMenuClick(object? sender, RoutedEventArgs e)
     {
+        HideAbout();
+        HideExitConfirm();
         GameArea?.CloseMenu();
-        Shell.ShowSettingsScreen();
-        GameArea?.ShowSettings();
+        Shell.ShowMenu();
     }
 
-    /// <summary>Подсвечивает раздел настроек, когда он открыт.</summary>
-    /// <param name="sender">Вид партии.</param>
-    /// <param name="e">Признак открытия.</param>
-    private void OnSettingsShown(object? sender, EventArgs e) => Shell.ShowSettingsScreen();
+    /// <summary>Открывает «О программе» из раздела «Меню».</summary>
+    /// <param name="sender">Вид общего меню.</param>
+    /// <param name="e">Признак запроса.</param>
+    private void OnAboutRequested(object? sender, EventArgs e) => ShowAbout();
 
-    /// <summary>Возвращает подсветку раздела партии, когда экран настроек закрыт.</summary>
-    /// <param name="sender">Вид партии.</param>
-    /// <param name="e">Признак закрытия.</param>
-    private void OnSettingsClosed(object? sender, EventArgs e) => Shell.HideSettingsScreen();
+    /// <summary>Закрывает «О программе» и возвращает раздел «Меню».</summary>
+    /// <param name="sender">Кнопка «Назад».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnAboutBackClick(object? sender, RoutedEventArgs e) => HideAbout();
 
-    /// <summary>Обновляет видимость режимов, когда модель сообщает о переключении.</summary>
+    /// <summary>Спрашивает подтверждение выхода из игры.</summary>
+    /// <param name="sender">Вид общего меню.</param>
+    /// <param name="e">Признак запроса.</param>
+    private void OnExitRequested(object? sender, EventArgs e) => ShowExitConfirm();
+
+    /// <summary>Отменяет выход: игра продолжается, раздел «Меню» остаётся открытым.</summary>
+    /// <param name="sender">Кнопка «Отмена».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnExitCancelClick(object? sender, RoutedEventArgs e) => HideExitConfirm();
+
+    /// <summary>Закрывает программу средствами платформы.</summary>
+    /// <param name="sender">Кнопка «Выйти».</param>
+    /// <param name="e">Событие нажатия.</param>
+    /// <remarks>
+    /// Чем именно закрывается программа, решает голова: у настольной системы это остановка цикла
+    /// сообщений, у Android — завершение задачи приложения (<see cref="global::GoEngine.App.App.RequestExit"/>).
+    /// </remarks>
+    private void OnExitConfirmClick(object? sender, RoutedEventArgs e) => global::GoEngine.App.App.RequestExit();
+
+    /// <summary>Обновляет видимость разделов, когда модель сообщает о переключении.</summary>
     /// <param name="sender">Модель оболочки.</param>
     /// <param name="e">Имя изменившегося свойства.</param>
     private void OnShellPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(ShellViewModel.IsGameMode) or nameof(ShellViewModel.IsProblemMode))
+        if (e.PropertyName is nameof(ShellViewModel.IsGameSection)
+            or nameof(ShellViewModel.IsProblemSection)
+            or nameof(ShellViewModel.IsMenuSection))
         {
             UpdateMode();
         }
@@ -231,12 +312,13 @@ public sealed partial class ShellView : UserControl
     {
         var layout = BoardLayoutRules.DecideLayout(width, height);
 
-        // Стартовое «Меню» открывается только в мобильной раскладке: на телефоне это единственный
-        // вход к действиям партии, а настольному окну карточка поверх доски мешала бы — у него есть
-        // меню-бар и мышь (замечание пользователя 2026-10-03: «окно меню должно быть первым активным
-        // окном над партией» — речь про Android). Решаем по настоящему размеру: до первого измерения
-        // Bounds пуст, а DecideLayout(0, 0) отвечает «настольная» — по нулю решение было бы неверным.
-        // Показываем после UpdateMode: раздел «Партия» уже выбран, и вид партии видим.
+        // Стартовое меню партии открывается только в мобильной раскладке: на телефоне это
+        // единственный вход к действиям партии, а настольному окну шторка поверх доски мешала бы —
+        // у него есть меню-бар и мышь (замечание пользователя 2026-10-03: «окно меню должно быть
+        // первым активным окном над партией» — речь про Android). Решаем по настоящему размеру:
+        // до первого измерения Bounds пуст, а DecideLayout(0, 0) отвечает «настольная» — по нулю
+        // решение было бы неверным. Показываем после UpdateMode: раздел «Партия» уже выбран,
+        // и вид партии видим.
         if (_startMenuPending && width > 0 && height > 0)
         {
             _startMenuPending = false;
@@ -271,17 +353,22 @@ public sealed partial class ShellView : UserControl
         }
     }
 
-    /// <summary>Показывает выбранный режим и приводит кнопки в согласованное состояние.</summary>
+    /// <summary>Показывает выбранный раздел и приводит кнопки в согласованное состояние.</summary>
     private void UpdateMode()
     {
         if (GameArea is not null)
         {
-            GameArea.IsVisible = Shell.IsGameMode;
+            GameArea.IsVisible = Shell.IsGameSection;
         }
 
         if (ProblemArea is not null)
         {
-            ProblemArea.IsVisible = Shell.IsProblemMode;
+            ProblemArea.IsVisible = Shell.IsProblemSection;
+        }
+
+        if (MenuArea is not null)
+        {
+            MenuArea.IsVisible = Shell.IsMenuSection;
         }
 
         if (_gameButton is not null)
@@ -293,6 +380,96 @@ public sealed partial class ShellView : UserControl
         {
             _problemButton.IsChecked = Shell.IsProblemMode;
         }
+    }
+
+    /// <summary>Подписывается на системную кнопку «Назад», пока вид показан.</summary>
+    /// <param name="e">Признак подключения к дереву видов.</param>
+    /// <remarks>
+    /// На телефоне «Назад» — системный жест и кнопка: он обязан закрывать то, что открыто поверх,
+    /// а не выходить из приложения сразу (DECISIONS.md, D-075). Верхний уровень у вида появляется
+    /// только при подключении к дереву — в конструкторе его ещё нет.
+    /// </remarks>
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        if (TopLevel.GetTopLevel(this) is { } top)
+        {
+            top.BackRequested -= OnBackRequested;
+            top.BackRequested += OnBackRequested;
+        }
+    }
+
+    /// <summary>Снимает подписку на системную кнопку «Назад».</summary>
+    /// <param name="e">Признак отключения от дерева видов.</param>
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        if (TopLevel.GetTopLevel(this) is { } top)
+        {
+            top.BackRequested -= OnBackRequested;
+        }
+
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    /// <summary>Закрывает верхний открытый слой: «Назад» идёт снаружи внутрь.</summary>
+    /// <param name="sender">Верхний уровень.</param>
+    /// <param name="e">Событие запроса.</param>
+    private void OnBackRequested(object? sender, RoutedEventArgs e) => e.Handled = HandleBack();
+
+    /// <summary>Закрывает верхний открытый слой и говорит, был ли он.</summary>
+    /// <returns><c>true</c> — «Назад» обработан видом; <c>false</c> — закрывать нечего.</returns>
+    /// <remarks>
+    /// <para>
+    /// Порядок обратный открытию: подтверждение выхода, «О программе», шторка меню партии, экран
+    /// «Настройка партии» и только потом раздел «Меню» уступает партии. Если закрывать нечего,
+    /// событие остаётся необработанным — им распоряжается система (выход из приложения).
+    /// </para>
+    /// <para>
+    /// Отдельным методом, а не телом обработчика: оконной платформы в тестах нет, верхнего уровня
+    /// тоже, а порядок «Назад» обязан проверяться тестом, а не живым прогоном
+    /// (<c>AGENTS.md</c>, п. 14).
+    /// </para>
+    /// </remarks>
+    public bool HandleBack()
+    {
+        if (IsExitConfirmShown)
+        {
+            HideExitConfirm();
+
+            return true;
+        }
+
+        if (IsAboutShown)
+        {
+            HideAbout();
+
+            return true;
+        }
+
+        if (GameArea?.IsMenuShown == true)
+        {
+            GameArea.CloseMenu();
+
+            return true;
+        }
+
+        if (GameArea?.IsSettingsShown == true)
+        {
+            GameArea.CloseSettingsScreen();
+
+            return true;
+        }
+
+        if (Shell.IsMenuSection)
+        {
+            // «Меню» — не партия и не задачи: возвращаем игрока в партию.
+            Shell.ShowGame();
+
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>Подписывает кнопку на обработчик нажатия.</summary>

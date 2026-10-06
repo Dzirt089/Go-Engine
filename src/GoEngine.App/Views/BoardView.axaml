@@ -234,46 +234,77 @@
           RowDefinitions="Auto,*,Auto"
           Background="{DynamicResource AppBoardBackdropBrush}">
 
-      <!-- Шапка телефона: кто ходит и время партии, а рядом — «Пауза». Три коротких поля
-           в одну строку: подробности (счёт, пленные, коми) живут в шторке, а время — то, что
-           игрок смотрит постоянно, и дублировать его в панели действий незачем. -->
+      <!-- Шапка телефона: действия партии слева, кто ходит и время — в середине, «Пауза» справа.
+           Вход в меню партии (☰) и в «Настройку партии» (шестерёнка) стоят в шапке, а не в ряду
+           действий: ряд под доской занят ходом партии, а эти действия редкие и должны быть
+           под рукой в одно касание (замечание пользователя 2026-10-06).
+
+           Высота целей нажатия — 44 точки, отступы сжаты до 2: строка состояния обязана остаться
+           короткой, иначе доска теряет место (AppStatusHeight). Подписи в строке обрезаются
+           многоточием: подробности (счёт, пленные, коми) живут в шторке. -->
       <Border Grid.Row="0"
               x:Name="MobileStatus"
               Background="{DynamicResource AppSurfaceBrush}"
               BorderBrush="{DynamicResource AppBorderBrush}"
               BorderThickness="0,0,0,1"
-              Padding="12,6"
+              Padding="6,2"
               MinHeight="{DynamicResource AppStatusHeight}">
-        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-          <!-- Камень того, кто ходит: чёрный залит, белый — с обводкой, иначе он пропадал бы
-               на светлой строке состояния. -->
-          <Panel VerticalAlignment="Center">
-            <Ellipse x:Name="MobileTurnBlack"
-                     Width="14"
-                     Height="14"
-                     Fill="{DynamicResource AppTextBrush}" />
-            <Ellipse x:Name="MobileTurnWhite"
-                     Width="14"
-                     Height="14"
-                     IsVisible="False"
-                     Fill="{DynamicResource AppSurfaceBrush}"
-                     Stroke="{DynamicResource AppTextMutedBrush}"
-                     StrokeThickness="1" />
-          </Panel>
-          <TextBlock x:Name="MobileTurnText"
-                     Grid.Column="1"
-                     Margin="8,0,8,0"
-                     VerticalAlignment="Center"
-                     FontWeight="SemiBold"
-                     TextTrimming="CharacterEllipsis" />
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+          <Button x:Name="MobileMenuButton"
+                  Classes="app-icon"
+                  AutomationProperties.Name="Меню партии"
+                  ToolTip.Tip="Новая партия, файлы и настройка партии">
+            <!-- Три полосы: значок меню без значкового шрифта. -->
+            <Path Width="22" Height="22" Stretch="Uniform"
+                  Data="M4,6.5 h16 v2 h-16 z M4,11 h16 v2 h-16 z M4,15.5 h16 v2 h-16 z" />
+          </Button>
+
+          <Button x:Name="MobileSettingsButton"
+                  Grid.Column="1"
+                  Classes="app-icon"
+                  AutomationProperties.Name="Настройка партии"
+                  ToolTip.Tip="Размер доски, уровень AI, цвет игрока, коми и подсчёт">
+            <!-- Шестерёнка: диск, восемь зубцов и вырез в середине. Все части нарисованы
+                 по часовой стрелке, вырез — против: правило заливки Nonzero (F1) вычитает
+                 только встречную фигуру, и отверстие получается дыркой, а не вторым диском. -->
+            <Path Width="22" Height="22" Stretch="Uniform"
+                  Data="F1 M12,4 A8,8 0 1 1 12,20 A8,8 0 1 1 12,4 Z M12,8.4 A3.6,3.6 0 1 0 12,15.6 A3.6,3.6 0 1 0 12,8.4 Z M10.6,1.6 h2.8 v4.4 h-2.8 z M10.6,18 h2.8 v4.4 h-2.8 z M1.6,10.6 h4.4 v2.8 h-4.4 z M18,10.6 h4.4 v2.8 h-4.4 z M17.2,3.4 L20.6,6.8 L17.2,10.2 L13.8,6.8 Z M6.8,3.4 L10.2,6.8 L6.8,10.2 L3.4,6.8 Z M6.8,13.8 L10.2,17.2 L6.8,20.6 L3.4,17.2 Z M17.2,13.8 L20.6,17.2 L17.2,20.6 L13.8,17.2 Z" />
+          </Button>
+
+          <StackPanel Grid.Column="2"
+                      Orientation="Horizontal"
+                      Spacing="6"
+                      Margin="4,0,6,0"
+                      VerticalAlignment="Center">
+            <!-- Камень того, кто ходит: чёрный залит, белый — с обводкой, иначе он пропадал бы
+                 на светлой строке состояния. -->
+            <Panel VerticalAlignment="Center">
+              <Ellipse x:Name="MobileTurnBlack"
+                       Width="14"
+                       Height="14"
+                       Fill="{DynamicResource AppTextBrush}" />
+              <Ellipse x:Name="MobileTurnWhite"
+                       Width="14"
+                       Height="14"
+                       IsVisible="False"
+                       Fill="{DynamicResource AppSurfaceBrush}"
+                       Stroke="{DynamicResource AppTextMutedBrush}"
+                       StrokeThickness="1" />
+            </Panel>
+            <TextBlock x:Name="MobileTurnText"
+                       VerticalAlignment="Center"
+                       FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+
           <TextBlock x:Name="MobileClockText"
-                     Grid.Column="2"
+                     Grid.Column="3"
                      Margin="0,0,8,0"
                      VerticalAlignment="Center"
                      Classes="app-clock"
                      TextTrimming="CharacterEllipsis" />
           <Button x:Name="MobilePauseButton"
-                  Grid.Column="3"
+                  Grid.Column="4"
                   Content="Пауза"
                   MinWidth="76"
                   VerticalAlignment="Center"
@@ -434,12 +465,8 @@
                         Content="Загрузить"
                         Classes="app-action"
                         Margin="0,0,6,6" />
-                <!-- Единственный вход в настройки на телефоне: кнопка в панели действий
-                     переехала сюда, чтобы не теснить «Начать партию» (жалоба 2026-09-30). -->
-                <Button x:Name="MobileSettingsButton"
-                        Content="Настройки"
-                        Classes="app-action"
-                        Margin="0,0,6,6" />
+                <!-- «Настройка партии» открывается шестерёнкой в шапке и строкой меню партии:
+                     третий вход в подробностях был бы лишним (замечание 2026-10-06). -->
               </WrapPanel>
 
             </StackPanel>
@@ -450,55 +477,140 @@
 
     </Grid>
 
-    <!-- Меню партии: всплывающая карточка по центру экрана. Сюда переехали действия, которые
-         на телефоне стояли второй строкой панели и в меню «Ещё»: «Начать партию»/«Новая партия»,
-         «Отменить партию», файлы и настройки. Ряд действий стал короче и ровнее, а редкие
-         действия не пропали (замечание пользователя 2026-10-03). Открывает меню кнопка «Меню»
-         в нижней навигации оболочки; закрывается кнопкой «Закрыть». -->
+    <!-- Меню партии: шторка снизу. Сюда переехали действия, которые на телефоне не помещаются
+         в ряд под доской: «Начать партию»/«Новая партия», «Отменить партию», файлы и «Настройка
+         партии» (замечание пользователя 2026-10-03), а сама карточка по центру заменена шторкой —
+         она ближе к большому пальцу и не закрывает доску целиком (замечание 2026-10-06).
+         Открывает шторку кнопка ☰ в шапке партии; закрывается нажатием по затемнению, свайпом вниз
+         по ручке и строкой «Закрыть». Сама шторка лежит в слое затемнения: нажатие мимо неё
+         попадает в подложку и закрывает меню. -->
     <Border x:Name="MenuOverlay"
-            IsVisible="False"
-            Classes="app-overlay">
-      <Border x:Name="MenuCard"
-              Classes="app-banner app-overlay-card"
-              Padding="12,10"
-              MaxWidth="420"
-              HorizontalAlignment="Center"
-              VerticalAlignment="Center">
-        <StackPanel Spacing="8">
-          <TextBlock Classes="app-subtitle"
-                     Text="Меню"
-                     HorizontalAlignment="Center" />
+            IsVisible="False">
+      <Panel>
+        <!-- Затемнение: кнопка во весь слой. Кнопка, а не рамка, потому что нажатие должно
+             закрывать меню и на телефоне, где указателя нет. -->
+        <Button x:Name="MenuBackdrop"
+                Classes="app-backdrop"
+                AutomationProperties.Name="Закрыть меню партии" />
 
-          <!-- Подпись главного действия меняет код вида: до первого хода — «Начать партию»,
-               после — «Новая партия» (та же логика, что и в настольной панели). -->
-          <Button x:Name="MenuNewGameButton"
-                  Content="Начать партию"
-                  Classes="app-primary"
-                  HorizontalAlignment="Stretch" />
-          <Button x:Name="MenuAbortButton"
-                  Content="Отменить партию"
-                  Classes="app-action"
-                  HorizontalAlignment="Stretch"
-                  IsEnabled="{Binding CanAbortGame}" />
-          <Button x:Name="MenuSaveButton"
-                  Content="Сохранить партию"
-                  Classes="app-action"
-                  HorizontalAlignment="Stretch" />
-          <Button x:Name="MenuLoadButton"
-                  Content="Загрузить партию"
-                  Classes="app-action"
-                  HorizontalAlignment="Stretch" />
-          <Button x:Name="MenuSettingsButton"
-                  Content="Настройки"
-                  Classes="app-action"
-                  HorizontalAlignment="Stretch" />
-          <Button x:Name="MenuCloseButton"
-                  Content="Закрыть"
-                  Classes="app-action"
-                  HorizontalAlignment="Stretch"
-                  Margin="0,4,0,0" />
-        </StackPanel>
-      </Border>
+        <Border x:Name="MenuCard"
+                Classes="app-sheet"
+                MaxWidth="560"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Bottom">
+          <StackPanel>
+
+            <!-- Ручка шторки: за неё шторка тянется вниз и закрывается. Полоса нажатия выше
+                 самого штриха — по тонкой линии палец не попадёт. -->
+            <Border x:Name="MenuSheetHandle"
+                    Background="Transparent"
+                    Padding="0,8,0,2"
+                    MinHeight="28">
+              <Border Width="40"
+                      Height="4"
+                      CornerRadius="2"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      Background="{DynamicResource AppBorderBrush}" />
+            </Border>
+
+            <TextBlock Classes="app-subtitle"
+                       Text="Меню партии"
+                       HorizontalAlignment="Center"
+                       Margin="12,2,12,8" />
+
+            <!-- Подпись главного действия меняет код вида: до первого хода — «Начать партию»,
+                 после — «Новая партия» (та же логика, что и в настольной панели). -->
+            <Button x:Name="MenuNewGameButton"
+                    Classes="app-menu-row primary"
+                    AutomationProperties.Name="Начать партию">
+              <Grid ColumnDefinitions="Auto,*">
+                <!-- Камень: игра начинается с хода чёрных. -->
+                <Path Width="22" Height="22" Stretch="Uniform" VerticalAlignment="Center"
+                      Data="M4,12 A8,8 0 1 1 20,12 A8,8 0 1 1 4,12 Z" />
+                <TextBlock x:Name="MenuNewGameText"
+                           Grid.Column="1"
+                           Margin="14,0,0,0"
+                           Text="Начать партию"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </Button>
+
+            <Button x:Name="MenuAbortButton"
+                    Classes="app-menu-row"
+                    AutomationProperties.Name="Отменить партию"
+                    IsEnabled="{Binding CanAbortGame}">
+              <Grid ColumnDefinitions="Auto,*">
+                <!-- Крест: партия прекращается и доска возвращается в исходное состояние. -->
+                <Path Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center"
+                      Data="M6.4,5 L12,10.6 L17.6,5 L19,6.4 L13.4,12 L19,17.6 L17.6,19 L12,13.4 L6.4,19 L5,17.6 L10.6,12 L5,6.4 Z" />
+                <TextBlock Grid.Column="1"
+                           Margin="14,0,0,0"
+                           Text="Отменить партию"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </Button>
+
+            <Button x:Name="MenuSaveButton"
+                    Classes="app-menu-row"
+                    AutomationProperties.Name="Сохранить партию">
+              <Grid ColumnDefinitions="Auto,*">
+                <!-- Дискета: сохранение партии в файл SGF. -->
+                <Path Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center"
+                      Data="M4,4 h13 l3,3 v13 h-16 z M8,4 h8 v6 h-8 z M7,14 h10 v6 h-10 z" />
+                <TextBlock Grid.Column="1"
+                           Margin="14,0,0,0"
+                           Text="Сохранить партию"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </Button>
+
+            <Button x:Name="MenuLoadButton"
+                    Classes="app-menu-row"
+                    AutomationProperties.Name="Загрузить партию">
+              <Grid ColumnDefinitions="Auto,*">
+                <!-- Папка: загрузка партии из файла SGF. -->
+                <Path Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center"
+                      Data="M3,5 h6.5 l2,2 h9.5 v12 h-18 z" />
+                <TextBlock Grid.Column="1"
+                           Margin="14,0,0,0"
+                           Text="Загрузить партию"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </Button>
+
+            <Button x:Name="MenuSettingsButton"
+                    Classes="app-menu-row"
+                    AutomationProperties.Name="Настройка партии">
+              <Grid ColumnDefinitions="Auto,*">
+                <!-- Та же шестерёнка, что и в шапке: «Настройка партии» — один и тот же экран. -->
+                <Path Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center"
+                      Data="F1 M12,4 A8,8 0 1 1 12,20 A8,8 0 1 1 12,4 Z M12,8.4 A3.6,3.6 0 1 0 12,15.6 A3.6,3.6 0 1 0 12,8.4 Z M10.6,1.6 h2.8 v4.4 h-2.8 z M10.6,18 h2.8 v4.4 h-2.8 z M1.6,10.6 h4.4 v2.8 h-4.4 z M18,10.6 h4.4 v2.8 h-4.4 z M17.2,3.4 L20.6,6.8 L17.2,10.2 L13.8,6.8 Z M6.8,3.4 L10.2,6.8 L6.8,10.2 L3.4,6.8 Z M6.8,13.8 L10.2,17.2 L6.8,20.6 L3.4,17.2 Z M17.2,13.8 L20.6,17.2 L17.2,20.6 L13.8,17.2 Z" />
+                <TextBlock Grid.Column="1"
+                           Margin="14,0,0,0"
+                           Text="Настройка партии"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </Button>
+
+            <Border Classes="app-divider" Margin="14,4" />
+
+            <Button x:Name="MenuCloseButton"
+                    Classes="app-menu-row"
+                    AutomationProperties.Name="Закрыть меню">
+              <Grid ColumnDefinitions="Auto,*">
+                <Path Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center"
+                      Data="M6.4,5 L12,10.6 L17.6,5 L19,6.4 L13.4,12 L19,17.6 L17.6,19 L12,13.4 L6.4,19 L5,17.6 L10.6,12 L5,6.4 Z" />
+                <TextBlock Grid.Column="1"
+                           Margin="14,0,0,0"
+                           Text="Закрыть"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </Button>
+
+          </StackPanel>
+        </Border>
+      </Panel>
     </Border>
 
     <!-- Итог партии — один на обе раскладки, оверлеем поверх вида: затемнение и карточка
@@ -525,8 +637,9 @@
                   Padding="10,8"
                   BorderBrush="{DynamicResource AppBorderBrush}"
                   BorderThickness="0,0,0,1">
-            <TextBlock Classes="app-subtitle"
-                       Text="Настройки"
+            <TextBlock x:Name="SettingsTitle"
+                       Classes="app-subtitle"
+                       Text="Настройка партии"
                        VerticalAlignment="Center" />
           </Border>
 

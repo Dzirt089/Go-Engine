@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Skia;
 using GoEngine.AI;
 using GoEngine.App.Services;
@@ -32,6 +33,11 @@ namespace GoEngine.App.Tests;
 /// пакетов проект не заводит, а графическое окно в этой среде одно на машину (<c>AGENTS.md</c>,
 /// п. 14). Раскладка выбирается по размеру вида, поэтому вид измеряется и укладывается вручную —
 /// так же, как это делает окно. Проверяются состояние вида и разметки, а не пиксели.
+/// </para>
+/// <para>
+/// Здесь же разделы нижней навигации, «О программе» и подтверждение выхода — с порядком обработки
+/// системной кнопки «Назад» (<see cref="ShellView.HandleBack"/>): верхнего уровня в тестах нет,
+/// поэтому порядок проверяется вызовом самого решения, а сам обработчик только передаёт ему событие.
 /// </para>
 /// </remarks>
 public sealed class ShellStartTests
@@ -118,6 +124,157 @@ public sealed class ShellStartTests
         InWindow(view);
 
         Assert.False(MenuOverlay(view).IsVisible);
+    }
+
+    [Fact]
+    public void На_Телефоне_В_Навигации_Три_Раздела()
+    {
+        // Разделы: партия, задачи и общее меню. Настроек среди них нет — «Настройка партии»
+        // открывается из шапки партии (замечание пользователя 2026-10-06).
+        var (view, _) = Start();
+        OnPhone(view);
+
+        Assert.True(view.FindControl<Button>("NavGameButton")!.IsVisible);
+        Assert.True(view.FindControl<Button>("NavProblemButton")!.IsVisible);
+        Assert.True(view.FindControl<Button>("NavMenuButton")!.IsVisible);
+        Assert.Null(view.FindControl<Button>("NavSettingsButton"));
+    }
+
+    [Fact]
+    public void Кнопка_Меню_Открывает_Раздел_Общего_Меню()
+    {
+        var (view, shell) = Start();
+        OnPhone(view);
+
+        Click(view.FindControl<Button>("NavMenuButton")!);
+
+        Assert.True(shell.IsMenuSection);
+    }
+
+    [Fact]
+    public void Кнопка_Партии_Закрывает_Общее_Меню()
+    {
+        var (view, shell) = Start();
+        OnPhone(view);
+
+        Click(view.FindControl<Button>("NavMenuButton")!);
+        Click(view.FindControl<Button>("NavGameButton")!);
+
+        Assert.True(shell.IsGameSection);
+        Assert.False(shell.IsMenuSection);
+    }
+
+    [Fact]
+    public void Экран_О_Программе_Скрыт_При_Запуске()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+
+        Assert.False(view.IsAboutShown);
+    }
+
+    [Fact]
+    public void Экран_О_Программе_Открывается_Из_Общего_Меню()
+    {
+        // «О программе» — вложенный экран раздела «Меню»: раньше это был подраздел настроек,
+        // а настройки принадлежат партии (замечание пользователя 2026-10-06).
+        var (view, _) = Start();
+        OnPhone(view);
+
+        Click(view.MenuArea!.FindControl<Button>("AboutRow")!);
+
+        Assert.True(view.IsAboutShown);
+    }
+
+    [Fact]
+    public void Экран_О_Программе_Закрывается_Кнопкой_Назад()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+        Click(view.MenuArea!.FindControl<Button>("AboutRow")!);
+
+        view.HandleBack();
+
+        Assert.False(view.IsAboutShown);
+    }
+
+    [Fact]
+    public void Подтверждение_Выхода_Скрыто_При_Запуске()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+
+        Assert.False(view.IsExitConfirmShown);
+    }
+
+    [Fact]
+    public void Выход_Из_Меню_Спрашивает_Подтверждение()
+    {
+        // Выход закрывает программу: случайное нажатие не должно уносить несохранённую партию.
+        var (view, _) = Start();
+        OnPhone(view);
+
+        Click(view.MenuArea!.FindControl<Button>("ExitRow")!);
+
+        Assert.True(view.IsExitConfirmShown);
+    }
+
+    [Fact]
+    public void Подтверждение_Выхода_Отменяется()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+        Click(view.MenuArea!.FindControl<Button>("ExitRow")!);
+
+        Click(view.FindControl<Button>("ExitCancelButton")!);
+
+        Assert.False(view.IsExitConfirmShown);
+    }
+
+    [Fact]
+    public void Назад_Закрывает_Подтверждение_Выхода()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+        Click(view.MenuArea!.FindControl<Button>("ExitRow")!);
+
+        view.HandleBack();
+
+        Assert.False(view.IsExitConfirmShown);
+    }
+
+    [Fact]
+    public void Назад_Закрывает_Шторку_Меню_Партии()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+
+        view.HandleBack();
+
+        Assert.False(MenuOverlay(view).IsVisible);
+    }
+
+    [Fact]
+    public void Назад_Возвращает_Из_Общего_Меню_В_Партию()
+    {
+        var (view, shell) = Start();
+        OnPhone(view);
+        Click(view.FindControl<Button>("NavMenuButton")!);
+
+        view.HandleBack();
+
+        Assert.True(shell.IsGameSection);
+    }
+
+    [Fact]
+    public void Назад_В_Партии_Ничего_Не_Закрывает()
+    {
+        // Закрывать нечего — событие остаётся системе: она решает, выходить ли из приложения.
+        var (view, _) = Start();
+        OnPhone(view);
+        view.GameArea!.CloseMenu();
+
+        Assert.False(view.HandleBack());
     }
 
     [Fact]
@@ -237,4 +394,8 @@ public sealed class ShellStartTests
     /// <returns>Переключатель.</returns>
     private static ToggleButton MobileTerritory(ShellView view) =>
         view.GameArea!.FindControl<ToggleButton>("MobileTerritoryButton")!;
+
+    /// <summary>Нажимает кнопку так же, как её нажимает игрок.</summary>
+    /// <param name="button">Кнопка разметки.</param>
+    private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 }

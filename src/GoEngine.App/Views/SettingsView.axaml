@@ -2,9 +2,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="GoEngine.App.Views.SettingsView">
 
-  <!-- Настройки тремя подразделами: «Партия» (чем играем), «Подсчёт» (как считаются очки)
-       и «О программе» (версия, модели, логи, обновление). Один и тот же вид показывают настольное
-       окно (SettingsWindow) и мобильный экран во всю высоту (BoardView): логика одна.
+  <!-- Настройка партии двумя подразделами: «Партия» (чем играем) и «Подсчёт» (как считаются
+       очки). Один и тот же вид показывают настольное окно (SettingsWindow) и мобильный экран
+       во всю высоту (BoardView): логика одна. Подраздела «О программе» здесь больше нет: сведения
+       о программе — не настройка партии, и на телефоне они открываются из общего меню
+       (замечание пользователя 2026-10-06, DECISIONS.md D-075).
        Внизу — «Сохранить» и «Отмена»: игрок сам решает, применять ли выбор, и партию начинает
        только «Сохранить» (жалоба пользователя 2026-10-03 «не хватает кнопки сохранить и отмена»). -->
   <Grid RowDefinitions="*,Auto">
@@ -80,61 +82,6 @@
 
           <TextBlock Text="Чем отличаются" FontWeight="SemiBold" Margin="0,6,0,0" />
           <TextBlock x:Name="DifferenceText" Classes="app-label" TextWrapping="Wrap" />
-
-        </StackPanel>
-      </ScrollViewer>
-    </TabItem>
-
-    <!-- Подраздел «О программе»: версия, модели, логи, сбой прошлого запуска и обновление.
-         Обновления: версия видна всегда, проверка и установка — по кнопке. Проверка ходит
-         за манифестом в плавающий релиз latest, установка отличается от системы к системе.
-         Состояние и ход загрузки берутся у общей модели обновления (App.Updates) — той же,
-         что показывает приглашение в оболочке. -->
-    <TabItem Header="О программе">
-      <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="16" Spacing="10">
-
-          <TextBlock x:Name="VersionText" Foreground="#444444" />
-
-          <!-- Состояние моделей нейросети: без этой строки отказ сети виден только по отсутствию
-               уровней с нейросетью, и причину на телефоне узнать нечем. -->
-          <TextBlock x:Name="ModelsText" Foreground="#444444" TextWrapping="Wrap" />
-
-          <!-- Логи: путь виден всегда, папку открывает настольная голова — на телефоне открывать
-               нечего. -->
-          <TextBlock x:Name="LogsText" Foreground="#444444" TextWrapping="Wrap" />
-
-          <!-- Сбой прошлого запуска: показывается один раз, копия лога остаётся в каталоге логов. -->
-          <TextBlock x:Name="CrashText"
-                     Foreground="#8A2B2B"
-                     TextWrapping="Wrap"
-                     IsVisible="False" />
-
-          <Button x:Name="OpenLogsButton"
-                  Content="Открыть папку с логами"
-                  MinHeight="44"
-                  HorizontalAlignment="Left"
-                  IsVisible="False" />
-
-          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
-            <Button x:Name="CheckUpdatesButton" Content="Проверить обновления" MinHeight="44" />
-            <Button x:Name="InstallUpdateButton"
-                    Content="Скачать и установить"
-                    MinHeight="44"
-                    IsVisible="False"
-                    Classes="accent" />
-            <Button x:Name="CancelUpdateButton" Content="Отмена" MinHeight="44" IsVisible="False" />
-          </StackPanel>
-
-          <!-- Ход загрузки и установки: та же полоса, что и в приглашении оболочки, — состояние одно
-               на приложение, поэтому проценты здесь и там совпадают. -->
-          <ProgressBar x:Name="UpdateProgressBar"
-                       Minimum="0"
-                       Maximum="100"
-                       Height="8"
-                       IsVisible="False" />
-
-          <TextBlock x:Name="UpdateStatusText" TextWrapping="Wrap" Foreground="#444444" />
 
         </StackPanel>
       </ScrollViewer>

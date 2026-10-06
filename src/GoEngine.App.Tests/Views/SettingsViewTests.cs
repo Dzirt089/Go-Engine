@@ -9,17 +9,24 @@ using GoEngine.Core;
 
 namespace GoEngine.App.Tests;
 
-/// <summary>Тесты вида настроек: три подраздела и никакой кнопки «Начать партию».</summary>
+/// <summary>Тесты вида «Настройка партии»: два подраздела и никакой кнопки «Начать партию».</summary>
 /// <remarks>
+/// <para>
 /// Жалоба пользователя 2026-10-03: настройки были одним длинным списком, а кнопка «Начать партию»
-/// внутри них означала «применить и начать». Теперь подразделов три — «Партия», «Подсчёт»
-/// и «О программе», — а значения применяются при закрытии экрана: начинает партию тот, кто экран
-/// открыл. Проверки идут по разметке: окно в этой среде не открывается (<c>AGENTS.md</c>, п. 14).
+/// внутри них означала «применить и начать». Значения применяются при закрытии экрана: начинает
+/// партию тот, кто экран открыл.
+/// </para>
+/// <para>
+/// Подразделов теперь два — «Партия» и «Подсчёт»: «О программе» — не настройка партии, и сведения
+/// о сборке переехали на отдельный экран <see cref="AboutView"/> (замечание пользователя
+/// 2026-10-06). Проверки идут по разметке: окно в этой среде не открывается
+/// (<c>AGENTS.md</c>, п. 14).
+/// </para>
 /// </remarks>
 public sealed class SettingsViewTests
 {
     /// <summary>Заголовки подразделов настроек в порядке показа.</summary>
-    private static readonly string[] SectionHeaders = ["Партия", "Подсчёт", "О программе"];
+    private static readonly string[] SectionHeaders = ["Партия", "Подсчёт"];
 
     /// <summary>Строки пояснений по системам подсчёта: обе системы и разница между ними.</summary>
     private static readonly string[] ScoringTexts = ["JapaneseText", "ChineseText", "DifferenceText"];
@@ -32,20 +39,17 @@ public sealed class SettingsViewTests
     private static readonly string[] ScoringControls =
         ["ScoringBox", "ScoringHintText", "JapaneseText", "ChineseText", "DifferenceText"];
 
-    /// <summary>Поля подраздела «О программе»: версия, модели, логи и обновление.</summary>
-    private static readonly string[] AboutControls =
-        ["VersionText", "ModelsText", "LogsText", "OpenLogsButton", "CheckUpdatesButton"];
-
     [Fact]
-    public void Настройки_Состоят_Из_Трёх_Подразделов()
+    public void Настройки_Состоят_Из_Двух_Подразделов()
     {
+        // «О программе» в настройках больше нет: сведения о сборке — не настройка партии.
         var view = new SettingsView(AppSettings.Default);
 
-        Assert.Equal(3, Tabs(view).Items.Count);
+        Assert.Equal(2, Tabs(view).Items.Count);
     }
 
     [Fact]
-    public void Подразделы_Называются_Партия_Подсчёт_О_Программе()
+    public void Подразделы_Называются_Партия_И_Подсчёт()
     {
         var view = new SettingsView(AppSettings.Default);
 
@@ -71,11 +75,13 @@ public sealed class SettingsViewTests
     }
 
     [Fact]
-    public void Подраздел_О_Программе_Содержит_Версию_Модели_Логи_И_Обновление()
+    public void В_Настройках_Нет_Раздела_О_Программе()
     {
         var view = new SettingsView(AppSettings.Default);
 
-        AssertInTab(view, 2, AboutControls);
+        Assert.DoesNotContain(
+            Tabs(view).Items.OfType<TabItem>(),
+            item => string.Equals(item.Header as string, "О программе", StringComparison.Ordinal));
     }
 
     [Fact]

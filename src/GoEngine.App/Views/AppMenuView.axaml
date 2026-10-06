@@ -1,0 +1,131 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:GoEngine.App.ViewModels"
+             x:Class="GoEngine.App.Views.AppMenuView"
+             x:DataType="vm:ShellViewModel">
+
+  <!-- Общее меню приложения: раздел «Меню» нижней навигации телефона. Здесь выбор режима,
+       «О программе» и выход из игры — то, что принадлежит приложению, а не партии
+       (замечание пользователя 2026-10-06). Меню партии и «Настройка партии» живут в разделе
+       «Партия»: они действуют на партию и в чужих разделах были бы недоступны.
+
+       Разметка — список строк, сгруппированных по смыслу: так на телефоне видно, что к чему
+       относится, и по каждой строке попадает палец (высота строки 56 точек, значок 22).
+       Значки нарисованы векторами: значкового шрифта в проекте нет, а тянуть пакет значков
+       ради четырёх фигур незачем. -->
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="16" Spacing="16">
+
+      <TextBlock Classes="app-title" Text="Меню" />
+
+      <!-- Режим: тот же выбор, что и в нижней навигации, но словами и с пометкой текущего.
+           Отсюда видно, где игрок находится, и отсюда же можно перейти в другой режим. -->
+      <StackPanel Spacing="6">
+        <TextBlock Classes="app-section" Text="Режим" />
+        <Border Classes="app-card">
+          <StackPanel>
+
+            <Button x:Name="GameModeRow"
+                    Classes="app-menu-row"
+                    AutomationProperties.Name="Партия">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Path Width="22" Height="22" Stretch="Uniform" VerticalAlignment="Center"
+                      Data="M4,12 A8,8 0 1 1 20,12 A8,8 0 1 1 4,12 Z" />
+                <TextBlock Grid.Column="1"
+                           Margin="14,0,8,0"
+                           Text="Партия"
+                           VerticalAlignment="Center" />
+                <!-- Пометка текущего режима: галочка стоит у выбранного. -->
+                <Path x:Name="GameModeCheck"
+                      Grid.Column="2"
+                      Classes="app-check"
+                      Width="20"
+                      Height="20"
+                      Stretch="Uniform"
+                      VerticalAlignment="Center"
+                      IsVisible="{Binding IsGameMode}"
+                      Data="M9.6,16.2 L5.4,12 L4,13.4 L9.6,19 L20,8.6 L18.6,7.2 Z" />
+              </Grid>
+            </Button>
+
+            <Border Classes="app-divider" />
+
+            <Button x:Name="ProblemModeRow"
+                    Classes="app-menu-row"
+                    AutomationProperties.Name="Задачи">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Path Width="22" Height="22" Stretch="Uniform" VerticalAlignment="Center"
+                      Data="M12,3 L21,12 L12,21 L3,12 Z" />
+                <TextBlock Grid.Column="1"
+                           Margin="14,0,8,0"
+                           Text="Задачи"
+                           VerticalAlignment="Center" />
+                <Path x:Name="ProblemModeCheck"
+                      Grid.Column="2"
+                      Classes="app-check"
+                      Width="20"
+                      Height="20"
+                      Stretch="Uniform"
+                      VerticalAlignment="Center"
+                      IsVisible="{Binding IsProblemMode}"
+                      Data="M9.6,16.2 L5.4,12 L4,13.4 L9.6,19 L20,8.6 L18.6,7.2 Z" />
+              </Grid>
+            </Button>
+
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <!-- Приложение: справка и выход. Строки одной группы разделены, а выход стоит отдельной
+           карточкой: он закрывает программу, и путать его с «О программе» нельзя. -->
+      <StackPanel Spacing="6">
+        <TextBlock Classes="app-section" Text="Приложение" />
+        <Border Classes="app-card">
+          <Button x:Name="AboutRow"
+                  Classes="app-menu-row"
+                  AutomationProperties.Name="О программе">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <!-- Кружок со знаком «i»: вырезан правилом EvenOdd (F0), поэтому фон карточки
+                   виден внутри буквы. -->
+              <Path Width="22" Height="22" Stretch="Uniform" VerticalAlignment="Center"
+                    Data="F0 M12,2 A10,10 0 1 0 12,22 A10,10 0 1 0 12,2 Z M11,6.6 h2 v2 h-2 z M11,10.4 h2 v7 h-2 z" />
+              <TextBlock Grid.Column="1"
+                         Margin="14,0,8,0"
+                         Text="О программе"
+                         VerticalAlignment="Center" />
+              <Path Grid.Column="2"
+                    Width="18"
+                    Height="18"
+                    Stretch="Uniform"
+                    VerticalAlignment="Center"
+                    Data="M9.4,5.2 L16.2,12 L9.4,18.8 L7.3,16.7 L12,12 L7.3,7.3 Z" />
+            </Grid>
+          </Button>
+        </Border>
+
+        <Border Classes="app-card">
+          <Button x:Name="ExitRow"
+                  Classes="app-menu-row danger"
+                  AutomationProperties.Name="Выход">
+            <Grid ColumnDefinitions="Auto,*">
+              <!-- Дверь и стрелка наружу: выход из игры. -->
+              <Path Width="22" Height="22" Stretch="Uniform" VerticalAlignment="Center"
+                    Data="M4,4 h7 v2 h-5 v12 h5 v2 h-7 z M14.2,7.5 L19,12 L14.2,16.5 v-3 h-4.2 v-3 h4.2 z" />
+              <TextBlock Grid.Column="1"
+                         Margin="14,0,8,0"
+                         Text="Выход"
+                         VerticalAlignment="Center" />
+            </Grid>
+          </Button>
+        </Border>
+      </StackPanel>
+
+      <!-- Версия внизу раздела: игрок видит, какая сборка у него стоит, не открывая «О программе». -->
+      <TextBlock x:Name="VersionText"
+                 Classes="app-label"
+                 HorizontalAlignment="Center"
+                 Margin="0,4,0,0" />
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

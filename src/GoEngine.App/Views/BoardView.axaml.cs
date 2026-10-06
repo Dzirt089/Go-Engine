@@ -4,8 +4,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using GoEngine.AI;
@@ -35,6 +37,22 @@ public sealed partial class BoardView : UserControl
 {
     /// <summary>Ширина настольной панели управления: та же, что в разметке.</summary>
     private const double DesktopPanelWidth = 360;
+
+    /// <summary>С какого смещения шторка меню выезжает снизу.</summary>
+    private const double SheetSlide = 28;
+
+    /// <summary>На сколько точек надо потянуть шторку вниз, чтобы она закрылась.</summary>
+    /// <remarks>
+    /// Порог в четверть высоты шторки: случайное касание ручки не закрывает меню, а осознанный
+    /// свайп — закрывает, не доезжая до края экрана.
+    /// </remarks>
+    private const double SheetCloseDistance = 72;
+
+    /// <summary>Шаг выезда шторки: 28 точек за семь шагов — около 130 мс.</summary>
+    private static readonly TimeSpan SheetSlideStep = TimeSpan.FromMilliseconds(18);
+
+    /// <summary>На сколько точек шторка сдвигается за один шаг выезда.</summary>
+    private const double SheetSlideStepPixels = 4;
 
     /// <summary>Сколько живёт сообщение о сохранении, загрузке или отказе.</summary>
     /// <remarks>
@@ -108,6 +126,18 @@ public sealed partial class BoardView : UserControl
     private readonly Border? _mobileStatus;
     private readonly Border? _mobileActionBar;
     private readonly Border? _menuOverlay;
+    private readonly Border? _menuCard;
+    private readonly Border? _menuSheetHandle;
+    private readonly TextBlock? _menuNewGameText;
+
+    /// <summary>Сдвиг шторки меню при перетаскивании: за него шторка уезжает вниз и закрывается.</summary>
+    private TranslateTransform? _menuTransform;
+
+    /// <summary>Точка нажатия на ручке шторки: от неё считается сдвиг.</summary>
+    private double _menuDragStartY;
+
+    /// <summary>Шторка меню тянется прямо сейчас.</summary>
+    private bool _menuDragging;
     private readonly Panel? _mobileBoardRow;
     private readonly Border? _sheet;
     private readonly TextBlock? _sheetSummary;
@@ -129,7 +159,6 @@ public sealed partial class BoardView : UserControl
     private readonly StackPanel? _desktopDetails;
     private readonly ToggleButton? _desktopDetailsButton;
     private readonly Button? _desktopNewGame;
-    private readonly Button? _menuNewGame;
     private readonly TextBlock? _desktopClock;
     private readonly TextBlock? _mobileClock;
     private readonly Button? _desktopPause;
@@ -145,6 +174,9 @@ public sealed partial class BoardView : UserControl
 
     /// <summary>Таймер, по которому исчезает подсказка.</summary>
     private DispatcherTimer? _hintTimer;
+
+    /// <summary>Таймер выезда шторки меню: работает, пока шторка выезжает.</summary>
+    private DispatcherTimer? _sheetTimer;
 
     /// <summary>Таймер строки времени партии: заводится только у идущей партии.</summary>
     /// <remarks>Создаётся лениво: у стоящих часов таймер не нужен, а закрытый вид его отпускает
@@ -222,6 +254,9 @@ public sealed partial class BoardView : UserControl
         _mobileStatus = this.FindControl<Border>("MobileStatus");
         _mobileActionBar = this.FindControl<Border>("MobileActionBar");
         _menuOverlay = this.FindControl<Border>("MenuOverlay");
+        _menuCard = this.FindControl<Border>("MenuCard");
+        _menuSheetHandle = this.FindControl<Border>("MenuSheetHandle");
+        _menuNewGameText = this.FindControl<TextBlock>("MenuNewGameText");
         _mobileBoardRow = this.FindControl<Panel>("MobileBoardRow");
         _sheet = this.FindControl<Border>("Sheet");
         _sheetSummary = this.FindControl<TextBlock>("SheetSummary");
@@ -243,7 +278,6 @@ public sealed partial class BoardView : UserControl
         _desktopDetails = this.FindControl<StackPanel>("DesktopDetailsPanel");
         _desktopDetailsButton = this.FindControl<ToggleButton>("DesktopDetailsButton");
         _desktopNewGame = this.FindControl<Button>("NewGameButton");
-        _menuNewGame = this.FindControl<Button>("MenuNewGameButton");
         _desktopClock = this.FindControl<TextBlock>("DesktopClockText");
         _mobileClock = this.FindControl<TextBlock>("MobileClockText");
         _desktopPause = this.FindControl<Button>("DesktopPauseButton");
@@ -293,17 +327,37 @@ public sealed partial class BoardView : UserControl
         WireButton("MobileRedoButton", OnRedoClick);
         WireButton("MobileSaveButton", OnSaveClick);
         WireButton("MobileLoadButton", OnLoadClick);
-        WireButton("MobileSettingsButton", OnSettingsClick);
         WireButton("SheetToggleButton", OnSheetToggleClick);
 
+        // Шапка партии: меню партии (☰) и «Настройка партии» (шестерёнка). Обе кнопки —
+        // мобильные: на настольной раскладке те же действия даёт меню-бар окна.
+        WireButton("MobileMenuButton", OnMobileMenuClick);
+        WireButton("MobileSettingsButton", OnSettingsClick);
+
         // Меню партии на телефоне: те же действия, что у кнопок настольной панели, — своих
-        // обработчиков у пунктов меню нет, они лишь закрывают карточку перед действием.
+        // обработчиков у пунктов меню нет, они лишь закрывают шторку перед действием.
         WireButton("MenuNewGameButton", OnMenuNewGameClick);
         WireButton("MenuAbortButton", OnMenuAbortClick);
         WireButton("MenuSaveButton", OnMenuSaveClick);
         WireButton("MenuLoadButton", OnMenuLoadClick);
         WireButton("MenuSettingsButton", OnMenuSettingsClick);
         WireButton("MenuCloseButton", OnMenuCloseClick);
+        WireButton("MenuBackdrop", OnMenuCloseClick);
+
+        // Шторка меню выезжает снизу: сдвиг задаётся её собственным преобразованием, а ручка
+        // тянет шторку вниз (см. OnMenuHandlePressed и далее).
+        if (_menuCard is { } menuCard)
+        {
+            _menuTransform = new TranslateTransform();
+            menuCard.RenderTransform = _menuTransform;
+
+            if (_menuSheetHandle is { } handle)
+            {
+                handle.PointerPressed += OnMenuHandlePressed;
+                handle.PointerMoved += OnMenuHandleMoved;
+                handle.PointerReleased += OnMenuHandleReleased;
+            }
+        }
 
         if (_desktopDetailsButton is not null)
         {
@@ -362,40 +416,62 @@ public sealed partial class BoardView : UserControl
     /// <remarks>Без подписчика (мобильный вид) настройки показываются поверх доски.</remarks>
     public event EventHandler? SettingsRequested;
 
-    /// <summary>Экран настроек показан: оболочка подсвечивает раздел настроек.</summary>
-    public event EventHandler? SettingsShown;
-
-    /// <summary>Экран настроек закрыт: оболочка возвращает подсветку раздела партии.</summary>
-    public event EventHandler? SettingsClosed;
-
     /// <summary>Модель представления партии.</summary>
     public MainViewModel ViewModel { get; }
 
-    /// <summary>Показывает меню партии: карточку по центру экрана.</summary>
+    /// <summary>Шторка меню партии показана.</summary>
     /// <remarks>
-    /// Меню открывает кнопка «Меню» в нижней навигации оболочки: на телефоне это единственный вход
-    /// к «Начать партию», отмене партии, файлам и настройкам — в ряду действий они не помещались
-    /// (замечание пользователя 2026-10-03). Действия меню те же, что у кнопок настольной панели.
+    /// Нужно оболочке: системная кнопка «Назад» на телефоне закрывает сначала шторку, а не раздел
+    /// и не приложение (DECISIONS.md, D-075).
+    /// </remarks>
+    public bool IsMenuShown => _menuOverlay?.IsVisible == true;
+
+    /// <summary>Экран «Настройка партии» показан.</summary>
+    public bool IsSettingsShown => _overlay?.IsVisible == true;
+
+    /// <summary>Показывает меню партии: шторку снизу экрана.</summary>
+    /// <remarks>
+    /// Меню открывает кнопка ☰ в шапке партии: на телефоне это единственный вход к «Начать
+    /// партию», отмене партии, файлам и «Настройке партии» — в ряду действий под доской они
+    /// не помещались (замечания пользователя 2026-10-03 и 2026-10-06). Действия меню те же,
+    /// что у кнопок настольной панели.
     /// </remarks>
     public void ShowMenu()
     {
-        if (_menuOverlay is not null)
+        if (_menuOverlay is null)
         {
-            _menuOverlay.IsVisible = true;
+            return;
+        }
+
+        _menuOverlay.IsVisible = true;
+
+        // Шторка выезжает снизу: сначала смещение вниз, потом шаги к нулю.
+        if (_menuTransform is not null)
+        {
+            _menuTransform.Y = SheetSlide;
+            StartSheetSlide();
         }
     }
 
     /// <summary>Закрывает меню партии без действий.</summary>
     public void CloseMenu()
     {
+        StopSheetSlide();
+
         if (_menuOverlay is not null)
         {
             _menuOverlay.IsVisible = false;
         }
+
+        // Смещение снимается вместе с показом: следующее открытие начинает с начала.
+        if (_menuTransform is not null)
+        {
+            _menuTransform.Y = 0;
+        }
     }
 
     /// <summary>Открывает меню, если оно закрыто, и закрывает, если открыто.</summary>
-    /// <remarks>Кнопка «Меню» в навигации — переключатель: повторное нажатие убирает карточку.</remarks>
+    /// <remarks>Кнопка ☰ в шапке партии — переключатель: повторное нажатие убирает шторку.</remarks>
     public void ToggleMenu()
     {
         if (_menuOverlay?.IsVisible == true)
@@ -407,6 +483,124 @@ public sealed partial class BoardView : UserControl
 
         ShowMenu();
     }
+
+    /// <summary>Начало перетаскивания шторки меню вниз.</summary>
+    /// <param name="sender">Ручка шторки.</param>
+    /// <param name="e">Событие указателя.</param>
+    /// <remarks>
+    /// Свайп вниз — привычный способ закрыть шторку на телефоне. Тянем только за ручку: нажатия
+    /// по строкам меню остаются нажатиями, и жест не спорит с ними за одно и то же место.
+    /// </remarks>
+    private void OnMenuHandlePressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_menuTransform is null || _menuOverlay is null)
+        {
+            return;
+        }
+
+        // Выезд прекращается: во время перетаскивания шторка идёт за пальцем, а не за таймером.
+        StopSheetSlide();
+
+        _menuDragStartY = e.GetPosition(_menuOverlay).Y;
+        _menuDragging = true;
+
+        e.Pointer.Capture(sender as IInputElement);
+    }
+
+    /// <summary>Шторка идёт за пальцем.</summary>
+    /// <param name="sender">Ручка шторки.</param>
+    /// <param name="e">Событие указателя.</param>
+    private void OnMenuHandleMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_menuDragging || _menuTransform is null || _menuOverlay is null)
+        {
+            return;
+        }
+
+        // Вверх шторка не уходит: там её место, и «отрицательный» ход выглядел бы как зазор.
+        _menuTransform.Y = Math.Max(0, e.GetPosition(_menuOverlay).Y - _menuDragStartY);
+    }
+
+    /// <summary>Отпускание ручки: шторка либо закрывается, либо возвращается на место.</summary>
+    /// <param name="sender">Ручка шторки.</param>
+    /// <param name="e">Событие указателя.</param>
+    private void OnMenuHandleReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_menuDragging)
+        {
+            return;
+        }
+
+        _menuDragging = false;
+        e.Pointer.Capture(null);
+
+        if (_menuTransform is null)
+        {
+            return;
+        }
+
+        var close = _menuTransform.Y >= SheetCloseDistance;
+
+        _menuTransform.Y = 0;
+
+        if (close)
+        {
+            CloseMenu();
+        }
+    }
+
+    /// <summary>Запускает выезд шторки снизу: сдвиг уменьшается шагами до нуля.</summary>
+    /// <remarks>
+    /// Выезд считается своим таймером, а не переходами Avalonia: переходы требуют часов анимации,
+    /// которых в проверках без окна нет вовсе — обращение к ним валит построение вида (проверено
+    /// прогоном <c>App.Tests</c>: «Unable to locate IGlobalClock»). Шаг и частота подобраны так,
+    /// чтобы выезд занимал около 130 мс — как у шторки Material.
+    /// </remarks>
+    private void StartSheetSlide()
+    {
+        _sheetTimer ??= new DispatcherTimer { Interval = SheetSlideStep };
+
+        if (!_sheetTimer.IsEnabled)
+        {
+            _sheetTimer.Tick += OnSheetSlideTick;
+            _sheetTimer.Start();
+        }
+    }
+
+    /// <summary>Один шаг выезда шторки: сдвиг уменьшается, у нуля таймер останавливается.</summary>
+    /// <param name="sender">Таймер.</param>
+    /// <param name="e">Событие тика.</param>
+    private void OnSheetSlideTick(object? sender, EventArgs e)
+    {
+        if (_menuTransform is null || _menuOverlay?.IsVisible != true)
+        {
+            StopSheetSlide();
+
+            return;
+        }
+
+        _menuTransform.Y = Math.Max(0, _menuTransform.Y - SheetSlideStepPixels);
+
+        if (_menuTransform.Y <= 0)
+        {
+            StopSheetSlide();
+        }
+    }
+
+    /// <summary>Останавливает выезд шторки.</summary>
+    private void StopSheetSlide()
+    {
+        if (_sheetTimer is { IsEnabled: true } timer)
+        {
+            timer.Stop();
+            timer.Tick -= OnSheetSlideTick;
+        }
+    }
+
+    /// <summary>Кнопка ☰ в шапке партии: открывает и закрывает меню партии.</summary>
+    /// <param name="sender">Кнопка меню.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnMobileMenuClick(object? sender, RoutedEventArgs e) => ToggleMenu();
 
     /// <summary>Показывает настройки: в окне, если окно есть, иначе отдельным экраном.</summary>
     public void ShowSettings()
@@ -432,8 +626,6 @@ public sealed partial class BoardView : UserControl
         {
             _overlay.IsVisible = true;
         }
-
-        SettingsShown?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Показывает настройки перед новой партией: «Готово» начнёт её.</summary>
@@ -722,6 +914,9 @@ public sealed partial class BoardView : UserControl
             _clockTimer.Tick -= OnClockTick;
             _clockTimer = null;
         }
+
+        // Выезд шторки — тот же случай: незачем доводить его у вида, которого нет на экране.
+        StopSheetSlide();
     }
 
     /// <summary>Перестраивает раскладку при изменении размера вида.</summary>
@@ -993,7 +1188,7 @@ public sealed partial class BoardView : UserControl
         // До первого хода кнопка называется «Начать партию»: партия ждёт игрока, а не идёт.
         var newGameLabel = ViewModel.IsFirstMove ? StartGameLabel : NewGameLabel;
         SetText(_desktopNewGame, newGameLabel);
-        SetText(_menuNewGame, newGameLabel);
+        SetText(_menuNewGameText, newGameLabel);
 
         SetText(_desktopLevelHint, ViewModel.LevelHint);
 
@@ -1165,18 +1360,11 @@ public sealed partial class BoardView : UserControl
     /// </remarks>
     private void HideSettings()
     {
-        var visible = _overlay?.IsVisible == true;
-
         _startGameAfterSettings = false;
 
         if (_overlay is not null)
         {
             _overlay.IsVisible = false;
-        }
-
-        if (visible)
-        {
-            SettingsClosed?.Invoke(this, EventArgs.Empty);
         }
     }
 

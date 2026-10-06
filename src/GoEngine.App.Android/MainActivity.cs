@@ -31,9 +31,32 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
 
         AndroidModelStartup.Prepare(this);
         global::GoEngine.App.App.Sound = new AndroidSoundPlayer(this);
+        global::GoEngine.App.App.ExitRequested = ExitGame;
         ConfigureUpdates();
 
         base.OnCreate(savedInstanceState);
+    }
+
+    /// <summary>Закрывает приложение: выход из общего меню.</summary>
+    /// <remarks>
+    /// <para>
+    /// На Android «закрыть программу» — это завершить задачу приложения: система не даёт
+    /// приложению выйти самому, но задачу можно убрать целиком. FinishAffinity закрывает
+    /// все активити задачи, а процесс завершается следом: без этого приложение осталось бы висеть
+    /// в недавних с фоновыми потоками поиска хода. Подтверждение выхода спрашивает вид
+    /// (ShellView) — сюда приходит уже решённое «выходим».
+    /// </para>
+    /// <para>
+    /// Журнал закрывается до завершения процесса: иначе последние записи остались бы в буфере,
+    /// и по логу нельзя было бы понять, чем закончился сеанс.
+    /// </para>
+    /// </remarks>
+    private void ExitGame()
+    {
+        global::GoEngine.App.Services.Logging.AppLog.Shutdown(0);
+
+        FinishAffinity();
+        Process.KillProcess(Process.MyPid());
     }
 
     /// <summary>Каталог логов: личные файлы приложения, доступные без разрешений.</summary>

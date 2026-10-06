@@ -13,17 +13,22 @@
 
   <DockPanel>
 
-    <!-- Меню действует на партию, поэтому в режиме задач оно недоступно: код окна следит
-         за режимом оболочки и выключает меню. -->
+    <!-- Меню партии действует на партию, поэтому в режиме задач его пункты недоступны: код окна
+         следит за режимом оболочки и выключает их. «Справка» остаётся доступной всегда — сведения
+         о программе к партии не относятся (замечание пользователя 2026-10-06). -->
     <Menu x:Name="MainMenu" DockPanel.Dock="Top">
-      <MenuItem Header="Партия">
+      <MenuItem x:Name="GameMenuItem" Header="Партия">
         <MenuItem x:Name="NewGameItem" Header="Новая партия" />
-        <MenuItem x:Name="SettingsItem" Header="Настройки…" />
+        <MenuItem x:Name="SettingsItem" Header="Настройка партии…" />
         <Separator />
         <MenuItem x:Name="SaveGameItem" Header="Сохранить партию…" />
         <MenuItem x:Name="LoadGameItem" Header="Загрузить партию…" />
         <Separator />
         <MenuItem x:Name="ExitItem" Header="Выход" />
+      </MenuItem>
+
+      <MenuItem Header="Справка">
+        <MenuItem x:Name="AboutItem" Header="О программе…" />
       </MenuItem>
     </Menu>
 

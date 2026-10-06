@@ -1,19 +1,15 @@
-using System.ComponentModel;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using GoEngine.AI;
 using GoEngine.App.Rendering;
 using GoEngine.App.Services;
-using GoEngine.App.Services.Logging;
-using GoEngine.App.Services.Updates;
 using GoEngine.App.ViewModels;
 using GoEngine.Core;
 
 namespace GoEngine.App.Views;
 
-/// <summary>Настройки тремя подразделами: партия, подсчёт и о программе.</summary>
+/// <summary>Настройка партии двумя подразделами: чем играем и как считаются очки.</summary>
 /// <remarks>
 /// <para>
 /// Вид не хранит настройки сам: он собирает их из полей (<see cref="Collect"/>) и сообщает
@@ -22,9 +18,11 @@ namespace GoEngine.App.Views;
 /// (<see cref="BoardView"/>). Логика выбора доски и уровня одна на всех.
 /// </para>
 /// <para>
-/// Кнопки «Начать партию» здесь больше нет (жалоба пользователя 2026-10-03): настройки
-/// применяются при закрытии экрана, а начинает партию тот, кто экран открыл, — на телефоне
-/// разницу держит <see cref="BoardView"/>.
+/// Подраздела «О программе» здесь нет: сведения о программе — не настройка партии, и они
+/// переехали на отдельный экран <see cref="AboutView"/>, который на телефоне открывается
+/// из общего меню, а в окне — пунктом «Справка» (замечание пользователя 2026-10-06, D-075).
+/// Кнопки «Начать партию» здесь тоже нет (жалоба 2026-10-03): настройки применяются при закрытии
+/// экрана, а начинает партию тот, кто экран открыл, — на телефоне разницу держит <see cref="BoardView"/>.
 /// </para>
 /// </remarks>
 public sealed partial class SettingsView : UserControl
@@ -50,16 +48,6 @@ public sealed partial class SettingsView : UserControl
     /// представления, чтобы наличие модели считалось в одном месте.
     /// </remarks>
     private Func<BoardSize, bool> _modelAvailable = DefaultModelAvailable;
-
-    /// <summary>Модель обновления: та же, что у приглашения в оболочке.</summary>
-    /// <remarks>
-    /// Одна на приложение (<c>App.Updates</c>): проверка из настроек и приглашение при запуске
-    /// говорят об одном и том же обновлении, а скачивание идёт одно, а не два.
-    /// </remarks>
-    private readonly UpdateViewModel _updates = global::GoEngine.App.App.Updates;
-
-    /// <summary>Кнопки, которые выключаются на время проверки, скачивания и установки.</summary>
-    private static readonly string[] UpdateButtons = ["CheckUpdatesButton", "InstallUpdateButton"];
 
     /// <summary>Создаёт вид настроек со значениями по умолчанию.</summary>
     public SettingsView() : this(AppSettings.Default)
@@ -89,26 +77,6 @@ public sealed partial class SettingsView : UserControl
             soundBox.IsCheckedChanged += OnSoundChanged;
         }
 
-        if (this.FindControl<Button>("CheckUpdatesButton") is { } checkButton)
-        {
-            checkButton.Click += OnCheckUpdatesClick;
-        }
-
-        if (this.FindControl<Button>("InstallUpdateButton") is { } installButton)
-        {
-            installButton.Click += OnInstallUpdateClick;
-        }
-
-        if (this.FindControl<Button>("CancelUpdateButton") is { } cancelUpdateButton)
-        {
-            cancelUpdateButton.Click += OnCancelUpdateClick;
-        }
-
-        if (this.FindControl<Button>("OpenLogsButton") is { } logsButton)
-        {
-            logsButton.Click += OnOpenLogsClick;
-        }
-
         // Низ экрана: «Сохранить» применяет выбор, «Отмена» закрывает настройки без изменений.
         // Решение принимает хозяин вида — он один знает, начинать ли партию (жалоба 2026-10-03).
         if (this.FindControl<Button>("SaveButton") is { } saveButton)
@@ -121,17 +89,6 @@ public sealed partial class SettingsView : UserControl
             cancelButton.Click += OnCancelClick;
         }
 
-        if (this.FindControl<TextBlock>("VersionText") is { } versionText)
-        {
-            // Показываем версию без хвоста коммита, а полную строку — в подсказке: она нужна
-            // для диагностики, но не для игрока. Локальная сборка помечается словом, иначе
-            // заводское «1.0.0» выглядит как номер выпуска.
-            versionText.Text = $"Версия: {AppVersion.Display}";
-            ToolTip.SetTip(versionText, $"Сборка: {AppVersion.InformationalVersion}");
-        }
-
-        ShowModels();
-        ShowLogs();
         ShowScoringSystems();
         Initialize(current);
     }
@@ -194,61 +151,6 @@ public sealed partial class SettingsView : UserControl
     /// </remarks>
     public ScoringRule SelectedScoringRule => ScoringRules[SelectedIndex("ScoringBox")];
 
-    /// <summary>Показывает каталог логов, сообщение о сбое прошлого запуска и кнопку открытия папки.</summary>
-    /// <remarks>
-    /// Кнопка открытия видна только там, где голова задала обработчик: на Android открывать
-    /// нечего, и там игрок видит путь к файлам, который можно переписать или переслать.
-    /// Сообщение о сбое живёт до конца сеанса: файл-признак уже прочитан и удалён, поэтому
-    /// вечно оно не показывается, а копия лога остаётся в каталоге.
-    /// </remarks>
-    private void ShowLogs()
-    {
-        if (this.FindControl<TextBlock>("LogsText") is { } logsText)
-        {
-            logsText.Text = AppLog.IsFileLogging
-                ? $"Логи: {AppLog.Directory}"
-                : "Логи: файл недоступен, игра работает без записи";
-        }
-
-        if (this.FindControl<TextBlock>("CrashText") is { } crashText && AppLog.PreviousCrash is { } crash)
-        {
-            crashText.Text = crash.Summary;
-            crashText.IsVisible = true;
-        }
-
-        if (this.FindControl<Button>("OpenLogsButton") is { } openButton)
-        {
-            openButton.IsVisible = global::GoEngine.App.App.OpenLogsDirectory is not null;
-        }
-    }
-
-    /// <summary>Открывает папку с логами средствами платформы.</summary>
-    /// <param name="sender">Кнопка открытия.</param>
-    /// <param name="e">Событие нажатия.</param>
-    private void OnOpenLogsClick(object? sender, RoutedEventArgs e)
-    {
-        _ = sender;
-        _ = e;
-
-        if (global::GoEngine.App.App.OpenLogsDirectory is { } open && AppLog.Directory is { Length: > 0 } directory)
-        {
-            open(directory);
-        }
-    }
-
-    /// <summary>Показывает состояние моделей, о котором сообщила голова платформы.</summary>
-    /// <remarks>
-    /// Состояние заполняет голова: на Android — после копирования моделей из пакета,
-    /// на настольных системах — при поиске каталога models. Пусто — голова не сообщала.
-    /// </remarks>
-    private void ShowModels()
-    {
-        if (this.FindControl<TextBlock>("ModelsText") is { } modelsText)
-        {
-            modelsText.Text = global::GoEngine.App.App.ModelsStatus ?? ModelStatusText.Unknown;
-        }
-    }
-
     /// <summary>Заполняет поля значениями настроек.</summary>
     /// <param name="current">Настройки партии.</param>
     /// <param name="modelAvailable">
@@ -263,7 +165,6 @@ public sealed partial class SettingsView : UserControl
         ArgumentNullException.ThrowIfNull(current);
 
         _modelAvailable = modelAvailable ?? _modelAvailable;
-        ShowModels();
         Selected = current;
 
         if (this.FindControl<ComboBox>("SizeBox") is { } sizeBox)
@@ -495,101 +396,6 @@ public sealed partial class SettingsView : UserControl
         if (this.FindControl<TabControl>("SettingsTabs") is { } tabs)
         {
             tabs.SelectedIndex = 0;
-        }
-    }
-
-    /// <summary>Подписывается на модель обновления, пока вид показан.</summary>
-    /// <param name="e">Признак подключения к дереву видов.</param>
-    /// <remarks>
-    /// Подписка ставится и снимается вместе с показом: окно настроек создаётся заново на каждое
-    /// открытие, а модель обновления живёт всё приложение — без снятия подписки она держала бы
-    /// закрытые виды.
-    /// </remarks>
-    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnAttachedToVisualTree(e);
-
-        // Снятие перед подпиской: повторное подключение того же вида не должно удваивать
-        // обработчик — иначе на каждое изменение состояния полоса обновлялась бы дважды.
-        _updates.PropertyChanged -= OnUpdatesChanged;
-        _updates.PropertyChanged += OnUpdatesChanged;
-
-        RefreshUpdates();
-    }
-
-    /// <summary>Снимает подписку на модель обновления.</summary>
-    /// <param name="e">Признак отключения от дерева видов.</param>
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        _updates.PropertyChanged -= OnUpdatesChanged;
-
-        base.OnDetachedFromVisualTree(e);
-    }
-
-    /// <summary>Показывает изменившееся состояние обновления.</summary>
-    /// <param name="sender">Модель обновления.</param>
-    /// <param name="e">Имя изменившегося свойства; не используется.</param>
-    private void OnUpdatesChanged(object? sender, PropertyChangedEventArgs e) => RefreshUpdates();
-
-    /// <summary>Запускает проверку обновления.</summary>
-    /// <param name="sender">Кнопка «Проверить обновления».</param>
-    /// <param name="e">Событие нажатия.</param>
-    /// <remarks>
-    /// Обработчик не <c>async void</c> (<c>AGENTS.md</c>, п. 11): задача запускается отдельно,
-    /// а ход дела и исход показывает модель обновления — та же, что и у приглашения в оболочке.
-    /// </remarks>
-    private void OnCheckUpdatesClick(object? sender, RoutedEventArgs e) => _ = _updates.CheckAsync();
-
-    /// <summary>Скачивает и устанавливает найденное обновление.</summary>
-    /// <param name="sender">Кнопка «Скачать и установить».</param>
-    /// <param name="e">Событие нажатия.</param>
-    private void OnInstallUpdateClick(object? sender, RoutedEventArgs e) => _ = _updates.DownloadAndInstallAsync();
-
-    /// <summary>Останавливает скачивание обновления.</summary>
-    /// <param name="sender">Кнопка «Отмена».</param>
-    /// <param name="e">Событие нажатия.</param>
-    private void OnCancelUpdateClick(object? sender, RoutedEventArgs e) => _updates.Cancel();
-
-    /// <summary>Показывает состояние обновления: строку, полосу хода и кнопки.</summary>
-    /// <remarks>
-    /// Ничего не решает: состояние целиком берётся у модели обновления. Иначе проценты в настройках
-    /// и в приглашении считались бы двумя разными способами и расходились.
-    /// </remarks>
-    private void RefreshUpdates()
-    {
-        if (this.FindControl<TextBlock>("UpdateStatusText") is { } status)
-        {
-            status.Text = _updates.StatusText;
-        }
-
-        if (this.FindControl<ProgressBar>("UpdateProgressBar") is { } bar)
-        {
-            // Установку по шагам не измерить: полоса идёт сама, а не показывает выдуманные проценты.
-            bar.IsIndeterminate = _updates.IsProgressIndeterminate;
-            bar.Value = _updates.Percent;
-            bar.IsVisible = _updates.IsProgressVisible;
-        }
-
-        if (this.FindControl<Button>("InstallUpdateButton") is { } installButton)
-        {
-            installButton.IsVisible = _updates.IsUpdateNowVisible;
-        }
-
-        if (this.FindControl<Button>("CancelUpdateButton") is { } cancelButton)
-        {
-            cancelButton.IsVisible = _updates.IsCancelVisible;
-        }
-
-        var busy = _updates.Stage == UpdateStage.Checking
-            || _updates.Stage == UpdateStage.Downloading
-            || _updates.Stage == UpdateStage.Installing;
-
-        foreach (var name in UpdateButtons)
-        {
-            if (this.FindControl<Button>(name) is { } button)
-            {
-                button.IsEnabled = !busy;
-            }
         }
     }
 

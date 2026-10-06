@@ -36,6 +36,7 @@ public sealed partial class MainWindow : Window
         Wire("SaveGameItem", OnSaveGameClick);
         Wire("LoadGameItem", OnLoadGameClick);
         Wire("ExitItem", OnExitClick);
+        Wire("AboutItem", OnAboutClick);
 
         // Кнопка «Настройки» в панели открывает окно: у мобильного вида подписчика нет,
         // и он показывает тот же SettingsView поверх доски.
@@ -71,12 +72,16 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    /// <summary>Приводит доступность меню в соответствие с текущим режимом.</summary>
+    /// <summary>Приводит доступность меню партии в соответствие с текущим режимом.</summary>
+    /// <remarks>
+    /// Выключается только меню партии: «Справка» с «О программе» доступна в любом режиме —
+    /// сведения о программе к партии не относятся (замечание пользователя 2026-10-06).
+    /// </remarks>
     private void UpdateMenu()
     {
-        if (this.FindControl<Menu>("MainMenu") is { } menu)
+        if (this.FindControl<MenuItem>("GameMenuItem") is { } gameItem)
         {
-            menu.IsEnabled = Shell.Shell.IsGameMode;
+            gameItem.IsEnabled = Shell.Shell.IsGameMode;
         }
     }
 
@@ -162,4 +167,17 @@ public sealed partial class MainWindow : Window
     /// <param name="sender">Пункт меню.</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
+
+    /// <summary>Показывает окно «О программе».</summary>
+    /// <param name="sender">Пункт меню.</param>
+    /// <param name="e">Событие нажатия.</param>
+    /// <remarks>
+    /// Обработчик синхронный, а ожидание диалога вынесено в <see cref="OpenAboutAsync"/>:
+    /// <c>async void</c> в проекте запрещён (<c>AGENTS.md</c>, п. 11), а блокировать поток UI нельзя.
+    /// </remarks>
+    private void OnAboutClick(object? sender, RoutedEventArgs e) => _ = OpenAboutAsync();
+
+    /// <summary>Открывает окно «О программе» как диалог главного окна.</summary>
+    /// <returns>Задача показа диалога.</returns>
+    private async Task OpenAboutAsync() => await new AboutWindow().ShowDialog(this);
 }

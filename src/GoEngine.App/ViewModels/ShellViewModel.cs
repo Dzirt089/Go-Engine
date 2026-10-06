@@ -7,26 +7,34 @@ using Microsoft.Extensions.Logging;
 
 namespace GoEngine.App.ViewModels;
 
-/// <summary>Оболочка приложения: переключатель двух режимов — партии и задач.</summary>
+/// <summary>Оболочка приложения: разделы «Партия», «Задачи» и общее меню.</summary>
 /// <remarks>
+/// <para>
 /// Режимы не смешиваются: партия живёт в <see cref="MainViewModel"/> и своём виде, задачи —
 /// в <see cref="ProblemViewModel"/> и своём. Оболочка только показывает одно или другое и владеет
 /// обоими моделями, поэтому переключение режима партию не пересоздаёт: вернувшись в «Партию»,
-/// игрок видит ту же позицию (<c>DECISIONS.md</c>, D-061). По той же причине стартового экрана
-/// настроек здесь нет: приложение открывается на разделе «Партия», а первым окном над ней вид
-/// показывает карточку «Меню» (<see cref="GoEngine.App.Views.BoardView.ShowMenu"/>) — настройки
-/// открывает игрок, а не запуск (замечание пользователя 2026-10-03).
+/// игрок видит ту же позицию (<c>DECISIONS.md</c>, D-061).
+/// </para>
+/// <para>
+/// Разделов нижней навигации телефона три: «Партия», «Задачи» и «Меню». Настройки и меню партии
+/// переехали внутрь раздела «Партия»: они принадлежат партии и в чужих разделах были бы
+/// недоступны или бессмысленны (замечание пользователя 2026-10-06). Общее меню — раздел
+/// приложения, а не партии: в нём выбор режима, «О программе» и выход из игры
+/// (<c>DECISIONS.md</c>, D-075).
+/// </para>
 /// </remarks>
 public sealed class ShellViewModel : INotifyPropertyChanged
 {
     private static readonly string[] PropertyNames =
     [
         nameof(IsGameMode), nameof(IsProblemMode), nameof(ModeHint),
-        nameof(IsGameSection), nameof(IsProblemSection), nameof(IsSettingsSection)
+        nameof(IsGameSection), nameof(IsProblemSection), nameof(IsMenuSection)
     ];
 
     private bool _problemsMode;
-    private bool _settingsScreen;
+
+    /// <summary>Открыт раздел общего меню: режим при этом не меняется, содержимое уступает ему место.</summary>
+    private bool _menuSection;
 
     /// <summary>Проверка обновления при запуске уже начата: второй раз она не идёт.</summary>
     private bool _updateCheckStarted;
@@ -60,7 +68,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    /// <summary>Настройки партии: их показывает экран настроек.</summary>
+    /// <summary>Настройки партии: их показывает «Настройка партии».</summary>
     public AppSettings Settings { get; }
 
     /// <summary>Модель представления партии: живёт, пока приложение открыто.</summary>
@@ -69,9 +77,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <summary>Модель представления задач: живёт, пока приложение открыто.</summary>
     public ProblemViewModel Problems { get; }
 
-    /// <summary>Приглашение обновления и ход загрузки: общее с экраном настроек состояние.</summary>
+    /// <summary>Приглашение обновления и ход загрузки: общее с экраном «О программе» состояние.</summary>
     /// <remarks>
-    /// Модель приходит снаружи и по умолчанию берётся у приложения: проверка из настроек и
+    /// Модель приходит снаружи и по умолчанию берётся у приложения: проверка из «О программе» и
     /// приглашение в оболочке должны говорить об одном обновлении, а не о двух разных.
     /// </remarks>
     public UpdateViewModel Updates { get; }
@@ -84,16 +92,16 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 
     /// <summary>Выбран раздел партии в нижней навигации.</summary>
     /// <remarks>
-    /// Разделы нижней навигации телефона: партия, задачи и настройки. Настройки — не окно поверх
-    /// партии, а отдельный раздел, поэтому выбранным может быть только один из трёх.
+    /// Разделы нижней навигации телефона: партия, задачи и общее меню. Настройки — не раздел,
+    /// а экран внутри партии, поэтому выбранным может быть только один из трёх.
     /// </remarks>
-    public bool IsGameSection => !_problemsMode && !_settingsScreen;
+    public bool IsGameSection => !_problemsMode && !_menuSection;
 
     /// <summary>Выбран раздел задач в нижней навигации.</summary>
-    public bool IsProblemSection => _problemsMode && !_settingsScreen;
+    public bool IsProblemSection => _problemsMode && !_menuSection;
 
-    /// <summary>Выбран раздел настроек: на телефоне настройки — отдельный экран.</summary>
-    public bool IsSettingsSection => _settingsScreen;
+    /// <summary>Открыт раздел общего меню: режим, «О программе» и выход.</summary>
+    public bool IsMenuSection => _menuSection;
 
     /// <summary>Подсказка о текущем режиме — чтобы игрок понимал, где он находится.</summary>
     /// <remarks>
@@ -109,7 +117,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <param name="evaluator">Оценка позиции нейросетью для уровней Дан; <c>null</c> — без сети.</param>
     /// <param name="problems">Задачи; <c>null</c> — взять встроенную библиотеку.</param>
     /// <param name="updates">Модель обновления; <c>null</c> — общая модель приложения.</param>
-    /// <returns>Оболочка с двумя режимами.</returns>
+    /// <returns>Оболочку с двумя режимами и общим меню.</returns>
     public static ShellViewModel Create(
         AppSettings settings,
         IPositionEvaluator? evaluator = null,
@@ -142,75 +150,36 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     }
 
     /// <summary>Показывает режим партии.</summary>
-    public void ShowGame() => SetMode(problems: false);
+    public void ShowGame() => SetSection(problems: false, menu: false);
 
     /// <summary>Показывает режим задач.</summary>
-    public void ShowProblems() => SetMode(problems: true);
+    public void ShowProblems() => SetSection(problems: true, menu: false);
 
-    /// <summary>Показывает экран настроек: на телефоне это отдельный раздел, а не окно-диалог.</summary>
+    /// <summary>Открывает общее меню: режим, «О программе» и выход из игры.</summary>
     /// <remarks>
-    /// Настройки принадлежат партии, поэтому раздел партии остаётся выбранным по режиму:
-    /// экран настроек показывает <c>BoardView</c>, а оболочка только подсвечивает раздел и
-    /// убирает его, когда экран закрыт (<see cref="HideSettingsScreen"/>).
+    /// Режим меню не меняет: закрыв его, игрок возвращается туда же, где был. Так «Меню» остаётся
+    /// разделом приложения, а не третьим режимом, и выбор режима внутри него — обычный переход.
     /// </remarks>
-    public void ShowSettingsScreen()
-    {
-        if (_settingsScreen && !_problemsMode)
-        {
-            return;
-        }
+    public void ShowMenu() => SetSection(problems: _problemsMode, menu: true);
 
-        // Раздел партии остаётся выбранным по режиму: экран настроек — надстройка над партией.
-        SetMode(problems: false, leaveSettingsScreen: false);
-        _settingsScreen = true;
-        NotifyAll();
-    }
-
-    /// <summary>Закрывает экран настроек и возвращает раздел партии.</summary>
-    public void HideSettingsScreen()
-    {
-        if (!_settingsScreen)
-        {
-            return;
-        }
-
-        _settingsScreen = false;
-        NotifyAll();
-    }
-
-    /// <summary>Переключает режим и сообщает об этом виду.</summary>
+    /// <summary>Переключает раздел и сообщает об этом виду.</summary>
     /// <param name="problems">Показывать задачи.</param>
-    /// <param name="leaveSettingsScreen">
-    /// Закрыть экран настроек. <c>false</c> — оставить: так его открывает
-    /// <see cref="ShowSettingsScreen"/>, которому режим нужен лишь для раздела партии.
-    /// </param>
+    /// <param name="menu">Показать общее меню вместо содержимого режима.</param>
     /// <remarks>
-    /// Уход с экрана настроек — не отдельное событие: нажатие «Партия» или «Задачи» в нижней
-    /// навигации само закрывает его, и подсветка раздела остаётся согласованной.
+    /// Повторный выбор того же раздела ничего не меняет и ни о чём не сообщает: иначе вид
+    /// перерисовывался бы на каждое нажатие выбранной кнопки.
     /// </remarks>
-    private void SetMode(bool problems, bool leaveSettingsScreen = true)
+    private void SetSection(bool problems, bool menu)
     {
-        var modeChanged = _problemsMode != problems;
-        var settingsLeft = leaveSettingsScreen && _settingsScreen;
-
-        // Повторный выбор того же раздела ничего не меняет и ни о чём не сообщает:
-        // иначе вид перерисовывался бы на каждое нажатие выбранной кнопки.
-        if (!modeChanged && !settingsLeft)
+        if (_problemsMode == problems && _menuSection == menu)
         {
             return;
         }
 
-        if (modeChanged)
-        {
-            AppLogMessages.ModeChanged(_log, problems ? "Задачи" : "Партия");
-        }
+        AppLogMessages.ModeChanged(_log, SectionName(problems, menu));
 
         _problemsMode = problems;
-
-        if (leaveSettingsScreen)
-        {
-            _settingsScreen = false;
-        }
+        _menuSection = menu;
 
         if (problems)
         {
@@ -222,9 +191,17 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         NotifyAll();
     }
 
+    /// <summary>Называет раздел для журнала: в логе видно, что игрок открыл перед сбоем.</summary>
+    /// <param name="problems">Показаны задачи.</param>
+    /// <param name="menu">Показано общее меню.</param>
+    /// <returns>Название раздела.</returns>
+    private static string SectionName(bool problems, bool menu) => menu
+        ? "Меню"
+        : problems ? "Задачи" : "Партия";
+
     /// <summary>Сообщает виду обо всех свойствах оболочки.</summary>
     /// <remarks>
-    /// Сообщаем обо всех: разделы нижней навигации зависят и от режима, и от экрана настроек,
+    /// Сообщаем обо всех: разделы нижней навигации зависят и от режима, и от общего меню,
     /// а вычислять, что именно изменилось, здесь нечего — свойств шесть.
     /// </remarks>
     private void NotifyAll()

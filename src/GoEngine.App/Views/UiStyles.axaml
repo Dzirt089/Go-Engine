@@ -44,11 +44,26 @@
     <Setter Property="Foreground" Value="{DynamicResource AppTextMutedBrush}" />
   </Style>
 
-  <!-- Выбранный раздел: подложка акцента и сам акцент в значке и подписи. -->
+  <!-- Значок раздела: подложка под значком, а не под всей кнопкой. Так выбранный раздел
+       выделяется «таблеткой» вокруг значка — как в нижней навигации Material 3 Expressive
+       (индикатор 56×32 точки со скруглением в половину высоты), а не полосой во всю ширину
+       экрана. Подпись при этом остаётся на месте и не прыгает. -->
+  <Style Selector="Border.app-nav-icon">
+    <Setter Property="Width" Value="56" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <!-- Выбранный раздел: «таблетка» под значком и акцент в значке и подписи. -->
   <Style Selector="Button.app-nav.active">
-    <Setter Property="Background" Value="{DynamicResource AppAccentSoftBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource AppAccentBrush}" />
     <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="Button.app-nav.active Border.app-nav-icon">
+    <Setter Property="Background" Value="{DynamicResource AppAccentSoftBrush}" />
   </Style>
 
   <Style Selector="Button.app-nav TextBlock">
@@ -113,8 +128,8 @@
   </Style>
 
 
-  <!-- Подразделы настроек: три вкладки в одну строку — «Партия», «Подсчёт», «О программе».
-       Отступы и кегль умеренные: на экране 360 точек три подписи обязаны помещаться целиком,
+  <!-- Подразделы «Настройки партии»: две вкладки в одну строку — «Партия» и «Подсчёт».
+       Отступы и кегль умеренные: на экране 360 точек подписи обязаны помещаться целиком,
        а не уезжать под прокрутку. Ленту вкладок тема Fluent рисует сама. -->
   <Style Selector="TabControl.app-settings-tabs TabItem">
     <Setter Property="FontSize" Value="{DynamicResource AppFontBody}" />
@@ -122,6 +137,117 @@
     <Setter Property="MinHeight" Value="{DynamicResource AppTouchTarget}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- Заголовок экрана: «Меню», «О программе». Крупнее подзаголовка — так у экрана видно начало. -->
+  <Style Selector="TextBlock.app-title">
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontTitle}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- Заголовок группы строк: «Режим», «Приложение». Мелкий и приглушённый: он называет группу,
+       а не спорит с её строками. -->
+  <Style Selector="TextBlock.app-section">
+    <Setter Property="Foreground" Value="{DynamicResource AppTextMutedBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontBody}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Margin" Value="6,0,0,0" />
+  </Style>
+
+  <!-- Иконочная кнопка: значок в цели 44×44 точки. Значок рисуется вектором (Path), а его цвет
+       задаётся здесь: сама кнопка цвета содержимого не задаёт. -->
+  <Style Selector="Button.app-icon">
+    <Setter Property="Width" Value="44" />
+    <Setter Property="Height" Value="44" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusSmall}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Button.app-icon Path">
+    <Setter Property="Fill" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <!-- Строка меню: значок, подпись и, если надо, пометка справа. Высота не меньше 56 точек —
+       строка списка по Material, и по ней уверенно попадает палец. Выравнивание содержимого
+       по ширине строки: подпись стоит слева, пометка — у правого края. -->
+  <Style Selector="Button.app-menu-row">
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="14,0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusMedium}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSubtitle}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <Style Selector="Button.app-menu-row Path">
+    <Setter Property="Fill" Value="{DynamicResource AppTextMutedBrush}" />
+  </Style>
+
+  <!-- Главная строка меню: «Начать партию» — то, с чего начинается игра. -->
+  <Style Selector="Button.app-menu-row.primary">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="Button.app-menu-row.primary Path">
+    <Setter Property="Fill" Value="{DynamicResource AppAccentBrush}" />
+  </Style>
+
+  <!-- Выход: строка красная целиком — её нельзя спутать с соседними действиями. -->
+  <Style Selector="Button.app-menu-row.danger">
+    <Setter Property="Foreground" Value="{DynamicResource AppDangerBrush}" />
+  </Style>
+
+  <Style Selector="Button.app-menu-row.danger Path">
+    <Setter Property="Fill" Value="{DynamicResource AppDangerBrush}" />
+  </Style>
+
+  <!-- Пометка выбранного: галочка акцентом. -->
+  <Style Selector="Path.app-check">
+    <Setter Property="Fill" Value="{DynamicResource AppAccentBrush}" />
+  </Style>
+
+  <!-- Разделитель строк внутри группы. Светлее рамки карточки: линия только разделяет. -->
+  <Style Selector="Border.app-divider">
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Background" Value="{DynamicResource AppDividerBrush}" />
+    <Setter Property="Margin" Value="14,0" />
+  </Style>
+
+  <!-- Шторка снизу: меню партии. Скруглены только верхние углы — так шторка «выезжает» из края
+       экрана, а не висит карточкой (Material, bottom sheet: радиус 28 сверху). -->
+  <Style Selector="Border.app-sheet">
+    <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+    <Setter Property="CornerRadius" Value="28,28,0,0" />
+  </Style>
+
+  <!-- Затемнение под шторкой и карточками: кнопка во весь слой. Нажатие по ней закрывает то,
+       что на ней стоит. -->
+  <Style Selector="Button.app-backdrop">
+    <Setter Property="Background" Value="{DynamicResource AppOverlayBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+  </Style>
+
+  <!-- Красное действие: подтверждение выхода. Тот же размер, что у прочих кнопок действия. -->
+  <Style Selector="Button.app-action.danger">
+    <Setter Property="Foreground" Value="{DynamicResource AppDangerBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppDangerBrush}" />
   </Style>
 
 </Styles>

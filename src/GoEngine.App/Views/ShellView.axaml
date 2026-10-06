@@ -1,46 +1,80 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:GoEngine.App.Views"
              xmlns:vm="clr-namespace:GoEngine.App.ViewModels"
              x:Class="GoEngine.App.Views.ShellView"
              x:DataType="vm:ShellViewModel">
 
-  <!-- Оболочка приложения: два режима — партия и задачи. Режимы не смешиваются, оболочка только
-       показывает одно или другое; содержимое создаётся кодом вида (ShellView.axaml.cs), чтобы оба
-       режима получали свои модели из одного места и не пересоздавались при переключении.
+  <!-- Оболочка приложения: три раздела — партия, задачи и общее меню. Режимы не смешиваются,
+       оболочка только показывает один из них; содержимое создаётся кодом вида (ShellView.axaml.cs),
+       чтобы виды получали свои модели из одного места и не пересоздавались при переключении.
 
        Раскладок две. На широком экране (760 точек и больше) остаётся прежняя настольная:
-       строка режимов сверху, содержимое под ней. На телефоне строка режимов заменяется нижней
-       навигацией с тремя разделами — «Партия», «Задачи», «Настройки»; она ближе к большому пальцу,
-       а разделы не спорят за верх экрана с доской. Выбор раскладки — чистая функция
-       (BoardLayoutRules.DecideLayout), здесь только применяется её ответ. -->
+       строка режимов сверху, содержимое под ней, а «О программе» — пункт меню окна. На телефоне
+       строка режимов заменяется нижней навигацией с тремя разделами — «Партия», «Задачи», «Меню»;
+       она ближе к большому пальцу, а разделы не спорят за верх экрана с доской. Выбор раскладки —
+       чистая функция (BoardLayoutRules.DecideLayout), здесь только применяется её ответ.
+
+       Настройки и меню партии в нижней навигации не стоят: они принадлежат партии и живут
+       в её разделе — «Настройка партии» открывается из меню партии и шестерёнкой в шапке
+       (замечание пользователя 2026-10-06, DECISIONS.md D-075). -->
   <Grid RowDefinitions="Auto,*,Auto">
 
     <!-- Верхняя полоса: строка режимов. Приглашение обновления живёт отдельным слоем ниже
          и стоит по центру экрана: полосой сверху оно на телефоне оказывалось строкой поверх доски
          (жалоба пользователя 2026-10-02 «должно быть в центре экрана»). -->
-    <StackPanel Grid.Row="0">
+    <Border x:Name="DesktopBar"
+            Grid.Row="0"
+            Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+            BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+            BorderThickness="0,0,0,1">
+      <StackPanel Orientation="Horizontal" Spacing="8" Margin="10,8">
+        <!-- Кнопки не меньше 44 точек по высоте: это размер, по которому попадает палец. -->
+        <ToggleButton x:Name="GameModeButton" Content="Партия" MinHeight="44" MinWidth="120" />
+        <ToggleButton x:Name="ProblemModeButton" Content="Задачи" MinHeight="44" MinWidth="120" />
+        <TextBlock x:Name="ModeHintText"
+                   Text="{Binding ModeHint}"
+                   VerticalAlignment="Center"
+                   TextWrapping="Wrap"
+                   Margin="8,0,0,0"
+                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+      </StackPanel>
+    </Border>
 
-      <Border x:Name="DesktopBar"
-              Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
-              BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
-              BorderThickness="0,0,0,1">
-        <StackPanel Orientation="Horizontal" Spacing="8" Margin="10,8">
-          <!-- Кнопки не меньше 44 точек по высоте: это размер, по которому попадает палец. -->
-          <ToggleButton x:Name="GameModeButton" Content="Партия" MinHeight="44" MinWidth="120" />
-          <ToggleButton x:Name="ProblemModeButton" Content="Задачи" MinHeight="44" MinWidth="120" />
-          <TextBlock x:Name="ModeHintText"
-                     Text="{Binding ModeHint}"
-                     VerticalAlignment="Center"
-                     TextWrapping="Wrap"
-                     Margin="8,0,0,0"
-                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-        </StackPanel>
-      </Border>
-
-    </StackPanel>
-
-    <!-- Содержимое общее для обеих раскладок: виды режимов живут здесь и не пересоздаются. -->
+    <!-- Содержимое общее для обеих раскладок: виды режимов и раздел «Меню» живут здесь
+         и не пересоздаются. -->
     <Panel x:Name="ModeContent" Grid.Row="1" />
+
+    <!-- «О программе»: вложенный экран раздела «Меню», а не отдельный раздел навигации.
+         Закрывается кнопкой «Назад»; нижняя навигация остаётся видимой — так игрок понимает,
+         что он внутри «Меню», и может уйти в другой раздел одним нажатием. -->
+    <Border x:Name="AboutOverlay"
+            Grid.Row="1"
+            IsVisible="False"
+            Background="{DynamicResource AppBackgroundBrush}">
+      <Grid RowDefinitions="Auto,*">
+        <Border Grid.Row="0"
+                Background="{DynamicResource AppSurfaceBrush}"
+                BorderBrush="{DynamicResource AppBorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="6,6">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <!-- Стрелка нарисована вектором: значкового шрифта в проекте нет. -->
+            <Button x:Name="AboutBackButton"
+                    Classes="app-icon"
+                    AutomationProperties.Name="Назад">
+              <Path Width="22" Height="22" Stretch="Uniform"
+                    Data="M14.6,5.2 L7.8,12 L14.6,18.8 L16.7,16.7 L12,12 L16.7,7.3 Z" />
+            </Button>
+            <TextBlock Text="О программе"
+                       Classes="app-subtitle"
+                       VerticalAlignment="Center" />
+          </StackPanel>
+        </Border>
+
+        <views:AboutView x:Name="AboutArea" Grid.Row="1" />
+      </Grid>
+    </Border>
 
     <!-- Нижняя навигация телефона: значок и подпись, выбранный раздел выделен акцентом.
          Высота кнопки — 64 точки, цель нажатия заметно больше 48. -->
@@ -50,17 +84,21 @@
             Background="{DynamicResource AppSurfaceBrush}"
             BorderBrush="{DynamicResource AppBorderBrush}"
             BorderThickness="0,1,0,0">
-      <Grid ColumnDefinitions="*,*,*,*" Height="{DynamicResource AppNavHeight}">
+      <Grid ColumnDefinitions="*,*,*" Height="{DynamicResource AppNavHeight}">
 
         <Button x:Name="NavGameButton"
                 Grid.Column="0"
                 Classes="app-nav"
                 Classes.active="{Binding IsGameSection}"
                 AutomationProperties.Name="Партия">
-          <StackPanel Spacing="3" VerticalAlignment="Center">
-            <!-- Значок — вектор, а не шрифт: значкового шрифта в проекте нет. -->
-            <Path Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center"
-                  Data="M4,12 A8,8 0 1 1 20,12 A8,8 0 1 1 4,12 Z" />
+          <StackPanel Spacing="2" VerticalAlignment="Center">
+            <!-- Значок — вектор, а не шрифт: значкового шрифта в проекте нет. «Таблетка» вокруг
+                 значка показывает выбранный раздел (Border.app-nav-icon). -->
+            <Border Classes="app-nav-icon">
+              <Path Width="22" Height="22" Stretch="Uniform"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Data="M4,12 A8,8 0 1 1 20,12 A8,8 0 1 1 4,12 Z" />
+            </Border>
             <TextBlock Text="Партия" />
           </StackPanel>
         </Button>
@@ -70,37 +108,32 @@
                 Classes="app-nav"
                 Classes.active="{Binding IsProblemSection}"
                 AutomationProperties.Name="Задачи">
-          <StackPanel Spacing="3" VerticalAlignment="Center">
-            <Path Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center"
-                  Data="M12,3 L21,12 L12,21 L3,12 Z" />
+          <StackPanel Spacing="2" VerticalAlignment="Center">
+            <Border Classes="app-nav-icon">
+              <Path Width="22" Height="22" Stretch="Uniform"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Data="M12,3 L21,12 L12,21 L3,12 Z" />
+            </Border>
             <TextBlock Text="Задачи" />
           </StackPanel>
         </Button>
 
-        <Button x:Name="NavSettingsButton"
+        <!-- «Меню» — полноценный раздел: выбор режима, «О программе» и выход из игры.
+             Раньше это была кнопка, открывавшая карточку меню партии; теперь меню партии
+             открывается из шапки партии, а раздел занят общим меню приложения
+             (замечание пользователя 2026-10-06). -->
+        <Button x:Name="NavMenuButton"
                 Grid.Column="2"
                 Classes="app-nav"
-                Classes.active="{Binding IsSettingsSection}"
-                AutomationProperties.Name="Настройки">
-          <StackPanel Spacing="3" VerticalAlignment="Center">
-            <!-- Ползунки: понятный значок настроек без значкового шрифта. -->
-            <Path Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center"
-                  Data="M4,7 h16 v1.8 h-16 z M9,4.6 h3 v6.6 h-3 z M4,15 h16 v1.8 h-16 z M15,12.6 h3 v6.6 h-3 z" />
-            <TextBlock Text="Настройки" />
-          </StackPanel>
-        </Button>
-
-        <!-- «Меню» — не раздел, а кнопка: она открывает карточку по центру экрана с действиями,
-             которые на телефоне не помещаются в ряд (новая партия, отмена партии, файлы,
-             настройки). Поэтому подсветки активного раздела у неё нет (замечание 2026-10-03). -->
-        <Button x:Name="NavMenuButton"
-                Grid.Column="3"
-                Classes="app-nav"
+                Classes.active="{Binding IsMenuSection}"
                 AutomationProperties.Name="Меню">
-          <StackPanel Spacing="3" VerticalAlignment="Center">
+          <StackPanel Spacing="2" VerticalAlignment="Center">
             <!-- Три полосы: значок меню без значкового шрифта. -->
-            <Path Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center"
-                  Data="M4,6.5 h16 v2 h-16 z M4,11 h16 v2 h-16 z M4,15.5 h16 v2 h-16 z" />
+            <Border Classes="app-nav-icon">
+              <Path Width="22" Height="22" Stretch="Uniform"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Data="M4,6.5 h16 v2 h-16 z M4,11 h16 v2 h-16 z M4,15.5 h16 v2 h-16 z" />
+            </Border>
             <TextBlock Text="Меню" />
           </StackPanel>
         </Button>
@@ -110,7 +143,7 @@
 
     <!-- Место приглашения обновления: слой поверх содержимого оболочки во всю её высоту.
          Карточку строит код вида (ShellView.axaml.cs) и получает общую модель обновления — ту же,
-         что и экран настроек. Слой растянут на все строки сетки, а сам он нажатия не ловит:
+         что и экран «О программе». Слой растянут на все строки сетки, а сам он нажатия не ловит:
          пустая панель без фона прозрачна для указателя, поэтому спрятанное приглашение
          не мешает играть. -->
     <Panel x:Name="UpdateHost"
@@ -118,6 +151,45 @@
            Grid.RowSpan="3"
            HorizontalAlignment="Stretch"
            VerticalAlignment="Stretch" />
+
+    <!-- Подтверждение выхода: выход закрывает программу, поэтому спрашиваем — случайное нажатие
+         не должно уносить несохранённую партию (замечание пользователя 2026-10-06). Затемнение
+         берётся из темы, карточка стоит по центру. -->
+    <Border x:Name="ExitOverlay"
+            Grid.Row="0"
+            Grid.RowSpan="3"
+            IsVisible="False"
+            Classes="app-overlay">
+      <Border Classes="app-banner app-overlay-card"
+              MaxWidth="420"
+              Padding="16"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <StackPanel Spacing="10">
+          <TextBlock Classes="app-subtitle"
+                     Text="Выйти из игры?"
+                     HorizontalAlignment="Center" />
+          <TextBlock Classes="app-label"
+                     Text="Несохранённая партия будет потеряна."
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+          <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
+            <Button x:Name="ExitCancelButton"
+                    Grid.Column="0"
+                    Content="Отмена"
+                    Classes="app-action"
+                    Margin="0,0,4,0"
+                    HorizontalAlignment="Stretch" />
+            <Button x:Name="ExitConfirmButton"
+                    Grid.Column="1"
+                    Content="Выйти"
+                    Classes="app-action danger"
+                    Margin="4,0,0,0"
+                    HorizontalAlignment="Stretch" />
+          </Grid>
+        </StackPanel>
+      </Border>
+    </Border>
 
   </Grid>
 </UserControl>

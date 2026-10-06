@@ -37,10 +37,15 @@ public sealed class BoardViewTests
     /// <summary>Колонки ряда действий телефона: четыре действия партии, по одному на колонку.</summary>
     private static readonly int[] ActionColumns = [0, 1, 2, 3];
 
-    /// <summary>Пункты меню партии: пять действий, которые не помещаются в ряд телефона.</summary>
+    /// <summary>Пункты меню партии: действия, которые не помещаются в ряд под доской.</summary>
+    /// <remarks>
+    /// «Настройка партии» называется так же, как экран, который она открывает: раньше это были
+    /// «Настройки» вообще, а сведения о программе жили в них же (замечание 2026-10-06).
+    /// </remarks>
     private static readonly string[] MenuCaptions =
     [
-        "Начать партию", "Отменить партию", "Сохранить партию", "Загрузить партию", "Настройки"
+        "Начать партию", "Отменить партию", "Сохранить партию", "Загрузить партию",
+        "Настройка партии", "Закрыть"
     ];
 
     [Fact]
@@ -279,31 +284,107 @@ public sealed class BoardViewTests
     }
 
     [Fact]
-    public void Меню_Стоит_По_Центру_Экрана()
+    public void Меню_Стоит_Шторкой_Внизу_Экрана()
     {
+        // Карточка по центру заменена шторкой снизу: она ближе к большому пальцу и не закрывает
+        // доску целиком (замечание пользователя 2026-10-06).
         var (view, _) = Create();
 
-        var card = view.FindControl<Border>("MenuCard")!;
+        var sheet = view.FindControl<Border>("MenuCard")!;
 
-        Assert.Equal((HorizontalAlignment.Center, VerticalAlignment.Center), (card.HorizontalAlignment, card.VerticalAlignment));
+        Assert.Equal(
+            (HorizontalAlignment.Stretch, VerticalAlignment.Bottom),
+            (sheet.HorizontalAlignment, sheet.VerticalAlignment));
     }
 
     [Fact]
-    public void Меню_Наложено_На_Затемнение()
+    public void Меню_Стоит_На_Затемнении()
     {
         var (view, _) = Create();
 
-        Assert.Contains("app-overlay", MenuOverlay(view).Classes);
+        Assert.Contains("app-backdrop", view.FindControl<Button>("MenuBackdrop")!.Classes);
     }
 
     [Fact]
-    public void Меню_Содержит_Пять_Пунктов()
+    public void Меню_Закрывается_Нажатием_По_Затемнению()
+    {
+        var (view, _) = Create();
+        view.ShowMenu();
+
+        Click(view.FindControl<Button>("MenuBackdrop")!);
+
+        Assert.False(MenuOverlay(view).IsVisible);
+    }
+
+    [Fact]
+    public void Меню_Содержит_Пункты_Партии()
     {
         var (view, _) = Create();
 
         Assert.Equal(
             MenuCaptions,
-            ButtonsIn(MenuOverlay(view)).Select(button => button.Content as string).Where(MenuCaptions.Contains).ToArray());
+            ButtonsIn(MenuOverlay(view))
+                .Select(LabelOf)
+                .Where(caption => MenuCaptions.Contains(caption))
+                .ToArray());
+    }
+
+    [Fact]
+    public void Шапка_Телефона_Открывает_Меню_Партии()
+    {
+        var (view, _) = Create();
+
+        Click(view.FindControl<Button>("MobileMenuButton")!);
+
+        Assert.True(MenuOverlay(view).IsVisible);
+    }
+
+    [Fact]
+    public void Шапка_Телефона_Закрывает_Меню_Повторным_Нажатием()
+    {
+        var (view, _) = Create();
+        view.ShowMenu();
+
+        Click(view.FindControl<Button>("MobileMenuButton")!);
+
+        Assert.False(MenuOverlay(view).IsVisible);
+    }
+
+    [Fact]
+    public void Шапка_Телефона_Открывает_Настройку_Партии()
+    {
+        // Шестерёнка в шапке: частая настройка (уровень, коми, подсчёт) — в одно касание.
+        var (view, _) = Create();
+
+        Click(view.FindControl<Button>("MobileSettingsButton")!);
+
+        Assert.True(view.FindControl<Border>("SettingsOverlay")!.IsVisible);
+    }
+
+    [Fact]
+    public void Меню_Открывает_Настройку_Партии()
+    {
+        var (view, _) = Create();
+
+        Click(view.FindControl<Button>("MenuSettingsButton")!);
+
+        Assert.True(view.FindControl<Border>("SettingsOverlay")!.IsVisible);
+    }
+
+    [Fact]
+    public void Подпись_Настройки_Называет_Настройку_Партии()
+    {
+        var (view, _) = Create();
+
+        Assert.Equal("Настройка партии", LabelOf(view.FindControl<Button>("MenuSettingsButton")!));
+    }
+
+    [Fact]
+    public void Экран_Настроек_Называется_Настройкой_Партии()
+    {
+        var (view, _) = Create();
+
+        Assert.Equal("Настройка партии", view.FindControl<TextBlock>("SettingsTitle")!.Text);
     }
 
     [Fact]
@@ -687,6 +768,18 @@ public sealed class BoardViewTests
     /// <summary>Все кнопки части разметки.</summary>
     /// <param name="root">Корень разметки.</param>
     /// <returns>Кнопки в порядке обхода дерева.</returns>
+    /// <summary>Подпись строки: текст внутри кнопки, а не её содержимое.</summary>
+    /// <param name="button">Строка меню.</param>
+    /// <returns>Текст подписи или пустая строка, если подписи нет.</returns>
+    /// <remarks>
+    /// Строки меню несут значок и подпись, поэтому содержимое кнопки — не строка, а разметка.
+    /// </remarks>
+    private static string LabelOf(Button button) => button
+        .GetLogicalDescendants()
+        .OfType<TextBlock>()
+        .Select(text => text.Text ?? string.Empty)
+        .FirstOrDefault(string.Empty);
+
     private static IReadOnlyList<Button> ButtonsIn(ILogical root) =>
         [.. root.GetLogicalDescendants().OfType<Button>()];
 
