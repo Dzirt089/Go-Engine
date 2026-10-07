@@ -1,0 +1,112 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:GoEngine.App.Controls"
+             xmlns:vm="clr-namespace:GoEngine.App.ViewModels"
+             x:Class="GoEngine.App.Views.LessonView"
+             x:DataType="vm:LessonViewModel">
+
+  <!-- Обучение: та же доска, что и в партии (BoardControl), но своя панель и своя модель.
+       Раскладку выбирает код вида (LessonView.axaml.cs) по BoardLayoutRules: на узком экране
+       доска сверху и панель снизу, на широком — доска слева, панель справа.
+
+       Панель показывает урок шаг за шагом: объяснение игрок читает, задание выполняет на доске.
+       Ходы принимает модель (<see cref="LessonViewModel"/>), а не вид: правило «какой ход верный»
+       живёт в уроке, и вид только рисует то, что решила модель.
+
+       Все надписи — на русском: обучение ведётся по-русски (замечание пользователя 2026-10-07).
+       Термины с японскими названиями собраны в словаре, который открывается кнопкой. -->
+  <Grid x:Name="Layout" ColumnDefinitions="*,320">
+
+    <controls:BoardControl x:Name="Board"
+                           Grid.Column="0"
+                           Board="{Binding Board}"
+                           LastMove="{Binding LastMove}"
+                           HintPoint="{Binding HintPoint}"
+                           HighlightPoints="{Binding Highlight}" />
+
+    <Border x:Name="Panel"
+            Grid.Column="1"
+            Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+            BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+            BorderThickness="1,0,0,0"
+            Padding="12,10">
+      <Grid RowDefinitions="*,Auto">
+
+        <!-- Содержание урока и текст шага: то, что читают не спеша. -->
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+          <StackPanel Spacing="4" Margin="0,0,0,8">
+
+            <TextBlock x:Name="Heading" Text="Обучение" FontSize="16" FontWeight="SemiBold" />
+
+            <!-- Шаг урока стоит первым: на телефоне панель невысокая, и текст шага — то, ради чего
+                 урок открыт; выбор урока и описание идут ниже и при нехватке места уезжают
+                 под прокрутку (проверено живым прогоном: с описанием впереди текст шага
+                 не помещался вовсе). -->
+            <TextBlock x:Name="StepCounterText"
+                       Text="{Binding StepCounter}"
+                       FontWeight="SemiBold" />
+
+            <TextBlock x:Name="StepTitleText"
+                       Text="{Binding StepTitle}"
+                       FontSize="15"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap" />
+
+            <TextBlock x:Name="StepTextText"
+                       Text="{Binding StepText}"
+                       TextWrapping="Wrap" />
+
+            <!-- Что сказать игроку об его ходе: похвала акцентом, отказ — красным. -->
+            <TextBlock x:Name="MessageText"
+                       Text="{Binding Message}"
+                       IsVisible="{Binding HasMessage}"
+                       TextWrapping="Wrap"
+                       FontWeight="SemiBold" />
+
+            <TextBlock x:Name="LessonTitleText"
+                       Text="{Binding LessonTitle}"
+                       Margin="0,8,0,0"
+                       FontSize="15"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap" />
+
+            <TextBlock x:Name="LessonSummaryText"
+                       Text="{Binding LessonSummary}"
+                       Classes="app-label"
+                       TextWrapping="Wrap" />
+
+            <!-- Список уроков: по нему видно, сколько их и что дальше. -->
+            <TextBlock Text="Урок" Margin="0,6,0,0" />
+            <ComboBox x:Name="LessonBox"
+                      MinHeight="44"
+                      HorizontalAlignment="Stretch" />
+
+          </StackPanel>
+        </ScrollViewer>
+
+        <!-- Кнопки шага: эта часть не прокручивается и не уезжает за край экрана. -->
+        <StackPanel Grid.Row="1" Spacing="6" Margin="0,6,0,0">
+
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button x:Name="HintButton" Content="Подсказка" MinHeight="44" MinWidth="104" IsEnabled="{Binding CanHint}" />
+            <Button x:Name="BackButton" Content="Назад" MinHeight="44" IsEnabled="{Binding CanGoBack}" />
+            <Button x:Name="ResetButton" Content="Заново" MinHeight="44" />
+          </StackPanel>
+
+          <Button x:Name="NextButton"
+                  Content="Далее"
+                  Classes="app-primary"
+                  MinHeight="44"
+                  HorizontalAlignment="Stretch"
+                  IsEnabled="{Binding CanGoNext}" />
+
+          <Button x:Name="GlossaryButton"
+                  Content="Словарь терминов"
+                  MinHeight="44"
+                  HorizontalAlignment="Stretch" />
+
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

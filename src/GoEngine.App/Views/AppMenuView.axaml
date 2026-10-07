@@ -72,6 +72,31 @@
               </Grid>
             </Button>
 
+            <Border Classes="app-divider" />
+
+            <Button x:Name="LessonModeRow"
+                    Classes="app-menu-row"
+                    AutomationProperties.Name="Обучение">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <!-- Раскрытая книга: значок обучения, как в нижней навигации. -->
+                <Path Width="22" Height="22" Stretch="Uniform" VerticalAlignment="Center"
+                      Data="M4,4 h6.6 v15 h-6.6 z M13.4,4 h6.6 v15 h-6.6 z" />
+                <TextBlock Grid.Column="1"
+                           Margin="14,0,8,0"
+                           Text="Обучение"
+                           VerticalAlignment="Center" />
+                <Path x:Name="LessonModeCheck"
+                      Grid.Column="2"
+                      Classes="app-check"
+                      Width="20"
+                      Height="20"
+                      Stretch="Uniform"
+                      VerticalAlignment="Center"
+                      IsVisible="{Binding IsLessonMode}"
+                      Data="M9.6,16.2 L5.4,12 L4,13.4 L9.6,19 L20,8.6 L18.6,7.2 Z" />
+              </Grid>
+            </Button>
+
           </StackPanel>
         </Border>
       </StackPanel>

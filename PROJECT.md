@@ -38,8 +38,9 @@ GoEngine.Tests      ← Core, AI, AI.Onnx, xUnit
 |---|---|---|
 | `Core` | `System.*` | Avalonia, AI, IO, БД |
 | `AI` | `Core`, `System.*` | Avalonia, IO, БД |
-| `App` | `Core`, `AI`, Avalonia, SkiaSharp | — |
+| `App` | `Core`, `AI`, `Problems`, Avalonia, SkiaSharp | — |
 | `AI.Onnx` | `Core`, `AI`, ONNX Runtime | Avalonia, IO, БД |
+| `Problems` | `Core`, `AI`, `System.Text.Json` | Avalonia, БД |
 | `Tests` | `Core`, `AI`, `AI.Onnx`, xUnit | `App` |
 
 ## Технологический стек
@@ -93,13 +94,18 @@ src/
 │   ├── Mcts/                  дерево MCTS и селектор (UCB1 без сети, PUCT с сетью)
 │   ├── Patterns/              окрестности 3×3 и их веса
 │   └── SelfPlay/              партия AI против AI
+├── GoEngine.Problems/         задачи и обучение: позиции, проверка ходов, уроки
+│   ├── Problems/              встроенные задачи (SGF с деревом решения)
+│   ├── Lessons/               уроки (JSON), их разбор и прохождение (LessonSession)
+│   └── Glossary/              словарь терминов Го для обучения (JSON)
 ├── GoEngine.App/              библиотека интерфейса: виды, модель, сервисы, рисование
-│   ├── Controls/              элемент доски: щелчки, наведение, кадры анимации
+│   ├── Controls/              элемент доски: щелчки, наведение, кадры анимации, подсветка точек
 │   ├── Rendering/             рендерер Skia, геометрия, анимация, итог партии, звук хода
 │   ├── Services/              настройки, файлы партий, уровни, метрики платформы, обновления, логи,
 │   │                          часы партии (GameClock), согласование подсчёта (ScoringAgreement)
-│   ├── ViewModels/            состояние партии, задач, обновления и оболочки режимов
-│   └── Views/                 виды и диалоги, строки состояния (GameStatusLines), баннеры итога и обновления
+│   ├── ViewModels/            состояние партии, задач, обучения, обновления и оболочки режимов
+│   └── Views/                 виды и диалоги (задачи, обучение, словарь, настройки), строки состояния
+│                              (GameStatusLines), баннеры итога и обновления
 ├── GoEngine.App.Desktop/      голова настольной версии: точка входа и проверочные режимы
 │   ├── Diagnostics/           таблица режимов (ModeRunner), сами проверки (CheckModes, TerritoryCheck,
 │   │                          ClockCheck, UpdateCheck), образцы рендера, звук платформы
@@ -112,6 +118,7 @@ src/
 │   │   ├── Rules/             ко, захват, самоубийство, позиции из GO_RULES
 │   │   └── Sgf/               формат SGF
 │   ├── AI/                    селекторы, MCTS, playout'ы, сила уровней
+│   ├── Problems/              задачи и уроки: библиотеки, сессии, проверка ходов и заданий
 │   ├── Onnx/                  признаки KataGo и загрузка модели (v2)
 │   └── Support/               стенды, позиции и построители для тестов
 └── GoEngine.App.Tests/        тесты слоя App (Services, Rendering)

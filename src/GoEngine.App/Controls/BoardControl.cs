@@ -44,6 +44,10 @@ public sealed class BoardControl : Control
     public static readonly StyledProperty<GoPoint?> HintPointProperty =
         AvaloniaProperty.Register<BoardControl, GoPoint?>(nameof(HintPoint));
 
+    /// <summary>Свойство подсвеченных точек урока: изменение перерисовывает доску.</summary>
+    public static readonly StyledProperty<IReadOnlyList<GoPoint>?> HighlightPointsProperty =
+        AvaloniaProperty.Register<BoardControl, IReadOnlyList<GoPoint>?>(nameof(HighlightPoints));
+
     /// <summary>Свойство показа координат: выключенные подписи не перерисовываются.</summary>
     public static readonly StyledProperty<bool> ShowCoordinatesProperty =
         AvaloniaProperty.Register<BoardControl, bool>(nameof(ShowCoordinates), defaultValue: true);
@@ -61,6 +65,7 @@ public sealed class BoardControl : Control
             TerritoryProperty,
             DeadPointsProperty,
             HintPointProperty,
+            HighlightPointsProperty,
             ShowCoordinatesProperty,
             OutcomeProperty);
     }
@@ -149,6 +154,17 @@ public sealed class BoardControl : Control
         set => SetValue(HintPointProperty, value);
     }
 
+    /// <summary>Точки, подсвеченные уроком: на них смотрит объяснение.</summary>
+    /// <remarks>
+    /// Отдельно от <see cref="HintPoint"/>: подсказка — предлагаемый ход, а подсветка объясняет,
+    /// куда смотреть. Рисуются они одинаково, но живут в разных шагах урока.
+    /// </remarks>
+    public IReadOnlyList<GoPoint>? HighlightPoints
+    {
+        get => GetValue(HighlightPointsProperty);
+        set => SetValue(HighlightPointsProperty, value);
+    }
+
     /// <summary>Рисовать ли подписи координат вокруг сетки.</summary>
     /// <remarks>
     /// На телефоне подписи выключаются, когда клетка становится мелкой: решение принимает
@@ -198,6 +214,7 @@ public sealed class BoardControl : Control
                 Territory,
                 DeadPoints,
                 HintPoint,
+                HighlightPoints,
                 ShowCoordinates,
                 Outcome));
         }
@@ -298,6 +315,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
     private readonly IReadOnlyList<StoneColor>? _territory;
     private readonly IReadOnlyList<GoPoint>? _deadPoints;
     private readonly GoPoint? _hint;
+    private readonly IReadOnlyList<GoPoint>? _highlights;
     private readonly bool _showCoordinates;
     private readonly BoardOutcome _outcome;
 
@@ -310,6 +328,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
         IReadOnlyList<StoneColor>? territory,
         IReadOnlyList<GoPoint>? deadPoints,
         GoPoint? hint,
+        IReadOnlyList<GoPoint>? highlights,
         bool showCoordinates,
         BoardOutcome outcome)
     {
@@ -320,6 +339,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
         _territory = territory;
         _deadPoints = deadPoints;
         _hint = hint;
+        _highlights = highlights;
         _showCoordinates = showCoordinates;
         _outcome = outcome;
         Bounds = bounds;
@@ -360,6 +380,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
             _territory,
             _deadPoints,
             _hint,
+            _highlights,
             _showCoordinates,
             _outcome);
     }

@@ -39,9 +39,11 @@ public sealed partial class ShellView : UserControl
     private readonly Panel? _content;
     private readonly ToggleButton? _gameButton;
     private readonly ToggleButton? _problemButton;
+    private readonly ToggleButton? _lessonButton;
     private readonly Border? _desktopBar;
     private readonly Border? _mobileNav;
     private readonly Border? _aboutOverlay;
+    private readonly Border? _glossaryOverlay;
     private readonly Border? _exitOverlay;
     private readonly AboutView? _aboutArea;
     private readonly UpdateBanner? _updateBanner;
@@ -78,9 +80,11 @@ public sealed partial class ShellView : UserControl
         _content = this.FindControl<Panel>("ModeContent");
         _gameButton = this.FindControl<ToggleButton>("GameModeButton");
         _problemButton = this.FindControl<ToggleButton>("ProblemModeButton");
+        _lessonButton = this.FindControl<ToggleButton>("LessonModeButton");
         _desktopBar = this.FindControl<Border>("DesktopBar");
         _mobileNav = this.FindControl<Border>("MobileNav");
         _aboutOverlay = this.FindControl<Border>("AboutOverlay");
+        _glossaryOverlay = this.FindControl<Border>("GlossaryOverlay");
         _exitOverlay = this.FindControl<Border>("ExitOverlay");
         _aboutArea = this.FindControl<AboutView>("AboutArea");
 
@@ -89,10 +93,12 @@ public sealed partial class ShellView : UserControl
             // Модели берутся у оболочки: у видов партии, задач и меню они те же, что в модели оболочки.
             GameArea = new BoardView(shell.Settings, global::GoEngine.App.App.Evaluator, shell.Game);
             ProblemArea = new ProblemView(shell.Problems);
+            LessonArea = new LessonView(shell.Lessons);
             MenuArea = new AppMenuView(shell);
 
             _content.Children.Add(GameArea);
             _content.Children.Add(ProblemArea);
+            _content.Children.Add(LessonArea);
             _content.Children.Add(MenuArea);
         }
 
@@ -115,10 +121,17 @@ public sealed partial class ShellView : UserControl
             _problemButton.Click += OnProblemClick;
         }
 
+        if (_lessonButton is not null)
+        {
+            _lessonButton.Click += OnLessonClick;
+        }
+
         WireButton("NavGameButton", OnNavGameClick);
         WireButton("NavProblemButton", OnNavProblemClick);
+        WireButton("NavLessonButton", OnNavLessonClick);
         WireButton("NavMenuButton", OnNavMenuClick);
         WireButton("AboutBackButton", OnAboutBackClick);
+        WireButton("GlossaryBackButton", OnGlossaryBackClick);
         WireButton("ExitCancelButton", OnExitCancelClick);
         WireButton("ExitConfirmButton", OnExitConfirmClick);
 
@@ -128,6 +141,13 @@ public sealed partial class ShellView : UserControl
             // оба перекрывают её целиком, а не только содержимое раздела.
             MenuArea.AboutRequested += OnAboutRequested;
             MenuArea.ExitRequested += OnExitRequested;
+        }
+
+        if (LessonArea is not null)
+        {
+            // Словарь терминов — отдельный экран раздела «Обучение»: его показывает оболочка,
+            // как «О программе» у раздела «Меню».
+            LessonArea.GlossaryRequested += OnGlossaryRequested;
         }
 
         shell.PropertyChanged += OnShellPropertyChanged;
@@ -152,6 +172,9 @@ public sealed partial class ShellView : UserControl
     /// <summary>Вид задач.</summary>
     public ProblemView? ProblemArea { get; }
 
+    /// <summary>Вид обучения: уроки шаг за шагом.</summary>
+    public LessonView? LessonArea { get; }
+
     /// <summary>Раздел общего меню: режим, «О программе» и выход.</summary>
     public AppMenuView? MenuArea { get; }
 
@@ -160,6 +183,9 @@ public sealed partial class ShellView : UserControl
 
     /// <summary>Показано ли подтверждение выхода.</summary>
     public bool IsExitConfirmShown => _exitOverlay?.IsVisible == true;
+
+    /// <summary>Показан ли словарь терминов.</summary>
+    public bool IsGlossaryShown => _glossaryOverlay?.IsVisible == true;
 
     /// <summary>Показывает «О программе» вложенным экраном раздела «Меню».</summary>
     /// <remarks>
@@ -182,6 +208,24 @@ public sealed partial class ShellView : UserControl
         if (_aboutOverlay is not null)
         {
             _aboutOverlay.IsVisible = false;
+        }
+    }
+
+    /// <summary>Показывает словарь терминов вложенным экраном раздела «Обучение».</summary>
+    public void ShowGlossary()
+    {
+        if (_glossaryOverlay is not null)
+        {
+            _glossaryOverlay.IsVisible = true;
+        }
+    }
+
+    /// <summary>Закрывает словарь: игрок возвращается к уроку.</summary>
+    public void HideGlossary()
+    {
+        if (_glossaryOverlay is not null)
+        {
+            _glossaryOverlay.IsVisible = false;
         }
     }
 
@@ -213,6 +257,11 @@ public sealed partial class ShellView : UserControl
     /// <param name="e">Событие нажатия.</param>
     private void OnProblemClick(object? sender, RoutedEventArgs e) => Shell.ShowProblems();
 
+    /// <summary>Показывает режим обучения.</summary>
+    /// <param name="sender">Кнопка режима.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnLessonClick(object? sender, RoutedEventArgs e) => Shell.ShowLessons();
+
     /// <summary>Открывает раздел партии из нижней навигации.</summary>
     /// <param name="sender">Кнопка раздела.</param>
     /// <param name="e">Событие нажатия.</param>
@@ -222,6 +271,7 @@ public sealed partial class ShellView : UserControl
     private void OnNavGameClick(object? sender, RoutedEventArgs e)
     {
         HideAbout();
+        HideGlossary();
         GameArea?.CloseMenu();
         Shell.ShowGame();
     }
@@ -232,9 +282,22 @@ public sealed partial class ShellView : UserControl
     private void OnNavProblemClick(object? sender, RoutedEventArgs e)
     {
         HideAbout();
+        HideGlossary();
         GameArea?.CloseSettingsScreen();
         GameArea?.CloseMenu();
         Shell.ShowProblems();
+    }
+
+    /// <summary>Открывает раздел обучения из нижней навигации.</summary>
+    /// <param name="sender">Кнопка раздела.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnNavLessonClick(object? sender, RoutedEventArgs e)
+    {
+        HideAbout();
+        HideGlossary();
+        GameArea?.CloseSettingsScreen();
+        GameArea?.CloseMenu();
+        Shell.ShowLessons();
     }
 
     /// <summary>Открывает раздел общего меню.</summary>
@@ -247,6 +310,7 @@ public sealed partial class ShellView : UserControl
     private void OnNavMenuClick(object? sender, RoutedEventArgs e)
     {
         HideAbout();
+        HideGlossary();
         HideExitConfirm();
         GameArea?.CloseMenu();
         Shell.ShowMenu();
@@ -261,6 +325,16 @@ public sealed partial class ShellView : UserControl
     /// <param name="sender">Кнопка «Назад».</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnAboutBackClick(object? sender, RoutedEventArgs e) => HideAbout();
+
+    /// <summary>Открывает словарь терминов из раздела «Обучение».</summary>
+    /// <param name="sender">Вид обучения.</param>
+    /// <param name="e">Признак запроса.</param>
+    private void OnGlossaryRequested(object? sender, EventArgs e) => ShowGlossary();
+
+    /// <summary>Закрывает словарь и возвращает урок.</summary>
+    /// <param name="sender">Кнопка «Назад».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnGlossaryBackClick(object? sender, RoutedEventArgs e) => HideGlossary();
 
     /// <summary>Спрашивает подтверждение выхода из игры.</summary>
     /// <param name="sender">Вид общего меню.</param>
@@ -288,6 +362,7 @@ public sealed partial class ShellView : UserControl
     {
         if (e.PropertyName is nameof(ShellViewModel.IsGameSection)
             or nameof(ShellViewModel.IsProblemSection)
+            or nameof(ShellViewModel.IsLessonSection)
             or nameof(ShellViewModel.IsMenuSection))
         {
             UpdateMode();
@@ -366,6 +441,11 @@ public sealed partial class ShellView : UserControl
             ProblemArea.IsVisible = Shell.IsProblemSection;
         }
 
+        if (LessonArea is not null)
+        {
+            LessonArea.IsVisible = Shell.IsLessonSection;
+        }
+
         if (MenuArea is not null)
         {
             MenuArea.IsVisible = Shell.IsMenuSection;
@@ -379,6 +459,11 @@ public sealed partial class ShellView : UserControl
         if (_problemButton is not null)
         {
             _problemButton.IsChecked = Shell.IsProblemMode;
+        }
+
+        if (_lessonButton is not null)
+        {
+            _lessonButton.IsChecked = Shell.IsLessonMode;
         }
     }
 
@@ -436,6 +521,13 @@ public sealed partial class ShellView : UserControl
         if (IsExitConfirmShown)
         {
             HideExitConfirm();
+
+            return true;
+        }
+
+        if (IsGlossaryShown)
+        {
+            HideGlossary();
 
             return true;
         }

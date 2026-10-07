@@ -7,9 +7,12 @@
   </PropertyGroup>
 
   <!-- Задачи лежат встроенными ресурсами: набор доступен на всех платформах, включая Android,
-       без правок упаковки. Формат — SGF с вариантами (см. ProblemSgf). -->
+       без правок упаковки. Формат — SGF с вариантами (см. ProblemSgf). Уроки устроены так же,
+       только формат у них JSON: тексты, позиции и принимаемые ходы (см. LessonJson). -->
   <ItemGroup>
     <EmbeddedResource Include="Problems/*.sgf" />
+    <EmbeddedResource Include="Lessons/*.json" />
+    <EmbeddedResource Include="Glossary/*.json" />
   </ItemGroup>
 
   <ItemGroup>

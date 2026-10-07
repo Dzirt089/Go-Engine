@@ -7,31 +7,37 @@ using Microsoft.Extensions.Logging;
 
 namespace GoEngine.App.ViewModels;
 
-/// <summary>Оболочка приложения: разделы «Партия», «Задачи» и общее меню.</summary>
+/// <summary>Оболочка приложения: разделы «Партия», «Задачи», «Обучение» и общее меню.</summary>
 /// <remarks>
 /// <para>
 /// Режимы не смешиваются: партия живёт в <see cref="MainViewModel"/> и своём виде, задачи —
-/// в <see cref="ProblemViewModel"/> и своём. Оболочка только показывает одно или другое и владеет
-/// обоими моделями, поэтому переключение режима партию не пересоздаёт: вернувшись в «Партию»,
-/// игрок видит ту же позицию (<c>DECISIONS.md</c>, D-061).
+/// в <see cref="ProblemViewModel"/>, обучение — в <see cref="LessonViewModel"/>. Оболочка только
+/// показывает один из них и владеет всеми моделями, поэтому переключение режима партию
+/// не пересоздаёт: вернувшись в «Партию», игрок видит ту же позицию
+/// (<c>DECISIONS.md</c>, D-061).
 /// </para>
 /// <para>
-/// Разделов нижней навигации телефона три: «Партия», «Задачи» и «Меню». Настройки и меню партии
-/// переехали внутрь раздела «Партия»: они принадлежат партии и в чужих разделах были бы
-/// недоступны или бессмысленны (замечание пользователя 2026-10-06). Общее меню — раздел
-/// приложения, а не партии: в нём выбор режима, «О программе» и выход из игры
-/// (<c>DECISIONS.md</c>, D-075).
+/// Разделов нижней навигации телефона четыре: «Партия», «Задачи», «Обучение» и «Меню».
+/// Настройки и меню партии в навигации не стоят: они принадлежат партии и живут в её разделе
+/// (D-075). Общее меню — раздел приложения, а не партии: в нём выбор режима, «О программе»
+/// и выход из игры.
+/// </para>
+/// <para>
+/// Меню режим не меняет: <see cref="IsGameMode"/> и родственные свойства говорят, какой режим
+/// выбран, а <see cref="IsGameSection"/> и родственные — какой раздел показан сейчас. Поэтому
+/// закрыв «Меню», игрок возвращается туда же, где был (D-075).
 /// </para>
 /// </remarks>
 public sealed class ShellViewModel : INotifyPropertyChanged
 {
     private static readonly string[] PropertyNames =
     [
-        nameof(IsGameMode), nameof(IsProblemMode), nameof(ModeHint),
-        nameof(IsGameSection), nameof(IsProblemSection), nameof(IsMenuSection)
+        nameof(IsGameMode), nameof(IsProblemMode), nameof(IsLessonMode), nameof(ModeHint),
+        nameof(IsGameSection), nameof(IsProblemSection), nameof(IsLessonSection), nameof(IsMenuSection)
     ];
 
-    private bool _problemsMode;
+    /// <summary>Выбранный режим: то, что вернётся на экран после закрытия общего меню.</summary>
+    private Mode _mode = Mode.Game;
 
     /// <summary>Открыт раздел общего меню: режим при этом не меняется, содержимое уступает ему место.</summary>
     private bool _menuSection;
@@ -49,11 +55,13 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <param name="updates">
     /// Модель обновления: приглашение и ход загрузки. <c>null</c> — общая модель приложения.
     /// </param>
+    /// <param name="lessons">Модель представления обучения; <c>null</c> — встроенные уроки.</param>
     public ShellViewModel(
         AppSettings settings,
         MainViewModel game,
         ProblemViewModel problems,
-        UpdateViewModel? updates = null)
+        UpdateViewModel? updates = null,
+        LessonViewModel? lessons = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(game);
@@ -62,6 +70,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         Settings = settings;
         Game = game;
         Problems = problems;
+        Lessons = lessons ?? new LessonViewModel();
         Updates = updates ?? global::GoEngine.App.App.Updates;
     }
 
@@ -77,6 +86,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <summary>Модель представления задач: живёт, пока приложение открыто.</summary>
     public ProblemViewModel Problems { get; }
 
+    /// <summary>Модель представления обучения: уроки и их прохождение.</summary>
+    public LessonViewModel Lessons { get; }
+
     /// <summary>Приглашение обновления и ход загрузки: общее с экраном «О программе» состояние.</summary>
     /// <remarks>
     /// Модель приходит снаружи и по умолчанию берётся у приложения: проверка из «О программе» и
@@ -84,21 +96,23 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// </remarks>
     public UpdateViewModel Updates { get; }
 
-    /// <summary>Показан режим партии.</summary>
-    public bool IsGameMode => !_problemsMode;
+    /// <summary>Выбран режим партии.</summary>
+    public bool IsGameMode => _mode == Mode.Game;
 
-    /// <summary>Показан режим задач.</summary>
-    public bool IsProblemMode => _problemsMode;
+    /// <summary>Выбран режим задач.</summary>
+    public bool IsProblemMode => _mode == Mode.Problems;
 
-    /// <summary>Выбран раздел партии в нижней навигации.</summary>
-    /// <remarks>
-    /// Разделы нижней навигации телефона: партия, задачи и общее меню. Настройки — не раздел,
-    /// а экран внутри партии, поэтому выбранным может быть только один из трёх.
-    /// </remarks>
-    public bool IsGameSection => !_problemsMode && !_menuSection;
+    /// <summary>Выбран режим обучения.</summary>
+    public bool IsLessonMode => _mode == Mode.Lessons;
 
-    /// <summary>Выбран раздел задач в нижней навигации.</summary>
-    public bool IsProblemSection => _problemsMode && !_menuSection;
+    /// <summary>Показан раздел партии.</summary>
+    public bool IsGameSection => _mode == Mode.Game && !_menuSection;
+
+    /// <summary>Показан раздел задач.</summary>
+    public bool IsProblemSection => _mode == Mode.Problems && !_menuSection;
+
+    /// <summary>Показан раздел обучения.</summary>
+    public bool IsLessonSection => _mode == Mode.Lessons && !_menuSection;
 
     /// <summary>Открыт раздел общего меню: режим, «О программе» и выход.</summary>
     public bool IsMenuSection => _menuSection;
@@ -108,26 +122,32 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// Одна короткая строка: полное описание режима занимало пол-экрана и повторяло то, что
     /// и так видно (жалоба 2026-09-30 — «очень много старого текста»).
     /// </remarks>
-    public string ModeHint => _problemsMode
-        ? "Задачи: решите позицию, подсказка покажет ход."
-        : "Щёлкните по доске, чтобы сделать ход.";
+    public string ModeHint => _mode switch
+    {
+        Mode.Problems => "Задачи: решите позицию, подсказка покажет ход.",
+        Mode.Lessons => "Обучение: пройдите урок на доске — шаг за шагом.",
+        _ => "Щёлкните по доске, чтобы сделать ход."
+    };
 
     /// <summary>Собирает оболочку с настройками из файла и оценкой сети, заданной головой.</summary>
     /// <param name="settings">Настройки партии.</param>
     /// <param name="evaluator">Оценка позиции нейросетью для уровней Дан; <c>null</c> — без сети.</param>
     /// <param name="problems">Задачи; <c>null</c> — взять встроенную библиотеку.</param>
     /// <param name="updates">Модель обновления; <c>null</c> — общая модель приложения.</param>
-    /// <returns>Оболочку с двумя режимами и общим меню.</returns>
+    /// <param name="lessons">Уроки; <c>null</c> — встроенная библиотека уроков.</param>
+    /// <returns>Оболочку с тремя режимами и общим меню.</returns>
     public static ShellViewModel Create(
         AppSettings settings,
         IPositionEvaluator? evaluator = null,
         IReadOnlyList<Problem>? problems = null,
-        UpdateViewModel? updates = null) =>
+        UpdateViewModel? updates = null,
+        IReadOnlyList<Lesson>? lessons = null) =>
         new(
             settings,
             new MainViewModel(settings, Random.Shared, evaluator),
             problems is null ? new ProblemViewModel() : new ProblemViewModel(problems),
-            updates);
+            updates,
+            lessons is null ? new LessonViewModel() : new LessonViewModel(lessons));
 
     /// <summary>Проверяет обновление при первом показе оболочки: один раз, в фоне и молча.</summary>
     /// <returns>Задача проверки; повторные вызовы ничего не делают.</returns>
@@ -150,38 +170,41 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     }
 
     /// <summary>Показывает режим партии.</summary>
-    public void ShowGame() => SetSection(problems: false, menu: false);
+    public void ShowGame() => SetSection(Mode.Game, menu: false);
 
     /// <summary>Показывает режим задач.</summary>
-    public void ShowProblems() => SetSection(problems: true, menu: false);
+    public void ShowProblems() => SetSection(Mode.Problems, menu: false);
+
+    /// <summary>Показывает режим обучения.</summary>
+    public void ShowLessons() => SetSection(Mode.Lessons, menu: false);
 
     /// <summary>Открывает общее меню: режим, «О программе» и выход из игры.</summary>
     /// <remarks>
     /// Режим меню не меняет: закрыв его, игрок возвращается туда же, где был. Так «Меню» остаётся
-    /// разделом приложения, а не третьим режимом, и выбор режима внутри него — обычный переход.
+    /// разделом приложения, а не четвёртым режимом, и выбор режима внутри него — обычный переход.
     /// </remarks>
-    public void ShowMenu() => SetSection(problems: _problemsMode, menu: true);
+    public void ShowMenu() => SetSection(_mode, menu: true);
 
     /// <summary>Переключает раздел и сообщает об этом виду.</summary>
-    /// <param name="problems">Показывать задачи.</param>
+    /// <param name="mode">Режим, который показывается.</param>
     /// <param name="menu">Показать общее меню вместо содержимого режима.</param>
     /// <remarks>
     /// Повторный выбор того же раздела ничего не меняет и ни о чём не сообщает: иначе вид
     /// перерисовывался бы на каждое нажатие выбранной кнопки.
     /// </remarks>
-    private void SetSection(bool problems, bool menu)
+    private void SetSection(Mode mode, bool menu)
     {
-        if (_problemsMode == problems && _menuSection == menu)
+        if (_mode == mode && _menuSection == menu)
         {
             return;
         }
 
-        AppLogMessages.ModeChanged(_log, SectionName(problems, menu));
+        AppLogMessages.ModeChanged(_log, SectionName(mode, menu));
 
-        _problemsMode = problems;
+        _mode = mode;
         _menuSection = menu;
 
-        if (problems)
+        if (mode == Mode.Problems)
         {
             // Партия уходит с экрана: поиск хода соперника больше не нужен, а его результат
             // не должен примениться, пока игрок решает задачи.
@@ -192,17 +215,22 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     }
 
     /// <summary>Называет раздел для журнала: в логе видно, что игрок открыл перед сбоем.</summary>
-    /// <param name="problems">Показаны задачи.</param>
+    /// <param name="mode">Режим.</param>
     /// <param name="menu">Показано общее меню.</param>
     /// <returns>Название раздела.</returns>
-    private static string SectionName(bool problems, bool menu) => menu
+    private static string SectionName(Mode mode, bool menu) => menu
         ? "Меню"
-        : problems ? "Задачи" : "Партия";
+        : mode switch
+        {
+            Mode.Problems => "Задачи",
+            Mode.Lessons => "Обучение",
+            _ => "Партия"
+        };
 
     /// <summary>Сообщает виду обо всех свойствах оболочки.</summary>
     /// <remarks>
     /// Сообщаем обо всех: разделы нижней навигации зависят и от режима, и от общего меню,
-    /// а вычислять, что именно изменилось, здесь нечего — свойств шесть.
+    /// а вычислять, что именно изменилось, здесь нечего — свойств восемь.
     /// </remarks>
     private void NotifyAll()
     {
@@ -210,5 +238,18 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
         }
+    }
+
+    /// <summary>Режим оболочки: что показывается, когда общее меню закрыто.</summary>
+    private enum Mode
+    {
+        /// <summary>Партия с соперником.</summary>
+        Game,
+
+        /// <summary>Задачи на решение.</summary>
+        Problems,
+
+        /// <summary>Обучение: уроки шаг за шагом.</summary>
+        Lessons
     }
 }

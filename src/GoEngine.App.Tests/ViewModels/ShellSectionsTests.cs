@@ -119,6 +119,69 @@ public sealed class ShellSectionsTests
     }
 
     [Fact]
+    public void Раздел_Обучения_Выделяет_Свой_Раздел()
+    {
+        var shell = Shell();
+
+        shell.ShowLessons();
+
+        Assert.True(shell.IsLessonSection);
+    }
+
+    [Fact]
+    public void Раздел_Обучения_Снимает_Подсветку_Партии()
+    {
+        var shell = Shell();
+
+        shell.ShowLessons();
+
+        Assert.False(shell.IsGameSection);
+    }
+
+    [Fact]
+    public void Раздел_Обучения_Выбирает_Свой_Режим()
+    {
+        var shell = Shell();
+
+        shell.ShowLessons();
+
+        Assert.True(shell.IsLessonMode);
+    }
+
+    [Fact]
+    public void Раздел_Меню_Из_Обучения_Не_Меняет_Режим_Обучения()
+    {
+        var shell = Shell();
+
+        shell.ShowLessons();
+        shell.ShowMenu();
+
+        Assert.True(shell.IsLessonMode);
+        Assert.False(shell.IsLessonSection);
+    }
+
+    [Fact]
+    public void Переход_В_Задачи_Из_Обучения_Выделяет_Их_Раздел()
+    {
+        var shell = Shell();
+
+        shell.ShowLessons();
+        shell.ShowProblems();
+
+        Assert.True(shell.IsProblemSection);
+    }
+
+    [Fact]
+    public void Подсказка_Обучения_Называет_Уроки()
+    {
+        var shell = Shell();
+
+        shell.ShowLessons();
+
+        Assert.Contains("урок", shell.ModeHint, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Переход_В_Задачи_Выделяет_Их_Раздел()
     {
         var shell = Shell();

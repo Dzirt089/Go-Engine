@@ -82,6 +82,18 @@ public static partial class AppLogMessages
     [LoggerMessage(EventId = 1032, Level = LogLevel.Information, Message = "Задача {ProblemId}: ход {Point} не решает задачу")]
     public static partial void ProblemMoveRejected(ILogger logger, string problemId, string point);
 
+    /// <summary>Начат урок обучения.</summary>
+    [LoggerMessage(EventId = 1035, Level = LogLevel.Information, Message = "Урок {LessonId}: начало")]
+    public static partial void LessonStarted(ILogger logger, string lessonId);
+
+    /// <summary>Шаг урока пройден верным ходом.</summary>
+    [LoggerMessage(EventId = 1036, Level = LogLevel.Information, Message = "Урок {LessonId}: шаг {Step} пройден")]
+    public static partial void LessonStepPassed(ILogger logger, string lessonId, int step);
+
+    /// <summary>Урок пройден до конца.</summary>
+    [LoggerMessage(EventId = 1037, Level = LogLevel.Information, Message = "Урок {LessonId} пройден, шагов {Steps}")]
+    public static partial void LessonCompleted(ILogger logger, string lessonId, int steps);
+
     /// <summary>Модели нейросети загружены.</summary>
     [LoggerMessage(EventId = 1040, Level = LogLevel.Information, Message = "Модели загружены: {Directory}, доски {Sizes}")]
     public static partial void ModelsReady(ILogger logger, string directory, string sizes);

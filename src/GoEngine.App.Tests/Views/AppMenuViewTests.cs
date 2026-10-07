@@ -68,6 +68,27 @@ public sealed class AppMenuViewTests
     }
 
     [Fact]
+    public void Строка_Обучение_Выбирает_Режим_Обучения()
+    {
+        var (view, shell) = Create();
+
+        Click(view.FindControl<Button>("LessonModeRow")!);
+
+        Assert.True(shell.IsLessonMode);
+    }
+
+    [Fact]
+    public void Пометка_Переходит_На_Обучение()
+    {
+        var (view, shell) = Create();
+
+        shell.ShowLessons();
+
+        Assert.True(view.FindControl<ShapePath>("LessonModeCheck")!.IsVisible);
+        Assert.False(view.FindControl<ShapePath>("GameModeCheck")!.IsVisible);
+    }
+
+    [Fact]
     public void Пометка_Стоит_У_Текущего_Режима()
     {
         var (view, _) = Create();

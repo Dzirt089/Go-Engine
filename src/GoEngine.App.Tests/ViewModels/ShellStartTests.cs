@@ -127,17 +127,101 @@ public sealed class ShellStartTests
     }
 
     [Fact]
-    public void На_Телефоне_В_Навигации_Три_Раздела()
+    public void На_Телефоне_В_Навигации_Четыре_Раздела()
     {
-        // Разделы: партия, задачи и общее меню. Настроек среди них нет — «Настройка партии»
-        // открывается из шапки партии (замечание пользователя 2026-10-06).
+        // Разделы: партия, задачи, обучение и общее меню. Настроек среди них нет — «Настройка
+        // партии» открывается из шапки партии (замечания пользователя 2026-10-06 и 2026-10-07).
         var (view, _) = Start();
         OnPhone(view);
 
         Assert.True(view.FindControl<Button>("NavGameButton")!.IsVisible);
         Assert.True(view.FindControl<Button>("NavProblemButton")!.IsVisible);
+        Assert.True(view.FindControl<Button>("NavLessonButton")!.IsVisible);
         Assert.True(view.FindControl<Button>("NavMenuButton")!.IsVisible);
         Assert.Null(view.FindControl<Button>("NavSettingsButton"));
+    }
+
+    [Fact]
+    public void Кнопка_Обучения_Открывает_Раздел_Уроков()
+    {
+        var (view, shell) = Start();
+        OnPhone(view);
+
+        Click(view.FindControl<Button>("NavLessonButton")!);
+
+        Assert.True(shell.IsLessonSection);
+    }
+
+    [Fact]
+    public void Раздел_Обучения_Показывает_Урок_А_Не_Партию()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+
+        Click(view.FindControl<Button>("NavLessonButton")!);
+
+        Assert.False(view.GameArea!.IsVisible);
+        Assert.True(view.LessonArea!.IsVisible);
+    }
+
+    [Fact]
+    public void Словарь_Терминов_Открывается_Из_Урока()
+    {
+        // Словарь — вложенный экран раздела «Обучение»: открывается кнопкой панели урока,
+        // как «О программе» у раздела «Меню» (замечание пользователя 2026-10-07).
+        var (view, _) = Start();
+        OnPhone(view);
+        Click(view.FindControl<Button>("NavLessonButton")!);
+
+        Click(view.LessonArea!.FindControl<Button>("GlossaryButton")!);
+
+        Assert.True(view.IsGlossaryShown);
+    }
+
+    [Fact]
+    public void Словарь_Терминов_Закрывается_Кнопкой_Назад()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+        Click(view.FindControl<Button>("NavLessonButton")!);
+        Click(view.LessonArea!.FindControl<Button>("GlossaryButton")!);
+
+        Click(view.FindControl<Button>("GlossaryBackButton")!);
+
+        Assert.False(view.IsGlossaryShown);
+    }
+
+    [Fact]
+    public void Назад_Закрывает_Словарь_Терминов()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+        Click(view.FindControl<Button>("NavLessonButton")!);
+        Click(view.LessonArea!.FindControl<Button>("GlossaryButton")!);
+
+        view.HandleBack();
+
+        Assert.False(view.IsGlossaryShown);
+    }
+
+    [Fact]
+    public void Словарь_Терминов_Содержит_Термины()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+
+        Assert.NotEmpty(view.FindControl<GlossaryView>("GlossaryArea")!.ViewModel.Terms);
+    }
+
+    [Fact]
+    public void В_Настольной_Строке_Есть_Кнопка_Обучения()
+    {
+        var (view, shell) = Start();
+        InWindow(view);
+
+        Click(view.FindControl<ToggleButton>("LessonModeButton")!);
+
+        Assert.True(shell.IsLessonMode);
     }
 
     [Fact]

@@ -49,6 +49,7 @@ public sealed partial class AppMenuView : UserControl
 
         WireButton("GameModeRow", OnGameModeClick);
         WireButton("ProblemModeRow", OnProblemModeClick);
+        WireButton("LessonModeRow", OnLessonModeClick);
         WireButton("AboutRow", OnAboutClick);
         WireButton("ExitRow", OnExitClick);
     }
@@ -71,6 +72,11 @@ public sealed partial class AppMenuView : UserControl
     /// <param name="sender">Строка «Задачи».</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnProblemModeClick(object? sender, RoutedEventArgs e) => Shell.ShowProblems();
+
+    /// <summary>Переходит в режим обучения.</summary>
+    /// <param name="sender">Строка «Обучение».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnLessonModeClick(object? sender, RoutedEventArgs e) => Shell.ShowLessons();
 
     /// <summary>Показывает «О программе»: экран открывает оболочка, он перекрывает её целиком.</summary>
     /// <param name="sender">Строка «О программе».</param>

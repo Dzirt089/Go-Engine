@@ -119,6 +119,10 @@ public static class BoardRenderer
     /// <param name="territory">Владение точками для показа территории или <c>null</c>.</param>
     /// <param name="deadPoints">Камни, помеченные мёртвыми при подсчёте, или <c>null</c>.</param>
     /// <param name="hint">Точка подсказки или <c>null</c>.</param>
+    /// <param name="highlights">
+    /// Точки, которые надо подсветить, или <c>null</c>. Подсветка отличается от подсказки только
+    /// назначением: подсказка — предлагаемый ход, подсветка — то, на что смотрит объяснение урока.
+    /// </param>
     /// <param name="showCoordinates">Рисовать ли подписи координат.</param>
     /// <param name="outcome">Итог партии для подсветки края доски; <see cref="BoardOutcome.None"/> — без подсветки.</param>
     /// <remarks>
@@ -137,6 +141,7 @@ public static class BoardRenderer
         IReadOnlyList<StoneColor>? territory = null,
         IReadOnlyList<Point>? deadPoints = null,
         Point? hint = null,
+        IReadOnlyList<Point>? highlights = null,
         bool showCoordinates = true,
         BoardOutcome outcome = BoardOutcome.None)
     {
@@ -173,6 +178,16 @@ public static class BoardRenderer
         if (hint is { } hintPoint)
         {
             DrawHint(canvas, geometry, hintPoint);
+        }
+
+        // Подсветка рисуется тем же знаком, что и подсказка: это одна и та же мысль — «смотри сюда»,
+        // и заводить второй значок ради неё незачем.
+        if (highlights is not null)
+        {
+            foreach (var point in highlights)
+            {
+                DrawHint(canvas, geometry, point);
+            }
         }
     }
 
