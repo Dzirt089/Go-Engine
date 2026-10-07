@@ -1,9 +1,11 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using GoEngine.AI;
 using GoEngine.App.Rendering;
+using GoEngine.App.Services;
 using GoEngine.App.Services.Logging;
 using GoEngine.App.Services.Updates;
 using GoEngine.App.ViewModels;
@@ -87,6 +89,32 @@ public sealed partial class App : Application
     /// </remarks>
     public static ISoundPlayer Sound { get; set; } = new SilentSoundPlayer();
 
+    /// <summary>Применяет оформление: светлое, тёмное или системное.</summary>
+    /// <param name="theme">Выбор игрока.</param>
+    /// <remarks>
+    /// Тема — свойство приложения, а не партии: переключается на ходу, без перезапуска, и
+    /// действует на все платформы одинаково (на Android системная тема приходит от системы).
+    /// Выбор хранит <see cref="ThemeStore"/>, а сюда его приносят голова при запуске и оболочка
+    /// при переключении.
+    /// </remarks>
+    public static void ApplyTheme(ThemeChoice theme)
+    {
+        ArgumentNullException.ThrowIfNull(theme);
+
+        if (Current is { } application)
+        {
+            application.RequestedThemeVariant = ThemeVariantOf(theme);
+        }
+    }
+
+    /// <summary>Переводит выбор игрока в вариант темы Avalonia.</summary>
+    /// <param name="theme">Выбор игрока.</param>
+    /// <returns>Вариант темы: светлый, тёмный или системный.</returns>
+    /// <remarks>Чистая функция: проверяется тестом без окна, как и остальные правила вида.</remarks>
+    public static ThemeVariant ThemeVariantOf(ThemeChoice theme) => theme == ThemeChoice.Light
+        ? ThemeVariant.Light
+        : theme == ThemeChoice.Dark ? ThemeVariant.Dark : ThemeVariant.Default;
+
     /// <summary>Закрывает программу: выход из общего меню.</summary>
     /// <remarks>
     /// Спрашивать подтверждение — дело вида (<see cref="GoEngine.App.Views.ShellView"/>): здесь
@@ -128,6 +156,10 @@ public sealed partial class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         Dispatcher.UIThread.UnhandledException += (_, e) => CrashReporter.Report(e.Exception, "Dispatcher.UIThread");
+
+        // Оформление применяется до создания окна: иначе окно успело бы мигнуть светлым
+        // на тёмной системе — а на телефоне это заметно сильнее, чем на настольном экране.
+        ApplyTheme(ThemeStore.Load());
 
         switch (ApplicationLifetime)
         {

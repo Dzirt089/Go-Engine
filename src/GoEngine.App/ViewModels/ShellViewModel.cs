@@ -33,7 +33,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     private static readonly string[] PropertyNames =
     [
         nameof(IsGameMode), nameof(IsProblemMode), nameof(IsLessonMode), nameof(ModeHint),
-        nameof(IsGameSection), nameof(IsProblemSection), nameof(IsLessonSection), nameof(IsMenuSection)
+        nameof(IsGameSection), nameof(IsProblemSection), nameof(IsLessonSection), nameof(IsMenuSection),
+        nameof(Theme), nameof(IsSystemTheme), nameof(IsLightTheme), nameof(IsDarkTheme)
     ];
 
     /// <summary>Выбранный режим: то, что вернётся на экран после закрытия общего меню.</summary>
@@ -41,6 +42,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 
     /// <summary>Открыт раздел общего меню: режим при этом не меняется, содержимое уступает ему место.</summary>
     private bool _menuSection;
+
+    /// <summary>Выбранное оформление: светлое, тёмное или системное.</summary>
+    private ThemeChoice _theme;
 
     /// <summary>Проверка обновления при запуске уже начата: второй раз она не идёт.</summary>
     private bool _updateCheckStarted;
@@ -56,12 +60,14 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// Модель обновления: приглашение и ход загрузки. <c>null</c> — общая модель приложения.
     /// </param>
     /// <param name="lessons">Модель представления обучения; <c>null</c> — встроенные уроки.</param>
+    /// <param name="theme">Выбранное оформление; <c>null</c> — системная тема.</param>
     public ShellViewModel(
         AppSettings settings,
         MainViewModel game,
         ProblemViewModel problems,
         UpdateViewModel? updates = null,
-        LessonViewModel? lessons = null)
+        LessonViewModel? lessons = null,
+        ThemeChoice? theme = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(game);
@@ -72,7 +78,16 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         Problems = problems;
         Lessons = lessons ?? new LessonViewModel();
         Updates = updates ?? global::GoEngine.App.App.Updates;
+        _theme = theme ?? ThemeChoice.System;
     }
+
+    /// <summary>Игрок выбрал другое оформление.</summary>
+    /// <remarks>
+    /// Событие, а не прямая смена темы: тему применяет приложение (<c>App.ApplyTheme</c>),
+    /// а модель оболочки только хранит выбор — так правило «кто что делает» не размывается,
+    /// и модель остаётся проверяемой без окна.
+    /// </remarks>
+    public event EventHandler<ThemeChoice>? ThemeChanged;
 
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -117,6 +132,18 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <summary>Открыт раздел общего меню: режим, «О программе» и выход.</summary>
     public bool IsMenuSection => _menuSection;
 
+    /// <summary>Выбранное оформление.</summary>
+    public ThemeChoice Theme => _theme;
+
+    /// <summary>Тема следует за системой.</summary>
+    public bool IsSystemTheme => _theme == ThemeChoice.System;
+
+    /// <summary>Выбрана светлая тема.</summary>
+    public bool IsLightTheme => _theme == ThemeChoice.Light;
+
+    /// <summary>Выбрана тёмная тема.</summary>
+    public bool IsDarkTheme => _theme == ThemeChoice.Dark;
+
     /// <summary>Подсказка о текущем режиме — чтобы игрок понимал, где он находится.</summary>
     /// <remarks>
     /// Одна короткая строка: полное описание режима занимало пол-экрана и повторяло то, что
@@ -135,19 +162,22 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <param name="problems">Задачи; <c>null</c> — взять встроенную библиотеку.</param>
     /// <param name="updates">Модель обновления; <c>null</c> — общая модель приложения.</param>
     /// <param name="lessons">Уроки; <c>null</c> — встроенная библиотека уроков.</param>
+    /// <param name="theme">Выбранное оформление; <c>null</c> — системная тема.</param>
     /// <returns>Оболочку с тремя режимами и общим меню.</returns>
     public static ShellViewModel Create(
         AppSettings settings,
         IPositionEvaluator? evaluator = null,
         IReadOnlyList<Problem>? problems = null,
         UpdateViewModel? updates = null,
-        IReadOnlyList<Lesson>? lessons = null) =>
+        IReadOnlyList<Lesson>? lessons = null,
+        ThemeChoice? theme = null) =>
         new(
             settings,
             new MainViewModel(settings, Random.Shared, evaluator),
             problems is null ? new ProblemViewModel() : new ProblemViewModel(problems),
             updates,
-            lessons is null ? new LessonViewModel() : new LessonViewModel(lessons));
+            lessons is null ? new LessonViewModel() : new LessonViewModel(lessons),
+            theme);
 
     /// <summary>Проверяет обновление при первом показе оболочки: один раз, в фоне и молча.</summary>
     /// <returns>Задача проверки; повторные вызовы ничего не делают.</returns>
@@ -184,6 +214,30 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// разделом приложения, а не четвёртым режимом, и выбор режима внутри него — обычный переход.
     /// </remarks>
     public void ShowMenu() => SetSection(_mode, menu: true);
+
+    /// <summary>Меняет оформление и сообщает об этом виду.</summary>
+    /// <param name="theme">Новое оформление.</param>
+    /// <remarks>
+    /// Повторный выбор той же темы ничего не делает: иначе вид перерисовывался бы и файл
+    /// оформления переписывался на каждое нажатие уже выбранной строки.
+    /// </remarks>
+    public void SelectTheme(ThemeChoice theme)
+    {
+        ArgumentNullException.ThrowIfNull(theme);
+
+        if (_theme == theme)
+        {
+            return;
+        }
+
+        AppLogMessages.ThemeChanged(_log, theme.Name);
+
+        _theme = theme;
+
+        ThemeChanged?.Invoke(this, theme);
+
+        NotifyAll();
+    }
 
     /// <summary>Переключает раздел и сообщает об этом виду.</summary>
     /// <param name="mode">Режим, который показывается.</param>

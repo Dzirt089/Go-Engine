@@ -82,6 +82,10 @@ public static partial class AppLogMessages
     [LoggerMessage(EventId = 1032, Level = LogLevel.Information, Message = "Задача {ProblemId}: ход {Point} не решает задачу")]
     public static partial void ProblemMoveRejected(ILogger logger, string problemId, string point);
 
+    /// <summary>Игрок сменил оформление.</summary>
+    [LoggerMessage(EventId = 1034, Level = LogLevel.Information, Message = "Оформление: {Theme}")]
+    public static partial void ThemeChanged(ILogger logger, string theme);
+
     /// <summary>Начат урок обучения.</summary>
     [LoggerMessage(EventId = 1035, Level = LogLevel.Information, Message = "Урок {LessonId}: начало")]
     public static partial void LessonStarted(ILogger logger, string lessonId);

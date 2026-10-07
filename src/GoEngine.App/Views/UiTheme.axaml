@@ -4,39 +4,146 @@
   <!-- Единый визуальный язык приложения: палитра, типографика, радиусы, отступы и размеры
        элементов. Палитра одна на настольную и мобильную версии: различается раскладка,
        а не цвета — иначе мобильный вид выглядел бы чужим для приложения.
-       Цвета объявлены парами «кисть + цвет»: кисти берут виды через DynamicResource, поэтому
-       смена значения здесь меняет вид сразу везде. -->
 
-  <!-- Поверхности -->
-  <Color x:Key="AppBackgroundColor">#F2F4F7</Color>
-  <Color x:Key="AppSurfaceColor">#FFFFFF</Color>
-  <Color x:Key="AppSurfaceAltColor">#F7F9FC</Color>
-  <Color x:Key="AppBorderColor">#DCE1E8</Color>
-  <Color x:Key="AppBoardBackdropColor">#E9EDF3</Color>
-  <SolidColorBrush x:Key="AppBackgroundBrush" Color="{StaticResource AppBackgroundColor}" />
-  <SolidColorBrush x:Key="AppSurfaceBrush" Color="{StaticResource AppSurfaceColor}" />
-  <SolidColorBrush x:Key="AppSurfaceAltBrush" Color="{StaticResource AppSurfaceAltColor}" />
-  <SolidColorBrush x:Key="AppBorderBrush" Color="{StaticResource AppBorderColor}" />
-  <SolidColorBrush x:Key="AppBoardBackdropBrush" Color="{StaticResource AppBoardBackdropColor}" />
+       Цвета живут в двух наборах — светлом и тёмном (ThemeDictionaries): тему выбирает игрок
+       («Меню» → «Оформление»), а по умолчанию берётся системная. Кисти берут виды через
+       DynamicResource, поэтому смена набора меняет вид сразу везде, без перезапуска.
 
-  <!-- Текст -->
-  <Color x:Key="AppTextColor">#16202A</Color>
-  <Color x:Key="AppTextMutedColor">#5B6B7C</Color>
-  <SolidColorBrush x:Key="AppTextBrush" Color="{StaticResource AppTextColor}" />
-  <SolidColorBrush x:Key="AppTextMutedBrush" Color="{StaticResource AppTextMutedColor}" />
+       Тёмный набор подобран по контрасту, а не «на глаз»: основной текст на поверхности не ниже
+       12:1, приглушённый — 7:1, акцент и опасность — не ниже 6:1 (WCAG AA требует 4.5:1
+       для обычного текста). Проверяется живой приёмкой: снимок окна в тёмной теме обязан быть
+       тёмным, в светлой — светлым, а строки интерфейса остаются читаемыми в обеих. -->
+  <ResourceDictionary.ThemeDictionaries>
 
-  <!-- Акцент: главное действие и выбранный раздел -->
-  <Color x:Key="AppAccentColor">#1B6FE0</Color>
-  <Color x:Key="AppAccentSoftColor">#E4EFFC</Color>
-  <SolidColorBrush x:Key="AppAccentBrush" Color="{StaticResource AppAccentColor}" />
-  <SolidColorBrush x:Key="AppAccentSoftBrush" Color="{StaticResource AppAccentSoftColor}" />
-  <SolidColorBrush x:Key="AppOnAccentBrush" Color="#FFFFFF" />
+    <ResourceDictionary x:Key="Light">
 
-  <!-- Состояния: завершённая партия и предупреждение -->
-  <SolidColorBrush x:Key="AppDangerBrush" Color="#B3261E" />
-  <SolidColorBrush x:Key="AppOverlayBrush" Color="#66000000" />
+      <!-- Поверхности -->
+      <Color x:Key="AppBackgroundColor">#F2F4F7</Color>
+      <Color x:Key="AppSurfaceColor">#FFFFFF</Color>
+      <Color x:Key="AppSurfaceAltColor">#F7F9FC</Color>
+      <Color x:Key="AppBorderColor">#DCE1E8</Color>
+      <Color x:Key="AppBoardBackdropColor">#E9EDF3</Color>
+      <SolidColorBrush x:Key="AppBackgroundBrush" Color="{StaticResource AppBackgroundColor}" />
+      <SolidColorBrush x:Key="AppSurfaceBrush" Color="{StaticResource AppSurfaceColor}" />
+      <SolidColorBrush x:Key="AppSurfaceAltBrush" Color="{StaticResource AppSurfaceAltColor}" />
+      <SolidColorBrush x:Key="AppBorderBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="AppBoardBackdropBrush" Color="{StaticResource AppBoardBackdropColor}" />
 
-  <!-- Типографика: четыре ступени, больше не нужно -->
+      <!-- Текст -->
+      <Color x:Key="AppTextColor">#16202A</Color>
+      <Color x:Key="AppTextMutedColor">#5B6B7C</Color>
+      <SolidColorBrush x:Key="AppTextBrush" Color="{StaticResource AppTextColor}" />
+      <SolidColorBrush x:Key="AppTextMutedBrush" Color="{StaticResource AppTextMutedColor}" />
+
+      <!-- Акцент: главное действие и выбранный раздел. Цвет глубже «фирменного» синего:
+           на фоне приложения (#F2F4F7) прежний #1B6FE0 давал 4.33:1 — ниже нормы WCAG AA
+           для обычного текста; этот даёт 5.1:1 (проверяется тестом палитры). -->
+      <Color x:Key="AppAccentColor">#1A63C8</Color>
+      <Color x:Key="AppAccentSoftColor">#E4EFFC</Color>
+      <SolidColorBrush x:Key="AppAccentBrush" Color="{StaticResource AppAccentColor}" />
+      <SolidColorBrush x:Key="AppAccentSoftBrush" Color="{StaticResource AppAccentSoftColor}" />
+      <SolidColorBrush x:Key="AppOnAccentBrush" Color="#FFFFFF" />
+
+      <!-- Состояния: завершённая партия и предупреждение -->
+      <SolidColorBrush x:Key="AppDangerBrush" Color="#B3261E" />
+      <SolidColorBrush x:Key="AppOverlayBrush" Color="#66000000" />
+
+      <!-- Итог партии: подложка, рамка и цвет текста для победы, поражения и ничьей.
+           Цвета мягкие: это подложка карточки, а не акцент — кислотный фон спорил бы с доской
+           и мешал читать счёт. Пары подобраны так, чтобы текст был контрастен своей подложке
+           (не ниже 5:1 по WCAG): итог должен читаться на светлом фоне без напряжения. -->
+      <Color x:Key="AppWinSoftColor">#E6F4EA</Color>
+      <Color x:Key="AppWinBorderColor">#9CCFAF</Color>
+      <Color x:Key="AppWinTextColor">#1B6B3A</Color>
+      <SolidColorBrush x:Key="AppWinSoftBrush" Color="{StaticResource AppWinSoftColor}" />
+      <SolidColorBrush x:Key="AppWinBorderBrush" Color="{StaticResource AppWinBorderColor}" />
+      <SolidColorBrush x:Key="AppWinTextBrush" Color="{StaticResource AppWinTextColor}" />
+
+      <Color x:Key="AppLoseSoftColor">#FBEAE8</Color>
+      <Color x:Key="AppLoseBorderColor">#E3A79F</Color>
+      <Color x:Key="AppLoseTextColor">#8C2C24</Color>
+      <SolidColorBrush x:Key="AppLoseSoftBrush" Color="{StaticResource AppLoseSoftColor}" />
+      <SolidColorBrush x:Key="AppLoseBorderBrush" Color="{StaticResource AppLoseBorderColor}" />
+      <SolidColorBrush x:Key="AppLoseTextBrush" Color="{StaticResource AppLoseTextColor}" />
+
+      <Color x:Key="AppDrawSoftColor">#EDF0F4</Color>
+      <Color x:Key="AppDrawBorderColor">#C3CBD6</Color>
+      <Color x:Key="AppDrawTextColor">#3F4C5A</Color>
+      <SolidColorBrush x:Key="AppDrawSoftBrush" Color="{StaticResource AppDrawSoftColor}" />
+      <SolidColorBrush x:Key="AppDrawBorderBrush" Color="{StaticResource AppDrawBorderColor}" />
+      <SolidColorBrush x:Key="AppDrawTextBrush" Color="{StaticResource AppDrawTextColor}" />
+
+      <!-- Разделители: тонкие линии между полосами интерфейса. Светлее рамки (AppBorderColor):
+           линия только разделяет, а не очерчивает. -->
+      <Color x:Key="AppDividerColor">#E3E7ED</Color>
+      <SolidColorBrush x:Key="AppDividerBrush" Color="{StaticResource AppDividerColor}" />
+
+    </ResourceDictionary>
+
+    <ResourceDictionary x:Key="Dark">
+
+      <!-- Поверхности: не чистый чёрный, а тональные уровни — на них мягче читается текст
+           и не «звенит» контраст с деревом доски. -->
+      <Color x:Key="AppBackgroundColor">#12161B</Color>
+      <Color x:Key="AppSurfaceColor">#1B2129</Color>
+      <Color x:Key="AppSurfaceAltColor">#222A33</Color>
+      <Color x:Key="AppBorderColor">#333C47</Color>
+      <Color x:Key="AppBoardBackdropColor">#0E1216</Color>
+      <SolidColorBrush x:Key="AppBackgroundBrush" Color="{StaticResource AppBackgroundColor}" />
+      <SolidColorBrush x:Key="AppSurfaceBrush" Color="{StaticResource AppSurfaceColor}" />
+      <SolidColorBrush x:Key="AppSurfaceAltBrush" Color="{StaticResource AppSurfaceAltColor}" />
+      <SolidColorBrush x:Key="AppBorderBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="AppBoardBackdropBrush" Color="{StaticResource AppBoardBackdropColor}" />
+
+      <!-- Текст: 13:1 на поверхности и 7:1 у приглушённого — читается и на телефоне на солнце,
+           и на большом экране ночью. -->
+      <Color x:Key="AppTextColor">#E9EDF2</Color>
+      <Color x:Key="AppTextMutedColor">#A7B3C0</Color>
+      <SolidColorBrush x:Key="AppTextBrush" Color="{StaticResource AppTextColor}" />
+      <SolidColorBrush x:Key="AppTextMutedBrush" Color="{StaticResource AppTextMutedColor}" />
+
+      <!-- Акцент светлее светлого: на тёмной поверхности тёмно-синий терял бы контраст. -->
+      <Color x:Key="AppAccentColor">#6FB2FF</Color>
+      <Color x:Key="AppAccentSoftColor">#23384F</Color>
+      <SolidColorBrush x:Key="AppAccentBrush" Color="{StaticResource AppAccentColor}" />
+      <SolidColorBrush x:Key="AppAccentSoftBrush" Color="{StaticResource AppAccentSoftColor}" />
+      <SolidColorBrush x:Key="AppOnAccentBrush" Color="#0B0F14" />
+
+      <!-- Состояния -->
+      <SolidColorBrush x:Key="AppDangerBrush" Color="#FF8A80" />
+      <SolidColorBrush x:Key="AppOverlayBrush" Color="#99000000" />
+
+      <!-- Итог партии: те же роли, что и в светлой теме, но подложки тёмные, а текст светлый —
+           карточка итога читается на тёмном фоне и не спорит с доской. -->
+      <Color x:Key="AppWinSoftColor">#17301F</Color>
+      <Color x:Key="AppWinBorderColor">#2F6B45</Color>
+      <Color x:Key="AppWinTextColor">#8BD9A6</Color>
+      <SolidColorBrush x:Key="AppWinSoftBrush" Color="{StaticResource AppWinSoftColor}" />
+      <SolidColorBrush x:Key="AppWinBorderBrush" Color="{StaticResource AppWinBorderColor}" />
+      <SolidColorBrush x:Key="AppWinTextBrush" Color="{StaticResource AppWinTextColor}" />
+
+      <Color x:Key="AppLoseSoftColor">#3A1E1B</Color>
+      <Color x:Key="AppLoseBorderColor">#8B4A42</Color>
+      <Color x:Key="AppLoseTextColor">#FFA79C</Color>
+      <SolidColorBrush x:Key="AppLoseSoftBrush" Color="{StaticResource AppLoseSoftColor}" />
+      <SolidColorBrush x:Key="AppLoseBorderBrush" Color="{StaticResource AppLoseBorderColor}" />
+      <SolidColorBrush x:Key="AppLoseTextBrush" Color="{StaticResource AppLoseTextColor}" />
+
+      <Color x:Key="AppDrawSoftColor">#222A33</Color>
+      <Color x:Key="AppDrawBorderColor">#46525F</Color>
+      <Color x:Key="AppDrawTextColor">#C9D3DE</Color>
+      <SolidColorBrush x:Key="AppDrawSoftBrush" Color="{StaticResource AppDrawSoftColor}" />
+      <SolidColorBrush x:Key="AppDrawBorderBrush" Color="{StaticResource AppDrawBorderColor}" />
+      <SolidColorBrush x:Key="AppDrawTextBrush" Color="{StaticResource AppDrawTextColor}" />
+
+      <Color x:Key="AppDividerColor">#2A323C</Color>
+      <SolidColorBrush x:Key="AppDividerBrush" Color="{StaticResource AppDividerColor}" />
+
+    </ResourceDictionary>
+
+  </ResourceDictionary.ThemeDictionaries>
+
+  <!-- Типографика: четыре ступени, больше не нужно. От темы не зависит. -->
   <x:Double x:Key="AppFontTitle">22</x:Double>
   <x:Double x:Key="AppFontSubtitle">16</x:Double>
   <x:Double x:Key="AppFontBody">14</x:Double>
@@ -60,36 +167,6 @@
   <x:Double x:Key="AppNavHeight">64</x:Double>
   <x:Double x:Key="AppStatusHeight">44</x:Double>
   <x:Double x:Key="AppSheetHandleHeight">28</x:Double>
-
-  <!-- Итог партии: подложка, рамка и цвет текста для победы, поражения и ничьей.
-       Цвета мягкие: это подложка карточки, а не акцент — кислотный фон спорил бы с доской
-       и мешал читать счёт. Пары подобраны так, чтобы текст был контрастен своей подложке
-       (не ниже 5:1 по WCAG): итог должен читаться на светлом фоне без напряжения. -->
-  <Color x:Key="AppWinSoftColor">#E6F4EA</Color>
-  <Color x:Key="AppWinBorderColor">#9CCFAF</Color>
-  <Color x:Key="AppWinTextColor">#1B6B3A</Color>
-  <SolidColorBrush x:Key="AppWinSoftBrush" Color="{StaticResource AppWinSoftColor}" />
-  <SolidColorBrush x:Key="AppWinBorderBrush" Color="{StaticResource AppWinBorderColor}" />
-  <SolidColorBrush x:Key="AppWinTextBrush" Color="{StaticResource AppWinTextColor}" />
-
-  <Color x:Key="AppLoseSoftColor">#FBEAE8</Color>
-  <Color x:Key="AppLoseBorderColor">#E3A79F</Color>
-  <Color x:Key="AppLoseTextColor">#8C2C24</Color>
-  <SolidColorBrush x:Key="AppLoseSoftBrush" Color="{StaticResource AppLoseSoftColor}" />
-  <SolidColorBrush x:Key="AppLoseBorderBrush" Color="{StaticResource AppLoseBorderColor}" />
-  <SolidColorBrush x:Key="AppLoseTextBrush" Color="{StaticResource AppLoseTextColor}" />
-
-  <Color x:Key="AppDrawSoftColor">#EDF0F4</Color>
-  <Color x:Key="AppDrawBorderColor">#C3CBD6</Color>
-  <Color x:Key="AppDrawTextColor">#3F4C5A</Color>
-  <SolidColorBrush x:Key="AppDrawSoftBrush" Color="{StaticResource AppDrawSoftColor}" />
-  <SolidColorBrush x:Key="AppDrawBorderBrush" Color="{StaticResource AppDrawBorderColor}" />
-  <SolidColorBrush x:Key="AppDrawTextBrush" Color="{StaticResource AppDrawTextColor}" />
-
-  <!-- Разделители: тонкие линии между полосами интерфейса. Светлее рамки (AppBorderColor):
-       линия только разделяет, а не очерчивает. -->
-  <Color x:Key="AppDividerColor">#E3E7ED</Color>
-  <SolidColorBrush x:Key="AppDividerBrush" Color="{StaticResource AppDividerColor}" />
 
   <!-- Метрики телефона: те же числа, что в ветке mobile функции PlatformMetrics.For
        (Services/PlatformMetrics.cs). XAML не умеет вызывать C#-функцию, поэтому значения

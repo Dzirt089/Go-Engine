@@ -61,7 +61,10 @@ public sealed partial class ShellView : UserControl
     /// выбирает размер вида, а не платформа (<see cref="ApplyLayout"/>).
     /// </remarks>
     public ShellView()
-        : this(ShellViewModel.Create(SettingsStore.Load(), global::GoEngine.App.App.Evaluator))
+        : this(ShellViewModel.Create(
+            SettingsStore.Load(),
+            global::GoEngine.App.App.Evaluator,
+            theme: ThemeStore.Load()))
     {
     }
 
@@ -150,6 +153,9 @@ public sealed partial class ShellView : UserControl
             LessonArea.GlossaryRequested += OnGlossaryRequested;
         }
 
+        // Смену оформления применяет приложение: оболочка только сообщает о выборе игрока.
+        shell.ThemeChanged += OnThemeChanged;
+
         shell.PropertyChanged += OnShellPropertyChanged;
         SizeChanged += OnViewSizeChanged;
 
@@ -196,36 +202,54 @@ public sealed partial class ShellView : UserControl
     {
         _aboutArea?.Refresh();
 
-        if (_aboutOverlay is not null)
-        {
-            _aboutOverlay.IsVisible = true;
-        }
+        ShowOverlay(_aboutOverlay);
     }
 
     /// <summary>Закрывает экран «О программе»: игрок возвращается в раздел «Меню».</summary>
-    public void HideAbout()
-    {
-        if (_aboutOverlay is not null)
-        {
-            _aboutOverlay.IsVisible = false;
-        }
-    }
+    public void HideAbout() => HideOverlay(_aboutOverlay);
 
     /// <summary>Показывает словарь терминов вложенным экраном раздела «Обучение».</summary>
-    public void ShowGlossary()
-    {
-        if (_glossaryOverlay is not null)
-        {
-            _glossaryOverlay.IsVisible = true;
-        }
-    }
+    public void ShowGlossary() => ShowOverlay(_glossaryOverlay);
 
     /// <summary>Закрывает словарь: игрок возвращается к уроку.</summary>
-    public void HideGlossary()
+    public void HideGlossary() => HideOverlay(_glossaryOverlay);
+
+    /// <summary>Показывает полноэкранный слой и убирает из кадра содержимое раздела.</summary>
+    /// <param name="overlay">Слой или <c>null</c>, если его нет в разметке.</param>
+    /// <remarks>
+    /// Пока открыт «О программе» или словарь, содержимое раздела под ними не рисуется: на телефоне
+    /// это заметная доля кадра, а на экране 120 Гц лишняя работа видна как рывки прокрутки
+    /// (замечание пользователя 2026-10-07). Раскладка при этом не меняется: оба слоя и содержимое
+    /// стоят в одной строке сетки.
+    /// </remarks>
+    private void ShowOverlay(Border? overlay)
     {
-        if (_glossaryOverlay is not null)
+        if (overlay is not null)
         {
-            _glossaryOverlay.IsVisible = false;
+            overlay.IsVisible = true;
+        }
+
+        UpdateContentVisibility();
+    }
+
+    /// <summary>Прячет полноэкранный слой и возвращает содержимое раздела в кадр.</summary>
+    /// <param name="overlay">Слой или <c>null</c>, если его нет в разметке.</param>
+    private void HideOverlay(Border? overlay)
+    {
+        if (overlay is not null)
+        {
+            overlay.IsVisible = false;
+        }
+
+        UpdateContentVisibility();
+    }
+
+    /// <summary>Показывает содержимое раздела только тогда, когда его не закрывает полный экран.</summary>
+    private void UpdateContentVisibility()
+    {
+        if (_content is not null)
+        {
+            _content.IsVisible = !IsAboutShown && !IsGlossaryShown;
         }
     }
 
@@ -354,6 +378,21 @@ public sealed partial class ShellView : UserControl
     /// сообщений, у Android — завершение задачи приложения (<see cref="global::GoEngine.App.App.RequestExit"/>).
     /// </remarks>
     private void OnExitConfirmClick(object? sender, RoutedEventArgs e) => global::GoEngine.App.App.RequestExit();
+
+    /// <summary>Применяет выбранное оформление и запоминает выбор.</summary>
+    /// <param name="sender">Модель оболочки.</param>
+    /// <param name="choice">Новая тема.</param>
+    /// <remarks>
+    /// Тема применяется сразу — перезапуск не нужен; отказ записи в файл не мешает играть:
+    /// выбор уже действует, а файл перепишется при следующей смене темы.
+    /// </remarks>
+    private void OnThemeChanged(object? sender, ThemeChoice choice)
+    {
+        _ = sender;
+
+        global::GoEngine.App.App.ApplyTheme(choice);
+        _ = ThemeStore.Save(choice);
+    }
 
     /// <summary>Обновляет видимость разделов, когда модель сообщает о переключении.</summary>
     /// <param name="sender">Модель оболочки.</param>

@@ -109,6 +109,59 @@ public sealed class AppMenuViewTests
     }
 
     [Fact]
+    public void Строка_Тёмной_Темы_Включает_Тёмную()
+    {
+        var (view, shell) = Create();
+
+        Click(view.FindControl<Button>("ThemeDarkRow")!);
+
+        Assert.True(shell.IsDarkTheme);
+    }
+
+    [Fact]
+    public void Строка_Светлой_Темы_Включает_Светлую()
+    {
+        var (view, shell) = Create();
+
+        Click(view.FindControl<Button>("ThemeLightRow")!);
+
+        Assert.True(shell.IsLightTheme);
+    }
+
+    [Fact]
+    public void Строка_Системной_Темы_Возвращает_Системную()
+    {
+        var (view, shell) = Create();
+        shell.SelectTheme(ThemeChoice.Dark);
+
+        Click(view.FindControl<Button>("ThemeSystemRow")!);
+
+        Assert.True(shell.IsSystemTheme);
+    }
+
+    [Fact]
+    public void Пометка_Стоит_У_Текущей_Темы()
+    {
+        var (view, shell) = Create();
+
+        shell.SelectTheme(ThemeChoice.Dark);
+
+        Assert.True(view.FindControl<ShapePath>("ThemeDarkCheck")!.IsVisible);
+        Assert.False(view.FindControl<ShapePath>("ThemeLightCheck")!.IsVisible);
+        Assert.False(view.FindControl<ShapePath>("ThemeSystemCheck")!.IsVisible);
+    }
+
+    [Fact]
+    public void Меню_Показывает_Три_Варианта_Оформления()
+    {
+        var (view, _) = Create();
+
+        Assert.NotNull(view.FindControl<Button>("ThemeSystemRow"));
+        Assert.NotNull(view.FindControl<Button>("ThemeLightRow"));
+        Assert.NotNull(view.FindControl<Button>("ThemeDarkRow"));
+    }
+
+    [Fact]
     public void Строка_О_Программе_Сообщает_О_Запросе()
     {
         var (view, _) = Create();

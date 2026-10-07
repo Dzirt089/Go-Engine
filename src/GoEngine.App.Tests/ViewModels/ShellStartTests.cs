@@ -205,6 +205,33 @@ public sealed class ShellStartTests
     }
 
     [Fact]
+    public void Словарь_Убирает_Содержимое_Раздела_Из_Кадра()
+    {
+        // Пока открыт полный экран, содержимое под ним не рисуется: на экране 120 Гц лишняя
+        // работа видна как рывки прокрутки словаря (замечание пользователя 2026-10-07).
+        var (view, _) = Start();
+        OnPhone(view);
+        Click(view.FindControl<Button>("NavLessonButton")!);
+
+        Click(view.LessonArea!.FindControl<Button>("GlossaryButton")!);
+
+        Assert.False(view.FindControl<Panel>("ModeContent")!.IsVisible);
+    }
+
+    [Fact]
+    public void Закрытие_Словаря_Возвращает_Содержимое_В_Кадр()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+        Click(view.FindControl<Button>("NavLessonButton")!);
+        Click(view.LessonArea!.FindControl<Button>("GlossaryButton")!);
+
+        Click(view.FindControl<Button>("GlossaryBackButton")!);
+
+        Assert.True(view.FindControl<Panel>("ModeContent")!.IsVisible);
+    }
+
+    [Fact]
     public void Словарь_Терминов_Содержит_Термины()
     {
         var (view, _) = Start();

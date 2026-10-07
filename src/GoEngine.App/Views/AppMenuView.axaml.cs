@@ -3,6 +3,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using GoEngine.App.Services;
 using GoEngine.App.Services.Updates;
+// ThemeChoice — из Services: оформление это свойство приложения, а не партии.
 using GoEngine.App.ViewModels;
 
 namespace GoEngine.App.Views;
@@ -50,6 +51,9 @@ public sealed partial class AppMenuView : UserControl
         WireButton("GameModeRow", OnGameModeClick);
         WireButton("ProblemModeRow", OnProblemModeClick);
         WireButton("LessonModeRow", OnLessonModeClick);
+        WireButton("ThemeSystemRow", OnSystemThemeClick);
+        WireButton("ThemeLightRow", OnLightThemeClick);
+        WireButton("ThemeDarkRow", OnDarkThemeClick);
         WireButton("AboutRow", OnAboutClick);
         WireButton("ExitRow", OnExitClick);
     }
@@ -77,6 +81,21 @@ public sealed partial class AppMenuView : UserControl
     /// <param name="sender">Строка «Обучение».</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnLessonModeClick(object? sender, RoutedEventArgs e) => Shell.ShowLessons();
+
+    /// <summary>Включает тему «как в системе».</summary>
+    /// <param name="sender">Строка «Как в системе».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnSystemThemeClick(object? sender, RoutedEventArgs e) => Shell.SelectTheme(ThemeChoice.System);
+
+    /// <summary>Включает светлую тему.</summary>
+    /// <param name="sender">Строка «Светлая».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnLightThemeClick(object? sender, RoutedEventArgs e) => Shell.SelectTheme(ThemeChoice.Light);
+
+    /// <summary>Включает тёмную тему.</summary>
+    /// <param name="sender">Строка «Тёмная».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnDarkThemeClick(object? sender, RoutedEventArgs e) => Shell.SelectTheme(ThemeChoice.Dark);
 
     /// <summary>Показывает «О программе»: экран открывает оболочка, он перекрывает её целиком.</summary>
     /// <param name="sender">Строка «О программе».</param>
