@@ -278,16 +278,17 @@ public sealed class LessonsTests
     }
 
     [Fact]
-    public void Разбор_Точки_Переворачивает_Строку()
+    public void Разбор_Точки_Читает_Строку_Как_В_SGF()
     {
-        // «aa» — левый верхний угол: в SGF строка считается сверху, у доски — снизу.
+        // «aa» — левый верхний угол: строка не переворачивается — так же читает SGF игра
+        // (SgfReader) и так же подписаны строки на доске (строка 1 сверху, D-009).
         var parsed = LessonJson.Parse("""
             {"id":"x","title":"t","summary":"s","size":9,"steps":[
               {"kind":"task","title":"t","text":"t","position":{"toMove":"B","black":[],"white":[]},"answer":["aa"]}]}
             """);
 
         Assert.True(parsed.IsSuccess, parsed.Error);
-        Assert.Equal(new Point(0, 8), parsed.Value!.Steps[0].Answer[0].Point);
+        Assert.Equal(new Point(0, 0), parsed.Value!.Steps[0].Answer[0].Point);
     }
 
     /// <summary>Ставит сессию на шаг с номером, проходя предыдущие.</summary>

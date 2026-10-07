@@ -13,8 +13,9 @@ using GoEngine.Core;
 /// </para>
 /// <para>
 /// Точки записываются как в SGF: две буквы, первая — колонка слева направо, вторая — строка
-/// <b>сверху вниз</b> (<c>aa</c> — левый верхний угол). Внутри приложения строка считается снизу
-/// вверх, поэтому при разборе строка переворачивается. Свойства шага: <c>kind</c> (<c>explain</c>
+/// сверху вниз (<c>aa</c> — левый верхний угол). Разбор не переворачивает строку — так же читает
+/// SGF игра (<c>SgfReader</c>), и так же подписаны строки на доске: строка 1 сверху
+/// (<c>DECISIONS.md</c>, D-009). Свойства шага: <c>kind</c> (<c>explain</c>
 /// или <c>task</c>), <c>title</c>, <c>text</c>, <c>position</c>, <c>answer</c> (принимаемые ходы),
 /// <c>hint</c>, <c>success</c>, <c>failure</c>. Позиция: <c>toMove</c> (<c>B</c> или <c>W</c>),
 /// <c>black</c>, <c>white</c> и <c>highlight</c> (что подсветить на доске).
@@ -313,7 +314,10 @@ public static class LessonJson
     /// <param name="size">Размер доски.</param>
     /// <param name="where">Место в файле — для сообщения об отказе.</param>
     /// <returns>Точка или причина отказа.</returns>
-    /// <remarks>Строка переворачивается: в SGF <c>a</c> — верхняя строка, у доски — нижняя.</remarks>
+    /// <remarks>
+    /// Строка не переворачивается: <c>a</c> — верхняя строка и в SGF, и на доске приложения,
+    /// где номера строк идут сверху вниз (<c>SgfReader</c>, D-009).
+    /// </remarks>
     private static Result<Point> PointOf(string token, BoardSize size, string where)
     {
         var value = token.Trim().ToLowerInvariant();
@@ -331,7 +335,7 @@ public static class LessonJson
             return Result<Point>.Fail($"{where}: точка «{token}» находится вне доски {size}.");
         }
 
-        return Result<Point>.Ok(new Point((byte)column, (byte)(size.Value - 1 - row)));
+        return Result<Point>.Ok(new Point((byte)column, (byte)row));
     }
 
     /// <summary>Читает размер доски урока.</summary>
