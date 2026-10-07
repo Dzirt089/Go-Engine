@@ -28,9 +28,14 @@ public sealed class LessonsTests
     [Fact]
     public void У_Каждого_Урока_Есть_Источник()
     {
+        // Материал урока берётся из названного источника: разобранной партии с YouTube или плаката
+        // с формами. Безымянный урок нельзя проверить — непонятно, чему он учит.
         Assert.All(
             LessonLibrary.All,
-            lesson => Assert.Contains("YouTube", lesson.Source, StringComparison.Ordinal));
+            lesson => Assert.True(
+                lesson.Source.Contains("YouTube", StringComparison.Ordinal)
+                || lesson.Source.Contains("Плакат", StringComparison.Ordinal),
+                $"{lesson.Id}: источник не назван — {lesson.Source}"));
     }
 
     [Fact]
@@ -99,6 +104,46 @@ public sealed class LessonsTests
                     Assert.True(
                         verdict == LessonVerdict.Correct,
                         $"{lesson.Id}, шаг «{step.Title}»: ход {move.Point} не принят — {session.Message}");
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void Каждый_Принимаемый_Ход_Легален()
+    {
+        // Урок учит ходу, который можно сыграть. Отдельная проверка нужна потому, что принятый,
+        // но нелегальный ход движок зачитывает (приём «ход в глаз», LessonSession.Play), и опечатка
+        // в координате иначе прошла бы молча. Исключение — шаги, где запрет и есть урок.
+        foreach (var lesson in LessonLibrary.All)
+        {
+            for (var index = 0; index < lesson.StepCount; index++)
+            {
+                var step = lesson.Steps[index];
+
+                if (!step.IsTask || TeachesForbiddenMove(lesson.Id, step.Title))
+                {
+                    continue;
+                }
+
+                var board = AtStep(lesson, index).Board;
+
+                foreach (var move in step.Answer)
+                {
+                    var legal = board.IsLegal(move);
+
+                    Assert.True(
+                        legal.IsSuccess,
+                        $"{lesson.Id}, шаг «{step.Title}»: принимаемый ход {move.Point} нелегален — {legal.Error}");
+                }
+
+                if (step.Hint is { } hint)
+                {
+                    var legal = board.IsLegal(hint);
+
+                    Assert.True(
+                        legal.IsSuccess,
+                        $"{lesson.Id}, шаг «{step.Title}»: подсказка {hint.Point} нелегальна — {legal.Error}");
                 }
             }
         }
@@ -290,6 +335,13 @@ public sealed class LessonsTests
         Assert.True(parsed.IsSuccess, parsed.Error);
         Assert.Equal(new Point(0, 0), parsed.Value!.Steps[0].Answer[0].Point);
     }
+
+    /// <summary>Шаг, где нелегальный ход и есть урок: игра внутрь глаза запрещена правилами.</summary>
+    /// <param name="lessonId">Идентификатор урока.</param>
+    /// <param name="title">Заголовок шага.</param>
+    /// <returns>Шаг объясняет запрет правил, а не показывает возможный ход.</returns>
+    private static bool TeachesForbiddenMove(string lessonId, string title) =>
+        lessonId == "go-02" && title == "Ход в глаз запрещён";
 
     /// <summary>Ставит сессию на шаг с номером, проходя предыдущие.</summary>
     /// <param name="lesson">Урок.</param>
