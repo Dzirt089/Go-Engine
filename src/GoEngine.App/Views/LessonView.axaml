@@ -75,8 +75,9 @@
                        Classes="app-label"
                        TextWrapping="Wrap" />
 
-            <!-- Список уроков: по нему видно, сколько их и что дальше. -->
-            <TextBlock Text="Урок" Margin="0,6,0,0" />
+            <!-- Список уроков: по нему видно, сколько их, что пройдено и что дальше. Отметки
+                 («✓» пройден, «▸» начат) стоят в подписях уроков, а счёт — здесь. -->
+            <TextBlock Text="{Binding ListCaption}" Margin="0,6,0,0" />
             <ComboBox x:Name="LessonBox"
                       MinHeight="44"
                       HorizontalAlignment="Stretch" />

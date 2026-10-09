@@ -5,6 +5,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using GoEngine.App.Services;
+using GoEngine.App.Services.Logging;
 using GoEngine.App.ViewModels;
 
 namespace GoEngine.App.Views;
@@ -67,7 +68,8 @@ public sealed partial class ShellView : UserControl
         : this(ShellViewModel.Create(
             SettingsStore.Load(),
             global::GoEngine.App.App.Evaluator,
-            theme: ThemeStore.Load()))
+            theme: ThemeStore.Load(),
+            progress: ProgressStore.Load()))
     {
     }
 
@@ -171,6 +173,9 @@ public sealed partial class ShellView : UserControl
 
         // Смену оформления применяет приложение: оболочка только сообщает о выборе игрока.
         shell.ThemeChanged += OnThemeChanged;
+
+        // Прогресс обучения записывает вид: модели уроков и разбора только сообщают об изменениях.
+        shell.ProgressChanged += OnStudyProgressChanged;
 
         shell.PropertyChanged += OnShellPropertyChanged;
         SizeChanged += OnViewSizeChanged;
@@ -429,6 +434,23 @@ public sealed partial class ShellView : UserControl
 
         global::GoEngine.App.App.ApplyTheme(choice);
         _ = ThemeStore.Save(choice);
+    }
+
+    /// <summary>Записывает прогресс обучения в файл.</summary>
+    /// <remarks>
+    /// Отказ записи не мешает учиться: прогресс уже в памяти, а в лог попадает причина — тем же
+    /// способом обрабатывается выбор оформления.
+    /// </remarks>
+    private void OnStudyProgressChanged(object? sender, EventArgs e)
+    {
+        _ = sender;
+
+        var saved = ProgressStore.Save(Shell.Progress);
+
+        if (!saved.IsSuccess)
+        {
+            AppLogMessages.ProgressSaveFailed(AppLog.For<ShellView>(), saved.Error ?? "неизвестная причина");
+        }
     }
 
     /// <summary>Обновляет видимость разделов, когда модель сообщает о переключении.</summary>

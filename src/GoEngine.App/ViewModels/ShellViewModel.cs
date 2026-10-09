@@ -33,7 +33,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     private static readonly string[] PropertyNames =
     [
         nameof(IsGameMode), nameof(IsProblemMode), nameof(IsLessonMode), nameof(ModeHint),
-        nameof(Reviews), nameof(IsReviewMode),
+        nameof(Reviews), nameof(IsReviewMode), nameof(Progress),
         nameof(IsGameSection), nameof(IsProblemSection), nameof(IsLessonSection), nameof(IsMenuSection),
         nameof(Theme), nameof(IsSystemTheme), nameof(IsLightTheme), nameof(IsDarkTheme)
     ];
@@ -66,6 +66,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <param name="lessons">Модель представления обучения; <c>null</c> — встроенные уроки.</param>
     /// <param name="theme">Выбранное оформление; <c>null</c> — системная тема.</param>
     /// <param name="reviews">Разбор партий; <c>null</c> — встроенная библиотека.</param>
+    /// <param name="progress">Прогресс обучения; <c>null</c> — начать с чистого листа.</param>
     public ShellViewModel(
         AppSettings settings,
         MainViewModel game,
@@ -73,7 +74,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         UpdateViewModel? updates = null,
         LessonViewModel? lessons = null,
         ThemeChoice? theme = null,
-        ReviewViewModel? reviews = null)
+        ReviewViewModel? reviews = null,
+        StudyProgress? progress = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(game);
@@ -82,10 +84,16 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         Settings = settings;
         Game = game;
         Problems = problems;
-        Lessons = lessons ?? new LessonViewModel();
-        Reviews = reviews ?? new ReviewViewModel();
+        Progress = progress ?? StudyProgress.Empty;
+
+        Lessons = lessons ?? new LessonViewModel(LessonLibrary.All, Progress);
+        Reviews = reviews ?? new ReviewViewModel(ReviewLibrary.All, Progress);
         Updates = updates ?? global::GoEngine.App.App.Updates;
         _theme = theme ?? ThemeChoice.System;
+
+        // Прогресс обучения пишет вид: оболочка только сообщает, что он изменился.
+        Lessons.ProgressChanged += OnStudyProgressChanged;
+        Reviews.ProgressChanged += OnStudyProgressChanged;
     }
 
     /// <summary>Игрок выбрал другое оформление.</summary>
@@ -110,6 +118,19 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 
     /// <summary>Модель представления обучения: уроки и их прохождение.</summary>
     public LessonViewModel Lessons { get; }
+
+    /// <summary>Прогресс обучения: что пройдено и где игрок остановился.</summary>
+    /// <remarks>
+    /// Общий для уроков и разбора партий: файл прогресса один, и оболочка записывает его целиком.
+    /// </remarks>
+    public StudyProgress Progress { get; }
+
+    /// <summary>Прогресс обучения изменился: вид записывает его в файл.</summary>
+    /// <remarks>
+    /// Запись — дело вида (как оформление и настройки): модель только сообщает о смене состояния,
+    /// поэтому её поведение проверяется без диска.
+    /// </remarks>
+    public event EventHandler? ProgressChanged;
 
     /// <summary>Модель представления разбора партий: практика после уроков.</summary>
     /// <remarks>
@@ -183,6 +204,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <param name="lessons">Уроки; <c>null</c> — встроенная библиотека уроков.</param>
     /// <param name="theme">Выбранное оформление; <c>null</c> — системная тема.</param>
     /// <param name="reviews">Разбор партий; <c>null</c> — встроенная библиотека.</param>
+    /// <param name="progress">Прогресс обучения; <c>null</c> — начать с чистого листа.</param>
     /// <returns>Оболочку с тремя режимами и общим меню.</returns>
     public static ShellViewModel Create(
         AppSettings settings,
@@ -191,15 +213,17 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         UpdateViewModel? updates = null,
         IReadOnlyList<Lesson>? lessons = null,
         ThemeChoice? theme = null,
-        IReadOnlyList<ReviewGame>? reviews = null) =>
+        IReadOnlyList<ReviewGame>? reviews = null,
+        StudyProgress? progress = null) =>
         new(
             settings,
             new MainViewModel(settings, Random.Shared, evaluator),
             problems is null ? new ProblemViewModel() : new ProblemViewModel(problems),
             updates,
-            lessons is null ? new LessonViewModel() : new LessonViewModel(lessons),
+            lessons is null ? null : new LessonViewModel(lessons, progress),
             theme,
-            reviews is null ? null : new ReviewViewModel(reviews));
+            reviews is null ? null : new ReviewViewModel(reviews, progress),
+            progress);
 
     /// <summary>Проверяет обновление при первом показе оболочки: один раз, в фоне и молча.</summary>
     /// <returns>Задача проверки; повторные вызовы ничего не делают.</returns>
@@ -219,6 +243,16 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         _updateCheckStarted = true;
 
         await Updates.CheckAsync(silent: true).ConfigureAwait(true);
+    }
+
+    /// <summary>Сообщает виду, что прогресс обучения изменился.</summary>
+    /// <param name="sender">Модель уроков или разбора партий.</param>
+    /// <param name="e">Событие изменения.</param>
+    private void OnStudyProgressChanged(object? sender, EventArgs e)
+    {
+        _ = sender;
+
+        ProgressChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Показывает режим партии.</summary>

@@ -31,7 +31,7 @@ public sealed class LessonViewModel : INotifyPropertyChanged
     /// </remarks>
     private static readonly string[] PropertyNames =
     [
-        nameof(Labels), nameof(SelectedIndex), nameof(LessonTitle), nameof(LessonSummary),
+        nameof(Labels), nameof(ListCaption), nameof(SelectedIndex), nameof(LessonTitle), nameof(LessonSummary),
         nameof(StepTitle), nameof(StepText), nameof(StepCounter), nameof(Message), nameof(HasMessage),
         nameof(IsMessageGood), nameof(Board), nameof(HintPoint), nameof(Highlight), nameof(CanHint),
         nameof(CanGoNext), nameof(CanGoBack), nameof(IsCompleted), nameof(IsStepTask),
@@ -40,7 +40,8 @@ public sealed class LessonViewModel : INotifyPropertyChanged
     ];
 
     private readonly IReadOnlyList<Lesson> _lessons;
-    private readonly IReadOnlyList<string> _labels;
+    private readonly StudyProgress _progress;
+    private IReadOnlyList<string> _labels;
     private LessonSession _session;
 
     private int _selectedIndex;
@@ -54,14 +55,15 @@ public sealed class LessonViewModel : INotifyPropertyChanged
 
     /// <summary>Создаёт модель обучения со встроенной библиотекой уроков.</summary>
     public LessonViewModel()
-        : this(LessonLibrary.All)
+        : this(LessonLibrary.All, null)
     {
     }
 
     /// <summary>Создаёт модель обучения с готовым набором уроков.</summary>
     /// <param name="lessons">Уроки в порядке прохождения.</param>
+    /// <param name="progress">Прогресс обучения; <c>null</c> — начать с чистого листа.</param>
     /// <exception cref="DomainException">Набор уроков пуст.</exception>
-    public LessonViewModel(IReadOnlyList<Lesson> lessons)
+    public LessonViewModel(IReadOnlyList<Lesson> lessons, StudyProgress? progress = null)
     {
         ArgumentNullException.ThrowIfNull(lessons);
 
@@ -71,15 +73,34 @@ public sealed class LessonViewModel : INotifyPropertyChanged
         }
 
         _lessons = lessons;
-        _labels = lessons.Select(lesson => lesson.Label).ToList().AsReadOnly();
-        _session = new LessonSession(lessons[0]);
+        _progress = progress ?? StudyProgress.Empty;
+        _labels = BuildLabels();
+
+        // Курс продолжается с того места, где игрок остановился: обучение идёт по частям,
+        // и каждый раз искать урок заново — потеря времени.
+        _selectedIndex = Math.Max(IndexOf(_progress.LastLesson), 0);
+        _session = new LessonSession(lessons[_selectedIndex]);
+        Resume(_progress.ForLesson(lessons[_selectedIndex].Id));
     }
 
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    /// <summary>Подписи уроков для списка выбора.</summary>
+    /// <summary>Прогресс обучения изменился: оболочка записывает его в файл.</summary>
+    /// <remarks>
+    /// Запись — дело вида (как оформление и настройки): модель только сообщает о смене состояния,
+    /// поэтому её поведение проверяется без диска.
+    /// </remarks>
+    public event EventHandler? ProgressChanged;
+
+    /// <summary>Подписи уроков для списка выбора: с отметкой пройденного и начатого.</summary>
     public IReadOnlyList<string> Labels => _labels;
+
+    /// <summary>Подпись списка уроков: сколько пройдено.</summary>
+    public string ListCaption => $"Урок · пройдено {_progress.CompletedLessons} из {_lessons.Count}";
+
+    /// <summary>Текущий урок пройден до конца.</summary>
+    public bool IsLessonCompleted => _progress.ForLesson(_session.Lesson.Id)?.Completed ?? false;
 
     /// <summary>Номер выбранного урока.</summary>
     public int SelectedIndex => _selectedIndex;
@@ -196,6 +217,7 @@ public sealed class LessonViewModel : INotifyPropertyChanged
             AppLogMessages.LessonStepPassed(_log, _session.Lesson.Id, _session.StepNumber);
         }
 
+        SaveProgress();
         NotifyAll();
     }
 
@@ -225,6 +247,7 @@ public sealed class LessonViewModel : INotifyPropertyChanged
             AppLogMessages.LessonCompleted(_log, _session.Lesson.Id, _session.StepCount);
         }
 
+        SaveProgress();
         NotifyAll();
     }
 
@@ -233,6 +256,7 @@ public sealed class LessonViewModel : INotifyPropertyChanged
     {
         _session.Back();
         ResetAnimation();
+        SaveProgress();
         NotifyAll();
     }
 
@@ -241,6 +265,7 @@ public sealed class LessonViewModel : INotifyPropertyChanged
     {
         _session.Restart();
         ResetAnimation();
+        SaveProgress();
         NotifyAll();
     }
 
@@ -255,10 +280,79 @@ public sealed class LessonViewModel : INotifyPropertyChanged
 
         _selectedIndex = index;
         _session = new LessonSession(_lessons[index]);
+        Resume(_progress.ForLesson(_session.Lesson.Id));
         ResetAnimation();
         AppLogMessages.LessonStarted(_log, _session.Lesson.Id);
 
+        SaveProgress();
         NotifyAll();
+    }
+
+    /// <summary>Запоминает, где игрок остановился, и сообщает об этом оболочке.</summary>
+    /// <remarks>
+    /// Записывается каждый шаг: файл крошечный, а «продолжить с того же места» обязано работать
+    /// даже после внезапного закрытия приложения.
+    /// </remarks>
+    private void SaveProgress()
+    {
+        var lesson = _session.Lesson;
+
+        _progress.SaveLesson(lesson.Id, _session.StepNumber, _session.IsCompleted);
+
+        _labels = BuildLabels();
+        ProgressChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Продолжает урок с сохранённого шага.</summary>
+    /// <param name="saved">Сохранённый прогресс урока или <c>null</c>.</param>
+    /// <remarks>
+    /// Прокручиваются только пройденные шаги: сессия не идёт дальше нерешённого задания, поэтому
+    /// игрок возвращается к тому заданию, на котором остановился, а не в середину объяснения.
+    /// </remarks>
+    private void Resume(StudyItemProgress? saved)
+    {
+        if (saved is null || saved.Completed || saved.Step <= 1)
+        {
+            return;
+        }
+
+        var guard = 0;
+
+        while (_session.StepNumber < saved.Step && _session.CanGoNext && guard++ < _session.StepCount)
+        {
+            _session.Next();
+        }
+    }
+
+    /// <summary>Собирает подписи уроков с отметками: пройден, начат или ещё нет.</summary>
+    private IReadOnlyList<string> BuildLabels() =>
+        _lessons.Select(lesson => Mark(lesson, _progress.ForLesson(lesson.Id))).ToList().AsReadOnly();
+
+    /// <summary>Отмечает урок в списке: «✓» — пройден, «▸» — начат.</summary>
+    private static string Mark(Lesson lesson, StudyItemProgress? saved) => saved switch
+    {
+        { Completed: true } => $"✓ {lesson.Label}",
+        { Step: > 0 } => $"▸ {lesson.Label}",
+        _ => lesson.Label
+    };
+
+    /// <summary>Номер урока в списке по идентификатору.</summary>
+    private int IndexOf(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return 0;
+        }
+
+        for (var index = 0; index < _lessons.Count; index++)
+        {
+            if (string.Equals(_lessons[index].Id, id, StringComparison.Ordinal))
+            {
+                return index;
+            }
+        }
+
+        return 0;
     }
 
     /// <summary>Снимает метку последнего хода: шаг сменился, старая метка к нему не относится.</summary>

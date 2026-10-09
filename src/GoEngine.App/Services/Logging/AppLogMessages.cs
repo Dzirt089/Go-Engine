@@ -86,6 +86,10 @@ public static partial class AppLogMessages
     [LoggerMessage(EventId = 1043, Level = LogLevel.Information, Message = "Обучение: {Study}")]
     public static partial void StudySelected(ILogger logger, string study);
 
+    /// <summary>Прогресс обучения не записался: отметки потеряются после закрытия.</summary>
+    [LoggerMessage(EventId = 1044, Level = LogLevel.Warning, Message = "Прогресс обучения не сохранён: {Reason}")]
+    public static partial void ProgressSaveFailed(ILogger logger, string reason);
+
     /// <summary>Начат разбор обучающей партии.</summary>
     [LoggerMessage(EventId = 1038, Level = LogLevel.Information, Message = "Партия {GameId}: начало разбора")]
     public static partial void ReviewStarted(ILogger logger, string gameId);

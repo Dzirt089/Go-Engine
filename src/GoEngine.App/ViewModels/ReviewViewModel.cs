@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using GoEngine.App.Services;
 using GoEngine.App.Services.Logging;
 using GoEngine.Core;
 using GoEngine.Problems;
@@ -29,7 +30,7 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
     /// </remarks>
     private static readonly string[] PropertyNames =
     [
-        nameof(Labels), nameof(SelectedIndex), nameof(GameTitle), nameof(GameSummary), nameof(Players),
+        nameof(Labels), nameof(ListCaption), nameof(SelectedIndex), nameof(GameTitle), nameof(GameSummary), nameof(Players),
         nameof(Result), nameof(NoteTitle), nameof(NoteText), nameof(HasNote), nameof(IsQuiz),
         nameof(MoveCounter), nameof(Message), nameof(HasMessage), nameof(IsMessageGood), nameof(Board),
         nameof(HintPoint), nameof(CanHint), nameof(CanGoNext), nameof(CanGoBack), nameof(IsCompleted),
@@ -38,7 +39,8 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
     ];
 
     private readonly IReadOnlyList<ReviewGame> _games;
-    private readonly IReadOnlyList<string> _labels;
+    private readonly StudyProgress _progress;
+    private IReadOnlyList<string> _labels;
     private ReviewSession _session;
 
     private int _selectedIndex;
@@ -52,14 +54,15 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
 
     /// <summary>Создаёт модель разбора со встроенной библиотекой партий.</summary>
     public ReviewViewModel()
-        : this(ReviewLibrary.All)
+        : this(ReviewLibrary.All, null)
     {
     }
 
     /// <summary>Создаёт модель разбора с готовым набором партий.</summary>
     /// <param name="games">Партии в порядке разбора.</param>
+    /// <param name="progress">Прогресс обучения; <c>null</c> — начать с чистого листа.</param>
     /// <exception cref="DomainException">Набор партий пуст.</exception>
-    public ReviewViewModel(IReadOnlyList<ReviewGame> games)
+    public ReviewViewModel(IReadOnlyList<ReviewGame> games, StudyProgress? progress = null)
     {
         ArgumentNullException.ThrowIfNull(games);
 
@@ -69,15 +72,36 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
         }
 
         _games = games;
-        _labels = games.Select(game => game.Label).ToList().AsReadOnly();
-        _session = new ReviewSession(games[0]);
+        _progress = progress ?? StudyProgress.Empty;
+        _labels = BuildLabels();
+
+        // Разбор продолжается с того же хода: партия идёт сотни ходов, и начинать её заново
+        // каждый раз — потеря времени.
+        _selectedIndex = Math.Max(IndexOf(_progress.LastGame), 0);
+        _session = new ReviewSession(games[_selectedIndex]);
+
+        var saved = _progress.ForGame(games[_selectedIndex].Id);
+
+        if (saved is { Step: > 0 } && !saved.Completed)
+        {
+            _ = _session.GoTo(saved.Step);
+        }
     }
 
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    /// <summary>Подписи партий для списка выбора.</summary>
+    /// <summary>Прогресс обучения изменился: оболочка записывает его в файл.</summary>
+    public event EventHandler? ProgressChanged;
+
+    /// <summary>Подписи партий для списка выбора: с отметкой разобранного и начатого.</summary>
     public IReadOnlyList<string> Labels => _labels;
+
+    /// <summary>Подпись списка партий: сколько разобрано.</summary>
+    public string ListCaption => $"Партия · разобрано {_progress.CompletedGames} из {_games.Count}";
+
+    /// <summary>Текущая партия разобрана до конца.</summary>
+    public bool IsGameCompleted => _progress.ForGame(_session.Game.Id)?.Completed ?? false;
 
     /// <summary>Номер выбранной партии.</summary>
     public int SelectedIndex => _selectedIndex;
@@ -194,6 +218,7 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
             AppLogMessages.ReviewQuizPassed(_log, _session.Game.Id, number + 1);
         }
 
+        SaveProgress();
         NotifyAll();
     }
 
@@ -227,6 +252,7 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
             AppLogMessages.ReviewCompleted(_log, _session.Game.Id, _session.MoveCount);
         }
 
+        SaveProgress();
         NotifyAll();
     }
 
@@ -236,6 +262,7 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
         if (_session.Back())
         {
             ResetMove();
+            SaveProgress();
         }
 
         NotifyAll();
@@ -246,6 +273,7 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
     {
         _session.Restart();
         ResetMove();
+        SaveProgress();
         NotifyAll();
     }
 
@@ -263,7 +291,52 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
         ResetMove();
         AppLogMessages.ReviewStarted(_log, _session.Game.Id);
 
+        SaveProgress();
         NotifyAll();
+    }
+
+    /// <summary>Запоминает, где игрок остановился, и сообщает об этом оболочке.</summary>
+    /// <remarks>
+    /// Записывается каждый ход: файл крошечный, а «продолжить разбор» обязано работать даже
+    /// после внезапного закрытия приложения.
+    /// </remarks>
+    private void SaveProgress()
+    {
+        _progress.SaveGame(_session.Game.Id, _session.MoveNumber, _session.IsCompleted);
+
+        _labels = BuildLabels();
+        ProgressChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Собирает подписи партий с отметками: разобрана, начата или ещё нет.</summary>
+    private IReadOnlyList<string> BuildLabels() =>
+        _games.Select(game => Mark(game, _progress.ForGame(game.Id))).ToList().AsReadOnly();
+
+    /// <summary>Отмечает партию в списке: «✓» — разобрана, «▸» — начата.</summary>
+    private static string Mark(ReviewGame game, StudyItemProgress? saved) => saved switch
+    {
+        { Completed: true } => $"✓ {game.Label}",
+        { Step: > 0 } => $"▸ {game.Label}",
+        _ => game.Label
+    };
+
+    /// <summary>Номер партии в списке по идентификатору.</summary>
+    private int IndexOf(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return 0;
+        }
+
+        for (var index = 0; index < _games.Count; index++)
+        {
+            if (string.Equals(_games[index].Id, id, StringComparison.Ordinal))
+            {
+                return index;
+            }
+        }
+
+        return 0;
     }
 
     /// <summary>Запоминает последний ход: доска рисует по нему метку и снятые камни.</summary>

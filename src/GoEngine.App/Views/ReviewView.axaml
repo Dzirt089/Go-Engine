@@ -87,8 +87,9 @@
                        Classes="app-label"
                        TextWrapping="Wrap" />
 
-            <!-- Список партий: по нему видно, сколько их и что дальше. -->
-            <TextBlock Text="Партия" Margin="0,6,0,0" />
+            <!-- Список партий: по нему видно, сколько их, что разобрано и что дальше. Отметки
+                 («✓» разобрана, «▸» начата) стоят в подписях партий, а счёт — здесь. -->
+            <TextBlock Text="{Binding ListCaption}" Margin="0,6,0,0" />
             <ComboBox x:Name="GameBox"
                       MinHeight="44"
                       HorizontalAlignment="Stretch" />

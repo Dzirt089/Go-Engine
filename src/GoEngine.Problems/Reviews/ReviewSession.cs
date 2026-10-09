@@ -16,8 +16,9 @@ using GoEngine.Core;
 /// </remarks>
 public sealed class ReviewSession
 {
-    private GameState _game;
+    private Board _board;
     private int _played;
+    private int _passes;
     private bool _answered;
 
     /// <summary>Начинает разбор партии с начала.</summary>
@@ -28,7 +29,7 @@ public sealed class ReviewSession
         ArgumentNullException.ThrowIfNull(game);
 
         Game = game;
-        _game = GameState.NewGame(game.Size, game.Komi);
+        _board = game.StartPosition();
         Message = game.Summary;
     }
 
@@ -36,7 +37,7 @@ public sealed class ReviewSession
     public ReviewGame Game { get; }
 
     /// <summary>Доска в текущей позиции разбора.</summary>
-    public Board Board => _game.Board;
+    public Board Board => _board;
 
     /// <summary>Сколько ходов партии уже сыграно.</summary>
     public int MoveNumber => _played;
@@ -48,14 +49,20 @@ public sealed class ReviewSession
     public Move LastMove { get; private set; } = Move.None;
 
     /// <summary>Камни, снятые последним ходом партии.</summary>
-    public IReadOnlyList<Point> CapturedStones => _game.Board.CapturedStones;
+    public IReadOnlyList<Point> CapturedStones => _board.CapturedStones;
+
+    /// <summary>Сколько пасов подряд сделано: два паса заканчивают партию.</summary>
+    public int ConsecutivePasses => _passes;
 
     /// <summary>Заметка разбора к текущей позиции.</summary>
     public ReviewNote? Note => Game.NoteBefore(_played);
 
     /// <summary>Чей ход в текущей позиции партии.</summary>
-    /// <remarks>Цвета в записи чередуются, и партия начинается с чёрных: ход определяется номером.</remarks>
-    public StoneColor ToMove => _played % 2 == 0 ? StoneColor.Black : StoneColor.White;
+    /// <remarks>
+    /// Цвета в записи чередуются, а первым ходит <see cref="ReviewGame.FirstColor"/>: без форы
+    /// это чёрные, с форой — белые (камни форы уже стоят на доске).
+    /// </remarks>
+    public StoneColor ToMove => _played % 2 == 0 ? Game.FirstColor : Game.FirstColor.Opponent();
 
     /// <summary>Партия просмотрена до конца.</summary>
     public bool IsCompleted => _played >= Game.MoveCount;
@@ -189,8 +196,9 @@ public sealed class ReviewSession
             return false;
         }
 
-        _game = GameState.NewGame(Game.Size, Game.Komi);
+        _board = Game.StartPosition();
         _played = 0;
+        _passes = 0;
         _answered = false;
         HintPoint = null;
         Verdict = LessonVerdict.None;
@@ -217,15 +225,17 @@ public sealed class ReviewSession
         }
 
         var move = Game.Moves[_played];
-        var played = _game.Play(move);
+        var legality = _board.IsLegal(move);
 
-        if (!played.IsSuccess)
+        if (!legality.IsSuccess)
         {
             // Запись проверена конструктором партии: сюда попасть нельзя.
-            throw new DomainException($"Партия {Game.Id}: ход {_played + 1} ({move}) не принят — {played.Error}");
+            throw new DomainException($"Партия {Game.Id}: ход {_played + 1} ({move}) не принят — {legality.Error}");
         }
 
+        _board = _board.ApplyMove(move);
         _played++;
+        _passes = move.Type == MoveType.Pass ? _passes + 1 : 0;
         _answered = false;
         HintPoint = null;
         Verdict = LessonVerdict.None;

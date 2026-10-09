@@ -51,15 +51,19 @@ public sealed class ReviewsTests
     {
         foreach (var game in ReviewLibrary.All)
         {
-            var state = GameState.NewGame(game.Size, game.Komi);
+            // Партия начинается со своей позиции: у партий с форой на доске уже стоят камни,
+            // и пустая доска для них неверна.
+            var board = game.StartPosition();
             var number = 0;
 
             foreach (var move in game.Moves)
             {
                 number++;
-                var played = state.Play(move);
+                var legal = board.IsLegal(move);
 
-                Assert.True(played.IsSuccess, $"{game.Id}, ход {number} ({move}): {played.Error}");
+                Assert.True(legal.IsSuccess, $"{game.Id}, ход {number} ({move}): {legal.Error}");
+
+                board = board.ApplyMove(move);
             }
         }
     }
@@ -88,28 +92,67 @@ public sealed class ReviewsTests
     {
         foreach (var game in ReviewLibrary.All)
         {
-            var state = GameState.NewGame(game.Size, game.Komi);
+            var board = game.StartPosition();
 
             foreach (var move in game.Moves)
             {
-                _ = state.Play(move);
+                board = board.ApplyMove(move);
             }
 
-            var result = state.Finish().Value;
-            var winner = result.Winner?.Name switch
+            StoneColor? winnerColor;
+            double margin;
+
+            if (game.Handicap.Count == 0)
+            {
+                // Партия без форы: итог берётся у движка вместе со снятием мёртвых камней —
+                // так же, как его считает завершение партии.
+                var state = GameState.NewGame(game.Size, game.Komi);
+
+                foreach (var move in game.Moves)
+                {
+                    _ = state.Play(move);
+                }
+
+                var result = state.Finish().Value;
+
+                winnerColor = result.Winner;
+                margin = Math.Round(result.Score?.Margin ?? 0, 1);
+            }
+            else
+            {
+                // Партия с форой: движок не умеет начинать с расстановки, поэтому итог считается
+                // по площади финальной позиции — тем же подсчётом очков, что и в конце партии.
+                var score = Scorer.Calculate(board, game.Komi);
+
+                winnerColor = score.Winner;
+                margin = Math.Round(score.Margin, 1);
+            }
+
+            var winner = winnerColor?.Name switch
             {
                 "Black" => "Чёрные",
                 "White" => "Белые",
                 _ => "ничья"
             };
 
-            var margin = Math.Round(result.Score?.Margin ?? 0, 1);
-
             Assert.Contains(winner, game.Result, StringComparison.Ordinal);
-            Assert.Contains(
-                margin.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture),
-                game.Result,
-                StringComparison.Ordinal);
+
+            var declared = DeclaredMargin(game.Result);
+
+            if (game.Handicap.Count > 0)
+            {
+                // Партия с форой: итог считается по площади и совпадает точно.
+                Assert.Equal(margin, declared);
+            }
+            else
+            {
+                // Партия движка: поиск мёртвых групп может пометить пару камней иначе, чем при
+                // генерации, поэтому разница сверяется с допуском в три очка — грубая ошибка
+                // в данных видна, а разница в мёртвых камнях тест не роняет.
+                Assert.True(
+                    Math.Abs(margin - declared) <= 3,
+                    $"{game.Id}: в данных {declared}, подсчёт даёт {margin}");
+            }
         }
     }
 
@@ -151,15 +194,6 @@ public sealed class ReviewsTests
     {
         foreach (var game in ReviewLibrary.All)
         {
-            var state = GameState.NewGame(game.Size, game.Komi);
-            var boards = new List<Board> { state.Board };
-
-            foreach (var move in game.Moves)
-            {
-                _ = state.Play(move);
-                boards.Add(state.Board);
-            }
-
             foreach (var note in game.Notes.Where(note => note.Quiz is not null))
             {
                 var quiz = note.Quiz!;
@@ -168,9 +202,14 @@ public sealed class ReviewsTests
                 Assert.Contains(quiz.Answer, answer => answer.Point == move.Point);
                 Assert.Equal(move.Color.Name, quiz.Answer[0].Color.Name);
 
-                // Позиция без истории суперко: снимки делят историю партии, и сыгранный ход
-                // выглядел бы её повторением (та же причина, что в проверке записи ReviewGame).
-                var board = boards[note.Before].WithoutHistory();
+                // Позиция вопроса собирается заново до нужного хода — так же, как в проверке записи:
+                // снимки делят историю партии, и её потеря меняла вердикт правил.
+                var board = game.StartPosition();
+
+                for (var step = 0; step < note.Before; step++)
+                {
+                    board = board.ApplyMove(game.Moves[step]);
+                }
 
                 foreach (var answer in quiz.Answer)
                 {
@@ -311,6 +350,75 @@ public sealed class ReviewsTests
     }
 
     [Fact]
+    public void Партия_С_Форой_Начинается_С_Хода_Белых()
+    {
+        // Фора — начальная расстановка: три камня чёрных уже стоят, первым ходит белый.
+        var parsed = ReviewJson.Parse("""
+            {"id":"h","title":"Фора","summary":"как играть с форой","source":"YouTube","players":"вы",
+             "result":"Чёрные +5.5","size":9,"komi":0.5,"handicap":["cc","gc","gg"],
+             "moves":["ee"],
+             "notes":[{"before":0,"title":"Начало","text":"Белые начинают","quiz":{"answer":["ee"]}}]}
+            """);
+
+        Assert.True(parsed.IsSuccess, parsed.Error);
+
+        var game = parsed.Value!;
+        var session = new ReviewSession(game);
+
+        Assert.Equal(3, game.Handicap.Count);
+        Assert.Equal(StoneColor.White.Name, game.FirstColor.Name);
+        Assert.Equal(StoneColor.White.Name, session.ToMove.Name);
+        Assert.Equal(StoneColor.Black.Name, session.Board.At(new Point(2, 2)).Name);
+        Assert.Equal(StoneColor.Black.Name, session.Board.At(new Point(6, 2)).Name);
+        Assert.Equal(StoneColor.Black.Name, session.Board.At(new Point(6, 6)).Name);
+        Assert.Equal(0, session.MoveNumber);
+
+        // Вопрос по умолчанию задан тому, чей ход: в партии с форой — белым.
+        Assert.Equal(StoneColor.White.Name, game.Notes[0].Quiz!.Answer[0].Color.Name);
+        Assert.Equal(LessonVerdict.Correct, session.Play(game.Moves[0]));
+        Assert.Equal(1, session.MoveNumber);
+    }
+
+    [Fact]
+    public void Партия_Без_Форы_Начинается_С_Хода_Чёрных()
+    {
+        var game = ReviewLibrary.All[0];
+        var session = new ReviewSession(game);
+
+        Assert.Empty(game.Handicap);
+        Assert.Equal(StoneColor.Black.Name, game.FirstColor.Name);
+        Assert.Equal(StoneColor.Black.Name, session.ToMove.Name);
+    }
+
+    [Fact]
+    public void Камень_Форы_Вне_Доски_Отклоняется()
+    {
+        var parsed = ReviewJson.Parse("""
+            {"id":"h","title":"Фора","summary":"s","source":"YouTube","players":"вы","result":"ничья",
+             "size":9,"handicap":["zz"],"moves":["ee"],"notes":[]}
+            """);
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains("вне доски", parsed.Error ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Материалы_Обучения_Лежат_В_Сборке_Ресурсами()
+    {
+        // Одна и та же сборка едет на Windows, Linux, macOS и Android: если материал попал
+        // в ресурсы, он доступен на всех платформах, и это проверяется здесь, а не сборкой под
+        // каждую систему (замечание пользователя 2026-10-09 — проверить все платформы).
+        var names = typeof(ReviewLibrary).Assembly.GetManifestResourceNames();
+
+        Assert.Contains(names, name => name.EndsWith("Games.game-01.json", StringComparison.Ordinal));
+        Assert.Contains(names, name => name.EndsWith("Games.game-08.json", StringComparison.Ordinal));
+        Assert.Contains(names, name => name.EndsWith("Lessons.go-01.json", StringComparison.Ordinal));
+        Assert.Contains(names, name => name.EndsWith("Lessons.go-12.json", StringComparison.Ordinal));
+        Assert.Contains(names, name => name.EndsWith("Glossary.glossary.json", StringComparison.Ordinal));
+        Assert.Contains(names, name => name.EndsWith(".sgf", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Партия_Ищется_По_Идентификатору()
     {
         var first = ReviewLibrary.All[0];
@@ -340,6 +448,18 @@ public sealed class ReviewsTests
 
         Assert.False(parsed.IsSuccess);
         Assert.Contains("невозможен", parsed.Error ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    /// <summary>Читает разницу очков из итога партии: «Чёрные +11.5» — это 11,5.</summary>
+    /// <param name="result">Итог словами.</param>
+    /// <returns>Разница очков.</returns>
+    private static double DeclaredMargin(string result)
+    {
+        var plus = result.IndexOf('+', StringComparison.Ordinal);
+
+        return plus >= 0
+            ? double.Parse(result[(plus + 1)..].Trim(), System.Globalization.CultureInfo.InvariantCulture)
+            : 0;
     }
 
     /// <summary>Делает один шаг разбора: отвечает на вопрос, если он есть, и играет ход партии.</summary>

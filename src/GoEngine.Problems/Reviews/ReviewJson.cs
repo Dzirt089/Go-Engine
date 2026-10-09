@@ -110,12 +110,37 @@ public static class ReviewJson
                 return Result<ReviewGame>.Fail($"Партия {gameId}: нет ходов (moves).");
             }
 
+            // Фора — это начальная расстановка: с двумя камнями и больше первым ходит белый,
+            // и от этого цвета считаются цвета всех ходов партии.
+            List<Point> handicap = [];
+
+            if (root.TryGetProperty("handicap", out var handicapElement))
+            {
+                if (handicapElement.ValueKind != JsonValueKind.Array)
+                {
+                    return Result<ReviewGame>.Fail($"Партия {gameId}: фора (handicap) должна быть списком точек.");
+                }
+
+                foreach (var element in handicapElement.EnumerateArray())
+                {
+                    var point = MoveOf(element.GetString(), size.Value, StoneColor.Black, gameId!, handicap.Count + 1);
+
+                    if (!point.IsSuccess)
+                    {
+                        return Result<ReviewGame>.Fail($"{point.Error} (камень форы)");
+                    }
+
+                    handicap.Add(point.Value!.Point);
+                }
+            }
+
+            var firstColor = handicap.Count >= 2 ? StoneColor.White : StoneColor.Black;
             var parsedMoves = new List<Move>(moves.GetArrayLength());
             var index = 0;
 
             foreach (var element in moves.EnumerateArray())
             {
-                var color = index % 2 == 0 ? StoneColor.Black : StoneColor.White;
+                var color = index % 2 == 0 ? firstColor : firstColor.Opponent();
                 var move = MoveOf(element.GetString(), size.Value, color, gameId!, index + 1);
 
                 if (!move.IsSuccess)
@@ -138,7 +163,7 @@ public static class ReviewJson
 
                 foreach (var element in noteElements.EnumerateArray())
                 {
-                    var note = Note(element, size.Value, gameId!, index: notes.Count + 1);
+                    var note = Note(element, size.Value, firstColor, gameId!, index: notes.Count + 1);
 
                     if (!note.IsSuccess)
                     {
@@ -163,7 +188,8 @@ public static class ReviewJson
                     size.Value,
                     komi,
                     parsedMoves.AsReadOnly(),
-                    notes.AsReadOnly()));
+                    notes.AsReadOnly(),
+                    handicap.AsReadOnly()));
             }
             catch (DomainException exception)
             {
@@ -173,7 +199,7 @@ public static class ReviewJson
     }
 
     /// <summary>Разбирает заметку разбора.</summary>
-    private static Result<ReviewNote> Note(JsonElement element, BoardSize size, string gameId, int index)
+    private static Result<ReviewNote> Note(JsonElement element, BoardSize size, StoneColor firstColor, string gameId, int index)
     {
         var where = $"Партия {gameId}, заметка {index}";
 
@@ -199,7 +225,10 @@ public static class ReviewJson
 
         if (element.TryGetProperty("quiz", out var quizElement))
         {
-            var parsed = Quiz(quizElement, size, where);
+            // В позиции перед ходом <c>before</c> ходит та сторона, чей это ход по счёту:
+            // явный toMove нужен только там, где вопрос задан не ей (в партии такого нет).
+            var sideToMove = before % 2 == 0 ? firstColor : firstColor.Opponent();
+            var parsed = Quiz(quizElement, size, sideToMove, where);
 
             if (!parsed.IsSuccess)
             {
@@ -220,7 +249,7 @@ public static class ReviewJson
     }
 
     /// <summary>Разбирает вопрос разбора.</summary>
-    private static Result<ReviewQuiz> Quiz(JsonElement element, BoardSize size, string where)
+    private static Result<ReviewQuiz> Quiz(JsonElement element, BoardSize size, StoneColor firstColor, string where)
     {
         if (element.ValueKind != JsonValueKind.Object)
         {
@@ -234,11 +263,12 @@ public static class ReviewJson
             return Result<ReviewQuiz>.Fail($"{where}: у вопроса нет принимаемых ходов (answer).");
         }
 
-        // Цвет хода задаёт позиция: в записи партии цвета чередуются, поэтому в файле он не нужен.
+        // Цвет хода задаёт позиция: в записи партии цвета чередуются от первого цвета, поэтому
+        // в файле его указывают только там, где вопрос задан не первому ходившему.
         List<Move> parsed = [];
-        var color = element.TryGetProperty("toMove", out var toMove) && toMove.GetString() == "W"
-            ? StoneColor.White
-            : StoneColor.Black;
+        var color = element.TryGetProperty("toMove", out var toMove) && toMove.GetString() is { Length: > 0 } name
+            ? StoneColor.FromName<StoneColor>(name == "W" ? nameof(StoneColor.White) : nameof(StoneColor.Black))
+            : firstColor;
 
         var number = 0;
 
