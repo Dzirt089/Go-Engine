@@ -1,0 +1,124 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:GoEngine.App.Controls"
+             xmlns:vm="clr-namespace:GoEngine.App.ViewModels"
+             x:Class="GoEngine.App.Views.ReviewView"
+             x:DataType="vm:ReviewViewModel">
+
+  <!-- Разбор партии: та же доска, что в партии и уроках (BoardControl), но своя панель и модель.
+       Раскладку выбирает код вида (ReviewView.axaml.cs) по BoardLayoutRules: на узком экране
+       доска сверху и панель снизу, на широком — доска слева, панель справа.
+
+       Панель ведёт по партии ход за ходом: разбор читают, а в отмеченных местах игрок сам ищет
+       ход (вопрос разбора) — это и есть практика. Ходы партии играет модель
+       (<see cref="ReviewViewModel"/>), а не вид: запись партии и вопросы живут в разборе.
+
+       Все надписи — на русском: обучение ведётся по-русски (замечание пользователя 2026-10-07).
+       Термины с японскими названиями собраны в словаре, который открывается кнопкой. -->
+  <Grid x:Name="Layout" ColumnDefinitions="*,320">
+
+    <controls:BoardControl x:Name="Board"
+                           Grid.Column="0"
+                           Board="{Binding Board}"
+                           LastMove="{Binding LastMove}"
+                           HintPoint="{Binding HintPoint}" />
+
+    <Border x:Name="Panel"
+            Grid.Column="1"
+            Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+            BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+            BorderThickness="1,0,0,0"
+            Padding="12,10">
+      <Grid RowDefinitions="*,Auto">
+
+        <!-- Разбор текущей позиции и текст: то, что читают не спеша. Прокрутка возвращается
+             к началу при смене хода: на телефоне панель невысокая, и без этого разбор нового
+             хода оставался за кадром (проверено живым прогоном: в кадре был только список партий). -->
+        <ScrollViewer x:Name="NoteScroll" Grid.Row="0" VerticalScrollBarVisibility="Auto">
+          <StackPanel Spacing="4" Margin="0,0,0,8">
+
+            <TextBlock x:Name="Heading" Text="Разбор партии" FontSize="16" FontWeight="SemiBold" />
+
+            <!-- Номер хода и разбор стоят первыми: на телефоне панель невысокая, и текст разбора —
+                 то, ради чего партия открыта; название и выбор партии идут ниже и при нехватке
+                 места уезжают под прокрутку (то же решение, что в уроке). -->
+            <TextBlock x:Name="MoveCounterText"
+                       Text="{Binding MoveCounter}"
+                       FontWeight="SemiBold" />
+
+            <TextBlock x:Name="NoteTitleText"
+                       Text="{Binding NoteTitle}"
+                       IsVisible="{Binding HasNote}"
+                       FontSize="15"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap" />
+
+            <TextBlock x:Name="NoteTextText"
+                       Text="{Binding NoteText}"
+                       IsVisible="{Binding HasNote}"
+                       TextWrapping="Wrap" />
+
+            <!-- Что сказать игроку об его ходе: похвала акцентом, отказ — красным. -->
+            <TextBlock x:Name="MessageText"
+                       Text="{Binding Message}"
+                       IsVisible="{Binding HasMessage}"
+                       TextWrapping="Wrap"
+                       FontWeight="SemiBold" />
+
+            <TextBlock x:Name="GameTitleText"
+                       Text="{Binding GameTitle}"
+                       Margin="0,8,0,0"
+                       FontSize="15"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap" />
+
+            <TextBlock x:Name="GameSummaryText"
+                       Text="{Binding GameSummary}"
+                       Classes="app-label"
+                       TextWrapping="Wrap" />
+
+            <TextBlock x:Name="PlayersText"
+                       Text="{Binding Players}"
+                       Classes="app-label"
+                       TextWrapping="Wrap" />
+
+            <TextBlock x:Name="ResultText"
+                       Text="{Binding Result}"
+                       Classes="app-label"
+                       TextWrapping="Wrap" />
+
+            <!-- Список партий: по нему видно, сколько их и что дальше. -->
+            <TextBlock Text="Партия" Margin="0,6,0,0" />
+            <ComboBox x:Name="GameBox"
+                      MinHeight="44"
+                      HorizontalAlignment="Stretch" />
+
+          </StackPanel>
+        </ScrollViewer>
+
+        <!-- Кнопки разбора: эта часть не прокручивается и не уезжает за край экрана. -->
+        <StackPanel Grid.Row="1" Spacing="6" Margin="0,6,0,0">
+
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button x:Name="HintButton" Content="Подсказка" MinHeight="44" MinWidth="104" IsEnabled="{Binding CanHint}" />
+            <Button x:Name="BackButton" Content="Назад" MinHeight="44" IsEnabled="{Binding CanGoBack}" />
+            <Button x:Name="ResetButton" Content="Заново" MinHeight="44" />
+          </StackPanel>
+
+          <Button x:Name="NextButton"
+                  Content="Далее"
+                  Classes="app-primary"
+                  MinHeight="44"
+                  HorizontalAlignment="Stretch"
+                  IsEnabled="{Binding CanGoNext}" />
+
+          <Button x:Name="GlossaryButton"
+                  Content="Словарь терминов"
+                  MinHeight="44"
+                  HorizontalAlignment="Stretch" />
+
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

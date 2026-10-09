@@ -43,8 +43,25 @@
     </Border>
 
     <!-- Содержимое общее для обеих раскладок: виды режимов и раздел «Меню» живут здесь
-         и не пересоздаются. -->
-    <Panel x:Name="ModeContent" Grid.Row="1" />
+         и не пересоздаются. В разделе «Обучение» сверху стоит переключатель: уроки и разбор
+         партий — два вида одного обучения (замечание пользователя 2026-10-09 о практике). -->
+    <Grid Grid.Row="1" RowDefinitions="Auto,*">
+
+      <Border x:Name="StudySwitch"
+              Grid.Row="0"
+              IsVisible="False"
+              Background="{DynamicResource AppSurfaceBrush}"
+              BorderBrush="{DynamicResource AppDividerBrush}"
+              BorderThickness="0,0,0,1"
+              Padding="8,6">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <ToggleButton x:Name="StudyLessonsButton" Content="Уроки" MinHeight="44" MinWidth="110" />
+          <ToggleButton x:Name="StudyReviewsButton" Content="Партии" MinHeight="44" MinWidth="110" />
+        </StackPanel>
+      </Border>
+
+      <Panel x:Name="ModeContent" Grid.Row="1" />
+    </Grid>
 
     <!-- «О программе»: вложенный экран раздела «Меню», а не отдельный раздел навигации.
          Закрывается кнопкой «Назад»; нижняя навигация остаётся видимой — так игрок понимает,

@@ -82,6 +82,22 @@ public static partial class AppLogMessages
     [LoggerMessage(EventId = 1032, Level = LogLevel.Information, Message = "Задача {ProblemId}: ход {Point} не решает задачу")]
     public static partial void ProblemMoveRejected(ILogger logger, string problemId, string point);
 
+    /// <summary>Игрок выбрал вид обучения: уроки или разбор партий.</summary>
+    [LoggerMessage(EventId = 1043, Level = LogLevel.Information, Message = "Обучение: {Study}")]
+    public static partial void StudySelected(ILogger logger, string study);
+
+    /// <summary>Начат разбор обучающей партии.</summary>
+    [LoggerMessage(EventId = 1038, Level = LogLevel.Information, Message = "Партия {GameId}: начало разбора")]
+    public static partial void ReviewStarted(ILogger logger, string gameId);
+
+    /// <summary>Игрок нашёл ход партии в вопросе разбора.</summary>
+    [LoggerMessage(EventId = 1039, Level = LogLevel.Information, Message = "Партия {GameId}: ход {Number} найден")]
+    public static partial void ReviewQuizPassed(ILogger logger, string gameId, int number);
+
+    /// <summary>Партия просмотрена до конца.</summary>
+    [LoggerMessage(EventId = 1042, Level = LogLevel.Information, Message = "Партия {GameId} просмотрена, ходов {Total}")]
+    public static partial void ReviewCompleted(ILogger logger, string gameId, int total);
+
     /// <summary>Игрок сменил оформление.</summary>
     [LoggerMessage(EventId = 1034, Level = LogLevel.Information, Message = "Оформление: {Theme}")]
     public static partial void ThemeChanged(ILogger logger, string theme);

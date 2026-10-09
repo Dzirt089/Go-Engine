@@ -276,6 +276,88 @@ public sealed class ShellStartTests
     }
 
     [Fact]
+    public void В_Обучении_Сначала_Открыты_Уроки()
+    {
+        var (view, shell) = Start();
+        OnPhone(view);
+
+        Click(view.FindControl<Button>("NavLessonButton")!);
+
+        Assert.True(shell.IsLessonSection);
+        Assert.False(shell.IsReviewMode);
+        Assert.True(view.LessonArea!.IsVisible);
+        Assert.False(view.ReviewArea!.IsVisible);
+        Assert.True(view.FindControl<Border>("StudySwitch")!.IsVisible);
+    }
+
+    [Fact]
+    public void Переключатель_Обучения_Открывает_Партии()
+    {
+        // Практика после уроков: разбор партий живёт в том же разделе «Обучение»
+        // (замечание пользователя 2026-10-09).
+        var (view, shell) = Start();
+        OnPhone(view);
+        Click(view.FindControl<Button>("NavLessonButton")!);
+
+        Click(view.FindControl<ToggleButton>("StudyReviewsButton")!);
+
+        Assert.True(shell.IsReviewMode);
+        Assert.False(view.LessonArea!.IsVisible);
+        Assert.True(view.ReviewArea!.IsVisible);
+    }
+
+    [Fact]
+    public void Переключатель_Обучения_Возвращает_Уроки()
+    {
+        var (view, shell) = Start();
+        OnPhone(view);
+        Click(view.FindControl<Button>("NavLessonButton")!);
+        Click(view.FindControl<ToggleButton>("StudyReviewsButton")!);
+
+        Click(view.FindControl<ToggleButton>("StudyLessonsButton")!);
+
+        Assert.False(shell.IsReviewMode);
+        Assert.True(view.LessonArea!.IsVisible);
+        Assert.False(view.ReviewArea!.IsVisible);
+    }
+
+    [Fact]
+    public void Переключатель_Обучения_Скрыт_В_Других_Разделах()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+
+        Assert.False(view.FindControl<Border>("StudySwitch")!.IsVisible);
+        Assert.False(view.ReviewArea!.IsVisible);
+    }
+
+    [Fact]
+    public void Словарь_Открывается_Из_Разбора_Партии()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+        Click(view.FindControl<Button>("NavLessonButton")!);
+        Click(view.FindControl<ToggleButton>("StudyReviewsButton")!);
+
+        Click(view.ReviewArea!.FindControl<Button>("GlossaryButton")!);
+
+        Assert.True(view.IsGlossaryShown);
+    }
+
+    [Fact]
+    public void Разбор_Партии_Прячется_Под_Полным_Экраном()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+        Click(view.FindControl<Button>("NavLessonButton")!);
+        Click(view.FindControl<ToggleButton>("StudyReviewsButton")!);
+
+        Click(view.ReviewArea!.FindControl<Button>("GlossaryButton")!);
+
+        Assert.False(view.FindControl<Panel>("ModeContent")!.IsVisible);
+    }
+
+    [Fact]
     public void Экран_О_Программе_Скрыт_При_Запуске()
     {
         var (view, _) = Start();

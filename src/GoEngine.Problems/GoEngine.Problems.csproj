@@ -8,11 +8,13 @@
 
   <!-- Задачи лежат встроенными ресурсами: набор доступен на всех платформах, включая Android,
        без правок упаковки. Формат — SGF с вариантами (см. ProblemSgf). Уроки устроены так же,
-       только формат у них JSON: тексты, позиции и принимаемые ходы (см. LessonJson). -->
+       только формат у них JSON: тексты, позиции и принимаемые ходы (см. LessonJson).
+       Обучающие партии — тоже JSON: полная запись игры и разбор по ходам (см. ReviewJson). -->
   <ItemGroup>
     <EmbeddedResource Include="Problems/*.sgf" />
     <EmbeddedResource Include="Lessons/*.json" />
     <EmbeddedResource Include="Glossary/*.json" />
+    <EmbeddedResource Include="Games/*.json" />
   </ItemGroup>
 
   <ItemGroup>

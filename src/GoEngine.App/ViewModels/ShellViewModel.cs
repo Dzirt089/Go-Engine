@@ -33,6 +33,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     private static readonly string[] PropertyNames =
     [
         nameof(IsGameMode), nameof(IsProblemMode), nameof(IsLessonMode), nameof(ModeHint),
+        nameof(Reviews), nameof(IsReviewMode),
         nameof(IsGameSection), nameof(IsProblemSection), nameof(IsLessonSection), nameof(IsMenuSection),
         nameof(Theme), nameof(IsSystemTheme), nameof(IsLightTheme), nameof(IsDarkTheme)
     ];
@@ -45,6 +46,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 
     /// <summary>Выбранное оформление: светлое, тёмное или системное.</summary>
     private ThemeChoice _theme;
+
+    /// <summary>В обучении открыт разбор партий, а не уроки.</summary>
+    private bool _reviewMode;
 
     /// <summary>Проверка обновления при запуске уже начата: второй раз она не идёт.</summary>
     private bool _updateCheckStarted;
@@ -61,13 +65,15 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// </param>
     /// <param name="lessons">Модель представления обучения; <c>null</c> — встроенные уроки.</param>
     /// <param name="theme">Выбранное оформление; <c>null</c> — системная тема.</param>
+    /// <param name="reviews">Разбор партий; <c>null</c> — встроенная библиотека.</param>
     public ShellViewModel(
         AppSettings settings,
         MainViewModel game,
         ProblemViewModel problems,
         UpdateViewModel? updates = null,
         LessonViewModel? lessons = null,
-        ThemeChoice? theme = null)
+        ThemeChoice? theme = null,
+        ReviewViewModel? reviews = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(game);
@@ -77,6 +83,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         Game = game;
         Problems = problems;
         Lessons = lessons ?? new LessonViewModel();
+        Reviews = reviews ?? new ReviewViewModel();
         Updates = updates ?? global::GoEngine.App.App.Updates;
         _theme = theme ?? ThemeChoice.System;
     }
@@ -104,6 +111,13 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <summary>Модель представления обучения: уроки и их прохождение.</summary>
     public LessonViewModel Lessons { get; }
 
+    /// <summary>Модель представления разбора партий: практика после уроков.</summary>
+    /// <remarks>
+    /// Разбор живёт в разделе «Обучение» рядом с уроками: уроки объясняют приём, партии показывают,
+    /// как он работает в целой игре, — это две ступени одного обучения (замечание 2026-10-09).
+    /// </remarks>
+    public ReviewViewModel Reviews { get; }
+
     /// <summary>Приглашение обновления и ход загрузки: общее с экраном «О программе» состояние.</summary>
     /// <remarks>
     /// Модель приходит снаружи и по умолчанию берётся у приложения: проверка из «О программе» и
@@ -129,6 +143,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <summary>Показан раздел обучения.</summary>
     public bool IsLessonSection => _mode == Mode.Lessons && !_menuSection;
 
+    /// <summary>В обучении открыт разбор партий: практика после уроков.</summary>
+    public bool IsReviewMode => _reviewMode;
+
     /// <summary>Открыт раздел общего меню: режим, «О программе» и выход.</summary>
     public bool IsMenuSection => _menuSection;
 
@@ -152,7 +169,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     public string ModeHint => _mode switch
     {
         Mode.Problems => "Задачи: решите позицию, подсказка покажет ход.",
-        Mode.Lessons => "Обучение: пройдите урок на доске — шаг за шагом.",
+        Mode.Lessons => _reviewMode
+            ? "Обучение: разберите партию ход за ходом — в отмеченных местах ход ищете вы."
+            : "Обучение: пройдите урок на доске — шаг за шагом.",
         _ => "Щёлкните по доске, чтобы сделать ход."
     };
 
@@ -163,6 +182,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     /// <param name="updates">Модель обновления; <c>null</c> — общая модель приложения.</param>
     /// <param name="lessons">Уроки; <c>null</c> — встроенная библиотека уроков.</param>
     /// <param name="theme">Выбранное оформление; <c>null</c> — системная тема.</param>
+    /// <param name="reviews">Разбор партий; <c>null</c> — встроенная библиотека.</param>
     /// <returns>Оболочку с тремя режимами и общим меню.</returns>
     public static ShellViewModel Create(
         AppSettings settings,
@@ -170,14 +190,16 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         IReadOnlyList<Problem>? problems = null,
         UpdateViewModel? updates = null,
         IReadOnlyList<Lesson>? lessons = null,
-        ThemeChoice? theme = null) =>
+        ThemeChoice? theme = null,
+        IReadOnlyList<ReviewGame>? reviews = null) =>
         new(
             settings,
             new MainViewModel(settings, Random.Shared, evaluator),
             problems is null ? new ProblemViewModel() : new ProblemViewModel(problems),
             updates,
             lessons is null ? new LessonViewModel() : new LessonViewModel(lessons),
-            theme);
+            theme,
+            reviews is null ? null : new ReviewViewModel(reviews));
 
     /// <summary>Проверяет обновление при первом показе оболочки: один раз, в фоне и молча.</summary>
     /// <returns>Задача проверки; повторные вызовы ничего не делают.</returns>
@@ -207,6 +229,26 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 
     /// <summary>Показывает режим обучения.</summary>
     public void ShowLessons() => SetSection(Mode.Lessons, menu: false);
+
+    /// <summary>Выбирает, что открыто в обучении: уроки или разбор партий.</summary>
+    /// <param name="reviews">Открыть разбор партий.</param>
+    /// <remarks>
+    /// Повторный выбор того же вида ничего не делает: вид не перерисовывается зря, а материал
+    /// не начинается заново — игрок возвращается туда, где остановился.
+    /// </remarks>
+    public void SelectStudy(bool reviews)
+    {
+        if (_reviewMode == reviews)
+        {
+            return;
+        }
+
+        _reviewMode = reviews;
+
+        AppLogMessages.StudySelected(_log, reviews ? "партии" : "уроки");
+
+        NotifyAll();
+    }
 
     /// <summary>Открывает общее меню: режим, «О программе» и выход из игры.</summary>
     /// <remarks>

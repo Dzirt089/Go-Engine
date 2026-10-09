@@ -40,6 +40,9 @@ public sealed partial class ShellView : UserControl
     private readonly ToggleButton? _gameButton;
     private readonly ToggleButton? _problemButton;
     private readonly ToggleButton? _lessonButton;
+    private readonly Border? _studySwitch;
+    private readonly ToggleButton? _studyLessonsButton;
+    private readonly ToggleButton? _studyReviewsButton;
     private readonly Border? _desktopBar;
     private readonly Border? _mobileNav;
     private readonly Border? _aboutOverlay;
@@ -84,6 +87,9 @@ public sealed partial class ShellView : UserControl
         _gameButton = this.FindControl<ToggleButton>("GameModeButton");
         _problemButton = this.FindControl<ToggleButton>("ProblemModeButton");
         _lessonButton = this.FindControl<ToggleButton>("LessonModeButton");
+        _studySwitch = this.FindControl<Border>("StudySwitch");
+        _studyLessonsButton = this.FindControl<ToggleButton>("StudyLessonsButton");
+        _studyReviewsButton = this.FindControl<ToggleButton>("StudyReviewsButton");
         _desktopBar = this.FindControl<Border>("DesktopBar");
         _mobileNav = this.FindControl<Border>("MobileNav");
         _aboutOverlay = this.FindControl<Border>("AboutOverlay");
@@ -97,11 +103,13 @@ public sealed partial class ShellView : UserControl
             GameArea = new BoardView(shell.Settings, global::GoEngine.App.App.Evaluator, shell.Game);
             ProblemArea = new ProblemView(shell.Problems);
             LessonArea = new LessonView(shell.Lessons);
+            ReviewArea = new ReviewView(shell.Reviews);
             MenuArea = new AppMenuView(shell);
 
             _content.Children.Add(GameArea);
             _content.Children.Add(ProblemArea);
             _content.Children.Add(LessonArea);
+            _content.Children.Add(ReviewArea);
             _content.Children.Add(MenuArea);
         }
 
@@ -153,6 +161,14 @@ public sealed partial class ShellView : UserControl
             LessonArea.GlossaryRequested += OnGlossaryRequested;
         }
 
+        if (ReviewArea is not null)
+        {
+            ReviewArea.GlossaryRequested += OnGlossaryRequested;
+        }
+
+        WireButton("StudyLessonsButton", OnStudyLessonsClick);
+        WireButton("StudyReviewsButton", OnStudyReviewsClick);
+
         // Смену оформления применяет приложение: оболочка только сообщает о выборе игрока.
         shell.ThemeChanged += OnThemeChanged;
 
@@ -180,6 +196,9 @@ public sealed partial class ShellView : UserControl
 
     /// <summary>Вид обучения: уроки шаг за шагом.</summary>
     public LessonView? LessonArea { get; }
+
+    /// <summary>Вид разбора партий: практика раздела «Обучение».</summary>
+    public ReviewView? ReviewArea { get; }
 
     /// <summary>Раздел общего меню: режим, «О программе» и выход.</summary>
     public AppMenuView? MenuArea { get; }
@@ -285,6 +304,24 @@ public sealed partial class ShellView : UserControl
     /// <param name="sender">Кнопка режима.</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnLessonClick(object? sender, RoutedEventArgs e) => Shell.ShowLessons();
+
+    /// <summary>Открывает в обучении уроки.</summary>
+    /// <param name="sender">Кнопка «Уроки».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnStudyLessonsClick(object? sender, RoutedEventArgs e)
+    {
+        Shell.ShowLessons();
+        Shell.SelectStudy(reviews: false);
+    }
+
+    /// <summary>Открывает в обучении разбор партий: практику после уроков.</summary>
+    /// <param name="sender">Кнопка «Партии».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnStudyReviewsClick(object? sender, RoutedEventArgs e)
+    {
+        Shell.ShowLessons();
+        Shell.SelectStudy(reviews: true);
+    }
 
     /// <summary>Открывает раздел партии из нижней навигации.</summary>
     /// <param name="sender">Кнопка раздела.</param>
@@ -480,9 +517,30 @@ public sealed partial class ShellView : UserControl
             ProblemArea.IsVisible = Shell.IsProblemSection;
         }
 
+        // В обучении показывается то, что выбрано переключателем: уроки или разбор партий.
         if (LessonArea is not null)
         {
-            LessonArea.IsVisible = Shell.IsLessonSection;
+            LessonArea.IsVisible = Shell.IsLessonSection && !Shell.IsReviewMode;
+        }
+
+        if (ReviewArea is not null)
+        {
+            ReviewArea.IsVisible = Shell.IsLessonSection && Shell.IsReviewMode;
+        }
+
+        if (_studySwitch is not null)
+        {
+            _studySwitch.IsVisible = Shell.IsLessonSection;
+        }
+
+        if (_studyLessonsButton is not null)
+        {
+            _studyLessonsButton.IsChecked = Shell.IsLessonSection && !Shell.IsReviewMode;
+        }
+
+        if (_studyReviewsButton is not null)
+        {
+            _studyReviewsButton.IsChecked = Shell.IsLessonSection && Shell.IsReviewMode;
         }
 
         if (MenuArea is not null)
