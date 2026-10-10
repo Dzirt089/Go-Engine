@@ -32,15 +32,35 @@
 
         <!-- Шапка панели: выбор партии и словарь терминов. Не прокручивается: список партий
              должен стоять на месте, пока игрок читает разбор. -->
-        <Grid x:Name="PanelHeader" Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+        <Grid x:Name="PanelHeader" Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,6">
+
+          <Button x:Name="PreviousGameButton"
+                  Classes="app-icon"
+                  AutomationProperties.Name="Предыдущая партия"
+                  ToolTip.Tip="Предыдущая партия"
+                  IsEnabled="{Binding CanGoPreviousGame}">
+            <Path Width="22" Height="22" Stretch="Uniform"
+                  Data="M14.6,5.2 L7.8,12 L14.6,18.8 L16.7,16.7 L12,12 L16.7,7.3 Z" />
+          </Button>
 
           <ComboBox x:Name="GameBox"
-                    Grid.Column="0"
+                    Grid.Column="1"
                     MinHeight="44"
+                    Margin="6,0"
                     HorizontalAlignment="Stretch" />
 
+          <Button x:Name="NextGameButton"
+                  Grid.Column="2"
+                  Classes="app-icon"
+                  AutomationProperties.Name="Следующая партия"
+                  ToolTip.Tip="Следующая партия"
+                  IsEnabled="{Binding CanGoNextGame}">
+            <Path Width="22" Height="22" Stretch="Uniform"
+                  Data="M9.4,5.2 L16.2,12 L9.4,18.8 L7.3,16.7 L12,12 L7.3,7.3 Z" />
+          </Button>
+
           <Button x:Name="GlossaryButton"
-                  Grid.Column="1"
+                  Grid.Column="3"
                   Classes="app-icon"
                   Margin="6,0,0,0"
                   AutomationProperties.Name="Словарь терминов"

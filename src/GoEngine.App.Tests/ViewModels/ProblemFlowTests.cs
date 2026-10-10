@@ -62,6 +62,8 @@ public sealed class ProblemFlowTests
         // задачи в списке быть не должно: они повторялись у каждой задачи и о самой задаче
         // не говорили (замечание пользователя 2026-10-04). Кю из подписи убрано раньше —
         // у всех встроенных задач сложность одна и та же, и в списке она ничего не различает.
+        // Служебный идентификатор из подписи убран (замечание 2026-10-10: «названия ts-00,
+        // game-00 из списков удали, только номер и название») — вместо него номер по порядку.
         var model = new ProblemViewModel();
         string[] service = ["по решению источника", "решение источника", "движком не проверялось"];
 
@@ -70,7 +72,8 @@ public sealed class ProblemFlowTests
             var problem = model.Problems[index];
             var label = model.Labels[index];
 
-            Assert.StartsWith(problem.Id, label, StringComparison.Ordinal);
+            Assert.StartsWith($"Задача {index + 1} ·", label, StringComparison.Ordinal);
+            Assert.DoesNotContain(problem.Id, label, StringComparison.Ordinal);
             Assert.Contains(problem.Name, label, StringComparison.Ordinal);
             Assert.DoesNotContain("кю", label, StringComparison.Ordinal);
             Assert.DoesNotContain(service, word => label.Contains(word, StringComparison.Ordinal));

@@ -76,7 +76,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         }
 
         _problems = problems;
-        _labels = [.. problems.Select(LabelOf)];
+        _labels = [.. problems.Select((problem, index) => LabelOf(problem, index + 1))];
         _session = new ProblemSession(problems[0]);
     }
 
@@ -400,9 +400,10 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// у каждой задачи и цели игрока не называла (замечание пользователя 2026-10-04). Слабая задача
     /// помечается: это характеристика качества контента, а не служебное слово о происхождении.
     /// </remarks>
-    private static string LabelOf(Problem problem)
+    /// <param name="number">Номер задачи в списке: первый — единица.</param>
+    private static string LabelOf(Problem problem, int number)
     {
-        var label = string.Create(CultureInfo.InvariantCulture, $"{problem.Id} · {problem.Name}");
+        var label = string.Create(CultureInfo.InvariantCulture, $"Задача {number} · {problem.Name}");
 
         return problem.IsWeak ? label + " · слабая" : label;
     }

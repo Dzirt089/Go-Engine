@@ -60,11 +60,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <remarks>
     /// Пометки относятся к конкретной позиции, а не к партии вообще: любое изменение партии
     /// (ход, отмена, возврат, загрузка) начинает согласование заново — это делает
-    /// <see cref="ScoringAgreement.Sync"/>. Мёртвые камни не снимаются с доски молча: их помечает
+    /// <see cref="ScoringState.Sync"/>. Мёртвые камни не снимаются с доски молча: их помечает
     /// перебор <see cref="Endgame.ProposeDead(Board)"/> или игрок кликом. Пометки, счётчик ревизии,
     /// счётчик предложений и подтверждённый итог живут в службе: панель партии только читает их.
     /// </remarks>
-    private readonly ScoringAgreement _scoring;
+    private readonly ScoringState _scoring;
 
     /// <summary>Отмена текущего поиска хода соперника: результат отменённого поиска не применяется.</summary>
     private CancellationTokenSource? _aiCancellation;
@@ -106,7 +106,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         // территория и пленные не ответили бы до первого хода. Итог по мёртвым считает партия —
         // пленных и коми знает она, а не служба согласования.
         // Согласование считает мёртвых для любой позиции: оценка постоянная (D-070).
-        _scoring = new ScoringAgreement(
+        _scoring = new ScoringState(
             _game.Board,
             _game.Status,
             dead => _game.FinalScore(dead, ScoringRule));
@@ -342,7 +342,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             }
 
             // Пометка означает всю группу, поэтому точек с камнями каждого цвета достаточно:
-            // список мёртвых всегда развёрнут по группам (ToggleDeadAt и Endgame.ProposeDead).
+            // список мёртвых всегда развёрнут по группам (Endgame.ProposeDead).
             var deadBlack = dead.Count(point => _game.Board.At(point) == StoneColor.Black);
             var deadWhite = dead.Count - deadBlack;
 
@@ -829,7 +829,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool CanToggleTerritory => !IsFirstMove || _showTerritory;
 
     /// <summary>Помеченные мёртвыми камни в порядке обхода доски.</summary>
-    /// <remarks>Пометки ведёт <see cref="ScoringAgreement"/>; здесь они под именем, которое знает вид.</remarks>
+    /// <remarks>
+    /// Пометки ведёт <see cref="ScoringState"/> — их ставит перебор, а не игрок; здесь они под именем,
+    /// которое знает вид.
+    /// </remarks>
     public IReadOnlyList<Point> DeadPoints => _scoring.DeadPoints;
 
     /// <summary>Сколько раз менялись пометки мёртвых.</summary>
@@ -850,21 +853,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     /// <summary>Предохранитель перебора для текущего состояния партии.</summary>
     /// <remarks>
-    /// Правило — в <see cref="ScoringAgreement.DeadProposalBudget"/>: у оценки идущей партии
+    /// Правило — в <see cref="ScoringState.DeadProposalBudget"/>: у оценки идущей партии
     /// предохранитель меньше, чем у окончательного предложения, потому что оценка считается по ходу
     /// игры и обязана быть отзывчивой. Открыт проверкам и проверочному режиму: по нему видно,
     /// какой предел действует в этой позиции.
     /// </remarks>
     public int DeadProposalBudget => _scoring.DeadProposalBudget;
 
-    /// <summary>Помечает или снимает пометку группы, которой принадлежит точка.</summary>
-    /// <param name="point">Точка на доске: клик игрока по камню.</param>
-    /// <returns><c>true</c>, если пометки изменились.</returns>
-    /// <remarks>
-    /// Правила пометок — в <see cref="ScoringAgreement"/>: здесь метод стоит под именем, которое
-    /// знает вид, и меняет то же состояние, что читают счёт, территория и пленные.
-    /// </remarks>
-    public bool ToggleDeadAt(Point point) => _scoring.ToggleDeadAt(point);
 
     /// <summary>Начинает партию: новая позиция и часы с нуля.</summary>
     /// <remarks>
@@ -1652,7 +1647,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var dead = _scoring.DeadStones;
 
         // Пометка означает всю группу, поэтому точек с камнями каждого цвета достаточно:
-        // список мёртвых всегда развёрнут по группам (ToggleDeadAt и Endgame.ProposeDead).
+        // список мёртвых всегда развёрнут по группам (Endgame.ProposeDead).
         var deadBlack = dead.Count(point => _game.Board.At(point) == StoneColor.Black);
         var deadWhite = dead.Count - deadBlack;
 

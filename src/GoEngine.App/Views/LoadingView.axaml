@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="GoEngine.App.Views.LoadingView">
+
+  <!-- Экран загрузки: игрок видит его, пока грузится нейросеть (жалоба пользователя 2026-10-10:
+       «несколько (3–7) секунд белый/чёрный экран… люди думают, что игра зависла»).
+       Здесь нет ни доски, ни оболочки: те появляются, когда подготовка закончена, и экран
+       загрузки закрывается. Полоса движения не показывает долю — время загрузки зависит
+       от машины, и обещать проценты было бы обманом. -->
+  <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}" Padding="24">
+    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="14" MaxWidth="360">
+
+      <TextBlock Text="Go Engine"
+                 FontSize="26"
+                 FontWeight="SemiBold"
+                 HorizontalAlignment="Center" />
+
+      <TextBlock Text="Го: игра, задачи и обучение"
+                 Classes="app-label"
+                 HorizontalAlignment="Center" />
+
+      <ProgressBar x:Name="LoadingBar"
+                   IsIndeterminate="True"
+                   Height="6"
+                   Margin="0,10,0,0"
+                   AutomationProperties.Name="Загрузка" />
+
+      <TextBlock x:Name="StatusText"
+                 Text="Начинаю загрузку…"
+                 TextWrapping="Wrap"
+                 HorizontalAlignment="Center"
+                 TextAlignment="Center"
+                 AutomationProperties.Name="Состояние загрузки" />
+
+      <TextBlock Text="Первый запуск дольше обычного: приложение готовит нейросеть."
+                 Classes="app-label"
+                 TextWrapping="Wrap"
+                 TextAlignment="Center" />
+
+    </StackPanel>
+  </Border>
+</UserControl>

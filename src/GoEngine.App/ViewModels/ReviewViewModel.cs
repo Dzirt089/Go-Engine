@@ -31,6 +31,7 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
     private static readonly string[] PropertyNames =
     [
         nameof(Labels), nameof(ListCaption), nameof(SelectedIndex), nameof(GameTitle), nameof(GameSummary), nameof(Players),
+        nameof(CanGoPreviousGame), nameof(CanGoNextGame),
         nameof(Result), nameof(NoteTitle), nameof(NoteText), nameof(HasNote), nameof(IsQuiz),
         nameof(MoveCounter), nameof(Message), nameof(HasMessage), nameof(IsMessageGood), nameof(Board),
         nameof(HintPoint), nameof(CanHint), nameof(CanGoNext), nameof(CanGoBack), nameof(IsCompleted),
@@ -277,6 +278,22 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
         NotifyAll();
     }
 
+    /// <summary>Можно открыть предыдущую партию списка.</summary>
+    public bool CanGoPreviousGame => _selectedIndex > 0;
+
+    /// <summary>Можно открыть следующую партию списка.</summary>
+    public bool CanGoNextGame => _selectedIndex < _games.Count - 1;
+
+    /// <summary>Открывает предыдущую партию списка.</summary>
+    /// <remarks>
+    /// Стрелки рядом со списком партий — как в задачах (замечание пользователя 2026-10-10).
+    /// Разбор новой партии начинается с сохранённого места: путь тот же, что при выборе из списка.
+    /// </remarks>
+    public void PreviousGame() => SelectGame(_selectedIndex - 1);
+
+    /// <summary>Открывает следующую партию списка.</summary>
+    public void NextGame() => SelectGame(_selectedIndex + 1);
+
     /// <summary>Открывает партию по номеру в списке.</summary>
     /// <param name="index">Номер партии.</param>
     public void SelectGame(int index)
@@ -309,15 +326,22 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
     }
 
     /// <summary>Собирает подписи партий с отметками: разобрана, начата или ещё нет.</summary>
+    /// <remarks>
+    /// В подписи номер партии и название — без служебного идентификатора (замечание пользователя
+    /// 2026-10-10: «названия ts-00, game-00 из списков удали, только номер и название»).
+    /// </remarks>
     private IReadOnlyList<string> BuildLabels() =>
-        _games.Select(game => Mark(game, _progress.ForGame(game.Id))).ToList().AsReadOnly();
+        _games
+            .Select((game, index) => Mark($"Партия {index + 1} · {game.Title}", _progress.ForGame(game.Id)))
+            .ToList()
+            .AsReadOnly();
 
     /// <summary>Отмечает партию в списке: «✓» — разобрана, «▸» — начата.</summary>
-    private static string Mark(ReviewGame game, StudyItemProgress? saved) => saved switch
+    private static string Mark(string name, StudyItemProgress? saved) => saved switch
     {
-        { Completed: true } => $"✓ {game.Label}",
-        { Step: > 0 } => $"▸ {game.Label}",
-        _ => game.Label
+        { Completed: true } => $"✓ {name}",
+        { Step: > 0 } => $"▸ {name}",
+        _ => name
     };
 
     /// <summary>Номер партии в списке по идентификатору.</summary>

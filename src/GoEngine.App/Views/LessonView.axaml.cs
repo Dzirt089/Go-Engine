@@ -83,6 +83,8 @@ public sealed partial class LessonView : UserControl
         Wire("BackButton", OnBackClick);
         Wire("ResetButton", OnResetClick);
         Wire("NextButton", OnNextClick);
+        Wire("PreviousLessonButton", OnPreviousLessonClick);
+        Wire("NextLessonButton", OnNextLessonClick);
         Wire("GlossaryButton", OnGlossaryClick);
 
         if (_layout is not null && _boardControl is not null && _panel is not null)
@@ -156,6 +158,16 @@ public sealed partial class LessonView : UserControl
     /// <param name="sender">Кнопка.</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnNextClick(object? sender, RoutedEventArgs e) => ViewModel.Next();
+
+    /// <summary>Открывает предыдущий урок списка.</summary>
+    /// <param name="sender">Стрелка «назад» в шапке панели.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnPreviousLessonClick(object? sender, RoutedEventArgs e) => ViewModel.PreviousLesson();
+
+    /// <summary>Открывает следующий урок списка.</summary>
+    /// <param name="sender">Стрелка «вперёд» в шапке панели.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnNextLessonClick(object? sender, RoutedEventArgs e) => ViewModel.NextLesson();
 
     /// <summary>Просит показать словарь терминов.</summary>
     /// <param name="sender">Кнопка «Словарь терминов».</param>

@@ -29,7 +29,14 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
         global::GoEngine.App.Services.Logging.AppLog.Initialize(LogsDirectory());
         global::GoEngine.App.Services.Logging.CrashReporter.Install();
 
-        AndroidModelStartup.Prepare(this);
+        // Копирование моделей из пакета и загрузка нейросети переехали в фоновую подготовку:
+        // раньше они шли до создания интерфейса, и первые секунды после запуска телефон показывал
+        // пустой экран — игрок думал, что приложение зависло (жалоба пользователя 2026-10-10).
+        // Экран загрузки показывает оболочка (App): она открывает его первым и убирает,
+        // когда подготовка закончена.
+        var activity = this;
+
+        global::GoEngine.App.App.Prepare = () => AndroidModelStartup.Prepare(activity);
         global::GoEngine.App.App.Sound = new AndroidSoundPlayer(this);
         global::GoEngine.App.App.ExitRequested = ExitGame;
         ConfigureUpdates();

@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace GoEngine.App.Android;
 
-/// <summary>Готовит модели нейросети на Android до создания интерфейса.</summary>
+/// <summary>Готовит модели нейросети на Android в фоне, после появления экрана загрузки.</summary>
 /// <remarks>
 /// На настольных системах каталог <c>models</c> лежит рядом с приложением, и его находит
 /// <c>Program.FindModelsDirectory</c>. На Android так нельзя: файлы внутри пакета доступны
@@ -26,6 +26,12 @@ internal static class AndroidModelStartup
     /// <summary>Копирует модели из пакета и настраивает уровни с нейросетью.</summary>
     /// <param name="activity">Активность: её ресурсы и файловый каталог.</param>
     /// <exception cref="ArgumentNullException">Активность не задана.</exception>
+    /// <remarks>
+    /// Вызывается в фоне (<c>App.Prepare</c>): копирование моделей и загрузка ONNX занимают
+    /// секунды, и делать это до первого кадра нельзя — игрок видел пустой экран и решал,
+    /// что приложение зависло (жалоба пользователя 2026-10-10). Экран загрузки показывает
+    /// оболочка, она же убирает его, когда подготовка закончена.
+    /// </remarks>
     public static void Prepare(Activity activity)
     {
         ArgumentNullException.ThrowIfNull(activity);

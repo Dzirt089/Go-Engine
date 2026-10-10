@@ -97,6 +97,8 @@ public sealed partial class ReviewView : UserControl
         Wire("BackButton", OnBackClick);
         Wire("ResetButton", OnResetClick);
         Wire("NextButton", OnNextClick);
+        Wire("PreviousGameButton", OnPreviousGameClick);
+        Wire("NextGameButton", OnNextGameClick);
         Wire("GlossaryButton", OnGlossaryClick);
 
         SizeChanged += OnViewSizeChanged;
@@ -166,6 +168,16 @@ public sealed partial class ReviewView : UserControl
     /// <param name="sender">Кнопка.</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnNextClick(object? sender, RoutedEventArgs e) => ViewModel.Next();
+
+    /// <summary>Открывает предыдущую партию списка.</summary>
+    /// <param name="sender">Стрелка «назад» в шапке панели.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnPreviousGameClick(object? sender, RoutedEventArgs e) => ViewModel.PreviousGame();
+
+    /// <summary>Открывает следующую партию списка.</summary>
+    /// <param name="sender">Стрелка «вперёд» в шапке панели.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnNextGameClick(object? sender, RoutedEventArgs e) => ViewModel.NextGame();
 
     /// <summary>Просит показать словарь терминов.</summary>
     /// <param name="sender">Кнопка «Словарь терминов».</param>

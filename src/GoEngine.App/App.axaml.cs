@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
@@ -52,6 +53,21 @@ public sealed partial class App : Application
     /// на телефоне узнать нечем.
     /// </remarks>
     public static string? ModelsStatus { get; set; }
+
+    /// <summary>Готовит приложение к работе: загрузка моделей и прочее. Задаёт голова.</summary>
+    /// <remarks>
+    /// <para>
+    /// Вызывается <b>после</b> появления экрана загрузки и в фоне: загрузка нейросети занимает
+    /// секунды, и раньше окно появлялось только после неё — игрок видел чёрный или белый экран
+    /// и решал, что приложение зависло (жалоба пользователя 2026-10-10).
+    /// </para>
+    /// <para>
+    /// <c>null</c> — готовить нечего (например, проверочный режим без окна): экран загрузки
+    /// закрывается сразу. Отказ подготовки не мешает запуску: играются уровни кю (D-038),
+    /// а причина попадает в состояние моделей и в лог.
+    /// </para>
+    /// </remarks>
+    public static Action? Prepare { get; set; }
 
     /// <summary>Установщик обновлений платформы.</summary>
     /// <remarks>
@@ -144,6 +160,12 @@ public sealed partial class App : Application
         static () => new UpdateViewModel(CreateUpdateService()),
         LazyThreadSafetyMode.ExecutionAndPublication);
 
+    /// <summary>Размер окна загрузки: небольшая карточка по центру экрана.</summary>
+    private const double LoadingWidth = 420;
+
+    /// <summary>Высота окна загрузки.</summary>
+    private const double LoadingHeight = 300;
+
     /// <inheritdoc />
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -164,7 +186,21 @@ public sealed partial class App : Application
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
-                desktop.MainWindow = new MainWindow();
+                // Первым окном показывается экран загрузки, а окно партии открывается, когда
+                // подготовка закончена: так игрок видит, что приложение работает.
+                var loadingView = new LoadingView();
+                var loading = new Window
+                {
+                    Title = "Go Engine",
+                    Content = loadingView,
+                    Width = LoadingWidth,
+                    Height = LoadingHeight,
+                    CanResize = false,
+                    WindowStartupLocation = WindowStartupLocation.CenterScreen
+                };
+
+                desktop.MainWindow = loading;
+                _ = OpenDesktopWindowAsync(desktop, loading, loadingView);
 
                 // На настольной системе программа закрывается остановкой цикла сообщений. Голова
                 // может задать свой обработчик раньше — тогда остаётся он.
@@ -178,10 +214,78 @@ public sealed partial class App : Application
                 // На телефоне — та же оболочка с двумя режимами, что и в окне: раздел «Партия»
                 // и карточка «Меню» над доской. Экран настроек при запуске не открывается:
                 // его выбирает игрок, а не запуск (замечание пользователя 2026-10-03).
-                mobile.MainView = new ShellView();
+                // Первым видом идёт экран загрузки: на телефоне белый экран заметнее всего.
+                var mobileLoading = new LoadingView();
+
+                mobile.MainView = mobileLoading;
+                _ = OpenShellViewAsync(mobile, mobileLoading);
                 break;
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>Готовит приложение в фоне и открывает окно партии вместо экрана загрузки.</summary>
+    /// <param name="desktop">Жизненный цикл настольного приложения.</param>
+    /// <param name="loading">Окно с экраном загрузки: оно уже показано.</param>
+    /// <param name="view">Экран загрузки внутри окна: на нём показывается ход подготовки.</param>
+    /// <returns>Задача, завершающаяся после открытия окна партии.</returns>
+    /// <remarks>
+    /// Окно заменяется целиком, а не наполняется содержимым: оболочка строится только после
+    /// подготовки, потому что список уровней зависит от загруженной модели (D-039).
+    /// </remarks>
+    private static async Task OpenDesktopWindowAsync(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        Window loading,
+        LoadingView view)
+    {
+        await PrepareAsync(view).ConfigureAwait(true);
+
+        var window = new MainWindow();
+
+        desktop.MainWindow = window;
+        window.Show();
+        loading.Close();
+    }
+
+    /// <summary>Готовит приложение в фоне и показывает оболочку вместо экрана загрузки.</summary>
+    /// <param name="mobile">Жизненный цикл телефона.</param>
+    /// <param name="loading">Экран загрузки: он уже показан.</param>
+    /// <returns>Задача, завершающаяся после показа оболочки.</returns>
+    private static async Task OpenShellViewAsync(ISingleViewApplicationLifetime mobile, LoadingView loading)
+    {
+        await PrepareAsync(loading).ConfigureAwait(true);
+
+        mobile.MainView = new ShellView();
+    }
+
+    /// <summary>Выполняет подготовку головы в фоне, показывая её ход на экране загрузки.</summary>
+    /// <param name="loading">Экран загрузки: он показывает строку состояния.</param>
+    /// <returns>Задача, завершающаяся после подготовки.</returns>
+    /// <exception cref="ArgumentNullException">Экран загрузки не задан.</exception>
+    /// <remarks>
+    /// Отказ подготовки не роняет запуск: интерфейс обязан открыться и без сети — уровнями кю
+    /// (D-038). Причину пишет голова, здесь она только попадает в отчёт о падении, чтобы
+    /// не потеряться: без этого экран загрузки мог остаться навсегда, а причина — нигде.
+    /// </remarks>
+    public static async Task PrepareAsync(LoadingView loading)
+    {
+        ArgumentNullException.ThrowIfNull(loading);
+
+        if (Prepare is not { } prepare)
+        {
+            return;
+        }
+
+        loading.Show("Готовлю нейросеть…");
+
+        try
+        {
+            await Task.Run(prepare).ConfigureAwait(true);
+        }
+        catch (Exception exception)
+        {
+            CrashReporter.Report(exception, "App.Prepare");
+        }
     }
 }

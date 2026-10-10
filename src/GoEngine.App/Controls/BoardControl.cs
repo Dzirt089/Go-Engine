@@ -250,11 +250,9 @@ public sealed class BoardControl : Control
             return;
         }
 
-        // Правая кнопка — пометка мёртвой группы: ею игрок говорит «это пленные», и счёт
-        // пересчитывается сразу, не дожидаясь конца партии.
-        var marksDead = e.GetCurrentPoint(this).Properties.IsRightButtonPressed;
-
-        MoveRequested?.Invoke(this, new MoveRequestedEventArgs(point, marksDead));
+        // Кнопка мыши значения не имеет: пометок мёртвых по щелчку больше нет — их ставит
+        // программа (решение 2026-10-10, D-084), а левая кнопка остаётся ходом.
+        MoveRequested?.Invoke(this, new MoveRequestedEventArgs(point));
     }
 
     /// <inheritdoc />

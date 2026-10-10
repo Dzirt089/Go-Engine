@@ -6,7 +6,7 @@ using GoEngine.Core;
 
 namespace GoEngine.App.Tests;
 
-/// <summary>Конец партии в модели представления: согласование мёртвых, пленные, итог.</summary>
+/// <summary>Конец партии в модели представления: мёртвые группы, пленные, итог.</summary>
 /// <remarks>
 /// Жалоба пользователя 1: пленные не учитывались ни в очках, ни в территории. Здесь проверяется
 /// весь путь от двух пасов до подтверждённого итога: перебор предлагает мёртвые группы, клик
@@ -40,7 +40,7 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Согласование_Предлагает_Доказанные_Мёртвые_Группы()
+    public void Программа_Находит_Доказанные_Мёртвые_Группы()
     {
         var model = Create();
 
@@ -50,7 +50,7 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Согласование_Не_Предлагает_Живые_Камни()
+    public void Живые_Камни_Мёртвыми_Не_Объявляются()
     {
         var model = Create();
 
@@ -60,54 +60,38 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Клик_Помечает_Всю_Группу()
+    public void Приёмка_Нажатия_По_Доске_Не_Меняют_Пометки()
     {
-        // Группа из двух камней: клик по одному помечает и второй.
+        // Регрессия жалобы 2026-10-10: игрок нажимал по группам после конца партии, и они
+        // становились мёртвыми — «нажмёшь на свои — свои помечаются, чужие — чужие, хоть все
+        // можно пометить… это подтасовка фактов». Пометки ставит только программа.
         var model = CreateCountingModel();
-        _ = model.ToggleDeadAt(new Point(8, 8));
+        var dead = model.DeadPoints;
+        var revision = model.DeadRevision;
 
-        var marked = model.DeadPoints;
-
-        Assert.Contains(new Point(8, 7), marked);
+        // Модель не даёт пометкам меняться: у неё нет ни одного способа их поправить, и после
+        // любого чтения они равны перебору ядра. Нажатие по доске проверяется видом
+        // (<c>BoardViewTests.Нажатие_После_Конца_Партии_Не_Меняет_Пометки</c>).
+        Assert.Equal(Endgame.ProposeDead(model.Board), dead);
+        Assert.Equal(revision, model.DeadRevision);
+        Assert.Equal(dead, model.DeadPoints);
     }
 
     [Fact]
-    public void Повторный_Клик_Снимает_Пометку()
-    {
-        // Живая группа белых в дальнем углу: перебор её не предлагал, значит оба клика — наши.
-        var model = CreateCountingModel();
-        _ = model.ToggleDeadAt(new Point(8, 8));
-
-        _ = model.ToggleDeadAt(new Point(8, 8));
-
-        Assert.DoesNotContain(new Point(8, 8), model.DeadPoints);
-    }
-
-    [Fact]
-    public void Клик_По_Пустой_Точке_Ничего_Не_Меняет()
-    {
-        var model = CreateCountingModel();
-
-        Assert.False(model.ToggleDeadAt(new Point(4, 4)));
-    }
-
-    [Fact]
-    public void Клик_Пока_Партия_Идёт_Ничего_Не_Меняет()
+    public void Приёмка_В_Идущей_Партии_Пометки_Тоже_Программные()
     {
         var model = Create();
+        _ = model.LoadGame(DeadCornerInProgressGame());
 
-        Assert.False(model.ToggleDeadAt(new Point(4, 4)));
+        Assert.Equal(Endgame.ProposeDead(model.Board), model.DeadPoints);
     }
 
     [Fact]
-    public void Клик_Увеличивает_Счётчик_Пометок()
+    public void Программные_Пометки_Полностью_Совпадают_С_Перебором()
     {
         var model = CreateCountingModel();
-        var before = model.DeadRevision;
 
-        _ = model.ToggleDeadAt(new Point(8, 8));
-
-        Assert.Equal(before + 1, model.DeadRevision);
+        Assert.Equal(Endgame.ProposeDead(model.Board), model.DeadPoints);
     }
 
     [Fact]
@@ -122,15 +106,15 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Без_Пометки_Угол_Не_Считается_Территорией_Чёрных()
+    public void Найденная_Программой_Мёртвая_Группа_Отдаёт_Свой_Угол_Чёрным()
     {
-        // Живые камни в углу делят область с чёрными, и территории не достаётся никому:
-        // чёрными остаются только четыре их камня. Именно поэтому мёртвую группу помечают.
+        // Мёртвые камни в углу уходят из доски подсчёта, и их точки становятся территорией чёрных:
+        // четыре камня и две точки. Раньше этого можно было добиться только нажатием по доске —
+        // теперь так считает программа (решение 2026-10-10, D-084).
         var model = CreateCountingModel();
         model.ShowTerritory = true;
-        _ = model.ToggleDeadAt(new Point(0, 0));
 
-        Assert.Equal(4, model.Territory!.Count(owner => owner == StoneColor.Black));
+        Assert.Equal(8, model.Territory!.Count(owner => owner == StoneColor.Black));
     }
 
     [Fact]
@@ -143,12 +127,19 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Снятие_Пометки_Меняет_Предварительный_Счёт()
+    public void Предварительный_Счёт_Считается_По_Пометкам_Программы()
     {
+        // Счёт считается по пометкам программы: нажимать по доске нечего и не нужно.
+        // Чтение свойств и пульс часов счёт не меняют — позиция та же.
         var model = CreateCountingModel();
-        _ = model.ToggleDeadAt(new Point(0, 0));
+        var before = model.Score;
 
-        Assert.Equal("Чёрные 0 : 5.5 Белые", model.Score);
+        _ = model.DeadPoints;
+        _ = model.Territory;
+        model.TickClock();
+
+        Assert.Equal(before, model.Score);
+        Assert.Equal("Чёрные 6 : 5.5 Белые", before);
     }
 
     [Fact]
@@ -297,15 +288,17 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Клик_После_Конца_Партии_Меняет_Итог()
+    public void Итог_Партии_Не_Меняется_От_Нажатий()
     {
-        // Правка пометки после конца партии — право игрока: итог пересчитывается сразу (D-070).
+        // Итог называет программа: после конца партии он не зависит ни от чего, кроме позиции.
         var model = CreateCountingModel();
         var score = model.Score;
+        var outcome = model.Outcome;
 
-        _ = model.ToggleDeadAt(new Point(0, 0));
+        model.TickClock();
 
-        Assert.NotEqual(score, model.Score);
+        Assert.Equal(score, model.Score);
+        Assert.Equal(outcome, model.Outcome);
     }
 
     [Fact]
@@ -378,7 +371,7 @@ public sealed class EndgameScoreTests
     [Fact]
     public void Приёмка_Перебор_Ничего_Не_Помечает_В_Этой_Партии()
     {
-        // Пометок нет: счёт партии не подкручен согласованием, три очка дал именно захват.
+        // Пометок мёртвых нет: счёт партии не подкручен, три очка дал именно захват.
         var model = Create();
         _ = model.LoadGame(CapturedThreeGame());
 
@@ -419,27 +412,18 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Уведомления_Клика_Содержат_Новый_Счёт()
+    public void Загрузка_Позиции_Сообщает_О_Новых_Пометках()
     {
-        var model = CreateCountingModel();
+        // Пометки меняются вместе с позицией — и только так: вид узнаёт о них от модели.
+        var model = Create();
         HashSet<string> changed = [];
+        _ = model.LoadGame(DeadCornerInProgressGame());
         model.PropertyChanged += (_, args) => changed.Add(args.PropertyName ?? string.Empty);
 
-        _ = model.ToggleDeadAt(new Point(0, 0));
-
-        Assert.Contains(nameof(MainViewModel.ScoreDetail), changed);
-    }
-
-    [Fact]
-    public void Уведомления_Пометки_Содержат_Список_И_Счётчик()
-    {
-        var model = CreateCountingModel();
-        HashSet<string> changed = [];
-        model.PropertyChanged += (_, args) => changed.Add(args.PropertyName ?? string.Empty);
-
-        _ = model.ToggleDeadAt(new Point(8, 8));
+        _ = model.LoadGame(DeadCornerGame());
 
         Assert.Contains(nameof(MainViewModel.DeadPoints), changed);
+        Assert.Contains(nameof(MainViewModel.ScoreDetail), changed);
     }
 
     [Fact]
@@ -514,36 +498,21 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Приёмка_Снятие_Пометки_Возвращает_Счёт_Как_Был()
+    public void Приёмка_Счёт_Считается_Только_Программой()
     {
-        // Обратная сторона требования: пока группа не помечена, её камни живые и очков
-        // победителю не приносят. Снятие пометки обязано вернуть счёт ровно к прежнему —
-        // и пленных, и территорию.
+        // Приёмка решения 2026-10-10 (D-084): итог партии определяется позицией и перебором,
+        // и ничем больше. Своего счёта у игрока нет — значит, и подтасовать его нечем.
         var model = CreateCountingModel();
 
-        // Счёт без ручных пометок — эталон: к нему обязано вернуться после снятия.
-        var before = Endgame.Finalize(
-            model.Board, [], Komi.For9x9, model.CapturedWhite, model.CapturedBlack, ScoringRule.Japanese);
+        var fromProposal = Endgame.Finalize(
+            model.Board, Endgame.ProposeDead(model.Board), Komi.For9x9, model.CapturedWhite, model.CapturedBlack, ScoringRule.Japanese);
 
-        // Игрок снимает пометку с целой группы: перебор её предлагал, игрок с ним не согласен.
-        _ = model.ToggleDeadAt(new Point(0, 0));
-
-        var after = Endgame.Finalize(
-            model.Board,
-            [.. model.DeadPoints.Where(point => point.Y != 0 || point.X > 1)],
-            Komi.For9x9,
-            model.CapturedWhite,
-            model.CapturedBlack,
-            ScoringRule.Japanese);
-
-        // Группа (0,0)-(1,0) больше не мёртвая: её камни не пленные, её точки не территория.
-        Assert.Equal(before.BlackPrisoners, after.BlackPrisoners);
-        Assert.Equal(before.BlackTerritory, after.BlackTerritory);
-        Assert.Equal(before.WhiteArea, after.WhiteArea);
+        Assert.Equal(fromProposal.ToString(), model.Score);
+        Assert.Equal(Endgame.ProposeDead(model.Board), model.DeadPoints);
     }
 
     [Fact]
-    public void Приёмка_Территория_Согласования_Считается_Без_Мёртвых_Камней()
+    public void Приёмка_Территория_Считается_Без_Найденных_Мёртвых_Камней()
     {
         // Точки снятой белой группы становятся территорией чёрных: 4 камня + 4 точки,
         // у белых остаются только два камня вдали.
@@ -632,15 +601,16 @@ public sealed class EndgameScoreTests
     }
 
     [Fact]
-    public void Пометка_Кликом_Не_Запускает_Перебор_Заново()
+    public void Чтение_Счёта_Не_Запускает_Перебор_Заново()
     {
-        // Позиция от клика не меняется: перебор предложения не повторяется, счёт пересчитывается
-        // по уже готовому списку.
+        // Позиция не меняется — перебор предложения не повторяется: счёт читается по готовому списку.
         var model = CreateCountingModel();
         _ = model.Score;
         var proposals = model.DeadProposalCount;
 
-        _ = model.ToggleDeadAt(new Point(8, 8));
+        _ = model.Score;
+        _ = model.DeadPoints;
+        _ = model.Territory;
 
         Assert.Equal(proposals, model.DeadProposalCount);
     }
@@ -652,7 +622,7 @@ public sealed class EndgameScoreTests
         TestViewModel.Create(color, DifficultyLevel.Kyu30, size: Size);
 
     /// <summary>Создаёт модель, в которой партия уже завершена двумя пасами.</summary>
-    /// <returns>Модель с согласованием мёртвых групп: белая группа в углу доказанно мёртвая.</returns>
+    /// <returns>Модель с найденной программой мёртвой группой: белая группа в углу доказанно мёртвая.</returns>
     /// <remarks>
     /// Позиция: чёрные закрыли угол (2,0), (2,1), (0,2), (1,2), внутри остались два белых камня.
     /// Ход белых в любую из двух пустых точек угла проигрывает: чёрные отвечают и снимают группу.

@@ -73,7 +73,11 @@ internal static class Program
         // Голова решает, играть ли звук вообще: система может просить обойтись без анимаций.
         App.Sound = DesktopSoundPlayer.Create();
 
-        LoadNetwork();
+        // Загрузка нейросети идёт в фоне, уже после появления экрана загрузки: раньше окно
+        // открывалось только после неё, и игрок видел чёрный экран 3–7 секунд, решая, что
+        // приложение зависло (жалоба пользователя 2026-10-10).
+        global::GoEngine.App.App.Prepare = LoadNetwork;
+
         ConfigureUpdates();
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);

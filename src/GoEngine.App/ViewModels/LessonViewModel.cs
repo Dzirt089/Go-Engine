@@ -35,6 +35,7 @@ public sealed class LessonViewModel : INotifyPropertyChanged
         nameof(StepTitle), nameof(StepText), nameof(StepCounter), nameof(Message), nameof(HasMessage),
         nameof(IsMessageGood), nameof(Board), nameof(HintPoint), nameof(Highlight), nameof(CanHint),
         nameof(CanGoNext), nameof(CanGoBack), nameof(IsCompleted), nameof(IsStepTask),
+        nameof(CanGoPreviousLesson), nameof(CanGoNextLesson),
         nameof(StepCount), nameof(StepNumber), nameof(AcceptedPoints),
         nameof(LastMove), nameof(LastCaptured), nameof(LastCapturedColor)
     ];
@@ -269,6 +270,23 @@ public sealed class LessonViewModel : INotifyPropertyChanged
         NotifyAll();
     }
 
+    /// <summary>Можно открыть предыдущий урок списка.</summary>
+    public bool CanGoPreviousLesson => _selectedIndex > 0;
+
+    /// <summary>Можно открыть следующий урок списка.</summary>
+    public bool CanGoNextLesson => _selectedIndex < _lessons.Count - 1;
+
+    /// <summary>Открывает предыдущий урок списка.</summary>
+    /// <remarks>
+    /// Стрелки рядом со списком уроков (замечание пользователя 2026-10-10: «в задачах ты сделал
+    /// &lt; задача… &gt;, в обучении сделай также»). Переключение идёт по тому же пути, что и выбор
+    /// из списка: прогресс урока сохраняется, а новый урок открывается с сохранённого шага.
+    /// </remarks>
+    public void PreviousLesson() => SelectLesson(_selectedIndex - 1);
+
+    /// <summary>Открывает следующий урок списка.</summary>
+    public void NextLesson() => SelectLesson(_selectedIndex + 1);
+
     /// <summary>Показывает урок по номеру в списке.</summary>
     /// <param name="index">Номер урока.</param>
     public void SelectLesson(int index)
@@ -325,15 +343,23 @@ public sealed class LessonViewModel : INotifyPropertyChanged
     }
 
     /// <summary>Собирает подписи уроков с отметками: пройден, начат или ещё нет.</summary>
+    /// <remarks>
+    /// В подписи номер урока и название — без служебного идентификатора (замечание пользователя
+    /// 2026-10-10: «названия ts-00, game-00 из списков удали, только номер и название»).
+    /// Идентификатор остаётся в логах и файле прогресса: там он и нужен.
+    /// </remarks>
     private IReadOnlyList<string> BuildLabels() =>
-        _lessons.Select(lesson => Mark(lesson, _progress.ForLesson(lesson.Id))).ToList().AsReadOnly();
+        _lessons
+            .Select((lesson, index) => Mark($"Урок {index + 1} · {lesson.Title}", _progress.ForLesson(lesson.Id)))
+            .ToList()
+            .AsReadOnly();
 
     /// <summary>Отмечает урок в списке: «✓» — пройден, «▸» — начат.</summary>
-    private static string Mark(Lesson lesson, StudyItemProgress? saved) => saved switch
+    private static string Mark(string name, StudyItemProgress? saved) => saved switch
     {
-        { Completed: true } => $"✓ {lesson.Label}",
-        { Step: > 0 } => $"▸ {lesson.Label}",
-        _ => lesson.Label
+        { Completed: true } => $"✓ {name}",
+        { Step: > 0 } => $"▸ {name}",
+        _ => name
     };
 
     /// <summary>Номер урока в списке по идентификатору.</summary>

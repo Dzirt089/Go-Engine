@@ -159,14 +159,17 @@ internal static class TerritoryCheck
             "подпись баннера называет исход словами и не повторяет счёт");
         failures += Check(model.Score == expected.JapaneseLine, "счёт посчитан по доске без мёртвых камней");
 
-        // Правка пометки после конца партии — право игрока: счёт пересчитывается сразу.
+        // Пометки ставит только программа (решение 2026-10-10, D-084): список для вида обязан
+        // совпадать с перебором ядра, а счёт — считаться по нему. Своего счёта у игрока нет.
+        var proposal = Endgame.ProposeDead(model.Board);
         var before = model.Score;
 
-        _ = model.ToggleDeadAt(new Point(0, 0));
+        Console.WriteLine($"— пометок программных: {model.DeadPoints.Count}, счёт {model.Score} —");
 
-        Console.WriteLine($"— клик по мёртвой группе: счёт {model.Score} —");
-
-        failures += Check(model.Score != before, "клик после конца партии меняет итог");
+        failures += Check(
+            model.DeadPoints.SequenceEqual(proposal),
+            "пометки совпадают с перебором ядра: своего счёта у игрока нет");
+        failures += Check(model.Score == before, "повторное чтение счёта ничего не меняет");
 
         // Предложение мёртвых — перебор по каждой группе-кандидату: он обязан считаться один раз
         // на позицию, а не на каждое чтение счёта, территории или пленных.
