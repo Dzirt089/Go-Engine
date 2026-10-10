@@ -37,10 +37,14 @@ public sealed class ReviewsTests
     public void У_Каждой_Партии_Есть_Источник_И_Итог()
     {
         // Источник называет, откуда взят материал: без него партию нельзя проверить.
+        // Материал бывает двух родов: разбор чужой партии (ссылка на видео) и партия движка
+        // (тогда назван движок и то, как он играл). Любой третий вариант — ошибка данных.
+        string[] sources = ["YouTube", "нейросет", "движок"];
+
         Assert.All(
             ReviewLibrary.All,
             game => Assert.True(
-                game.Source.Contains("YouTube", StringComparison.Ordinal),
+                sources.Any(word => game.Source.Contains(word, StringComparison.OrdinalIgnoreCase)),
                 $"{game.Id}: источник не назван — {game.Source}"));
 
         Assert.All(ReviewLibrary.All, game => Assert.False(string.IsNullOrWhiteSpace(game.Result)));
