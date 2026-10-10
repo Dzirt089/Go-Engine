@@ -403,7 +403,9 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// <param name="number">Номер задачи в списке: первый — единица.</param>
     private static string LabelOf(Problem problem, int number)
     {
-        var label = string.Create(CultureInfo.InvariantCulture, $"Задача {number} · {problem.Name}");
+        // Ни служебного идентификатора, ни слова «Задача»: место в списке дорого, а раздел
+        // и так понятен (замечание пользователя 2026-10-10).
+        var label = string.Create(CultureInfo.InvariantCulture, $"{number}. {problem.Name}");
 
         return problem.IsWeak ? label + " · слабая" : label;
     }

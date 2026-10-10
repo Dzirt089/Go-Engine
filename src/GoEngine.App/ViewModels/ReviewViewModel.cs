@@ -32,7 +32,7 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
     [
         nameof(Labels), nameof(ListCaption), nameof(SelectedIndex), nameof(GameTitle), nameof(GameSummary), nameof(Players),
         nameof(CanGoPreviousGame), nameof(CanGoNextGame),
-        nameof(Result), nameof(NoteTitle), nameof(NoteText), nameof(HasNote), nameof(IsQuiz),
+        nameof(Result), nameof(NoteTitle), nameof(NoteText), nameof(HasNote), nameof(MoveInfo), nameof(HasMoveInfo), nameof(IsQuiz),
         nameof(MoveCounter), nameof(Message), nameof(HasMessage), nameof(IsMessageGood), nameof(Board),
         nameof(HintPoint), nameof(CanHint), nameof(CanGoNext), nameof(CanGoBack), nameof(IsCompleted),
         nameof(MoveCount), nameof(MoveNumber), nameof(QuizPoints),
@@ -127,6 +127,16 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
 
     /// <summary>В текущей позиции есть разбор.</summary>
     public bool HasNote => _session.Note is not null;
+
+    /// <summary>Что произошло последним ходом: строка о ходе, когда своей заметки нет.</summary>
+    /// <remarks>
+    /// Панель не молчит между заметками (жалоба пользователя 2026-10-10): о ходе говорится
+    /// координатой, линией и тем, что он дал по правилам.
+    /// </remarks>
+    public string MoveInfo => _session.MoveInfo;
+
+    /// <summary>Есть что сказать о ходе.</summary>
+    public bool HasMoveInfo => MoveInfo.Length > 0;
 
     /// <summary>В текущей позиции есть вопрос: ход ищет игрок.</summary>
     public bool IsQuiz => _session.Note?.Quiz is not null && !_session.IsCompleted;
@@ -327,12 +337,13 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
 
     /// <summary>Собирает подписи партий с отметками: разобрана, начата или ещё нет.</summary>
     /// <remarks>
-    /// В подписи номер партии и название — без служебного идентификатора (замечание пользователя
-    /// 2026-10-10: «названия ts-00, game-00 из списков удали, только номер и название»).
+    /// В подписи только номер и название: ни служебного идентификатора, ни слова «Партия»
+    /// (замечания пользователя 2026-10-10: «названия ts-00, game-00 из списков удали» и
+    /// «Партия 1 - Партия… — это не годится, у нас и так не хватает места»).
     /// </remarks>
     private IReadOnlyList<string> BuildLabels() =>
         _games
-            .Select((game, index) => Mark($"Партия {index + 1} · {game.Title}", _progress.ForGame(game.Id)))
+            .Select((game, index) => Mark($"{index + 1}. {game.Title}", _progress.ForGame(game.Id)))
             .ToList()
             .AsReadOnly();
 

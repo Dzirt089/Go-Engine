@@ -66,10 +66,52 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
         Process.KillProcess(Process.MyPid());
     }
 
-    /// <summary>Каталог логов: личные файлы приложения, доступные без разрешений.</summary>
+    /// <summary>Каталог логов: видимые файлы приложения на внешнем носителе.</summary>
     /// <returns>Путь к каталогу логов или <c>null</c>, если каталог недоступен.</returns>
-    private string? LogsDirectory() =>
-        FilesDir?.AbsolutePath is { Length: > 0 } root ? Path.Combine(root, "logs") : null;
+    /// <remarks>
+    /// <para>
+    /// Логи пишутся в каталог приложения на внешнем носителе
+    /// (<c>Android/data/&lt;пакет&gt;/files/logs</c>), а не в личные файлы: личные файлы
+    /// на телефоне игроку не видны никаким файловым менеджером, и «пришлите лог» превращалось
+    /// в «найдите несуществующий путь» (жалоба пользователя 2026-10-10: «отсутствует на андроид
+    /// запись логов, записанный путь логов в игре не существует на телефоне»). Разрешений
+    /// этот каталог не требует: он принадлежит приложению.
+    /// </para>
+    /// <para>
+    /// Порядок: внешний каталог приложения, затем личные файлы, затем кэш. Совсем без каталога
+    /// (<c>null</c>) логирование выключится, но игра запустится: отказ записи не должен ронять
+    /// приложение.
+    /// </para>
+    /// </remarks>
+    private string? LogsDirectory()
+    {
+        var root = GetExternalFilesDir(null)?.AbsolutePath
+            ?? FilesDir?.AbsolutePath
+            ?? CacheDir?.AbsolutePath;
+
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return null;
+        }
+
+        var directory = Path.Combine(root, "logs");
+
+        try
+        {
+            // Каталог создаётся сразу: «О программе» показывает путь, и он обязан существовать
+            // ещё до первой записи (иначе игрок снова ищет то, чего нет).
+            _ = Directory.CreateDirectory(directory);
+        }
+        catch (IOException)
+        {
+            // Каталог недоступен — логирование выключится само, путь останется честным.
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+
+        return directory;
+    }
 
     /// <summary>Отдаёт интерфейсу установщик обновлений и каталог для скачанных пакетов.</summary>
     /// <remarks>

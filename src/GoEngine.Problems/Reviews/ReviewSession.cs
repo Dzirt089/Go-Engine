@@ -57,6 +57,16 @@ public sealed class ReviewSession
     /// <summary>Заметка разбора к текущей позиции.</summary>
     public ReviewNote? Note => Game.NoteBefore(_played);
 
+    /// <summary>Что произошло последним ходом партии, словами.</summary>
+    /// <remarks>
+    /// Жалоба пользователя 2026-10-10: между заметками экран молчал, и о ходе противника
+    /// (или о своём, когда партию ведёт приложение) сказать было нечего. Строка собирается
+    /// по правилам — координата, линия, снятия, атари, — и показывается там, где своей заметки нет.
+    /// </remarks>
+    public string MoveInfo => _played == 0
+        ? string.Empty
+        : MoveDescriber.Describe(MoveDescriber.FactsOf(_board, Game.Moves[_played - 1], _played), Game.Size);
+
     /// <summary>Чей ход в текущей позиции партии.</summary>
     /// <remarks>
     /// Цвета в записи чередуются, а первым ходит <see cref="ReviewGame.FirstColor"/>: без форы

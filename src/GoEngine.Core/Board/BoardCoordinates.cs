@@ -1,7 +1,6 @@
 using System.Globalization;
-using GoEngine.Core;
 
-namespace GoEngine.App.Services;
+namespace GoEngine.Core;
 
 /// <summary>Подписи точек доски: буква столбца и номер строки.</summary>
 /// <remarks>

@@ -108,12 +108,21 @@ public sealed partial class AboutView : UserControl
     /// Сообщение о сбое живёт до конца сеанса: файл-признак уже прочитан и удалён, поэтому
     /// вечно оно не показывается, а копия лога остаётся в каталоге.
     /// </remarks>
+    /// <summary>Пояснение к пути логов: на телефоне папка лежит на внешнем носителе.</summary>
+    /// <remarks>
+    /// Без пояснения путь <c>Android/data/…</c> выглядит как служебный, и игрок не понимает,
+    /// куда идти за файлом (жалоба 2026-10-10: «записанный путь логов не существует на телефоне»).
+    /// </remarks>
+    private static string LogHint => OperatingSystem.IsAndroid()
+        ? " (папка приложения на телефоне: Android/data/com.goengine.app/files/logs)"
+        : string.Empty;
+
     private void ShowLogs()
     {
         if (this.FindControl<TextBlock>("LogsText") is { } logsText)
         {
             logsText.Text = AppLog.IsFileLogging
-                ? $"Логи: {AppLog.Directory}"
+                ? $"Логи: {AppLog.Directory}{LogHint}"
                 : "Логи: файл недоступен, игра работает без записи";
         }
 
