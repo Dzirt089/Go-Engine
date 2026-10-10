@@ -125,6 +125,61 @@ public sealed class GameFlowTests
     }
 
     [Fact]
+    public void Отмена_Партии_Выключает_Разметку_Территории()
+    {
+        // Регрессия 2026-10-10: после отмены партии знаки территории оставались на пустой доске,
+        // а переключатель до первого хода был недоступен — снять разметку было нечем.
+        var model = Model();
+
+        model.StartGame();
+        Assert.True(model.PlayMove(new Point(4, 4)));
+        model.ShowTerritory = true;
+
+        model.AbortGame();
+
+        Assert.False(model.ShowTerritory);
+        Assert.False(model.HasTerritory);
+        Assert.Null(model.Territory);
+        Assert.Equal("0", model.MoveNumber);
+    }
+
+    [Fact]
+    public void Отмена_Партии_Сообщает_Виду_О_Разметке()
+    {
+        // Вторая половина той же регрессии: мало выключить разметку в модели — о новом состоянии
+        // надо сообщить виду, иначе переключатель остаётся нажатым (проверено живым прогоном).
+        var model = Model();
+        var changed = new List<string>();
+        model.PropertyChanged += (_, e) => changed.Add(e.PropertyName ?? string.Empty);
+
+        model.StartGame();
+        Assert.True(model.PlayMove(new Point(4, 4)));
+        model.ShowTerritory = true;
+        changed.Clear();
+
+        model.AbortGame();
+
+        Assert.Contains(nameof(MainViewModel.ShowTerritory), changed);
+    }
+
+    [Fact]
+    public void Разметку_Территории_Можно_Выключить_До_Первого_Хода()
+    {
+        // Второй предохранитель: если разметка почему-то показана, игрок обязан суметь её снять.
+        var model = Model();
+
+        Assert.False(model.CanToggleTerritory);
+
+        model.ShowTerritory = true;
+
+        Assert.True(model.CanToggleTerritory);
+
+        model.ShowTerritory = false;
+
+        Assert.False(model.HasTerritory);
+    }
+
+    [Fact]
     public void Отмена_Партии_За_Белых_Возвращает_Ход_Сопернику()
     {
         // Играя белыми, игрок первым не ходит: после отмены партии соперник снова открывает

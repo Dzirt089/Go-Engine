@@ -9,12 +9,11 @@
        Раскладку выбирает код вида (ReviewView.axaml.cs) по BoardLayoutRules: на узком экране
        доска сверху и панель снизу, на широком — доска слева, панель справа.
 
-       Панель ведёт по партии ход за ходом: разбор читают, а в отмеченных местах игрок сам ищет
-       ход (вопрос разбора) — это и есть практика. Ходы партии играет модель
-       (<see cref="ReviewViewModel"/>), а не вид: запись партии и вопросы живут в разборе.
+       Панель собрана так же, как в уроке: сверху выбор партии и словарь, посередине разбор,
+       снизу одна строка управления (замечание пользователя 2026-10-10 о нехватке места).
+       Ходы партии играет модель (<see cref="ReviewViewModel"/>), а не вид.
 
-       Все надписи — на русском: обучение ведётся по-русски (замечание пользователя 2026-10-07).
-       Термины с японскими названиями собраны в словаре, который открывается кнопкой. -->
+       Все надписи — на русском: обучение ведётся по-русски (замечание пользователя 2026-10-07). -->
   <Grid x:Name="Layout" ColumnDefinitions="*,320">
 
     <controls:BoardControl x:Name="Board"
@@ -29,19 +28,34 @@
             BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
             BorderThickness="1,0,0,0"
             Padding="12,10">
-      <Grid RowDefinitions="*,Auto">
+      <Grid RowDefinitions="Auto,*,Auto">
 
-        <!-- Разбор текущей позиции и текст: то, что читают не спеша. Прокрутка возвращается
-             к началу при смене хода: на телефоне панель невысокая, и без этого разбор нового
-             хода оставался за кадром (проверено живым прогоном: в кадре был только список партий). -->
-        <ScrollViewer x:Name="NoteScroll" Grid.Row="0" VerticalScrollBarVisibility="Auto">
+        <!-- Шапка панели: выбор партии и словарь терминов. Не прокручивается: список партий
+             должен стоять на месте, пока игрок читает разбор. -->
+        <Grid x:Name="PanelHeader" Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+
+          <ComboBox x:Name="GameBox"
+                    Grid.Column="0"
+                    MinHeight="44"
+                    HorizontalAlignment="Stretch" />
+
+          <Button x:Name="GlossaryButton"
+                  Grid.Column="1"
+                  Classes="app-icon"
+                  Margin="6,0,0,0"
+                  AutomationProperties.Name="Словарь терминов"
+                  ToolTip.Tip="Словарь терминов: объяснения и оригинальные названия">
+            <Path Width="22" Height="22" Stretch="Uniform"
+                  Data="F1 M3,5 L11,7 L11,20.4 L3,18.4 Z M13,7 L21,5 L21,18.4 L13,20.4 Z" />
+          </Button>
+        </Grid>
+
+        <!-- Разбор текущей позиции: то, ради чего партия открыта. -->
+        <ScrollViewer x:Name="NoteScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto">
           <StackPanel Spacing="4" Margin="0,0,0,8">
 
             <TextBlock x:Name="Heading" Text="Разбор партии" FontSize="16" FontWeight="SemiBold" />
 
-            <!-- Номер хода и разбор стоят первыми: на телефоне панель невысокая, и текст разбора —
-                 то, ради чего партия открыта; название и выбор партии идут ниже и при нехватке
-                 места уезжают под прокрутку (то же решение, что в уроке). -->
             <TextBlock x:Name="MoveCounterText"
                        Text="{Binding MoveCounter}"
                        FontWeight="SemiBold" />
@@ -58,7 +72,6 @@
                        IsVisible="{Binding HasNote}"
                        TextWrapping="Wrap" />
 
-            <!-- Что сказать игроку об его ходе: похвала акцентом, отказ — красным. -->
             <TextBlock x:Name="MessageText"
                        Text="{Binding Message}"
                        IsVisible="{Binding HasMessage}"
@@ -87,38 +100,54 @@
                        Classes="app-label"
                        TextWrapping="Wrap" />
 
-            <!-- Список партий: по нему видно, сколько их, что разобрано и что дальше. Отметки
-                 («✓» разобрана, «▸» начата) стоят в подписях партий, а счёт — здесь. -->
-            <TextBlock Text="{Binding ListCaption}" Margin="0,6,0,0" />
-            <ComboBox x:Name="GameBox"
-                      MinHeight="44"
-                      HorizontalAlignment="Stretch" />
+            <TextBlock Text="{Binding ListCaption}"
+                       Classes="app-label"
+                       Margin="0,6,0,0" />
 
           </StackPanel>
         </ScrollViewer>
 
-        <!-- Кнопки разбора: эта часть не прокручивается и не уезжает за край экрана. -->
-        <StackPanel Grid.Row="1" Spacing="6" Margin="0,6,0,0">
+        <!-- Управление: одна строка — как в уроке. -->
+        <Grid x:Name="PanelActions" Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,6,0,0">
 
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <Button x:Name="HintButton" Content="Подсказка" MinHeight="44" MinWidth="104" IsEnabled="{Binding CanHint}" />
-            <Button x:Name="BackButton" Content="Назад" MinHeight="44" IsEnabled="{Binding CanGoBack}" />
-            <Button x:Name="ResetButton" Content="Заново" MinHeight="44" />
-          </StackPanel>
+          <Button x:Name="HintButton"
+                  Classes="app-icon"
+                  AutomationProperties.Name="Подсказка"
+                  ToolTip.Tip="Показать ход"
+                  IsEnabled="{Binding CanHint}">
+            <Path Width="22" Height="22" Stretch="Uniform"
+                  Data="M12,3.4 A5.6,5.6 0 0 1 15.2,13.6 L8.8,13.6 A5.6,5.6 0 0 1 12,3.4 Z M9.4,15.4 h5.2 v1.8 h-5.2 z M10.2,18.2 h3.6 v1.8 h-3.6 z" />
+          </Button>
+
+          <Button x:Name="BackButton"
+                  Grid.Column="1"
+                  Classes="app-icon"
+                  AutomationProperties.Name="Назад"
+                  ToolTip.Tip="Предыдущий ход"
+                  IsEnabled="{Binding CanGoBack}">
+            <Path Width="22" Height="22" Stretch="Uniform"
+                  Data="M14.6,5.2 L7.8,12 L14.6,18.8 L16.7,16.7 L12,12 L16.7,7.3 Z" />
+          </Button>
+
+          <Button x:Name="ResetButton"
+                  Grid.Column="2"
+                  Classes="app-icon"
+                  AutomationProperties.Name="Заново"
+                  ToolTip.Tip="Начать разбор заново">
+            <Path Width="22" Height="22" Stretch="Uniform"
+                  Data="F1 M12,4 A8,8 0 1 1 12,20 A8,8 0 1 1 12,4 Z M12,6 A6,6 0 1 0 12,18 A6,6 0 1 0 12,6 Z M12,0.8 L16.4,4.8 L12,8.8 Z" />
+          </Button>
 
           <Button x:Name="NextButton"
+                  Grid.Column="3"
                   Content="Далее"
                   Classes="app-primary"
+                  Margin="8,0,0,0"
                   MinHeight="44"
                   HorizontalAlignment="Stretch"
                   IsEnabled="{Binding CanGoNext}" />
 
-          <Button x:Name="GlossaryButton"
-                  Content="Словарь терминов"
-                  MinHeight="44"
-                  HorizontalAlignment="Stretch" />
-
-        </StackPanel>
+        </Grid>
       </Grid>
     </Border>
   </Grid>

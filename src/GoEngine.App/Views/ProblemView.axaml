@@ -5,13 +5,14 @@
              x:Class="GoEngine.App.Views.ProblemView"
              x:DataType="vm:ProblemViewModel">
 
-  <!-- Режим задач: та же доска, что и в партии (BoardControl), но своя панель и своя модель.
+  <!-- Задачи: та же доска, что и в партии (BoardControl), но своя панель и своя модель.
        Раскладку выбирает код вида (ProblemView.axaml.cs) по BoardLayoutRules: на узком экране
        доска сверху и панель снизу, на широком — доска слева, панель справа.
 
-       Панель разделена на две части: сверху цель задачи и выбор задачи (цель прокручивается,
-       если не влезла), снизу — всегда видимые вердикт и кнопки. Раньше кнопки уезжали за край
-       экрана: игрок видел задачу, но не мог ни подсказать ход, ни отменить его. -->
+       Панель собрана в три полосы, как в уроках и разборе партий (замечание пользователя
+       2026-10-10): сверху выбор задачи и переходы по списку, посередине условие и цель, снизу
+       одна строка управления. Раньше выбор задачи стоял в прокрутке и «уезжал» при чтении,
+       а кнопки занимали два ряда — на телефоне управление съедало полезное место. -->
   <Grid x:Name="Layout" ColumnDefinitions="*,320">
 
     <controls:BoardControl x:Name="Board"
@@ -26,10 +27,40 @@
             BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
             BorderThickness="1,0,0,0"
             Padding="12,10">
-      <Grid RowDefinitions="*,Auto">
+      <Grid RowDefinitions="Auto,*,Auto">
 
-        <!-- Цель задачи и её выбор: то, что можно прочитать не спеша. -->
-        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+        <!-- Шапка панели: стрелки перехода и выбор задачи. Список не прячется в свёртку
+             и не прокручивается вместе с текстом: игрок видит, из чего выбирать. -->
+        <Grid x:Name="PanelHeader" Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6">
+
+          <Button x:Name="PreviousButton"
+                  Classes="app-icon"
+                  AutomationProperties.Name="Предыдущая задача"
+                  ToolTip.Tip="Предыдущая задача"
+                  IsEnabled="{Binding CanGoPrevious}">
+            <Path Width="22" Height="22" Stretch="Uniform"
+                  Data="M14.6,5.2 L7.8,12 L14.6,18.8 L16.7,16.7 L12,12 L16.7,7.3 Z" />
+          </Button>
+
+          <ComboBox x:Name="ProblemBox"
+                    Grid.Column="1"
+                    MinHeight="44"
+                    Margin="6,0,6,0"
+                    HorizontalAlignment="Stretch" />
+
+          <Button x:Name="NextButton"
+                  Grid.Column="2"
+                  Classes="app-icon"
+                  AutomationProperties.Name="Следующая задача"
+                  ToolTip.Tip="Следующая задача"
+                  IsEnabled="{Binding CanGoNext}">
+            <Path Width="22" Height="22" Stretch="Uniform"
+                  Data="M9.4,5.2 L16.2,12 L9.4,18.8 L7.3,16.7 L12,12 L7.3,7.3 Z" />
+          </Button>
+        </Grid>
+
+        <!-- Условие задачи и цель: то, что можно прочитать не спеша. -->
+        <ScrollViewer x:Name="Conditions" Grid.Row="1" VerticalScrollBarVisibility="Auto">
           <StackPanel Spacing="4" Margin="0,0,0,8">
 
             <TextBlock x:Name="Heading" Text="Задачи" FontSize="16" FontWeight="SemiBold" />
@@ -47,42 +78,60 @@
               <TextBlock Text="{Binding SizeText}" />
             </StackPanel>
 
-            <!-- Выбор задачи стоит в главном окне панели, сразу под целью: списка не прячет
-                 никакая свёртка, и игрок видит, из чего выбирать (замечание пользователя
-                 2026-10-03). Список заполняет код вида, а не привязка: список выбора сбрасывает
-                 индекс при подмене ItemsSource и вернул бы его в модель — та же причина,
-                 что и в панели партии. -->
-            <TextBlock Text="Задача" Margin="0,8,0,0" />
-            <ComboBox x:Name="ProblemBox"
-                      MinHeight="44"
-                      HorizontalAlignment="Stretch" />
-
           </StackPanel>
         </ScrollViewer>
 
-        <!-- Вердикт и кнопки: эта часть не прокручивается и не уезжает за край экрана. -->
-        <StackPanel Grid.Row="1" Spacing="4" Margin="0,6,0,0">
+        <!-- Вердикт и управление: эта часть не прокручивается и не уезжает за край экрана.
+             Значки растянуты по ширине панели: три равные цели вместо ряда кнопок вразнобой. -->
+        <Grid Grid.Row="2" RowDefinitions="Auto,Auto" Margin="0,6,0,0">
 
           <!-- Вердикт хода: «Верно», «Это не решает задачу», «Задача решена», «Подсказка: …». -->
           <TextBlock x:Name="Verdict"
+                     Grid.Row="0"
                      Text="{Binding Verdict}"
                      IsVisible="{Binding HasVerdict}"
                      FontWeight="SemiBold"
-                     TextWrapping="Wrap" />
+                     TextWrapping="Wrap"
+                     Margin="0,0,0,6" />
 
-          <!-- Кнопки не меньше 44 точек по высоте: это размер, по которому попадает палец. -->
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <Button x:Name="HintButton" Content="Подсказка" MinHeight="44" MinWidth="104" IsEnabled="{Binding CanHint}" />
-            <Button x:Name="BackButton" Content="Отменить" MinHeight="44" IsEnabled="{Binding CanBack}" />
-            <Button x:Name="ResetButton" Content="Заново" MinHeight="44" />
-          </StackPanel>
+          <Grid x:Name="PanelActions" Grid.Row="1" ColumnDefinitions="*,6,*,6,*">
 
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <Button x:Name="PreviousButton" Content="Предыдущая" MinHeight="44" IsEnabled="{Binding CanGoPrevious}" />
-            <Button x:Name="NextButton" Content="Следующая" MinHeight="44" IsEnabled="{Binding CanGoNext}" />
-          </StackPanel>
+            <Button x:Name="HintButton"
+                    Classes="app-icon"
+                    Width="NaN"
+                    HorizontalAlignment="Stretch"
+                    AutomationProperties.Name="Подсказка"
+                    ToolTip.Tip="Показать ход"
+                    IsEnabled="{Binding CanHint}">
+              <Path Width="22" Height="22" Stretch="Uniform"
+                    Data="M12,3.4 A5.6,5.6 0 0 1 15.2,13.6 L8.8,13.6 A5.6,5.6 0 0 1 12,3.4 Z M9.4,15.4 h5.2 v1.8 h-5.2 z M10.2,18.2 h3.6 v1.8 h-3.6 z" />
+            </Button>
 
-        </StackPanel>
+            <Button x:Name="BackButton"
+                    Grid.Column="2"
+                    Classes="app-icon"
+                    Width="NaN"
+                    HorizontalAlignment="Stretch"
+                    AutomationProperties.Name="Отменить ход"
+                    ToolTip.Tip="Отменить мой ход"
+                    IsEnabled="{Binding CanBack}">
+              <!-- Перечёркнутый круг: отмена хода. От «Заново» отличается намеренно. -->
+              <Path Width="22" Height="22" Stretch="Uniform"
+                    Data="F1 M12,4 A8,8 0 1 1 12,20 A8,8 0 1 1 12,4 Z M12,6 A6,6 0 1 0 12,18 A6,6 0 1 0 12,6 Z M6.2,8.4 L8.4,6.2 L17.8,15.6 L15.6,17.8 Z" />
+            </Button>
+
+            <Button x:Name="ResetButton"
+                    Grid.Column="4"
+                    Classes="app-icon"
+                    Width="NaN"
+                    HorizontalAlignment="Stretch"
+                    AutomationProperties.Name="Заново"
+                    ToolTip.Tip="Начать задачу заново">
+              <Path Width="22" Height="22" Stretch="Uniform"
+                    Data="F1 M12,4 A8,8 0 1 1 12,20 A8,8 0 1 1 12,4 Z M12,6 A6,6 0 1 0 12,18 A6,6 0 1 0 12,6 Z M12,0.8 L16.4,4.8 L12,8.8 Z" />
+            </Button>
+          </Grid>
+        </Grid>
       </Grid>
     </Border>
   </Grid>

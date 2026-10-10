@@ -822,7 +822,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// переключатель не прячет.
     /// </para>
     /// </remarks>
-    public bool CanToggleTerritory => !IsFirstMove;
+    /// <remarks>
+    /// Разметка доступна и до первого хода, если она уже показана: иначе игрок попадал в ловушку —
+    /// знаки территории на доске есть, а выключить их нечем до первого хода (жалоба 2026-10-10).
+    /// </remarks>
+    public bool CanToggleTerritory => !IsFirstMove || _showTerritory;
 
     /// <summary>Помеченные мёртвыми камни в порядке обхода доски.</summary>
     /// <remarks>Пометки ведёт <see cref="ScoringAgreement"/>; здесь они под именем, которое знает вид.</remarks>
@@ -954,10 +958,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public void TickClock() => _clock.Tick();
 
     /// <summary>Отменяет партию без хода соперника — общая часть синхронного и фонового путей.</summary>
+    /// <remarks>
+    /// <para>
+    /// Отмена возвращает партию в исходное состояние целиком, включая показ доски: разметку
+    /// территории тоже выключаем. Иначе знаки территории оставались на пустой доске, а переключатель
+    /// до первого хода недоступен — снять разметку было нечем (жалоба пользователя 2026-10-10).
+    /// </para>
+    /// <para>
+    /// Поле сбрасывается напрямую, а свойство <see cref="ShowTerritory"/> при этом не вызывается:
+    /// о новом состоянии вида сообщает <see cref="NotifyAll"/>, и в его списке имя
+    /// <c>ShowTerritory</c> обязано стоять — без него переключатель оставался нажатым
+    /// на пустой доске (проверено живым прогоном).
+    /// </para>
+    /// </remarks>
     private void PrepareAborted()
     {
         CancelThinking();
         _gameStarted = false;
+        _showTerritory = false;
         _clock.Reset();
         BeginGame(_settings);
     }
@@ -1694,6 +1712,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(CanAbortGame),
             nameof(CanPlayMove),
             nameof(IsFirstMove),
+            nameof(ShowTerritory),
             nameof(CanToggleTerritory),
             nameof(CanUndo),
             nameof(CanRedo),

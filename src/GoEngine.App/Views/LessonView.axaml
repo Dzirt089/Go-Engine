@@ -9,12 +9,18 @@
        Раскладку выбирает код вида (LessonView.axaml.cs) по BoardLayoutRules: на узком экране
        доска сверху и панель снизу, на широком — доска слева, панель справа.
 
-       Панель показывает урок шаг за шагом: объяснение игрок читает, задание выполняет на доске.
+       Панель собрана в три полосы, и это главное её решение (замечание пользователя 2026-10-10):
+       сверху выбор урока и словарь, посередине текст шага, снизу одна строка управления.
+       Раньше выбор урока стоял в прокрутке и «уезжал» при чтении, а кнопки занимали три ряда —
+       на телефоне управление съедало четверть экрана, хотя текст обучения и есть то, ради чего
+       раздел открыт. Теперь управление — две полосы по 44 точки, а всё остальное место отдано
+       тексту.
+
        Ходы принимает модель (<see cref="LessonViewModel"/>), а не вид: правило «какой ход верный»
        живёт в уроке, и вид только рисует то, что решила модель.
 
        Все надписи — на русском: обучение ведётся по-русски (замечание пользователя 2026-10-07).
-       Термины с японскими названиями собраны в словаре, который открывается кнопкой. -->
+       Термины с японскими названиями собраны в словаре, который открывается кнопкой в шапке. -->
   <Grid x:Name="Layout" ColumnDefinitions="*,320">
 
     <controls:BoardControl x:Name="Board"
@@ -30,18 +36,35 @@
             BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
             BorderThickness="1,0,0,0"
             Padding="12,10">
-      <Grid RowDefinitions="*,Auto">
+      <Grid RowDefinitions="Auto,*,Auto">
 
-        <!-- Содержание урока и текст шага: то, что читают не спеша. -->
-        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+        <!-- Шапка панели: выбор урока и словарь терминов. Не прокручивается: список уроков
+             должен стоять на месте, пока игрок читает текст шага. -->
+        <Grid x:Name="PanelHeader" Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+
+          <ComboBox x:Name="LessonBox"
+                    Grid.Column="0"
+                    MinHeight="44"
+                    HorizontalAlignment="Stretch" />
+
+          <Button x:Name="GlossaryButton"
+                  Grid.Column="1"
+                  Classes="app-icon"
+                  Margin="6,0,0,0"
+                  AutomationProperties.Name="Словарь терминов"
+                  ToolTip.Tip="Словарь терминов: объяснения и оригинальные названия">
+            <!-- Открытая книга: две страницы, сходящиеся к корешку. -->
+            <Path Width="22" Height="22" Stretch="Uniform"
+                  Data="F1 M3,5 L11,7 L11,20.4 L3,18.4 Z M13,7 L21,5 L21,18.4 L13,20.4 Z" />
+          </Button>
+        </Grid>
+
+        <!-- Текст шага: то, ради чего урок открыт, поэтому занимает всё оставшееся место. -->
+        <ScrollViewer x:Name="NoteScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto">
           <StackPanel Spacing="4" Margin="0,0,0,8">
 
             <TextBlock x:Name="Heading" Text="Обучение" FontSize="16" FontWeight="SemiBold" />
 
-            <!-- Шаг урока стоит первым: на телефоне панель невысокая, и текст шага — то, ради чего
-                 урок открыт; выбор урока и описание идут ниже и при нехватке места уезжают
-                 под прокрутку (проверено живым прогоном: с описанием впереди текст шага
-                 не помещался вовсе). -->
             <TextBlock x:Name="StepCounterText"
                        Text="{Binding StepCounter}"
                        FontWeight="SemiBold" />
@@ -75,38 +98,57 @@
                        Classes="app-label"
                        TextWrapping="Wrap" />
 
-            <!-- Список уроков: по нему видно, сколько их, что пройдено и что дальше. Отметки
-                 («✓» пройден, «▸» начат) стоят в подписях уроков, а счёт — здесь. -->
-            <TextBlock Text="{Binding ListCaption}" Margin="0,6,0,0" />
-            <ComboBox x:Name="LessonBox"
-                      MinHeight="44"
-                      HorizontalAlignment="Stretch" />
+            <TextBlock Text="{Binding ListCaption}"
+                       Classes="app-label"
+                       Margin="0,6,0,0" />
 
           </StackPanel>
         </ScrollViewer>
 
-        <!-- Кнопки шага: эта часть не прокручивается и не уезжает за край экрана. -->
-        <StackPanel Grid.Row="1" Spacing="6" Margin="0,6,0,0">
+        <!-- Управление: одна строка. Второстепенные действия — значки 44×44 с подсказкой,
+             главное действие занимает остаток строки. -->
+        <Grid x:Name="PanelActions" Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,6,0,0">
 
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <Button x:Name="HintButton" Content="Подсказка" MinHeight="44" MinWidth="104" IsEnabled="{Binding CanHint}" />
-            <Button x:Name="BackButton" Content="Назад" MinHeight="44" IsEnabled="{Binding CanGoBack}" />
-            <Button x:Name="ResetButton" Content="Заново" MinHeight="44" />
-          </StackPanel>
+          <Button x:Name="HintButton"
+                  Classes="app-icon"
+                  AutomationProperties.Name="Подсказка"
+                  ToolTip.Tip="Показать ход"
+                  IsEnabled="{Binding CanHint}">
+            <!-- Лампа: колба и цоколь. -->
+            <Path Width="22" Height="22" Stretch="Uniform"
+                  Data="M12,3.4 A5.6,5.6 0 0 1 15.2,13.6 L8.8,13.6 A5.6,5.6 0 0 1 12,3.4 Z M9.4,15.4 h5.2 v1.8 h-5.2 z M10.2,18.2 h3.6 v1.8 h-3.6 z" />
+          </Button>
+
+          <Button x:Name="BackButton"
+                  Grid.Column="1"
+                  Classes="app-icon"
+                  AutomationProperties.Name="Назад"
+                  ToolTip.Tip="Предыдущий шаг"
+                  IsEnabled="{Binding CanGoBack}">
+            <Path Width="22" Height="22" Stretch="Uniform"
+                  Data="M14.6,5.2 L7.8,12 L14.6,18.8 L16.7,16.7 L12,12 L16.7,7.3 Z" />
+          </Button>
+
+          <Button x:Name="ResetButton"
+                  Grid.Column="2"
+                  Classes="app-icon"
+                  AutomationProperties.Name="Заново"
+                  ToolTip.Tip="Начать урок заново">
+            <!-- Кольцо с остриём: значок «заново», отличный от крестика отмены. -->
+            <Path Width="22" Height="22" Stretch="Uniform"
+                  Data="F1 M12,4 A8,8 0 1 1 12,20 A8,8 0 1 1 12,4 Z M12,6 A6,6 0 1 0 12,18 A6,6 0 1 0 12,6 Z M12,0.8 L16.4,4.8 L12,8.8 Z" />
+          </Button>
 
           <Button x:Name="NextButton"
+                  Grid.Column="3"
                   Content="Далее"
                   Classes="app-primary"
+                  Margin="8,0,0,0"
                   MinHeight="44"
                   HorizontalAlignment="Stretch"
                   IsEnabled="{Binding CanGoNext}" />
 
-          <Button x:Name="GlossaryButton"
-                  Content="Словарь терминов"
-                  MinHeight="44"
-                  HorizontalAlignment="Stretch" />
-
-        </StackPanel>
+        </Grid>
       </Grid>
     </Border>
   </Grid>

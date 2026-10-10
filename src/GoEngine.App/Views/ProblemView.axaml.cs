@@ -18,17 +18,6 @@ namespace GoEngine.App.Views;
 /// </remarks>
 public sealed partial class ProblemView : UserControl
 {
-    /// <summary>Наименьшая высота панели в вертикальной раскладке.</summary>
-    /// <remarks>
-    /// Вердикт и два ряда кнопок занимают около 150 точек; остальное — цель задачи и её выбор,
-    /// и они прокручиваются. Меньше этой границы панель отдавать нельзя: кнопки режима уехали бы
-    /// за край экрана, и игрок не смог бы ни подсказать ход, ни отменить его.
-    /// </remarks>
-    private const double MinimumPanelHeight = 280;
-
-    /// <summary>Высота доски на совсем низком экране, где половина высоты меньше разумного минимума.</summary>
-    private const double MinimumBoardHeightForTinyScreen = 120;
-
     private readonly BoardControl? _boardControl;
     private readonly Grid? _layout;
     private readonly Border? _panel;
@@ -38,8 +27,8 @@ public sealed partial class ProblemView : UserControl
     /// <summary>Состояние списка задач: программное обновление не считается выбором игрока.</summary>
     private readonly ComboState _problemCombo = new();
 
-    /// <summary>Текущая раскладка: <c>null</c> — ещё не выбрана.</summary>
-    private bool? _narrow;
+    /// <summary>Раскладка «доска и панель»: общая с уроками, разбором партий и партией.</summary>
+    private readonly BoardPanelLayout? _layoutRules;
 
     /// <summary>Создаёт вид задач со встроенной библиотекой.</summary>
     public ProblemView() : this(new ProblemViewModel())
@@ -72,6 +61,15 @@ public sealed partial class ProblemView : UserControl
         if (_problemBox is not null)
         {
             _problemBox.SelectionChanged += OnProblemChanged;
+        }
+
+        if (_layout is not null && _boardControl is not null && _panel is not null)
+        {
+            _layoutRules = new BoardPanelLayout(
+                _layout,
+                _boardControl,
+                _panel,
+                [.. new Control?[] { _heading }.OfType<Control>()]);
         }
 
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -189,72 +187,10 @@ public sealed partial class ProblemView : UserControl
     /// <param name="width">Ширина вида.</param>
     /// <param name="height">Высота вида.</param>
     /// <remarks>
-    /// Правила те же, что у доски партии: на телефоне доска сверху, панель снизу. Высота доски
-    /// пересчитывается при каждом изменении размера, а не только при смене раскладки: окно
-    /// на телефоне меняется и в повороте, и когда появляется экранная клавиатура.
+    /// Правила общие для задач, уроков, разбора партий и партии (<see cref="BoardPanelLayout"/>):
+    /// на телефоне доска сверху, панель снизу, на широком экране — доска слева, панель справа.
     /// </remarks>
-    private void ApplyLayout(double width, double height)
-    {
-        if (_layout is null || _boardControl is null || _panel is null)
-        {
-            return;
-        }
-
-        var narrow = BoardLayoutRules.IsNarrow(width, height);
-
-        if (_narrow != narrow)
-        {
-            _narrow = narrow;
-
-            _layout.ColumnDefinitions = new ColumnDefinitions(narrow ? "*" : "*,320");
-            _layout.RowDefinitions = new RowDefinitions(narrow ? "Auto,*" : "*");
-
-            Grid.SetColumn(_boardControl, 0);
-            Grid.SetRow(_boardControl, 0);
-            Grid.SetColumn(_panel, narrow ? 0 : 1);
-            Grid.SetRow(_panel, narrow ? 1 : 0);
-
-            _panel.BorderThickness = narrow ? new Thickness(0, 1, 0, 0) : new Thickness(1, 0, 0, 0);
-        }
-
-        if (_heading is not null)
-        {
-            // На телефоне заголовок панели дублирует подпись раздела в нижней навигации,
-            // а его высота нужна описанию задачи.
-            _heading.IsVisible = !narrow;
-        }
-
-        _boardControl.Height = narrow ? NarrowBoardHeight(width, height) : double.NaN;
-    }
-
-    /// <summary>Считает высоту доски в вертикальной раскладке.</summary>
-    /// <param name="width">Ширина вида.</param>
-    /// <param name="height">Высота вида.</param>
-    /// <returns>Высота доски в точках.</returns>
-    /// <remarks>
-    /// Берётся обычная высота доски (<see cref="BoardLayoutRules.BoardHeight"/>), но не больше той,
-    /// при которой панели остаётся <see cref="MinimumPanelHeight"/>. На низком экране доска
-    /// уступает панели: без кнопок режим бесполезен, а доска меньше минимума — нечитаема.
-    /// </remarks>
-    private static double NarrowBoardHeight(double width, double height)
-    {
-        if (width <= 0 || height <= 0)
-        {
-            return double.NaN;
-        }
-
-        var available = height - MinimumPanelHeight;
-
-        if (available < BoardLayoutRules.MinimumBoardHeight)
-        {
-            // Экран ниже, чем доска вместе с панелью (телефон в повороте): делим высоту пополам,
-            // но панель не отдаём целиком — иначе кнопки снова уедут за край, а без них режим
-            // бесполезен. Совсем низкий экран — исключение из правила, а не его отмена.
-            return Math.Max(height / 2, MinimumBoardHeightForTinyScreen);
-        }
-
-        return Math.Min(BoardLayoutRules.BoardHeight(width, height), available);
-    }
+    private void ApplyLayout(double width, double height) => _layoutRules?.Apply(width, height);
 
     /// <summary>Подписывает кнопку на обработчик, если она есть в разметке.</summary>
     /// <param name="name">Имя кнопки.</param>
