@@ -36,6 +36,17 @@ public sealed partial class ReviewView : UserControl
     private readonly TextBlock? _result;
     private readonly TextBlock? _message;
 
+    /// <summary>Выбирает форму по номеру: подсветка на доске показывает только её.</summary>
+    /// <param name="sender">Кнопка формы.</param>
+    /// <param name="e">Аргументы события.</param>
+    private void OnShapeChipClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: int number })
+        {
+            ViewModel.SelectShape(number - 1);
+        }
+    }
+
     /// <summary>Состояние списка партий: программное обновление не считается выбором игрока.</summary>
     private readonly ComboState _gameCombo = new();
 

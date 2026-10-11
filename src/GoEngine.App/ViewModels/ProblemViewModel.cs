@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using GoEngine.App.Rendering;
 using System.Globalization;
 using GoEngine.App.Services;
 using GoEngine.App.Services.Logging;
@@ -39,6 +40,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     [
         nameof(Current), nameof(Board), nameof(LastMove), nameof(Title), nameof(GoalText), nameof(ToMoveText),
         nameof(SizeText), nameof(Verdict), nameof(HasVerdict), nameof(Explanation), nameof(HasExplanation), nameof(ShapePoints), nameof(ShapeIsGood), nameof(Shapes), nameof(SelectedShape), nameof(HasSeveralShapes),
+            nameof(ShapeBadges), nameof(ShapesSummary), nameof(HasShapesSummary),
         nameof(IsSolved), nameof(CanBack), nameof(CanHint), nameof(HintPoint), nameof(CanGoPrevious),
         nameof(CanGoNext), nameof(StatusText), nameof(SelectedIndex), nameof(LastCaptured),
         nameof(LastCapturedColor)
@@ -51,9 +53,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     private int _index;
     private string _verdict = string.Empty;
     private string _explanation = string.Empty;
-    private IReadOnlyList<Point> _shapePoints = [];
-    private IReadOnlyList<ShapeItem> _shapes = [];
-    private int _selectedShape;
+
 
     /// <summary>Логгер задач: по нему видно, какие задачи решались перед сбоем.</summary>
     private readonly ILogger _log = AppLog.For<ProblemViewModel>();
@@ -150,15 +150,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// </remarks>
     public string Explanation => _explanation;
 
-    /// <summary>Камни формы решения: под ними доска рисует зелёную подсветку.</summary>
-    /// <remarks>
-    /// Замечание пользователя 2026-10-11: «показывать не только разбор, но и на столе подсвечивать
-    /// зелёным цветом форму». Подсветка не заменяет текст: форма названа в разборе, поэтому смысл
-    /// не теряется, если цвет не различается.
-    /// </remarks>
-    public IReadOnlyList<Point> ShapePoints => _shapePoints;
-
-    /// <summary>Хорошая ли форма решения: вид выбирает цвет подсветки — зелёный или предупреждающий.</summary>
+    /// <summary>Хорошая ли форма решения: цвет подсветки.</summary>
     /// <remarks>
     /// Пока всегда <c>true</c>: предупреждающий цвет на живой форме противоречил вердикту (проверено
     /// на задаче «обеспечить жизнь», где пустой треугольник оказался формой жизни). Плохая форма
@@ -166,32 +158,41 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// </remarks>
     public bool ShapeIsGood => true;
 
-    /// <summary>Формы решения: независимые формы позиции, от крупной к мелкой.</summary>
-    /// <remarks>
-    /// Замечание пользователя 2026-10-11: независимые формы различаются номерами и списком, а не
-    /// цветом. Список нужен, когда форм больше одной: тогда игрок выбирает, какую смотреть.
-    /// </remarks>
-    public IReadOnlyList<ShapeItem> Shapes => _shapes;
 
-    /// <summary>Выбранная форма или <c>null</c>, когда выбрана первая (самая крупная).</summary>
-    public ShapeItem? SelectedShape => _shapes.Count == 0 ? null : _shapes[Math.Clamp(_selectedShape, 0, _shapes.Count - 1)];
+    /// <summary>Подсветка форм: что построено и какая форма выбрана.</summary>
+    public ShapeHighlight Highlight { get; } = new();
 
-    /// <summary>Есть ли несколько форм: тогда показываются номера и список.</summary>
-    public bool HasSeveralShapes => _shapes.Count > 1;
+    /// <summary>Формы позиции: номерами, от крупной к мелкой.</summary>
+    public IReadOnlyList<ShapeItem> Shapes => Highlight.Shapes;
 
-    /// <summary>Выбирает форму по номеру: подсветка на доске показывает только её.</summary>
-    /// <param name="index">Номер формы в списке.</param>
+    /// <summary>Выбранная форма или <c>null</c>, когда форм нет.</summary>
+    public ShapeItem? SelectedShape => Highlight.Selected;
+
+    /// <summary>Форм больше одной: тогда показываются номера и список.</summary>
+    public bool HasSeveralShapes => Highlight.HasSeveral;
+
+    /// <summary>Камни выбранной формы: по ним рисуется подсветка.</summary>
+    public IReadOnlyList<Point> ShapePoints => Highlight.Points;
+
+    /// <summary>Значки с номерами форм на доске.</summary>
+    public IReadOnlyList<ShapeBadge> ShapeBadges => Highlight.Badges;
+
+    /// <summary>Строка о формах для разбора: «Формы: 1) пасть тигра · 2) ноби».</summary>
+    public string ShapesSummary => Highlight.Summary;
+
+    /// <summary>Есть что сказать о формах.</summary>
+    public bool HasShapesSummary => ShapesSummary.Length > 0;
+
+    /// <summary>Выбирает форму по номеру в списке: подсветка показывает только её.</summary>
+    /// <param name="index">Номер формы, начиная с нуля.</param>
     public void SelectShape(int index)
     {
-        if (index < 0 || index >= _shapes.Count)
+        if (Highlight.Select(index))
         {
-            return;
+            NotifyAll();
         }
-
-        _selectedShape = index;
-        UpdateShapeHighlight();
-        NotifyAll();
     }
+
 
     /// <summary>Есть что объяснить после решения.</summary>
     public bool HasExplanation => Explanation.Length > 0;
@@ -294,14 +295,9 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
             _explanation = ProblemTexts.Solution(Current, _session.Board, _session.SolverMoves, _session.Replies);
 
             var played = _session.SolverMoves.Where(move => move.Type == MoveType.Play).ToList();
-            var stones = played.Select(move => move.Point).ToList();
-
             // Независимые формы считает домен: он же отбрасывает вложенные (пасть тигра включает
             // камни косыми — показывать обе формы на доске нельзя).
-            _shapes = [.. ShapeSet.Of(_session.Board, Current.SolverColor, stones)
-                .Select((shape, index) => new ShapeItem(index + 1, shape.Name, shape.Good, shape.Points))];
-            _selectedShape = 0;
-            UpdateShapeHighlight();
+            _ = Highlight.Refresh(_session.Board, Current.SolverColor, [.. played.Select(move => move.Point)]);
         }
 
         if (verdict == ProblemVerdict.Wrong || verdict == ProblemVerdict.Failed)
@@ -330,12 +326,6 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         NotifyAll();
     }
 
-    /// <summary>Ставит подсветку по выбранной форме.</summary>
-    private void UpdateShapeHighlight()
-    {
-        _shapePoints = SelectedShape?.Points ?? [];
-    }
-
     /// <summary>Показывает подсказку: первый правильный ход в текущей позиции.</summary>
     public void ShowHint()
     {
@@ -362,9 +352,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
 
         _verdict = string.Empty;
         _explanation = string.Empty;
-        _shapePoints = [];
-        _shapes = [];
-        _selectedShape = 0;
+        _ = Highlight.Clear();
         _hint = null;
         ClearAnimation();
         NotifyAll();
@@ -376,9 +364,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         _session.Reset();
         _verdict = string.Empty;
         _explanation = string.Empty;
-        _shapePoints = [];
-        _shapes = [];
-        _selectedShape = 0;
+        _ = Highlight.Clear();
         _hint = null;
         ClearAnimation();
         NotifyAll();
@@ -417,9 +403,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         _session = new ProblemSession(_problems[index]);
         _verdict = string.Empty;
         _explanation = string.Empty;
-        _shapePoints = [];
-        _shapes = [];
-        _selectedShape = 0;
+        _ = Highlight.Clear();
         _hint = null;
         ClearAnimation();
 

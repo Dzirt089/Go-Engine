@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using GoEngine.App.Rendering;
 using GoEngine.App.Services;
 using GoEngine.App.Services.Logging;
 using GoEngine.Core;
@@ -35,7 +36,8 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
         nameof(Result), nameof(NoteTitle), nameof(NoteText), nameof(HasNote), nameof(MoveInfo), nameof(HasMoveInfo), nameof(IsQuiz),
         nameof(MoveCounter), nameof(Message), nameof(HasMessage), nameof(IsMessageGood), nameof(Board),
         nameof(HintPoint), nameof(CanHint), nameof(CanGoNext), nameof(CanGoBack), nameof(IsCompleted),
-        nameof(MoveCount), nameof(MoveNumber), nameof(QuizPoints),
+        nameof(MoveCount), nameof(MoveNumber), nameof(QuizPoints), nameof(Shapes), nameof(SelectedShape),
+        nameof(HasSeveralShapes), nameof(ShapePoints), nameof(ShapeBadges), nameof(ShapesSummary), nameof(HasShapesSummary),
         nameof(LastMove), nameof(LastCaptured), nameof(LastCapturedColor)
     ];
 
@@ -87,6 +89,61 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
         {
             _ = _session.GoTo(saved.Step);
         }
+    }
+
+
+    /// <summary>Подсветка форм сыгранного хода: что построено и какая форма выбрана.</summary>
+    /// <remarks>
+    /// Замечание пользователя 2026-10-11: подсветка форм и в партиях раздела обучения. Форма
+    /// считается по сыгранному ходу — одиночный камень формы не даёт, и подсветки не будет.
+    /// </remarks>
+    public ShapeHighlight ShapeMarks { get; } = new();
+
+    /// <summary>Формы текущего хода: номерами, от крупной к мелкой.</summary>
+    public IReadOnlyList<ShapeItem> Shapes => ShapeMarks.Shapes;
+
+    /// <summary>Выбранная форма или <c>null</c>, когда форм нет.</summary>
+    public ShapeItem? SelectedShape => ShapeMarks.Selected;
+
+    /// <summary>Форм больше одной: тогда показываются номера и список.</summary>
+    public bool HasSeveralShapes => ShapeMarks.HasSeveral;
+
+    /// <summary>Камни выбранной формы: по ним рисуется подсветка.</summary>
+    public IReadOnlyList<Point> ShapePoints => ShapeMarks.Points;
+
+    /// <summary>Значки с номерами форм на доске.</summary>
+    public IReadOnlyList<ShapeBadge> ShapeBadges => ShapeMarks.Badges;
+
+    /// <summary>Строка о формах для разбора.</summary>
+    public string ShapesSummary => ShapeMarks.Summary;
+
+    /// <summary>Есть что сказать о формах.</summary>
+    public bool HasShapesSummary => ShapesSummary.Length > 0;
+
+    /// <summary>Выбирает форму по номеру в списке: подсветка показывает только её.</summary>
+    /// <param name="index">Номер формы, начиная с нуля.</param>
+    public void SelectShape(int index)
+    {
+        if (ShapeMarks.Select(index))
+        {
+            RefreshShapes();
+        NotifyAll();
+        }
+    }
+
+    /// <summary>Пересчитывает формы по текущему ходу партии.</summary>
+    private void RefreshShapes()
+    {
+        var move = _session.LastMove;
+
+        if (move.Type != MoveType.Play)
+        {
+            _ = ShapeMarks.Clear();
+
+            return;
+        }
+
+        _ = ShapeMarks.Refresh(_session.Board, move.Color, [move.Point]);
     }
 
     /// <inheritdoc />
@@ -229,7 +286,9 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
             AppLogMessages.ReviewQuizPassed(_log, _session.Game.Id, number + 1);
         }
 
+        RefreshShapes();
         SaveProgress();
+        RefreshShapes();
         NotifyAll();
     }
 
@@ -239,7 +298,8 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
         if (_session.ShowHint() is { } hint)
         {
             _hint = hint;
-            NotifyAll();
+            RefreshShapes();
+        NotifyAll();
         }
     }
 
@@ -264,6 +324,7 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
         }
 
         SaveProgress();
+        RefreshShapes();
         NotifyAll();
     }
 
@@ -276,6 +337,7 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
             SaveProgress();
         }
 
+        RefreshShapes();
         NotifyAll();
     }
 
@@ -285,6 +347,7 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
         _session.Restart();
         ResetMove();
         SaveProgress();
+        RefreshShapes();
         NotifyAll();
     }
 
@@ -319,6 +382,7 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
         AppLogMessages.ReviewStarted(_log, _session.Game.Id);
 
         SaveProgress();
+        RefreshShapes();
         NotifyAll();
     }
 

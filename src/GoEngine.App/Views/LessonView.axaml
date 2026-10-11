@@ -28,7 +28,9 @@
                            Board="{Binding Board}"
                            LastMove="{Binding LastMove}"
                            HintPoint="{Binding HintPoint}"
-                           HighlightPoints="{Binding Highlight}" />
+                           HighlightPoints="{Binding Highlight}"
+                           ShapePoints="{Binding ShapePoints}"
+                           ShapeBadges="{Binding ShapeBadges}" />
 
     <Border x:Name="Panel"
             Grid.Column="1"
@@ -84,6 +86,29 @@
           <StackPanel Spacing="4" Margin="0,0,0,8">
 
             <TextBlock x:Name="Heading" Text="Обучение" FontSize="16" FontWeight="SemiBold" />
+
+            <!-- Формы хода шага: номерами, одной прокручиваемой полосой. Появляются после
+                 верного хода, когда форма действительно построена (замечание 2026-10-11). -->
+            <StackPanel Spacing="4" x:Name="ShapeList" IsVisible="{Binding HasShapesSummary}">
+              <TextBlock Classes="app-label" Text="Формы хода" IsVisible="{Binding HasSeveralShapes}" />
+              <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Shapes}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal" Spacing="6" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Button Classes="app-chip"
+                              Content="{Binding Label}"
+                              Tag="{Binding Number}"
+                              Click="OnShapeChipClick" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </StackPanel>
 
             <TextBlock x:Name="StepCounterText"
                        Text="{Binding StepCounter}"

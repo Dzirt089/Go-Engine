@@ -1,0 +1,171 @@
+using GoEngine.App.ViewModels;
+using GoEngine.Core;
+using GoEngine.Problems;
+
+namespace GoEngine.App.Tests;
+
+/// <summary>Подсветка форм: номера, список и выбор — общий механизм задач, уроков и партий.</summary>
+/// <remarks>
+/// Замечание пользователя 2026-10-11: независимые формы различаются номерами и списком, а не цветом;
+/// номера стоят и на доске значками. Проверки идут на позициях, собранных прямо здесь, поэтому
+/// не зависят от контента.
+/// </remarks>
+public sealed class ShapeHighlightTests
+{
+    /// <summary>Размер доски проверок.</summary>
+    private static readonly BoardSize Size = BoardSize.Size9;
+
+    [Fact]
+    public void Одна_Форма_Не_Нумеруется()
+    {
+        // Пара камней в линию: форма одна, номера и список не нужны.
+        var board = Build((3, 3, StoneColor.Black), (3, 4, StoneColor.Black), (5, 5, StoneColor.White), (5, 6, StoneColor.White));
+        var marks = new ShapeHighlight();
+
+        _ = marks.Refresh(board, StoneColor.Black, [new Point(3, 3), new Point(3, 4)]);
+
+        Assert.Single(marks.Shapes);
+        Assert.False(marks.HasSeveral);
+        Assert.Empty(marks.Badges);
+        Assert.Equal("ноби", marks.Shapes[0].Name);
+        Assert.Equal("Форма: ноби", marks.Summary);
+    }
+
+    [Fact]
+    public void Две_Формы_Получают_Номера_И_Значки()
+    {
+        // Две отдельные пары в разных углах: две независимые формы — номера и значки на доске.
+        var board = Build(
+            (1, 1, StoneColor.Black), (1, 2, StoneColor.Black),
+            (7, 7, StoneColor.Black), (7, 8, StoneColor.Black),
+            (5, 5, StoneColor.White));
+        var marks = new ShapeHighlight();
+
+        _ = marks.Refresh(board, StoneColor.Black, [new Point(1, 1), new Point(1, 2), new Point(7, 7), new Point(7, 8)]);
+
+        Assert.True(marks.Shapes.Count >= 2, $"форм найдено: {marks.Shapes.Count}");
+        Assert.True(marks.HasSeveral);
+        Assert.Equal(marks.Shapes.Count, marks.Badges.Count);
+        Assert.Equal(Enumerable.Range(1, marks.Shapes.Count), marks.Badges.Select(badge => badge.Number));
+        Assert.StartsWith("Формы: 1)", marks.Summary, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Выбор_Формы_Меняет_Камни_Подсветки()
+    {
+        var board = Build(
+            (1, 1, StoneColor.Black), (1, 2, StoneColor.Black),
+            (7, 7, StoneColor.Black), (7, 8, StoneColor.Black),
+            (5, 5, StoneColor.White));
+        var marks = new ShapeHighlight();
+
+        _ = marks.Refresh(board, StoneColor.Black, [new Point(1, 1), new Point(1, 2), new Point(7, 7), new Point(7, 8)]);
+
+        var first = marks.Points;
+
+        Assert.True(marks.Select(1));
+        Assert.NotEqual(first, marks.Points);
+        Assert.Equal(marks.Shapes[1].Points, marks.Points);
+        Assert.False(marks.Select(1));
+    }
+
+    [Fact]
+    public void Значок_Стоит_На_Камне_Формы()
+    {
+        var board = Build(
+            (1, 1, StoneColor.Black), (1, 2, StoneColor.Black),
+            (7, 7, StoneColor.Black), (7, 8, StoneColor.Black),
+            (5, 5, StoneColor.White));
+        var marks = new ShapeHighlight();
+
+        _ = marks.Refresh(board, StoneColor.Black, [new Point(1, 1), new Point(1, 2), new Point(7, 7), new Point(7, 8)]);
+
+        foreach (var badge in marks.Badges)
+        {
+            Assert.Equal(StoneColor.Black, board.At(badge.Point));
+            Assert.Contains(badge.Point, marks.Shapes[badge.Number - 1].Points);
+        }
+    }
+
+    [Fact]
+    public void В_Партии_Подсветка_Растёт_Вместе_С_Ходами()
+    {
+        // Разбор партии: форма считается по сыгранному ходу, и хотя бы на одном ходу она есть.
+        // Разбор останавливается на вопросах, поэтому на них отвечаем — как это делает игрок.
+        var model = new ReviewViewModel();
+        var game = ReviewLibrary.All[0];
+        var found = false;
+        var guard = 0;
+
+        while (!found && guard++ < 30)
+        {
+            if (model.IsQuiz)
+            {
+                model.Play(game.Moves[model.MoveNumber].Point);
+                continue;
+            }
+
+            model.Next();
+
+            if (model.Shapes.Count == 0)
+            {
+                continue;
+            }
+
+            found = true;
+            Assert.Equal(model.Shapes[0].Points, model.ShapePoints);
+            Assert.False(string.IsNullOrWhiteSpace(model.ShapesSummary));
+        }
+
+        Assert.True(found, "ни на одном ходу партии форма не найдена");
+    }
+
+    [Fact]
+    public void Урок_Показывает_Форму_Хода()
+    {
+        // Урок: форма появляется после верного хода шага и снимается при переходе дальше.
+        var model = new LessonViewModel();
+        var guard = 0;
+
+        while (model.CanGoNext && guard++ < 40)
+        {
+            if (model.CanHint)
+            {
+                model.ShowHint();
+            }
+
+            if (model.HintPoint is { } point)
+            {
+                model.Play(point);
+            }
+
+            if (model.Shapes.Count > 0)
+            {
+                Assert.Equal(model.Shapes[0].Points, model.ShapePoints);
+                Assert.False(string.IsNullOrWhiteSpace(model.ShapesSummary));
+
+                return;
+            }
+
+            model.Next();
+        }
+
+        // Ни один шаг урока не построил формы из двух камней: механизм всё равно обязан работать.
+        Assert.False(model.HasSeveralShapes);
+    }
+
+    /// <summary>Собирает позицию из камней.</summary>
+    /// <param name="stones">Точки и цвета.</param>
+    /// <returns>Доска.</returns>
+    private static Board Build(params (int X, int Y, StoneColor Colour)[] stones)
+    {
+        var board = new Board(Size);
+
+        foreach (var (x, y, colour) in stones)
+        {
+            board = board.ApplyMove(Move.Play(new Point((byte)x, (byte)y), colour));
+        }
+
+        return board;
+    }
+}

@@ -63,6 +63,15 @@ public static class BoardRenderer
     /// <summary>Насколько свечение смещено вниз от центра камня: это подсветка снизу, а не ореол.</summary>
     private const float ShapeGlowDropRatio = 0.30f;
 
+    /// <summary>Радиус значка с номером формы в долях клетки.</summary>
+    private const float BadgeRadiusRatio = 0.36f;
+
+    /// <summary>Кегль цифры на значке в долях клетки.</summary>
+    private const float BadgeTextRatio = 0.46f;
+
+    /// <summary>Цвет значка с номером формы: тот же зелёный, что и подсветка.</summary>
+    private static readonly SKColor BadgeColor = new(0x14, 0x7A, 0x46);
+
     /// <summary>Толщина маркера последнего хода в пикселях.</summary>
     private const float LastMoveStrokeWidth = 2f;
 
@@ -150,6 +159,10 @@ public static class BoardRenderer
     /// видит форму на доске, а не только читает её название (замечание пользователя 2026-10-11).
     /// </param>
     /// <param name="shapeIsGood">Хорошая ли форма решения: у плохой подсветка предупреждающего цвета.</param>
+    /// <param name="badges">
+    /// Значки с номерами форм или <c>null</c>. Показываются, когда форм больше одной: номер
+    /// различает формы, а цвет — нет (замечание пользователя 2026-10-11).
+    /// </param>
     /// <param name="showCoordinates">Рисовать ли подписи координат.</param>
     /// <param name="outcome">Итог партии для подсветки края доски; <see cref="BoardOutcome.None"/> — без подсветки.</param>
     /// <remarks>
@@ -171,6 +184,7 @@ public static class BoardRenderer
         IReadOnlyList<Point>? highlights = null,
         IReadOnlyList<Point>? shape = null,
         bool shapeIsGood = true,
+        IReadOnlyList<ShapeBadge>? badges = null,
         bool showCoordinates = true,
         BoardOutcome outcome = BoardOutcome.None)
     {
@@ -212,6 +226,11 @@ public static class BoardRenderer
         DrawTerritory(canvas, board, geometry, territory);
         DrawDeadMarks(canvas, board, geometry, deadPoints);
         DrawMarkers(canvas, geometry, lastMove, hover);
+
+        if (badges is not null)
+        {
+            DrawShapeBadges(canvas, geometry, badges);
+        }
 
         if (hint is { } hintPoint)
         {
@@ -386,6 +405,40 @@ public static class BoardRenderer
 
                 canvas.DrawCircle(centre.X, centre.Y + drop, radius, paint);
             }
+        }
+    }
+
+    /// <summary>Рисует значки с номерами форм: цифра на кружке у первого камня формы.</summary>
+    /// <param name="canvas">Холст.</param>
+    /// <param name="geometry">Геометрия доски.</param>
+    /// <param name="badges">Значки: камень и номер.</param>
+    /// <remarks>
+    /// Значок рисуется поверх камней: он должен читаться и на чёрном, и на белом — поэтому круг
+    /// тёмно-зелёный, а цифра белая. Смещение к верхнему правому углу камня оставляет сам камень
+    /// видимым: игрок видит и форму, и её номер (замечание пользователя 2026-10-11).
+    /// </remarks>
+    private static void DrawShapeBadges(SKCanvas canvas, BoardGeometry geometry, IReadOnlyList<ShapeBadge> badges)
+    {
+        var radius = geometry.Cell * BadgeRadiusRatio;
+        var shift = geometry.StoneRadius * 0.62f;
+
+        foreach (var badge in badges)
+        {
+            var centre = geometry.Pixel(badge.Point);
+            var x = centre.X + shift;
+            var y = centre.Y - shift;
+
+            using (var circle = new SKPaint { Color = BadgeColor, IsAntialias = true, Style = SKPaintStyle.Fill })
+            {
+                canvas.DrawCircle(x, y, radius, circle);
+            }
+
+            using var paint = new SKPaint { Color = SKColors.White, IsAntialias = true };
+            using var font = new SKFont(SKTypeface.Default, geometry.Cell * BadgeTextRatio);
+            var metrics = font.Metrics;
+            var baseline = y - ((metrics.Ascent + metrics.Descent) / 2);
+
+            canvas.DrawText(badge.Number.ToString(CultureInfo.InvariantCulture), x, baseline, SKTextAlign.Center, font, paint);
         }
     }
 

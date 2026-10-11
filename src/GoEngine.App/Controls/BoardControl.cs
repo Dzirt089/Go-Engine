@@ -49,6 +49,10 @@ public sealed class BoardControl : Control
     public static readonly StyledProperty<IReadOnlyList<GoPoint>?> ShapePointsProperty =
         AvaloniaProperty.Register<BoardControl, IReadOnlyList<GoPoint>?>(nameof(ShapePoints));
 
+    /// <summary>Значки с номерами форм: показываются, когда форм больше одной.</summary>
+    public static readonly StyledProperty<IReadOnlyList<ShapeBadge>?> ShapeBadgesProperty =
+        AvaloniaProperty.Register<BoardControl, IReadOnlyList<ShapeBadge>?>(nameof(ShapeBadges));
+
     /// <summary>Хорошая ли форма: у плохой подсветка предупреждающего цвета.</summary>
     public static readonly StyledProperty<bool> ShapeIsGoodProperty =
         AvaloniaProperty.Register<BoardControl, bool>(nameof(ShapeIsGood), defaultValue: true);
@@ -182,6 +186,13 @@ public sealed class BoardControl : Control
         set => SetValue(ShapeIsGoodProperty, value);
     }
 
+    /// <summary>Значки с номерами форм: по одному на форму, когда форм несколько.</summary>
+    public IReadOnlyList<ShapeBadge>? ShapeBadges
+    {
+        get => GetValue(ShapeBadgesProperty);
+        set => SetValue(ShapeBadgesProperty, value);
+    }
+
     /// <summary>Точки-подсказки вида: «смотри сюда».</summary>
     public IReadOnlyList<GoPoint>? HighlightPoints
     {
@@ -241,6 +252,7 @@ public sealed class BoardControl : Control
                 HighlightPoints,
                 ShapePoints,
                 ShapeIsGood,
+                ShapeBadges,
                 ShowCoordinates,
                 Outcome));
         }
@@ -342,6 +354,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
     private readonly IReadOnlyList<GoPoint>? _highlights;
     private readonly IReadOnlyList<GoPoint>? _shape;
     private readonly bool _shapeIsGood;
+    private readonly IReadOnlyList<ShapeBadge>? _shapeBadges;
     private readonly bool _showCoordinates;
     private readonly BoardOutcome _outcome;
 
@@ -357,6 +370,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
         IReadOnlyList<GoPoint>? highlights,
         IReadOnlyList<GoPoint>? shape,
         bool shapeIsGood,
+        IReadOnlyList<ShapeBadge>? shapeBadges,
         bool showCoordinates,
         BoardOutcome outcome)
     {
@@ -370,6 +384,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
         _highlights = highlights;
         _shape = shape;
         _shapeIsGood = shapeIsGood;
+        _shapeBadges = shapeBadges;
         _showCoordinates = showCoordinates;
         _outcome = outcome;
         Bounds = bounds;
@@ -413,6 +428,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
             _highlights,
             _shape,
             _shapeIsGood,
+            _shapeBadges,
             _showCoordinates,
             _outcome);
     }

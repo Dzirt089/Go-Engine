@@ -21,7 +21,8 @@
                            LastMove="{Binding LastMove}"
                            HintPoint="{Binding HintPoint}"
                            ShapePoints="{Binding ShapePoints}"
-                           ShapeIsGood="{Binding ShapeIsGood}" />
+                           ShapeIsGood="{Binding ShapeIsGood}"
+                           ShapeBadges="{Binding ShapeBadges}" />
 
     <Border x:Name="Panel"
             Grid.Column="1"
@@ -119,6 +120,12 @@
                     Margin="0,8,0,0">
               <StackPanel Spacing="4">
                 <TextBlock Classes="app-banner-title" Text="Разбор задачи" />
+                <!-- Формы перечисляются одной строкой: номера совпадают с чипами и значками
+                     на доске (замечание пользователя 2026-10-11). -->
+                <TextBlock x:Name="ShapesSummaryText"
+                           Classes="app-banner-detail"
+                           Text="{Binding ShapesSummary}"
+                           IsVisible="{Binding HasShapesSummary}" />
                 <TextBlock x:Name="ExplanationText"
                            Classes="app-banner-detail"
                            Text="{Binding Explanation}" />

@@ -68,6 +68,18 @@ public sealed class BoardShapeGlowRenderTests
     }
 
     [Fact]
+    public void Значки_Номеров_Меняют_Картинку()
+    {
+        // Номера форм стоят прямо на доске, как булавки на карте: значок обязан быть виден.
+        var board = Position();
+        var shape = new[] { new Point(3, 3), new Point(4, 3) };
+        var without = Render(board, shape);
+        var with = RenderBadges(board, shape, [new ShapeBadge(new Point(3, 3), 1), new ShapeBadge(new Point(4, 3), 2)]);
+
+        Assert.NotEqual(without, with);
+    }
+
+    [Fact]
     public void Точки_Формы_Приходят_От_Распознавания()
     {
         // Связка: распознаватель отдаёт камни формы, а не только название.
@@ -96,6 +108,22 @@ public sealed class BoardShapeGlowRenderTests
     /// <returns>Пиксели в формате RGBA.</returns>
     private static SKColor[] Render(Board board, IReadOnlyList<Point>? shape) =>
         RenderWith(board, shape, good: true);
+
+    /// <summary>Рисует доску со значками номеров форм.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="shape">Камни формы.</param>
+    /// <param name="badges">Значки: камень и номер.</param>
+    /// <returns>Пиксели в формате RGBA.</returns>
+    private static SKColor[] RenderBadges(Board board, IReadOnlyList<Point> shape, IReadOnlyList<ShapeBadge> badges)
+    {
+        using var surface = SKSurface.Create(new SKImageInfo(CanvasSize, CanvasSize));
+        BoardRenderer.Draw(surface.Canvas, board, CanvasSize, CanvasSize, shape: shape, badges: badges);
+
+        using var image = surface.Snapshot();
+        using var bitmap = SKBitmap.FromImage(image);
+
+        return [.. Enumerable.Range(0, CanvasSize).SelectMany(y => Enumerable.Range(0, CanvasSize).Select(x => bitmap.GetPixel(x, y)))];
+    }
 
     /// <summary>Рисует доску с подсветкой заданного смысла.</summary>
     /// <param name="board">Позиция.</param>

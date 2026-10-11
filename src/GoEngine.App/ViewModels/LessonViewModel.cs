@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using GoEngine.App.Rendering;
 using GoEngine.App.Services;
 using GoEngine.App.Services.Logging;
 using GoEngine.Core;
@@ -32,7 +33,8 @@ public sealed class LessonViewModel : INotifyPropertyChanged
     private static readonly string[] PropertyNames =
     [
         nameof(Labels), nameof(ListCaption), nameof(SelectedIndex), nameof(LessonTitle), nameof(LessonSummary),
-        nameof(StepTitle), nameof(StepText), nameof(StepCounter), nameof(Message), nameof(HasMessage),
+        nameof(StepTitle), nameof(StepText), nameof(StepCounter), nameof(Message), nameof(HasMessage), nameof(Shapes), nameof(SelectedShape), nameof(HasSeveralShapes),
+            nameof(ShapePoints), nameof(ShapeBadges), nameof(ShapesSummary), nameof(HasShapesSummary),
         nameof(IsMessageGood), nameof(Board), nameof(HintPoint), nameof(Highlight), nameof(CanHint),
         nameof(CanGoNext), nameof(CanGoBack), nameof(IsCompleted), nameof(IsStepTask),
         nameof(CanGoPreviousLesson), nameof(CanGoNextLesson),
@@ -81,7 +83,47 @@ public sealed class LessonViewModel : INotifyPropertyChanged
         // и каждый раз искать урок заново — потеря времени.
         _selectedIndex = Math.Max(IndexOf(_progress.LastLesson), 0);
         _session = new LessonSession(lessons[_selectedIndex]);
+        _ = ShapeMarks.Clear();
         Resume(_progress.ForLesson(lessons[_selectedIndex].Id));
+    }
+
+
+    /// <summary>Подсветка форм: что построено и какая форма выбрана.</summary>
+    /// <remarks>
+    /// Имя не «Highlight»: у шага урока уже есть Highlight — подсвеченные точки позиции.
+    /// Это разные вещи: точки шага показывает урок, формы считает распознаватель.
+    /// </remarks>
+    public ShapeHighlight ShapeMarks { get; } = new();
+
+    /// <summary>Формы позиции: номерами, от крупной к мелкой.</summary>
+    public IReadOnlyList<ShapeItem> Shapes => ShapeMarks.Shapes;
+
+    /// <summary>Выбранная форма или <c>null</c>, когда форм нет.</summary>
+    public ShapeItem? SelectedShape => ShapeMarks.Selected;
+
+    /// <summary>Форм больше одной: тогда показываются номера и список.</summary>
+    public bool HasSeveralShapes => ShapeMarks.HasSeveral;
+
+    /// <summary>Камни выбранной формы: по ним рисуется подсветка.</summary>
+    public IReadOnlyList<Point> ShapePoints => ShapeMarks.Points;
+
+    /// <summary>Значки с номерами форм на доске.</summary>
+    public IReadOnlyList<ShapeBadge> ShapeBadges => ShapeMarks.Badges;
+
+    /// <summary>Строка о формах для разбора.</summary>
+    public string ShapesSummary => ShapeMarks.Summary;
+
+    /// <summary>Есть что сказать о формах.</summary>
+    public bool HasShapesSummary => ShapesSummary.Length > 0;
+
+    /// <summary>Выбирает форму по номеру в списке: подсветка показывает только её.</summary>
+    /// <param name="index">Номер формы, начиная с нуля.</param>
+    public void SelectShape(int index)
+    {
+        if (ShapeMarks.Select(index))
+        {
+            NotifyAll();
+        }
     }
 
     /// <inheritdoc />
@@ -216,6 +258,14 @@ public sealed class LessonViewModel : INotifyPropertyChanged
             }
 
             AppLogMessages.LessonStepPassed(_log, _session.Lesson.Id, _session.StepNumber);
+
+            // Показываем форму, которую построил ход урока: тем же механизмом, что в задачах
+            // (замечание пользователя 2026-10-11 — подсветка форм и в уроках).
+            _ = ShapeMarks.Refresh(_session.Board, move.Color, [point]);
+        }
+        else
+        {
+            _ = ShapeMarks.Clear();
         }
 
         SaveProgress();
@@ -228,6 +278,7 @@ public sealed class LessonViewModel : INotifyPropertyChanged
         if (_session.ShowHint() is { } hint)
         {
             _hint = hint;
+            _ = ShapeMarks.Clear();
             NotifyAll();
         }
     }
@@ -257,6 +308,7 @@ public sealed class LessonViewModel : INotifyPropertyChanged
     {
         _session.Back();
         ResetAnimation();
+        _ = ShapeMarks.Clear();
         SaveProgress();
         NotifyAll();
     }
@@ -266,6 +318,7 @@ public sealed class LessonViewModel : INotifyPropertyChanged
     {
         _session.Restart();
         ResetAnimation();
+        _ = ShapeMarks.Clear();
         SaveProgress();
         NotifyAll();
     }
@@ -298,6 +351,7 @@ public sealed class LessonViewModel : INotifyPropertyChanged
 
         _selectedIndex = index;
         _session = new LessonSession(_lessons[index]);
+        _ = ShapeMarks.Clear();
         Resume(_progress.ForLesson(_session.Lesson.Id));
         ResetAnimation();
         AppLogMessages.LessonStarted(_log, _session.Lesson.Id);
