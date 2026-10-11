@@ -108,9 +108,9 @@ public sealed class PrisonerPolicyTests
     public void Эвристика_Пасует_Когда_Все_Ходы_Убыточны()
     {
         // Регрессия жалобы 2026-10-03: раньше движок играл такой ход и увеличивал пленные.
-        var selector = new HeuristicMoveSelector(new Random(20261003), randomnessPercent: 0);
+        var selector = PrisonerSelector(20261003);
 
-        var move = selector.SelectMove(DoomedOnlyBoard(), StoneColor.White);
+        var move = selector.SelectMove(DoomedOnlyBoard(), StoneColor.White, Komi.For9x9);
 
         Assert.Equal(MoveType.Pass, move.Type);
     }
@@ -118,9 +118,9 @@ public sealed class PrisonerPolicyTests
     [Fact]
     public void Случайный_Уровень_Пасует_Когда_Все_Ходы_Убыточны()
     {
-        var selector = new RandomMoveSelector(new Random(20261003));
+        var selector = TestSelectors.GuardedRandom(20261003, guard: true);
 
-        var move = selector.SelectMove(DoomedOnlyBoard(), StoneColor.White);
+        var move = selector.SelectMove(DoomedOnlyBoard(), StoneColor.White, Komi.For9x9);
 
         Assert.Equal(MoveType.Pass, move.Type);
     }
@@ -131,9 +131,9 @@ public sealed class PrisonerPolicyTests
         // В безнадёжной позиции ходов не остаётся вовсе; проверим и позицию, где полезные ходы есть:
         // ни один выбранный ход не должен примыкать к своей мёртвой группе.
         var board = DoomedCornerBoard();
-        var selector = new RandomMoveSelector(new Random(20261003));
+        var selector = TestSelectors.GuardedRandom(20261003, guard: true);
 
-        var move = selector.SelectMove(board, StoneColor.White);
+        var move = selector.SelectMove(board, StoneColor.White, Komi.For9x9);
 
         Assert.DoesNotContain(move.Point, DoomedNeighbors(board));
     }
@@ -144,9 +144,9 @@ public sealed class PrisonerPolicyTests
         // Эвристика «спасти свою группу в атари» раньше выбирала именно ход к мёртвой группе:
         // теперь этот ход отброшен правилом, и движок играет в другом месте.
         var board = DoomedCornerBoard();
-        var selector = new HeuristicMoveSelector(new Random(20261003), randomnessPercent: 0);
+        var selector = PrisonerSelector(20261003);
 
-        var move = selector.SelectMove(board, StoneColor.White);
+        var move = selector.SelectMove(board, StoneColor.White, Komi.For9x9);
 
         Assert.DoesNotContain(move.Point, DoomedNeighbors(board));
     }
@@ -375,4 +375,9 @@ public sealed class PrisonerPolicyTests
 
         return board;
     }
+    /// <summary>Селектор проверок: случайный выбор через политики движка (D-088).</summary>
+    /// <param name="seed">Зерно случайности.</param>
+    /// <returns>Селектор с предохранителем и политиками конца партии и пленных.</returns>
+    private static MctsMoveSelector PrisonerSelector(int seed) => TestSelectors.GuardedRandom(seed, guard: true);
+
 }

@@ -76,7 +76,7 @@ public sealed class MctsMoveSelectorTests
         // проверяться на настоящей доске — иначе партия прервётся нарушением суперко.
         var harness = new SelfPlayHarness();
         var mcts = Selector(2);
-        var random = new RandomMoveSelector(new Random(Seed));
+        var random = TestSelectors.GuardedRandom(Seed, guard: true);
 
         var result = harness.PlayGame(mcts, random, BoardSize.Size9, Komi.For9x9, Seed);
 

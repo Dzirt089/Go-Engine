@@ -79,14 +79,14 @@ public sealed class SelfPlayHarnessTests
         var harness = new SelfPlayHarness();
 
         Assert.Throws<ArgumentNullException>(() =>
-            harness.PlayGame(null!, new RandomMoveSelector(new Random(Seed)), BoardSize.Size9, Komi.For9x9, Seed));
+            harness.PlayGame(null!, TestSelectors.GuardedRandom(Seed, guard: true), BoardSize.Size9, Komi.For9x9, Seed));
     }
 
     [Fact]
     public void SelfPlay_Отрицательный_Seed_Бросает()
     {
         var harness = new SelfPlayHarness();
-        var selector = new RandomMoveSelector(new Random(Seed));
+        var selector = TestSelectors.GuardedRandom(Seed, guard: true);
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             harness.PlayGame(selector, selector, BoardSize.Size9, Komi.For9x9, -1));
@@ -96,8 +96,8 @@ public sealed class SelfPlayHarnessTests
     /// <returns>Итог партии.</returns>
     private static SelfPlayResult PlayRandomGame() =>
         new SelfPlayHarness().PlayGame(
-            new RandomMoveSelector(new Random(Seed)),
-            new RandomMoveSelector(new Random(Seed)),
+            TestSelectors.GuardedRandom(Seed, guard: true),
+            TestSelectors.GuardedRandom(Seed, guard: true),
             BoardSize.Size9,
             Komi.For9x9,
             Seed);

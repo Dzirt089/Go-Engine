@@ -17,6 +17,7 @@ using GoEngine.Core;
 public sealed class ReviewSession
 {
     private Board _board;
+    private Board _before;
     private int _played;
     private int _passes;
     private bool _answered;
@@ -30,6 +31,7 @@ public sealed class ReviewSession
 
         Game = game;
         _board = game.StartPosition();
+        _before = _board;
         Message = game.Summary;
     }
 
@@ -65,7 +67,7 @@ public sealed class ReviewSession
     /// </remarks>
     public string MoveInfo => _played == 0
         ? string.Empty
-        : MoveDescriber.Describe(MoveDescriber.FactsOf(_board, Game.Moves[_played - 1], _played), Game.Size);
+        : MoveDescriber.Describe(MoveDescriber.FactsOf(_before, _board, Game.Moves[_played - 1], _played), Game.Size);
 
     /// <summary>Чей ход в текущей позиции партии.</summary>
     /// <remarks>
@@ -207,6 +209,7 @@ public sealed class ReviewSession
         }
 
         _board = Game.StartPosition();
+        _before = _board;
         _played = 0;
         _passes = 0;
         _answered = false;
@@ -243,6 +246,9 @@ public sealed class ReviewSession
             throw new DomainException($"Партия {Game.Id}: ход {_played + 1} ({move}) не принят — {legality.Error}");
         }
 
+        // Позиция до хода запоминается: по ней строка о ходе видит соединение и разрезание —
+        // что было на доске, когда игрок выбирал ход.
+        _before = _board;
         _board = _board.ApplyMove(move);
         _played++;
         _passes = move.Type == MoveType.Pass ? _passes + 1 : 0;

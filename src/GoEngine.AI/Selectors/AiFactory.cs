@@ -4,7 +4,7 @@ using GoEngine.Core;
 
 /// <summary>Единая точка входа: селектор по уровню сложности.</summary>
 /// <remarks>
-/// Вид селектора задаётся <see cref="DifficultyLevel.Kind"/>: случайный, эвристический или MCTS.
+/// Вид селектора задаётся <see cref="DifficultyLevel.Kind"/>: поиск или поиск с сетью.
 /// Магических строк нет — только элементы перечислений (<c>AGENTS.md</c>, п. 11).
 /// </remarks>
 public static class AiFactory
@@ -37,16 +37,6 @@ public static class AiFactory
         if (level.NeedsNetwork)
         {
             return CreateNeural(level, random, boardSize, evaluator, modelsDirectory);
-        }
-
-        if (level.Kind == SelectorKind.Random)
-        {
-            return new RandomMoveSelector(random);
-        }
-
-        if (level.Kind == SelectorKind.Heuristic)
-        {
-            return new HeuristicMoveSelector(random, level.RandomnessPercent);
         }
 
         if (level.Kind == SelectorKind.Mcts)

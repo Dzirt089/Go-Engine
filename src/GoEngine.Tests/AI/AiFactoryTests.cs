@@ -22,14 +22,6 @@ public sealed class AiFactoryTests
     }
 
     [Fact]
-    public void Factory_Создаёт_Случайный_Селектор_Напрямую()
-    {
-        // Сам селектор случайных ходов жив: его используют замеры и тесты, хотя в лестнице
-        // уровней без поиска больше нет (D-054).
-        Assert.IsType<RandomMoveSelector>(new RandomMoveSelector(new Random(Seed)));
-    }
-
-    [Fact]
     public void Factory_Создаёт_Mcts_Селектор_Для_5_Кю()
     {
         Assert.IsType<MctsMoveSelector>(AiFactory.Create(DifficultyLevel.Kyu5, new Random(Seed)));

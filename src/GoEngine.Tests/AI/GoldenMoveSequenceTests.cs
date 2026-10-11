@@ -61,10 +61,6 @@ public sealed class GoldenMoveSequenceTests
         Assert.Equal(MctsWithoutGuard, Play(() => new MctsMoveSelector(new Random(Seed), new PlayoutPolicy(), new MctsConfig(20, MctsConfig.DefaultUcb1C) { TacticalGuard = false })));
 
     [Fact]
-    public void Эвристика_Играет_Ту_Же_Партию() =>
-        Assert.Equal(Heuristic, Play(() => new HeuristicMoveSelector(new Random(Seed), randomnessPercent: 40, tacticalGuard: true)));
-
-    [Fact]
     public void Mcts_С_Сетью_Играет_Ту_Же_Партию() =>
         Assert.Equal(MctsWithNet, Play(() => new MctsMoveSelector(new Random(Seed), new PlayoutPolicy(), new MctsConfig(5), evaluator: new FakeEvaluator())));
 

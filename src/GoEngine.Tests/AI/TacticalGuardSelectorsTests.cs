@@ -68,9 +68,9 @@ public sealed class TacticalGuardSelectorsTests
 
         for (var seed = 0; seed < Seeds; seed++)
         {
-            var selector = new HeuristicMoveSelector(new Random(seed), randomnessPercent: 100, tacticalGuard: true);
+            var selector = GuardSelector(seed, guard: true);
 
-            if (!TacticalGuard.IsSafeMove(board, selector.SelectMove(board, StoneColor.Black)))
+            if (!TacticalGuard.IsSafeMove(board, selector.SelectMove(board, StoneColor.Black, Komi.For9x9)))
             {
                 unsafePicks++;
             }
@@ -87,9 +87,9 @@ public sealed class TacticalGuardSelectorsTests
 
         for (var seed = 0; seed < Seeds; seed++)
         {
-            var selector = new HeuristicMoveSelector(new Random(seed), randomnessPercent: 100, tacticalGuard: false);
+            var selector = GuardSelector(seed, guard: false);
 
-            if (!TacticalGuard.IsSafeMove(board, selector.SelectMove(board, StoneColor.Black)))
+            if (!TacticalGuard.IsSafeMove(board, selector.SelectMove(board, StoneColor.Black, Komi.For9x9)))
             {
                 unsafePicks++;
             }
@@ -118,4 +118,10 @@ public sealed class TacticalGuardSelectorsTests
 
         Assert.Equal(40, moves);
     }
+    /// <summary>Селектор проверок предохранителя: случайный выбор с включённым или выключенным.</summary>
+    /// <param name="seed">Зерно случайности.</param>
+    /// <param name="guard">Включён ли тактический предохранитель.</param>
+    /// <returns>Селектор для проверки предохранителя.</returns>
+    private static MctsMoveSelector GuardSelector(int seed, bool guard) => TestSelectors.GuardedRandom(seed, guard);
+
 }

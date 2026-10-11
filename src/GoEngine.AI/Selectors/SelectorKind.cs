@@ -3,11 +3,18 @@ namespace GoEngine.AI;
 using GoEngine.Core;
 
 /// <summary>Чем играет уровень сложности.</summary>
-/// <remarks>Идентификаторы: <c>Random</c> = 0, <c>Heuristic</c> = 1, <c>Mcts</c> = 2, <c>Neural</c> = 3.</remarks>
+/// <remarks>
+/// <para>
+/// Видов два: поиск по дереву (<see cref="Mcts"/>) и поиск с оценкой сети (<see cref="Neural"/>).
+/// Случайных ходов и эвристик в лестнице больше нет: уровни без поиска уступали соседним настолько,
+/// что слабые ступени выглядели «тупыми», и после D-056 все они играют поиском. Селекторы
+/// <c>RandomMoveSelector</c> и <c>HeuristicMoveSelector</c> удалены вместе с этими ветвями — их
+/// держали только тесты (D-088).
+/// </para>
+/// <para>Идентификаторы: <c>Mcts</c> = 2, <c>Neural</c> = 3.</para>
+/// </remarks>
 public sealed class SelectorKind : Enumeration
 {
-    private const int RandomId = 0;
-    private const int HeuristicId = 1;
     private const int MctsId = 2;
     private const int NeuralId = 3;
 
@@ -15,16 +22,9 @@ public sealed class SelectorKind : Enumeration
     {
     }
 
-    /// <summary>Случайный выбор хода без эвристик.</summary>
-    public static SelectorKind Random { get; } = new(RandomId, nameof(Random));
-
-    /// <summary>Выбор хода по эвристикам атари и углов.</summary>
-    public static SelectorKind Heuristic { get; } = new(HeuristicId, nameof(Heuristic));
-
     /// <summary>Поиск по дереву Монте-Карло.</summary>
     public static SelectorKind Mcts { get; } = new(MctsId, nameof(Mcts));
 
     /// <summary>Поиск с оценкой позиции нейросетью.</summary>
-    /// <remarks>Работает только на больших досках: сеть обучалась на 19×19 (D-038).</remarks>
     public static SelectorKind Neural { get; } = new(NeuralId, nameof(Neural));
 }

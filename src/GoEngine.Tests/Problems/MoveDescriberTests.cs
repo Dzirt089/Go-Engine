@@ -3,11 +3,12 @@ using GoEngine.Problems;
 
 namespace GoEngine.Tests;
 
-/// <summary>Описание хода словами: координата, линия, область, снятия и атари.</summary>
+/// <summary>Строка о ходе: игрок говорит, что он сделал и зачем, по правилам и позиции.</summary>
 /// <remarks>
-/// Жалоба пользователя 2026-10-10: «в основном информация отсутствует о сделанном ходе противника
-/// или тобой… необходимо добавлять пояснения о сделанных ходах». Здесь проверяется, что строка
-/// говорит правду и называет точку так же, как доска.
+/// Жалоба пользователя 2026-10-11: «должна быть обучающая информация, а не пустота… как будто каждый
+/// игрок говорит вслух — „я занимаю такую-то позицию для такой-то тактики“». Здесь проверяется, что
+/// строка говорит правду: координата как на доске, линия и область, снятия, атари, соединение
+/// и разрезание — и что она есть для каждого хода каждой партии.
 /// </remarks>
 public sealed class MoveDescriberTests
 {
@@ -15,94 +16,165 @@ public sealed class MoveDescriberTests
     private static readonly BoardSize Size = BoardSize.Size9;
 
     [Fact]
-    public void Описание_Называет_Цвет_Точку_Линию_И_Область()
+    public void Строка_Говорит_За_Игрока_О_Месте_Хода()
     {
-        var board = BoardAfter(Move.Play(new Point(2, 2), StoneColor.Black));
+        var move = Move.Play(new Point(2, 2), StoneColor.Black);
+        var before = new Board(Size);
+        var after = before.ApplyMove(move);
 
-        var text = MoveDescriber.Describe(MoveDescriber.FactsOf(board, Move.Play(new Point(2, 2), StoneColor.Black), 1), Size);
+        var text = MoveDescriber.Describe(MoveDescriber.FactsOf(before, after, move, 1), Size);
 
-        Assert.Contains("Ход 1", text, StringComparison.Ordinal);
-        Assert.Contains("чёрные C3", text, StringComparison.Ordinal);
-        Assert.Contains("угол", text, StringComparison.Ordinal);
-        Assert.Contains("третья линия", text, StringComparison.Ordinal);
+        Assert.Contains("Чёрные: C3", text, StringComparison.Ordinal);
+        Assert.Contains("занимаю угол", text, StringComparison.Ordinal);
+        Assert.Contains("третьей линии", text, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Описание_Считает_Снятые_Камни()
+    public void Строка_Называет_Снятые_Камни()
     {
         // Белый камень (0,0) в атари: чёрные закрывают последнее дыхание ходом (0,1).
-        var board = BoardAfter(
+        var moves = new[]
+        {
             Move.Play(new Point(1, 0), StoneColor.Black),
             Move.Play(new Point(0, 0), StoneColor.White),
             Move.Play(new Point(0, 2), StoneColor.Black),
             Move.Play(new Point(4, 4), StoneColor.White),
-            Move.Play(new Point(0, 1), StoneColor.Black));
+            Move.Play(new Point(0, 1), StoneColor.Black)
+        };
 
-        var facts = MoveDescriber.FactsOf(board, Move.Play(new Point(0, 1), StoneColor.Black), 5);
+        var before = Position(moves, 4);
+        var after = before.ApplyMove(moves[4]);
 
-        Assert.Equal(1, facts.Captured);
-        Assert.Contains("Снято камней: 1", MoveDescriber.Describe(facts, Size), StringComparison.Ordinal);
+        var text = MoveDescriber.Describe(MoveDescriber.FactsOf(before, after, moves[4], 5), Size);
+
+        Assert.Contains("снимаю 1 камень", text, StringComparison.Ordinal);
+        Assert.Contains("пленные", text, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Описание_Замечает_Атари_Соперника()
+    public void Строка_Объявляет_Атари_На_Группу()
     {
         // Белая группа из двух камней: чёрные закрывают третье дыхание, оставляя одно.
-        var board = BoardAfter(
+        var moves = new[]
+        {
             Move.Play(new Point(2, 0), StoneColor.Black),
             Move.Play(new Point(0, 0), StoneColor.White),
             Move.Play(new Point(8, 8), StoneColor.Black),
             Move.Play(new Point(1, 0), StoneColor.White),
-            Move.Play(new Point(0, 1), StoneColor.Black));
+            Move.Play(new Point(0, 1), StoneColor.Black)
+        };
 
-        var facts = MoveDescriber.FactsOf(board, Move.Play(new Point(0, 1), StoneColor.Black), 5);
+        var before = Position(moves, 4);
+        var after = before.ApplyMove(moves[4]);
+        var facts = MoveDescriber.FactsOf(before, after, moves[4], 5);
 
         Assert.Single(facts.Atari);
         Assert.Equal(StoneColor.White, facts.Atari[0].Color);
-        Assert.Contains("В атари попала белая группа (2 камня)", MoveDescriber.Describe(facts, Size), StringComparison.Ordinal);
+        Assert.Equal(2, facts.Atari[0].Stones);
+        Assert.Contains("ставлю белую группу в атари", MoveDescriber.Describe(facts, Size), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Пас_Описывается_Словом()
+    public void Строка_Различает_Соединение()
     {
-        var board = BoardAfter();
+        // Чёрные соединяют свои камни B2 и D2 ходом C2: рядом две свои группы.
+        var moves = new[]
+        {
+            Move.Play(new Point(1, 1), StoneColor.Black),
+            Move.Play(new Point(1, 3), StoneColor.White),
+            Move.Play(new Point(3, 1), StoneColor.Black),
+            Move.Play(new Point(8, 8), StoneColor.White)
+        };
 
-        var text = MoveDescriber.Describe(MoveDescriber.FactsOf(board, Move.Pass(StoneColor.Black), 4), Size);
+        var move = Move.Play(new Point(2, 1), StoneColor.Black);
+        var before = Position(moves, 4);
+        var after = before.ApplyMove(move);
+        var facts = MoveDescriber.FactsOf(before, after, move, 5);
 
-        Assert.Contains("чёрные", text, StringComparison.Ordinal);
-        Assert.Contains("пас", text, StringComparison.Ordinal);
+        Assert.True(facts.Connects);
+        Assert.Equal(2, facts.OwnGroups);
+        Assert.Contains("соединяю свои группы", MoveDescriber.Describe(facts, Size), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Описание_Хода_Партии_Не_Пустое_Для_Каждого_Хода()
+    public void Строка_Различает_Разрезание()
     {
-        // Каждый ход каждой обучающей партии обязан получить строку: иначе панель снова молчит.
+        // Чёрные встают между двумя белыми группами: они больше не соединены.
+        var moves = new[]
+        {
+            Move.Play(new Point(1, 1), StoneColor.White),
+            Move.Play(new Point(8, 8), StoneColor.Black),
+            Move.Play(new Point(3, 1), StoneColor.White),
+            Move.Play(new Point(8, 7), StoneColor.Black)
+        };
+
+        var move = Move.Play(new Point(2, 1), StoneColor.Black);
+        var before = Position(moves, 4);
+        var after = before.ApplyMove(move);
+        var facts = MoveDescriber.FactsOf(before, after, move, 5);
+
+        Assert.True(facts.Cuts);
+        Assert.Contains("разрезаю", MoveDescriber.Describe(facts, Size), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Пас_Объясняется_Словами()
+    {
+        var board = new Board(Size);
+
+        var text = MoveDescriber.Describe(MoveDescriber.FactsOf(board, board, Move.Pass(StoneColor.Black), 4), Size);
+
+        Assert.Contains("Чёрные: пас", text, StringComparison.Ordinal);
+        Assert.Contains("подсчёт", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Каждый_Ход_Каждой_Партии_Получает_Строку()
+    {
+        // Панель не молчит: у каждого хода каждой партии есть объяснение (жалоба 2026-10-11).
         foreach (var game in ReviewLibrary.All)
         {
-            var board = game.StartPosition();
+            var session = new ReviewSession(game);
 
             for (var index = 0; index < game.Moves.Count; index++)
             {
-                var move = game.Moves[index];
-                board = board.ApplyMove(move);
+                // Позиция выставляется напрямую: вопрос в этой точке не должен мешать проверке строки.
+                Assert.True(session.GoTo(index + 1), $"{game.Id}: переход к ходу {index + 1} не выполнен");
 
-                var text = MoveDescriber.Describe(MoveDescriber.FactsOf(board, move, index + 1), game.Size);
-
-                Assert.False(string.IsNullOrWhiteSpace(text), $"{game.Id}, ход {index + 1}: пустое описание");
+                Assert.False(
+                    string.IsNullOrWhiteSpace(session.MoveInfo),
+                    $"{game.Id}, ход {index + 1}: пустая строка о ходе");
             }
         }
     }
 
-    /// <summary>Строит позицию ходами.</summary>
+    [Fact]
+    public void Строка_О_Ходе_Меняется_От_Хода_К_Ходу()
+    {
+        var game = ReviewLibrary.All[0];
+        var session = new ReviewSession(game);
+        HashSet<string> lines = [];
+
+        for (var index = 1; index <= 12; index++)
+        {
+            _ = session.GoTo(index);
+            _ = lines.Add(session.MoveInfo);
+        }
+
+        Assert.True(lines.Count >= 10, $"разных строк за 12 ходов: {lines.Count}");
+    }
+
+    /// <summary>Строит позицию после первых ходов.</summary>
     /// <param name="moves">Ходы по порядку.</param>
+    /// <param name="count">Сколько ходов сыграть.</param>
     /// <returns>Доска после них.</returns>
-    private static Board BoardAfter(params Move[] moves)
+    private static Board Position(IReadOnlyList<Move> moves, int count)
     {
         var board = new Board(Size);
 
-        foreach (var move in moves)
+        for (var index = 0; index < count; index++)
         {
-            board = board.ApplyMove(move);
+            board = board.ApplyMove(moves[index]);
         }
 
         return board;

@@ -25,10 +25,11 @@ public sealed class EndgameSelectionTests
     private static MctsMoveSelector CreateMcts() =>
         new(new Random(Seed), new PlayoutPolicy(), new MctsConfig(MctsIterations, MctsConfig.DefaultUcb1C));
 
-    /// <summary>Создаёт эвристический селектор: уровням без сети пас нужен так же, как MCTS.</summary>
-    /// <param name="randomnessPercent">Доля случайных ходов в процентах.</param>
-    private static HeuristicMoveSelector CreateHeuristic(int randomnessPercent = 0) =>
-        new(new Random(Seed), randomnessPercent);
+    /// <summary>Создаёт поиск со случайным выбором хода: политики те же, что у обычного поиска.</summary>
+    /// <returns>Селектор, который выбирает из разрешённого наугад (D-088: прежний эвристический
+    /// селектор удалён, проверять политики можно любым селектором).</returns>
+    private static MctsMoveSelector CreateRandom() =>
+        new(new Random(Seed), new PlayoutPolicy(), new MctsConfig(1, MctsConfig.DefaultUcb1C), randomnessPercent: 100);
 
     /// <summary>Строит поделённую доску: у каждого цвета остались только свои две точки.</summary>
     /// <returns>Доска, где все легальные ходы заполняют свою же территорию.</returns>
@@ -152,18 +153,18 @@ public sealed class EndgameSelectionTests
     }
 
     [Fact]
-    public void Эвристика_На_Поделённой_Доске_Пасует()
+    public void Случайный_Выбор_На_Поделённой_Доске_Пасует()
     {
-        var move = CreateHeuristic().SelectMove(DividedBoard(), StoneColor.Black);
+        var move = CreateRandom().SelectMove(DividedBoard(), StoneColor.Black, Komi.For9x9);
 
         Assert.Equal(MoveType.Pass, move.Type);
     }
 
     [Fact]
-    public void Эвристика_Наугад_На_Поделённой_Доске_Пасует()
+    public void Случайный_Выбор_С_Историей_Пасует()
     {
-        // Случайная ветка тоже обязана останавливаться: именно она «доедала очки».
-        var move = CreateHeuristic(randomnessPercent: 100).SelectMove(DividedBoard(), StoneColor.Black);
+        // Случайный выбор тоже обязан останавливаться: именно он «доедал очки».
+        var move = CreateRandom().SelectMove(DividedBoard(), StoneColor.Black, Komi.For9x9, [Move.Pass(StoneColor.White)]);
 
         Assert.Equal(MoveType.Pass, move.Type);
     }
@@ -177,29 +178,36 @@ public sealed class EndgameSelectionTests
     }
 
     [Fact]
-    public void Эвристика_После_Паса_Соперника_Пасует_На_Поделённой_Доске()
+    public void Поиск_После_Паса_Соперника_Пасует_На_Поделённой_Доске()
     {
-        var move = CreateHeuristic().SelectMove(DividedBoard(), StoneColor.Black, [Move.Pass(StoneColor.White)]);
+        var move = CreateMcts().SelectMove(DividedBoard(), StoneColor.Black, Komi.For9x9, [Move.Pass(StoneColor.White)]);
 
         Assert.Equal(MoveType.Pass, move.Type);
     }
 
     [Fact]
-    public void Эвристика_Не_Пасует_Когда_Есть_Захват()
+    public void Поиск_Со_Случайным_Выбором_Не_Пасует_Когда_Есть_Захват()
     {
         // Захват растёт в очках, значит пасовать нельзя: правило не должно мешать тактике.
-        var move = CreateHeuristic().SelectMove(CapturePosition(), StoneColor.White, [Move.Pass(StoneColor.Black)]);
+        // Точный ход не проверяется: его выбирает поиск, а важно, что он не пасует.
+        var move = CreateRandom().SelectMove(CapturePosition(), StoneColor.White, Komi.For9x9, [Move.Pass(StoneColor.Black)]);
 
-        Assert.Equal(P(1, 1), move.Point);
+        Assert.NotEqual(MoveType.Pass, move.Type);
     }
 
     [Fact]
-    public void Эвристика_Спасает_Группу_В_Атари_Вместо_Паса()
+    public void Поиск_Со_Случайным_Выбором_Спасает_Группу_В_Атари()
     {
         // Точка спасения лежит в своей территории: без исключения правило заставило бы пасовать.
-        var move = CreateHeuristic().SelectMove(RescuePosition(), StoneColor.Black, [Move.Pass(StoneColor.White)]);
+        var board = RescuePosition();
+        var move = CreateRandom().SelectMove(board, StoneColor.Black, Komi.For9x9, [Move.Pass(StoneColor.White)]);
 
-        Assert.Equal(P(5, 4), move.Point);
+        Assert.NotEqual(MoveType.Pass, move.Type);
+
+        // Ход обязан именно спасать: после него у чёрной группы больше одного дыхания.
+        var group = GroupTracker.FindGroup(board.ApplyMove(move), move.Point);
+
+        Assert.True(group.Liberties.Count > 1, $"после {move.Point} у группы {group.Liberties.Count} дыханий");
     }
 
     [Fact]
@@ -211,12 +219,12 @@ public sealed class EndgameSelectionTests
     }
 
     [Fact]
-    public void Эвристика_В_Начале_Партии_Не_Пасует()
+    public void Поиск_В_Начале_Партии_Не_Пасует()
     {
         // На почти пустой доске вся пустая область формально «чужая»: правило не должно пасовать.
         var board = new Board(BoardSize.Size9).ApplyMove(Move.Play(P(4, 4), StoneColor.Black));
 
-        var move = CreateHeuristic().SelectMove(board, StoneColor.White);
+        var move = CreateMcts().SelectMove(board, StoneColor.White, Komi.For9x9);
 
         Assert.NotEqual(MoveType.Pass, move.Type);
     }
@@ -235,7 +243,7 @@ public sealed class EndgameSelectionTests
     public void Соперник_Отвечает_Пасом_На_Пас_Человека()
     {
         var state = DividedGame();
-        var rival = CreateHeuristic();
+        var rival = CreateRandom();
         Play(state, Move.Pass(StoneColor.White));
 
         var reply = rival.SelectMove(state);
@@ -248,7 +256,7 @@ public sealed class EndgameSelectionTests
     {
         // Сценарий жалобы целиком: человек пасует, соперник пасует — партия закончена, очки целы.
         var state = DividedGame();
-        var rival = CreateHeuristic();
+        var rival = CreateRandom();
         Play(state, Move.Pass(StoneColor.White));
         Play(state, rival.SelectMove(state));
 

@@ -55,9 +55,9 @@ public sealed class PrisonerPositionTests
     {
         // Регрессия жалобы 2026-10-03: было — ход в свою мёртвую зону (+1 пленный), стало — пас.
         var board = ComplaintBoard();
-        var selector = new HeuristicMoveSelector(new Random(20261003), randomnessPercent: 0);
+        var selector = PrisonerSelector(20261003);
 
-        var move = selector.SelectMove(board, StoneColor.White);
+        var move = selector.SelectMove(board, StoneColor.White, Komi.For9x9);
 
         Assert.Equal(MoveType.Pass, move.Type);
     }
@@ -161,4 +161,9 @@ public sealed class PrisonerPositionTests
 
         return board;
     }
+    /// <summary>Селектор проверок: случайный выбор через политики движка (D-088).</summary>
+    /// <param name="seed">Зерно случайности.</param>
+    /// <returns>Селектор с предохранителем и политиками конца партии и пленных.</returns>
+    private static MctsMoveSelector PrisonerSelector(int seed) => TestSelectors.GuardedRandom(seed, guard: true);
+
 }

@@ -92,6 +92,13 @@
                        IsVisible="{Binding HasNote}"
                        TextWrapping="Wrap" />
 
+            <!-- Ход без своей заметки не молчит: игрок говорит вслух, что сделал и зачем
+                 (жалоба пользователя 2026-10-11: панель была пуста, видно только счётчик). -->
+            <TextBlock x:Name="MoveInfoText"
+                       Text="{Binding MoveInfo}"
+                       IsVisible="{Binding HasMoveInfo}"
+                       TextWrapping="Wrap" />
+
             <TextBlock x:Name="MessageText"
                        Text="{Binding Message}"
                        IsVisible="{Binding HasMessage}"
