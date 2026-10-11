@@ -50,6 +50,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
 
     private int _index;
     private string _verdict = string.Empty;
+    private string _explanation = string.Empty;
 
     /// <summary>Логгер задач: по нему видно, какие задачи решались перед сбоем.</summary>
     private readonly ILogger _log = AppLog.For<ProblemViewModel>();
@@ -144,7 +145,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// Появляется, когда задача решена. Замечание пользователя 2026-10-11: «я всё сделал
     /// с подсказками, но так и не понял суть задачи. А задача должна в конце дать этот ответ».
     /// </remarks>
-    public string Explanation => IsSolved ? ProblemTexts.Solution(Current, _session.Board, _session.SolverMoves) : string.Empty;
+    public string Explanation => _explanation;
 
     /// <summary>Есть что объяснить после решения.</summary>
     public bool HasExplanation => Explanation.Length > 0;
@@ -240,6 +241,13 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
 
         var verdict = _session.Play(point);
 
+        if (verdict == ProblemVerdict.Solved)
+        {
+            // Разбор считается один раз: внутри перебор жизни, и на каждое чтение свойства
+            // его считать нельзя (вид спрашивает строку при каждом обновлении).
+            _explanation = ProblemTexts.Solution(Current, _session.Board, _session.SolverMoves, _session.Replies);
+        }
+
         if (verdict == ProblemVerdict.Wrong || verdict == ProblemVerdict.Failed)
         {
             // Позиция не изменилась — метку последнего хода не трогаем, доска выглядит как прежде.
@@ -291,6 +299,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         }
 
         _verdict = string.Empty;
+        _explanation = string.Empty;
         _hint = null;
         ClearAnimation();
         NotifyAll();
@@ -301,6 +310,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     {
         _session.Reset();
         _verdict = string.Empty;
+        _explanation = string.Empty;
         _hint = null;
         ClearAnimation();
         NotifyAll();
@@ -338,6 +348,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         // Новая задача — новая сессия: состояние решения не переносится между задачами.
         _session = new ProblemSession(_problems[index]);
         _verdict = string.Empty;
+        _explanation = string.Empty;
         _hint = null;
         ClearAnimation();
 

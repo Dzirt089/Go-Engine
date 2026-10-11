@@ -121,71 +121,79 @@ public static class ProblemTexts
     /// <summary>Разбор решения: почему оно работает и что это даёт в дальнейших ходах.</summary>
     /// <param name="problem">Задача.</param>
     /// <param name="board">Позиция после решения.</param>
-    /// <param name="line">Ходы решения: что играли и что отвечал соперник.</param>
-    /// <returns>Разбор из двух-трёх фраз.</returns>
+    /// <param name="line">Ходы решающего по порядку.</param>
+    /// <param name="replies">Ответы соперника по порядку.</param>
+    /// <returns>Разбор: что дало решение, чем ответил соперник, что это меняет.</returns>
     /// <remarks>
     /// Разбор отвечает на вопрос «почему это работает»: чем группа жива теперь и что придётся
     /// делать сопернику дальше. Это ответ на жалобу пользователя 2026-10-11: задача, решённая
     /// с подсказками, оставляла без понимания сути.
     /// </remarks>
-    public static string Solution(Problem problem, Board board, IReadOnlyList<Move> line)
+    public static string Solution(Problem problem, Board board, IReadOnlyList<Move> line, IReadOnlyList<Move> replies)
     {
         ArgumentNullException.ThrowIfNull(problem);
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(line);
+        ArgumentNullException.ThrowIfNull(replies);
 
         var group = TargetGroup(problem, board);
         StringBuilder text = new();
+        var moves = string.Join(" и ", line.Where(move => move.Type == MoveType.Play).Select(move => BoardCoordinates.Label(move.Point, board.Size)));
 
         if (group.Count == 0)
         {
-            var captured = line.Count > 0 && line[^1].Type == MoveType.Play
-                ? $" Ход {BoardCoordinates.Label(line[^1].Point, board.Size)} снял её последние камни."
-                : string.Empty;
-
             var who = IsOwn(problem, problem.SolverColor.Opponent()) ? "Ваша группа" : "Группа соперника";
 
-            text.Append($"{who} снята: у неё не осталось дыханий.").Append(captured);
+            text.Append($"{who} снята: у неё не осталось дыханий.")
+                .Append(moves.Length > 0 ? $" Последние камни ушли после {moves}." : string.Empty);
             text.Append(" Дальше эта часть доски свободна: вернуться сюда можно только с нуля, ")
                 .Append("а очки за снятые камни уже в счёте.");
 
             return text.ToString();
         }
 
-        var liberties = Liberties(board, group);
-        var eyes = EyePoints(board, group);
-        var colour = board.At(group[0]);
-        var own = IsOwn(problem, colour);
+        // Первое, что нужно игроку, — что дало решение: чем стали его камни и что закрыто.
         var where = Group(board, group);
-        var eyeLabels = string.Join(" и ", eyes.Take(2).Select(point => BoardCoordinates.Label(point, board.Size)));
+        text.Append(moves.Length > 0
+            ? $"После {moves}: {where}, {Breaths(Liberties(board, group))}."
+            : $"{char.ToUpperInvariant(where[0])}{where[1..]}: {Breaths(Liberties(board, group))}.");
 
-        text.Append($"{char.ToUpperInvariant(where[0])}{where[1..]}: ");
+        // Вердикт перебора: жива группа или её ещё можно убить. Это и есть ответ «что я выиграл».
+        var verdict = LifeVerdict(problem, board, group);
 
-        // Глаза — главное, что решает судьбу группы, и говорится о них по-разному: у своей группы
-        // это жизнь, у чужой — препятствие. Без этого разбор путал игрока: он читал «группа живая»
-        // про ту группу, которую сам же и убивал.
+        if (verdict.Length > 0)
+        {
+            text.Append(' ').Append(verdict);
+        }
+
+        if (replies.Count > 0)
+        {
+            var answered = string.Join(", ", replies.Where(move => move.Type == MoveType.Play).Select(move => BoardCoordinates.Label(move.Point, board.Size)));
+
+            if (answered.Length > 0)
+            {
+                text.Append($" Противодействие: соперник отвечает {answered}.");
+            }
+        }
+
+        var eyes = EyePoints(board, group);
+
         if (eyes.Count >= 2)
         {
-            text.Append(own
-                ? $"у неё два глаза — {eyeLabels} — и {Breaths(liberties)}. Соперник может закрыть только один глаз: на вторую угрозу вы отвечаете, и группа не снимается ни одним ходом."
-                : $"у неё два глаза — {eyeLabels} — и {Breaths(liberties)}: убить её нельзя, соперник успевает ответить на любую попытку. Такая группа живая.");
-        }
-        else if (eyes.Count == 1)
-        {
-            text.Append(own
-                ? $"у неё один глаз ({eyeLabels}) и {Breaths(liberties)}: для жизни одного глаза мало — соперник закроет его и поставит группу в атари. Второй глаз и есть решение."
-                : $"у неё один глаз ({eyeLabels}) и {Breaths(liberties)}: второй жизни нет, и закрыть этот глаз — половина дела. Второго глаза соперник не построит.");
-        }
-        else
-        {
-            text.Append(own
-                ? $"у неё {Breaths(liberties)} и ни одного глаза: спасать её нужно сейчас — каждое дыхание соперник закрывает ходом, а второй жизни у группы нет."
-                : $"у неё {Breaths(liberties)} и ни одного глаза: второй жизни нет, поэтому группу можно убить — закрывайте дыхания по одному, и соперник не успеет построить глаз.");
+            var eyeLabels = string.Join(" и ", eyes.Take(2).Select(point => BoardCoordinates.Label(point, board.Size)));
+
+            text.Append($" Два глаза — {eyeLabels} — делают группу неубиваемой: соперник закроет только один, ")
+                .Append("а на вторую угрозу вы отвечаете.");
         }
 
-        if (own && liberties >= 4 && eyes.Count >= 2)
+        // «Что это меняет» — смысл, написанный по задаче. Общая формулировка здесь бесполезна:
+        // игрок и так видит дыхания и глаза, ему нужен вывод (жалоба пользователя 2026-10-11:
+        // «по сути пустой текст, который и так понятен»).
+        var meaning = ProblemStrategy.Of(problem);
+
+        if (meaning.Length > 0)
         {
-            text.Append(" Этого хватает с запасом: следующие ходы можно играть в другом месте доски, а на угрозу рядом отвечать одним камнем.");
+            text.Append(' ').Append(meaning);
         }
 
         return text.ToString();
@@ -274,6 +282,52 @@ public static class ProblemTexts
             yield return new Point(point.X, (byte)(point.Y + 1));
         }
     }
+
+    /// <summary>Приговор перебора о жизни группы: жива она или её ещё можно убить.</summary>
+    /// <param name="problem">Задача.</param>
+    /// <param name="board">Позиция после решения.</param>
+    /// <param name="group">Камни целевой группы.</param>
+    /// <returns>Строку приговора; пустая — перебору не хватило узлов.</returns>
+    /// <remarks>
+    /// Считает движок, а не текст: «обеспечить жизнь» — это утверждение о позиции, и его обязан
+    /// подтвердить перебор. Задачи из источника цель не проверяют (Goal = Reference), поэтому
+    /// единственный честный источник ответа — поиск жизни на самой позиции.
+    /// </remarks>
+    private static string LifeVerdict(Problem problem, Board board, IReadOnlyList<Point> group)
+    {
+        var colour = board.At(group[0]);
+        var own = IsOwn(problem, colour);
+        var survive = ProblemLife.CanSurvive(board, colour, group, LifeDepth, LifeRadius, LifeNodes);
+
+        if (survive.LimitReached)
+        {
+            return string.Empty;
+        }
+
+        if (survive.Forced)
+        {
+            return own
+                ? "Перебор подтверждает: группа удержит жизнь — убить её нельзя ни при каком ответе соперника."
+                : "Перебор показывает: группа соперника ещё держится — одним ходом её не снять, борьба продолжается.";
+        }
+
+        var eyes = EyePoints(board, group);
+
+        return own
+            ? eyes.Count == 1
+                ? "Один глаз у группы есть, но перебор жизни не подтверждает: соперник ещё может зажать её — ищите второй глаз."
+                : "Перебор жизни не подтверждает: у группы нет двух глаз, и соперник ещё может её зажать."
+            : "Перебор подтверждает: группа соперника не удержит жизнь — второго глаза ей построить не дадут, доводите до конца.";
+    }
+
+    /// <summary>Горизонт перебора жизни в полуходах.</summary>
+    private const int LifeDepth = 6;
+
+    /// <summary>Радиус окна перебора жизни.</summary>
+    private const int LifeRadius = 3;
+
+    /// <summary>Предел узлов перебора жизни: разбор считается мгновенно.</summary>
+    private const int LifeNodes = 20000;
 
     /// <summary>Описание группы: цвет, число камней, где стоит и её точки.</summary>
     /// <param name="board">Позиция.</param>

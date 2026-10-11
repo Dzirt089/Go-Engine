@@ -14,6 +14,7 @@ public sealed class ProblemSession
     private readonly Problem _problem;
     private readonly Board _initial;
     private readonly List<Move> _solverMoves = [];
+    private readonly List<Move> _replies = [];
 
     /// <summary>Последний ход принят вне дерева: цель подтвердил движок, а не принимаемый набор узла.</summary>
     private Move? _outsideMove;
@@ -61,6 +62,10 @@ public sealed class ProblemSession
     /// <summary>Ходы игрока по порядку: линия решения без ответов соперника.</summary>
     /// <remarks>Разбор после решения называет последний ход игрока, поэтому линия нужна снаружи.</remarks>
     public IReadOnlyList<Move> SolverMoves => _solverMoves.AsReadOnly();
+
+    /// <summary>Ответы соперника по порядку: что он играл после ходов решающего.</summary>
+    /// <remarks>Разбор решения называет противодействие: без этого игрок не видит, почему ход работает.</remarks>
+    public IReadOnlyList<Move> Replies => _replies.AsReadOnly();
 
     /// <summary>Можно ли отменить ход.</summary>
     public bool CanBack => _solverMoves.Count > 0;
@@ -152,6 +157,7 @@ public sealed class ProblemSession
             return ProblemVerdict.Failed;
         }
 
+        _replies.Add(reply);
         Board = afterReply;
         ToMove = _problem.SolverColor;
 
@@ -203,6 +209,7 @@ public sealed class ProblemSession
     public void Reset()
     {
         _solverMoves.Clear();
+        _replies.Clear();
         _outsideMove = null;
         _ = Replay();
         State = ProblemState.InProgress;

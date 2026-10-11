@@ -136,7 +136,7 @@ public sealed class ProblemTextsTests
                 _ = session.Play(session.AcceptedMoves[0].Point);
             }
 
-            var text = ProblemTexts.Solution(problem, session.Board, session.SolverMoves);
+            var text = ProblemTexts.Solution(problem, session.Board, session.SolverMoves, session.Replies);
 
             if (Points(text).Count == 0)
             {
@@ -148,9 +148,11 @@ public sealed class ProblemTextsTests
                 errors.Add($"{problem.Id}: разбор не говорит о дыханиях — «{text}»");
             }
 
-            if (!text.Contains("глаз", StringComparison.Ordinal) && !text.Contains("снята", StringComparison.Ordinal))
+            // Разбор обязан ответить, что дало решение: либо вердикт перебора о жизни,
+            // либо снятая группа. Описания позиции без вывода недостаточно (жалоба 2026-10-11).
+            if (!text.Contains("Перебор", StringComparison.Ordinal) && !text.Contains("снята", StringComparison.Ordinal))
             {
-                errors.Add($"{problem.Id}: разбор не говорит ни о глазах, ни о снятии — «{text}»");
+                errors.Add($"{problem.Id}: разбор не говорит, что дало решение — «{text}»");
             }
         }
 
@@ -165,11 +167,10 @@ public sealed class ProblemTextsTests
         var problem = ProblemLibrary.All[0];
         var empty = new Board(problem.Size);
 
-        var text = ProblemTexts.Solution(problem, empty, [Move.Play(new Point(4, 4), problem.SolverColor)]);
+        var text = ProblemTexts.Solution(problem, empty, [Move.Play(new Point(4, 4), problem.SolverColor)], []);
 
         Assert.Contains("снята", text, StringComparison.Ordinal);
         Assert.Contains("очки", text, StringComparison.Ordinal);
-        Assert.Contains("ход", text, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -192,7 +193,7 @@ public sealed class ProblemTextsTests
                 errors.Add($"{problem.Id}: цель не говорит о задаче — «{goal}»");
             }
 
-            var solution = ProblemTexts.Solution(problem, session.StartBoard, []);
+            var solution = ProblemTexts.Solution(problem, session.StartBoard, [], []);
 
             if (solution.Length < 40)
             {
@@ -200,6 +201,50 @@ public sealed class ProblemTextsTests
             }
         }
 
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Разбор_Говорит_О_Дальнейшей_Партии()
+    {
+        // Замечание пользователя 2026-10-11: решение должно объяснять, что оно меняет в партии,
+        // а не пересказывать позицию. Смысл пишется по задаче (ProblemStrategy).
+        List<string> errors = [];
+        var described = 0;
+
+        foreach (var problem in ProblemLibrary.All)
+        {
+            var meaning = ProblemStrategy.Of(problem);
+
+            if (meaning.Length == 0)
+            {
+                continue;
+            }
+
+            described++;
+
+            if (meaning.Length < 80)
+            {
+                errors.Add($"{problem.Id}: смысл слишком короткий — «{meaning}»");
+            }
+
+            var session = new ProblemSession(problem);
+            var guard = 0;
+
+            while (session.State != ProblemState.Solved && guard++ < 30 && session.AcceptedMoves.Count > 0)
+            {
+                _ = session.Play(session.AcceptedMoves[0].Point);
+            }
+
+            var text = ProblemTexts.Solution(problem, session.Board, session.SolverMoves, session.Replies);
+
+            if (!text.Contains(meaning, StringComparison.Ordinal))
+            {
+                errors.Add($"{problem.Id}: разбор не называет смысл решения");
+            }
+        }
+
+        Assert.True(described > 0, "ни для одной задачи смысл не написан");
         Assert.Empty(errors);
     }
 
