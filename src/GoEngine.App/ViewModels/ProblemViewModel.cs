@@ -38,7 +38,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     private static readonly string[] PropertyNames =
     [
         nameof(Current), nameof(Board), nameof(LastMove), nameof(Title), nameof(GoalText), nameof(ToMoveText),
-        nameof(SizeText), nameof(Verdict), nameof(HasVerdict), nameof(Explanation), nameof(HasExplanation),
+        nameof(SizeText), nameof(Verdict), nameof(HasVerdict), nameof(Explanation), nameof(HasExplanation), nameof(ShapePoints),
         nameof(IsSolved), nameof(CanBack), nameof(CanHint), nameof(HintPoint), nameof(CanGoPrevious),
         nameof(CanGoNext), nameof(StatusText), nameof(SelectedIndex), nameof(LastCaptured),
         nameof(LastCapturedColor)
@@ -51,6 +51,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     private int _index;
     private string _verdict = string.Empty;
     private string _explanation = string.Empty;
+    private IReadOnlyList<Point> _shapePoints = [];
 
     /// <summary>Логгер задач: по нему видно, какие задачи решались перед сбоем.</summary>
     private readonly ILogger _log = AppLog.For<ProblemViewModel>();
@@ -146,6 +147,14 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// с подсказками, но так и не понял суть задачи. А задача должна в конце дать этот ответ».
     /// </remarks>
     public string Explanation => _explanation;
+
+    /// <summary>Камни формы решения: под ними доска рисует зелёную подсветку.</summary>
+    /// <remarks>
+    /// Замечание пользователя 2026-10-11: «показывать не только разбор, но и на столе подсвечивать
+    /// зелёным цветом форму». Подсветка не заменяет текст: форма названа в разборе, поэтому смысл
+    /// не теряется, если цвет не различается.
+    /// </remarks>
+    public IReadOnlyList<Point> ShapePoints => _shapePoints;
 
     /// <summary>Есть что объяснить после решения.</summary>
     public bool HasExplanation => Explanation.Length > 0;
@@ -246,6 +255,10 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
             // Разбор считается один раз: внутри перебор жизни, и на каждое чтение свойства
             // его считать нельзя (вид спрашивает строку при каждом обновлении).
             _explanation = ProblemTexts.Solution(Current, _session.Board, _session.SolverMoves, _session.Replies);
+
+            var played = _session.SolverMoves.Where(move => move.Type == MoveType.Play).ToList();
+
+            _shapePoints = played.Count > 0 ? MoveShape.Of(_session.Board, played[^1]).Points : [];
         }
 
         if (verdict == ProblemVerdict.Wrong || verdict == ProblemVerdict.Failed)
@@ -300,6 +313,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
 
         _verdict = string.Empty;
         _explanation = string.Empty;
+        _shapePoints = [];
         _hint = null;
         ClearAnimation();
         NotifyAll();
@@ -311,6 +325,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         _session.Reset();
         _verdict = string.Empty;
         _explanation = string.Empty;
+        _shapePoints = [];
         _hint = null;
         ClearAnimation();
         NotifyAll();
@@ -349,6 +364,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         _session = new ProblemSession(_problems[index]);
         _verdict = string.Empty;
         _explanation = string.Empty;
+        _shapePoints = [];
         _hint = null;
         ClearAnimation();
 

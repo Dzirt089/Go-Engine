@@ -45,6 +45,11 @@ public sealed class BoardControl : Control
         AvaloniaProperty.Register<BoardControl, GoPoint?>(nameof(HintPoint));
 
     /// <summary>Свойство подсвеченных точек урока: изменение перерисовывает доску.</summary>
+    /// <summary>Камни формы: под ними рисуется неоновая подсветка.</summary>
+    public static readonly StyledProperty<IReadOnlyList<GoPoint>?> ShapePointsProperty =
+        AvaloniaProperty.Register<BoardControl, IReadOnlyList<GoPoint>?>(nameof(ShapePoints));
+
+    /// <summary>Точки-подсказки: рисуются тем же знаком, что и подсказка хода.</summary>
     public static readonly StyledProperty<IReadOnlyList<GoPoint>?> HighlightPointsProperty =
         AvaloniaProperty.Register<BoardControl, IReadOnlyList<GoPoint>?>(nameof(HighlightPoints));
 
@@ -159,6 +164,14 @@ public sealed class BoardControl : Control
     /// Отдельно от <see cref="HintPoint"/>: подсказка — предлагаемый ход, а подсветка объясняет,
     /// куда смотреть. Рисуются они одинаково, но живут в разных шагах урока.
     /// </remarks>
+    /// <summary>Камни формы: под ними рисуется зелёная неоновая подсветка.</summary>
+    public IReadOnlyList<GoPoint>? ShapePoints
+    {
+        get => GetValue(ShapePointsProperty);
+        set => SetValue(ShapePointsProperty, value);
+    }
+
+    /// <summary>Точки-подсказки вида: «смотри сюда».</summary>
     public IReadOnlyList<GoPoint>? HighlightPoints
     {
         get => GetValue(HighlightPointsProperty);
@@ -214,7 +227,8 @@ public sealed class BoardControl : Control
                 Territory,
                 DeadPoints,
                 HintPoint,
-                HighlightPoints,
+                ShapePoints,
+        HighlightPoints,
                 ShowCoordinates,
                 Outcome));
         }
@@ -314,6 +328,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
     private readonly IReadOnlyList<GoPoint>? _deadPoints;
     private readonly GoPoint? _hint;
     private readonly IReadOnlyList<GoPoint>? _highlights;
+    private readonly IReadOnlyList<GoPoint>? _shape;
     private readonly bool _showCoordinates;
     private readonly BoardOutcome _outcome;
 
@@ -327,6 +342,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
         IReadOnlyList<GoPoint>? deadPoints,
         GoPoint? hint,
         IReadOnlyList<GoPoint>? highlights,
+        IReadOnlyList<GoPoint>? shape,
         bool showCoordinates,
         BoardOutcome outcome)
     {
@@ -338,6 +354,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
         _deadPoints = deadPoints;
         _hint = hint;
         _highlights = highlights;
+        _shape = shape;
         _showCoordinates = showCoordinates;
         _outcome = outcome;
         Bounds = bounds;
@@ -379,6 +396,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
             _deadPoints,
             _hint,
             _highlights,
+            _shape,
             _showCoordinates,
             _outcome);
     }

@@ -41,6 +41,18 @@ public static class BoardRenderer
     /// <summary>Цвет маркера последнего хода.</summary>
     private static readonly SKColor LastMoveColor = new(0xC0, 0x28, 0x18);
 
+    /// <summary>Цвет неоновой подсветки формы: яркий зелёный, как подсветка снизу.</summary>
+    private static readonly SKColor ShapeGlowColor = new(0x2A, 0xFF, 0x8A);
+
+    /// <summary>Сколько слоёв у свечения: больше — мягче ореол.</summary>
+    private const int ShapeGlowLayers = 4;
+
+    /// <summary>Яркость первого слоя свечения.</summary>
+    private const byte ShapeGlowAlpha = 150;
+
+    /// <summary>Насколько свечение смещено вниз от центра камня: это подсветка снизу, а не ореол.</summary>
+    private const float ShapeGlowDropRatio = 0.30f;
+
     /// <summary>Толщина маркера последнего хода в пикселях.</summary>
     private const float LastMoveStrokeWidth = 2f;
 
@@ -123,6 +135,10 @@ public static class BoardRenderer
     /// Точки, которые надо подсветить, или <c>null</c>. Подсветка отличается от подсказки только
     /// назначением: подсказка — предлагаемый ход, подсветка — то, на что смотрит объяснение урока.
     /// </param>
+    /// <param name="shape">
+    /// Камни формы решения или <c>null</c>. Под ними рисуется зелёная неоновая подсветка: игрок
+    /// видит форму на доске, а не только читает её название (замечание пользователя 2026-10-11).
+    /// </param>
     /// <param name="showCoordinates">Рисовать ли подписи координат.</param>
     /// <param name="outcome">Итог партии для подсветки края доски; <see cref="BoardOutcome.None"/> — без подсветки.</param>
     /// <remarks>
@@ -142,6 +158,7 @@ public static class BoardRenderer
         IReadOnlyList<Point>? deadPoints = null,
         Point? hint = null,
         IReadOnlyList<Point>? highlights = null,
+        IReadOnlyList<Point>? shape = null,
         bool showCoordinates = true,
         BoardOutcome outcome = BoardOutcome.None)
     {
@@ -170,6 +187,15 @@ public static class BoardRenderer
         }
 
         DrawStarPoints(canvas, board.Size, geometry);
+
+        // Подсветка формы рисуется под камнями: камень закрывает верхнюю часть ореола,
+        // и остаётся полоса света снизу — так это читается как подсветка, а не как ореол
+        // (замечание пользователя 2026-10-11: «неоновой подсветкой снизу камня, как автомобили внизу»).
+        if (shape is not null)
+        {
+            DrawShapeGlow(canvas, geometry, shape);
+        }
+
         DrawStones(canvas, board, geometry, animation);
         DrawTerritory(canvas, board, geometry, territory);
         DrawDeadMarks(canvas, board, geometry, deadPoints);
@@ -312,6 +338,40 @@ public static class BoardRenderer
 
         canvas.DrawCircle(center, geometry.StoneRadius * HintRadiusRatio, ring);
         canvas.DrawCircle(center, geometry.StoneRadius * 0.25f, dot);
+    }
+
+    /// <summary>Рисует неоновую подсветку под камнями формы.</summary>
+    /// <param name="canvas">Холст.</param>
+    /// <param name="geometry">Геометрия доски.</param>
+    /// <param name="points">Камни формы.</param>
+    /// <remarks>
+    /// Свечение — несколько кругов с убывающей яркостью: дешёвая замена размытию, дающая мягкий
+    /// край. Цвет выбран ярко-зелёный: он не встречается ни в камнях, ни в разметке территории
+    /// и не спорит с красной меткой последнего хода. Подсветка не заменяет текст: форма названа
+    /// и в разборе, поэтому смысл не теряется, если цвет не различается.
+    /// </remarks>
+    private static void DrawShapeGlow(SKCanvas canvas, BoardGeometry geometry, IReadOnlyList<Point> points)
+    {
+        foreach (var point in points)
+        {
+            var centre = geometry.Pixel(point);
+            var drop = geometry.StoneRadius * ShapeGlowDropRatio;
+
+            for (var layer = ShapeGlowLayers; layer >= 1; layer--)
+            {
+                var radius = geometry.StoneRadius * (1.05f + (layer * 0.18f));
+                var alpha = (byte)Math.Max(1, ShapeGlowAlpha / layer);
+
+                using var paint = new SKPaint
+                {
+                    Color = ShapeGlowColor.WithAlpha(alpha),
+                    IsAntialias = true,
+                    Style = SKPaintStyle.Fill
+                };
+
+                canvas.DrawCircle(centre.X, centre.Y + drop, radius, paint);
+            }
+        }
     }
 
     /// <summary>Рисует знаки территории на пустых пересечениях.</summary>

@@ -6,7 +6,8 @@ namespace GoEngine.Problems;
 /// <param name="Name">Название формы: «ноби», «косуми», «пасть тигра», «пустой треугольник».</param>
 /// <param name="Good">Хорошая ли форма: крепкая, лёгкая или хотя бы не вредная.</param>
 /// <param name="Why">Чем форма хороша или плоха и что из этого следует в партии.</param>
-public readonly record struct ShapeFacts(string Name, bool Good, string Why);
+/// <param name="Points">Камни, которые образуют форму: по ним вид рисует подсветку.</param>
+public readonly record struct ShapeFacts(string Name, bool Good, string Why, IReadOnlyList<Point> Points);
 
 /// <summary>Распознавание формы хода: что игрок построил своим камнем.</summary>
 /// <remarks>
@@ -33,7 +34,7 @@ public static class MoveShape
 
         if (move.Type != MoveType.Play)
         {
-            return new ShapeFacts("пас", true, "Пас форму не строит: он передаёт ход и начинает подсчёт.");
+            return new ShapeFacts("пас", true, "Пас форму не строит: он передаёт ход и начинает подсчёт.", []);
         }
 
         var point = move.Point;
@@ -50,7 +51,8 @@ public static class MoveShape
                 "кирпич",
                 false,
                 "плохая форма: четыре камня квадратом — внутри ни глаза, ни территории, а камней больше, чем нужно. "
-                + "Такая группа тяжёлая: она бежит, а не строит, и играть лучше шире.");
+                + "Такая группа тяжёлая: она бежит, а не строит, и играть лучше шире.",
+                [point, .. own]);
         }
 
         if (EmptyTriangle(after, point, colour, nearby))
@@ -59,7 +61,8 @@ public static class MoveShape
                 "пустой треугольник",
                 false,
                 "плохая форма: камней стало больше, а дыханий и территории — нет. Такой камень тянет группу "
-                + "вниз, и соперник может разрезать её с выгодой. Обычно лучше играть шире — косуми или прыжком.");
+                + "вниз, и соперник может разрезать её с выгодой. Обычно лучше играть шире — косуми или прыжком.",
+                [point, .. nearby.Where(other => OwnInSquare(after, point, other, colour)).Take(2)]);
         }
 
         if (TigerMouth(after, point, colour))
@@ -68,7 +71,8 @@ public static class MoveShape
                 "пасть тигра",
                 true,
                 "крепкая форма: между камнями осталась точка, войти в неё нельзя — камень соперника сразу "
-                + "попадёт в плен. Держит территорию без лишних камней.");
+                + "попадёт в плен. Держит территорию без лишних камней.",
+                [point, .. own]);
         }
 
         if (Bamboo(after, point, colour))
@@ -77,7 +81,8 @@ public static class MoveShape
                 "бамбук",
                 true,
                 "прочная связь: соперник займёт одну соединительную точку, а вы соединитесь через вторую. "
-                + "Разрезать такую форму нельзя.");
+                + "Разрезать такую форму нельзя.",
+                [point, .. own]);
         }
 
         if (own.Count >= 2 && own.Any(other => IsLine(point, other)))
@@ -86,7 +91,8 @@ public static class MoveShape
                 "соединение в линию",
                 true,
                 "камни связаны плотно: разрезать их нельзя. Форма надёжная, но медленная — камень работает "
-                + "на соединение, а не на территорию.");
+                + "на соединение, а не на территорию.",
+                [point, .. own]);
         }
 
         if (own.Any(other => IsLine(point, other)))
@@ -95,7 +101,8 @@ public static class MoveShape
                 "ноби",
                 true,
                 "плотная связь: два камня в линию имеют общие дыхания, и разрезать их нельзя. Растёт медленно, "
-                + "зато надёжно — так строят группы, которым важна жизнь.");
+                + "зато надёжно — так строят группы, которым важна жизнь.",
+                [point, .. own]);
         }
 
         if (nearby.Any(other => IsDiagonal(point, other)))
@@ -104,7 +111,8 @@ public static class MoveShape
                 "косуми",
                 true,
                 "связано по диагонали: соперник не разрежет одним ходом, а форма растёт быстрее, чем в линию. "
-                + "Хороша у края и для лёгкого расширения.");
+                + "Хороша у края и для лёгкого расширения.",
+                [point, .. nearby.Where(other => IsDiagonal(point, other)).Take(1)]);
         }
 
         if (jumps.Contains(1))
@@ -113,7 +121,8 @@ public static class MoveShape
                 "тоби",
                 true,
                 "прыжок через точку: форма растёт вдвое быстрее, а связь сохраняется. В промежуток соперник "
-                + "может влезть, но разрезать не сможет.");
+                + "может влезть, но разрезать не сможет.",
+                [point, .. nearby.Where(other => IsJump(point, other, 2)).Take(1)]);
         }
 
         if (jumps.Contains(2))
@@ -122,7 +131,8 @@ public static class MoveShape
                 "кейма",
                 true,
                 "ход конём: быстро и легко, между камнями остаётся точка разрезания — за ней нужно следить. "
-                + "Хороша, когда играют широко, а не в тесноте.");
+                + "Хороша, когда играют широко, а не в тесноте.",
+                [point, .. nearby.Where(other => IsKnight(point, other)).Take(1)]);
         }
 
         if (jumps.Contains(3))
@@ -131,12 +141,13 @@ public static class MoveShape
                 "никкен тоби",
                 true,
                 "широкий прыжок: занимает сторону быстро, но связь тонкая — соперник может влезть в промежуток. "
-                + "Так расширяются, когда места много и группа уже обеспечена.");
+                + "Так расширяются, когда места много и группа уже обеспечена.",
+                [point, .. nearby.Where(other => IsJump(point, other, 3)).Take(1)]);
         }
 
         return own.Count > 0
-            ? new ShapeFacts("рядом со своими камнями", true, "камень стоит рядом со своими: форма не построена, но группа стала плотнее.")
-            : new ShapeFacts("отдельный камень", true, "камень поставлен сам по себе: формы ещё нет — она появится следующим ходом.");
+            ? new ShapeFacts("рядом со своими камнями", true, "камень стоит рядом со своими: форма не построена, но группа стала плотнее.", [point, .. own])
+            : new ShapeFacts("отдельный камень", true, "камень поставлен сам по себе: формы ещё нет — она появится следующим ходом.", [point]);
     }
 
     /// <summary>Проверяет пустой треугольник: три своих камня в квадрате 2×2 и пустая точка внутри.</summary>
@@ -366,6 +377,42 @@ public static class MoveShape
 
         return found;
     }
+
+    /// <summary>Стоит ли камень рядом с точкой так, что вместе с ней образует пустой треугольник.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="point">Точка хода.</param>
+    /// <param name="other">Свой камень рядом.</param>
+    /// <param name="colour">Цвет хода.</param>
+    /// <returns><c>true</c>, если камень входит в квадрат пустого треугольника.</returns>
+    private static bool OwnInSquare(Board board, Point point, Point other, StoneColor colour)
+    {
+        foreach (var square in Squares(point, board.Size.Value))
+        {
+            if (square.Contains(point) && square.Contains(other) && square.Count(item => board.At(item) == colour) == 3)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Стоит ли камень на расстоянии прыжка по линии.</summary>
+    /// <param name="point">Точка хода.</param>
+    /// <param name="other">Свой камень.</param>
+    /// <param name="distance">Ожидаемое расстояние.</param>
+    /// <returns><c>true</c>, если камень стоит в той же строке или столбце на этом расстоянии.</returns>
+    private static bool IsJump(Point point, Point other, int distance) =>
+        (Math.Abs(point.X - other.X) == distance && point.Y == other.Y)
+        || (Math.Abs(point.Y - other.Y) == distance && point.X == other.X);
+
+    /// <summary>Стоит ли камень ходом конём: две точки в сторону и одна вбок.</summary>
+    /// <param name="point">Точка хода.</param>
+    /// <param name="other">Свой камень.</param>
+    /// <returns><c>true</c>, если расстояние коня.</returns>
+    private static bool IsKnight(Point point, Point other) =>
+        (Math.Abs(point.X - other.X) == 2 && Math.Abs(point.Y - other.Y) == 1)
+        || (Math.Abs(point.X - other.X) == 1 && Math.Abs(point.Y - other.Y) == 2);
 
     /// <summary>Соседние точки в пределах доски.</summary>
     /// <param name="board">Позиция.</param>
