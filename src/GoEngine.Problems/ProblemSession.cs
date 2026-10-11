@@ -54,6 +54,14 @@ public sealed class ProblemSession
     /// <summary>Сколько ходов сделал игрок.</summary>
     public int SolverMoveCount => _solverMoves.Count;
 
+    /// <summary>Начальная позиция задачи: какой её выдал автор.</summary>
+    /// <remarks>Нужна текстам задачи: цель описывает группу <b>до</b> первого хода, а не текущую позицию.</remarks>
+    public Board StartBoard => _initial;
+
+    /// <summary>Ходы игрока по порядку: линия решения без ответов соперника.</summary>
+    /// <remarks>Разбор после решения называет последний ход игрока, поэтому линия нужна снаружи.</remarks>
+    public IReadOnlyList<Move> SolverMoves => _solverMoves.AsReadOnly();
+
     /// <summary>Можно ли отменить ход.</summary>
     public bool CanBack => _solverMoves.Count > 0;
 

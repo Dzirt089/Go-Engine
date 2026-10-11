@@ -38,7 +38,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     private static readonly string[] PropertyNames =
     [
         nameof(Current), nameof(Board), nameof(LastMove), nameof(Title), nameof(GoalText), nameof(ToMoveText),
-        nameof(SizeText), nameof(Verdict), nameof(HasVerdict),
+        nameof(SizeText), nameof(Verdict), nameof(HasVerdict), nameof(Explanation), nameof(HasExplanation),
         nameof(IsSolved), nameof(CanBack), nameof(CanHint), nameof(HintPoint), nameof(CanGoPrevious),
         nameof(CanGoNext), nameof(StatusText), nameof(SelectedIndex), nameof(LastCaptured),
         nameof(LastCapturedColor)
@@ -123,9 +123,31 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// «убить группу», «обеспечить жизнь группы», «убить группу, не снимая…». Пояснения о правилах
     /// режима в панель не выводятся: они повторяются от задачи к задаче и решать не помогают.
     /// </remarks>
-    public string GoalText => Current.Description.Length > 0
-        ? Current.Description
-        : Current.Goal.Descriptions ?? Current.Goal.Name;
+    public string GoalText
+    {
+        get
+        {
+            var condition = Current.Description.Length > 0
+                ? Current.Description
+                : Current.Goal.Descriptions ?? Current.Goal.Name;
+
+            // К формулировке добавляется точная часть: какая именно группа, её камни точками
+            // и сколько у неё дыханий. Раньше в цели не было ни одной координаты, и игрок
+            // не понимал, о какой группе речь (жалоба пользователя 2026-10-11). Точка решения
+            // не называется: это предмет задачи, а не ответ.
+            return $"{condition} {ProblemTexts.Goal(Current, _session.StartBoard)}";
+        }
+    }
+
+    /// <summary>Разбор решения: почему оно работает и что это даёт дальше.</summary>
+    /// <remarks>
+    /// Появляется, когда задача решена. Замечание пользователя 2026-10-11: «я всё сделал
+    /// с подсказками, но так и не понял суть задачи. А задача должна в конце дать этот ответ».
+    /// </remarks>
+    public string Explanation => IsSolved ? ProblemTexts.Solution(Current, _session.Board, _session.SolverMoves) : string.Empty;
+
+    /// <summary>Есть что объяснить после решения.</summary>
+    public bool HasExplanation => Explanation.Length > 0;
 
     /// <summary>Чей ход в текущей позиции.</summary>
     public string ToMoveText => StoneColorLabels.Label(_session.ToMove);
@@ -205,6 +227,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         }
 
         var before = _session.Board;
+        var mover = _session.ToMove;
 
         if (!before.IsEmpty(point) || !before.IsLegal(Move.Play(point, _session.ToMove)).IsSuccess)
         {
@@ -226,7 +249,13 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         else
         {
             UpdateAnimation(before, _session.Board, point);
-            _verdict = verdict == ProblemVerdict.Solved ? SolvedText : CorrectText;
+            // К «верно» добавляется разбор хода: координата и что она дала группе. Игрок должен
+            // понимать, что произошло, а не только что ход принят (жалоба пользователя 2026-10-11).
+            var feedback = ProblemTexts.Feedback(Current, before, Move.Play(point, mover), _session.Board);
+
+            _verdict = verdict == ProblemVerdict.Solved
+                ? $"{SolvedText}: {feedback}"
+                : $"{CorrectText}: {feedback}";
 
             if (verdict == ProblemVerdict.Solved)
             {

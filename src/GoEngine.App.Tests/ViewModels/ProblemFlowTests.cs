@@ -49,7 +49,7 @@ public sealed class ProblemFlowTests
             }
 
             Assert.True(model.IsSolved, $"{id}: задача не решена по собственной подсказке");
-            Assert.Equal(ProblemViewModel.SolvedText, model.Verdict);
+            Assert.StartsWith(ProblemViewModel.SolvedText, model.Verdict, StringComparison.Ordinal);
             Assert.Null(model.HintPoint);
             Assert.False(model.CanHint);
         }
@@ -83,6 +83,27 @@ public sealed class ProblemFlowTests
         }
     }
 
+    /// <summary>Ищет в тексте подписи точек вида «D5».</summary>
+    /// <param name="text">Текст.</param>
+    /// <returns>Найденные подписи.</returns>
+    private static IReadOnlyList<string> Coordinates(string text) =>
+        System.Text.RegularExpressions.Regex
+            .Matches(text, @"(?<![A-Za-zА-Яа-я])[A-HJ-T]\d{1,2}(?![0-9])")
+            .Select(match => match.Value)
+            .ToList();
+
+    /// <summary>Доводит задачу до решения, играя принимаемые ходы.</summary>
+    /// <param name="model">Модель задачи.</param>
+    private static void SolveByHints(ProblemViewModel model)
+    {
+        var guard = 0;
+
+        while (!model.IsSolved && guard++ < 20 && model.AcceptedMoves.Count > 0)
+        {
+            model.Play(model.AcceptedMoves[0].Point);
+        }
+    }
+
     [Fact]
     public void Цель_Меняется_Вместе_С_Задачей()
     {
@@ -99,7 +120,7 @@ public sealed class ProblemFlowTests
             model.Select(index);
 
             Assert.Contains(nameof(ProblemViewModel.GoalText), changed);
-            Assert.Equal(model.Problems[index].Description, model.GoalText);
+            Assert.StartsWith(model.Problems[index].Description, model.GoalText, StringComparison.Ordinal);
             Assert.Equal(model.Problems[index].Name, model.Title);
         }
     }
@@ -112,12 +133,22 @@ public sealed class ProblemFlowTests
         var model = new ProblemViewModel();
 
         Assert.False(string.IsNullOrWhiteSpace(model.GoalText));
-        Assert.Equal(model.Current.Description, model.GoalText);
+        // Цель — авторская формулировка плюс точная часть: какая группа и где (жалоба 2026-10-11).
+        Assert.StartsWith(model.Current.Description, model.GoalText, StringComparison.Ordinal);
+        Assert.True(Coordinates(model.GoalText).Count > 0, $"в цели нет координат: {model.GoalText}");
         Assert.DoesNotContain("решение источника", model.GoalText, StringComparison.Ordinal);
+
+        // Разбор появляется вместе с решением и говорит о группе словами и точками.
+        Assert.False(model.HasExplanation, "разбор показан до решения");
+        SolveByHints(model);
+        Assert.True(model.HasExplanation, "после решения разбора нет");
+        Assert.True(Coordinates(model.Explanation).Count > 0, $"в разборе нет координат: {model.Explanation}");
 
         model.Next();
 
-        Assert.Equal(model.Current.Description, model.GoalText);
+        // Цель — авторская формулировка плюс точная часть: какая группа и где (жалоба 2026-10-11).
+        Assert.StartsWith(model.Current.Description, model.GoalText, StringComparison.Ordinal);
+        Assert.True(Coordinates(model.GoalText).Count > 0, $"в цели нет координат: {model.GoalText}");
     }
 
     [Fact]
@@ -193,7 +224,7 @@ public sealed class ProblemFlowTests
 
         model.Play(free);
 
-        Assert.Equal(ProblemViewModel.SolvedText, model.Verdict);
+        Assert.StartsWith(ProblemViewModel.SolvedText, model.Verdict, StringComparison.Ordinal);
         Assert.Equal(board, Snapshot(model.Board));
         Assert.Equal(lastMove, model.LastMove);
     }

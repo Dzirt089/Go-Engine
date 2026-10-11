@@ -254,7 +254,7 @@ public static class MoveDescriber
     /// <param name="point">Точка.</param>
     /// <param name="size">Размер доски.</param>
     /// <returns>Номер линии.</returns>
-    private static int LineOf(Point point, int size) =>
+    public static int LineOf(Point point, int size) =>
         Math.Min(Math.Min(point.X, point.Y), Math.Min(size - 1 - point.X, size - 1 - point.Y)) + 1;
 
     /// <summary>Где сделан ход: угол, сторона или центр.</summary>
@@ -262,7 +262,7 @@ public static class MoveDescriber
     /// <param name="size">Размер доски.</param>
     /// <returns>Слово для строки.</returns>
     /// <remarks>Угол — в четырёх линиях от обоих краёв, сторона — в четырёх от одного, остальное центр.</remarks>
-    private static string RegionOf(Point point, int size)
+    public static string RegionOf(Point point, int size)
     {
         var fromLeft = Math.Min(point.X, size - 1 - point.X);
         var fromTop = Math.Min(point.Y, size - 1 - point.Y);

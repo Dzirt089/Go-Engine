@@ -1,0 +1,357 @@
+using System.Text;
+using GoEngine.Core;
+
+namespace GoEngine.Problems;
+
+/// <summary>Тексты задачи: точная цель, отклик на ход и разбор решения.</summary>
+/// <remarks>
+/// <para>
+/// Замечание пользователя 2026-10-11: «когда задача решена — необходимо дать понятное разъяснение,
+/// почему задача решена так, и как это повлияет на следующие гипотетические ходы. Я всё сделал
+/// с подсказками, но так и не понял суть задачи. А задача должна в конце дать этот ответ».
+/// </para>
+/// <para>
+/// Ничего не выдумывается: тексты собираются по правилам и позиции — целевая группа и её точки,
+/// дыхания до и после хода, глаза, снятия. Формулировки только называют то, что посчитано,
+/// поэтому разбор честен и на чужой задаче.
+/// </para>
+/// </remarks>
+public static class ProblemTexts
+{
+    /// <summary>Точная цель: какую группу решают, где она стоит и сколько у неё дыханий.</summary>
+    /// <param name="problem">Задача.</param>
+    /// <param name="board">Начальная позиция задачи.</param>
+    /// <returns>Строку вида «Цель: снять белую группу из 3 камней (E5, F5, G5) на верхней стороне — у неё 3 дыхания».</returns>
+    /// <remarks>
+    /// Точка решения не называется: цель описывает <b>предмет</b> задачи, а не ответ. Раньше в цели
+    /// стояло «убить белую группу» без единой координаты, и игрок не понимал, о какой группе речь
+    /// (жалоба пользователя 2026-10-11).
+    /// </remarks>
+    public static string Goal(Problem problem, Board board)
+    {
+        ArgumentNullException.ThrowIfNull(problem);
+        ArgumentNullException.ThrowIfNull(board);
+
+        var group = TargetGroup(problem, board);
+
+        if (group.Count == 0)
+        {
+            return Action(problem.Goal);
+        }
+
+        var liberties = Liberties(board, group);
+
+        // Формулировка автора остаётся главной: в ней задача названа целиком, а группа у опорной
+        // точки — это то, с чего начинают смотреть. Так строка не спорит с названием задачи,
+        // даже если камней в ней больше, чем в одной группе (например «захватить шесть камней»,
+        // а у точки стоят два).
+        var subject = $"Ключевая группа: {Group(board, group)}, у неё {Breaths(liberties)}";
+
+        return problem.Goal == ProblemGoal.Reference
+            ? char.ToUpperInvariant(subject[0]) + subject[1..]
+            : $"{Action(problem.Goal)}: {subject}";
+    }
+
+    /// <summary>Отклик на ход: координата, что ход сделал и как изменилась целевая группа.</summary>
+    /// <param name="problem">Задача.</param>
+    /// <param name="before">Позиция до хода.</param>
+    /// <param name="move">Ход игрока.</param>
+    /// <param name="after">Позиция после хода.</param>
+    /// <returns>Строку вида «D5 — снято 2 камня; у белой группы осталось 2 дыхания».</returns>
+    public static string Feedback(Problem problem, Board before, Move move, Board after)
+    {
+        ArgumentNullException.ThrowIfNull(problem);
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(move);
+        ArgumentNullException.ThrowIfNull(after);
+
+        if (move.Type == MoveType.Pass)
+        {
+            return "Пас";
+        }
+
+        var point = move.Point;
+        var facts = MoveDescriber.FactsOf(before, after, move, 1);
+        List<string> parts = [];
+
+        if (facts.Captured > 0)
+        {
+            parts.Add($"снято {Stones(facts.Captured)}");
+        }
+        else if (facts.Atari.Count > 0)
+        {
+            parts.Add($"ставлю {Name(facts.Atari[0].Color)} группу в атари: у неё одно дыхание");
+        }
+
+        if (facts.Connects)
+        {
+            parts.Add("соединяю свои группы");
+        }
+
+        if (facts.Cuts)
+        {
+            parts.Add("разрезаю группы соперника");
+        }
+
+        // Что стало с целевой группой: дыхания до и после — главное, что видит решающий.
+        var beforeGroup = TargetGroup(problem, before);
+        var afterGroup = TargetGroup(problem, after);
+
+        if (beforeGroup.Count > 0 && afterGroup.Count == 0)
+        {
+            parts.Add($"{Name(before.At(beforeGroup[0]))} группа снята: у неё не осталось дыханий");
+        }
+        else if (afterGroup.Count > 0)
+        {
+            var was = Liberties(before, beforeGroup);
+            var now = Liberties(after, afterGroup);
+
+
+            if (now != was)
+            {
+                parts.Add($"у {NameOf(after.At(afterGroup[0]))} группы {Breaths(now)} (было {was})");
+            }
+        }
+
+        var label = BoardCoordinates.Label(point, after.Size);
+
+        return parts.Count == 0 ? label : $"{label} — {string.Join("; ", parts)}";
+    }
+
+    /// <summary>Разбор решения: почему оно работает и что это даёт в дальнейших ходах.</summary>
+    /// <param name="problem">Задача.</param>
+    /// <param name="board">Позиция после решения.</param>
+    /// <param name="line">Ходы решения: что играли и что отвечал соперник.</param>
+    /// <returns>Разбор из двух-трёх фраз.</returns>
+    /// <remarks>
+    /// Разбор отвечает на вопрос «почему это работает»: чем группа жива теперь и что придётся
+    /// делать сопернику дальше. Это ответ на жалобу пользователя 2026-10-11: задача, решённая
+    /// с подсказками, оставляла без понимания сути.
+    /// </remarks>
+    public static string Solution(Problem problem, Board board, IReadOnlyList<Move> line)
+    {
+        ArgumentNullException.ThrowIfNull(problem);
+        ArgumentNullException.ThrowIfNull(board);
+        ArgumentNullException.ThrowIfNull(line);
+
+        var group = TargetGroup(problem, board);
+        StringBuilder text = new();
+
+        if (group.Count == 0)
+        {
+            var captured = line.Count > 0 && line[^1].Type == MoveType.Play
+                ? $" Ход {BoardCoordinates.Label(line[^1].Point, board.Size)} снял её последние камни."
+                : string.Empty;
+
+            var who = IsOwn(problem, problem.SolverColor.Opponent()) ? "Ваша группа" : "Группа соперника";
+
+            text.Append($"{who} снята: у неё не осталось дыханий.").Append(captured);
+            text.Append(" Дальше эта часть доски свободна: вернуться сюда можно только с нуля, ")
+                .Append("а очки за снятые камни уже в счёте.");
+
+            return text.ToString();
+        }
+
+        var liberties = Liberties(board, group);
+        var eyes = EyePoints(board, group);
+        var colour = board.At(group[0]);
+        var own = IsOwn(problem, colour);
+        var where = Group(board, group);
+        var eyeLabels = string.Join(" и ", eyes.Take(2).Select(point => BoardCoordinates.Label(point, board.Size)));
+
+        text.Append($"{char.ToUpperInvariant(where[0])}{where[1..]}: ");
+
+        // Глаза — главное, что решает судьбу группы, и говорится о них по-разному: у своей группы
+        // это жизнь, у чужой — препятствие. Без этого разбор путал игрока: он читал «группа живая»
+        // про ту группу, которую сам же и убивал.
+        if (eyes.Count >= 2)
+        {
+            text.Append(own
+                ? $"у неё два глаза — {eyeLabels} — и {Breaths(liberties)}. Соперник может закрыть только один глаз: на вторую угрозу вы отвечаете, и группа не снимается ни одним ходом."
+                : $"у неё два глаза — {eyeLabels} — и {Breaths(liberties)}: убить её нельзя, соперник успевает ответить на любую попытку. Такая группа живая.");
+        }
+        else if (eyes.Count == 1)
+        {
+            text.Append(own
+                ? $"у неё один глаз ({eyeLabels}) и {Breaths(liberties)}: для жизни одного глаза мало — соперник закроет его и поставит группу в атари. Второй глаз и есть решение."
+                : $"у неё один глаз ({eyeLabels}) и {Breaths(liberties)}: второй жизни нет, и закрыть этот глаз — половина дела. Второго глаза соперник не построит.");
+        }
+        else
+        {
+            text.Append(own
+                ? $"у неё {Breaths(liberties)} и ни одного глаза: спасать её нужно сейчас — каждое дыхание соперник закрывает ходом, а второй жизни у группы нет."
+                : $"у неё {Breaths(liberties)} и ни одного глаза: второй жизни нет, поэтому группу можно убить — закрывайте дыхания по одному, и соперник не успеет построить глаз.");
+        }
+
+        if (own && liberties >= 4 && eyes.Count >= 2)
+        {
+            text.Append(" Этого хватает с запасом: следующие ходы можно играть в другом месте доски, а на угрозу рядом отвечать одним камнем.");
+        }
+
+        return text.ToString();
+    }
+
+    /// <summary>Камни целевой группы в позиции.</summary>
+    /// <param name="problem">Задача.</param>
+    /// <param name="board">Позиция.</param>
+    /// <returns>Точки группы; пустой список — группы на доске нет.</returns>
+    private static IReadOnlyList<Point> TargetGroup(Problem problem, Board board)
+    {
+        if (!ProblemGoalCheck.TargetPresent(board, problem))
+        {
+            return [];
+        }
+
+        var group = GroupTracker.FindGroup(board, problem.Target);
+
+        return group.Stones;
+    }
+
+    /// <summary>Свободные точки вокруг группы: её дыхания.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="group">Камни группы.</param>
+    /// <returns>Число дыханий.</returns>
+    private static int Liberties(Board board, IReadOnlyList<Point> group)
+    {
+        if (group.Count == 0)
+        {
+            return 0;
+        }
+
+        var tracked = GroupTracker.FindGroup(board, group[0]);
+
+        return tracked.Liberties.Count;
+    }
+
+    /// <summary>Глаза группы: пустые точки, которые по строгому критерию принадлежат только ей.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="group">Камни группы.</param>
+    /// <returns>Точки глаз по порядку обхода доски.</returns>
+    private static IReadOnlyList<Point> EyePoints(Board board, IReadOnlyList<Point> group)
+    {
+        var colour = board.At(group[0]);
+        List<Point> eyes = [];
+
+        foreach (var point in group)
+        {
+            foreach (var neighbour in Neighbours(point, board.Size))
+            {
+                if (board.At(neighbour) == StoneColor.Empty
+                    && !eyes.Contains(neighbour)
+                    && ProblemLife.IsEye(board, neighbour, colour))
+                {
+                    eyes.Add(neighbour);
+                }
+            }
+        }
+
+        return eyes;
+    }
+
+    /// <summary>Соседние точки в пределах доски.</summary>
+    /// <param name="point">Точка.</param>
+    /// <param name="size">Размер доски.</param>
+    /// <returns>Соседей по линиям.</returns>
+    private static IEnumerable<Point> Neighbours(Point point, BoardSize size)
+    {
+        if (point.X > 0)
+        {
+            yield return new Point((byte)(point.X - 1), point.Y);
+        }
+
+        if (point.X + 1 < size.Value)
+        {
+            yield return new Point((byte)(point.X + 1), point.Y);
+        }
+
+        if (point.Y > 0)
+        {
+            yield return new Point(point.X, (byte)(point.Y - 1));
+        }
+
+        if (point.Y + 1 < size.Value)
+        {
+            yield return new Point(point.X, (byte)(point.Y + 1));
+        }
+    }
+
+    /// <summary>Описание группы: цвет, число камней, где стоит и её точки.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="group">Камни группы.</param>
+    /// <returns>Строку вида «чёрная группа из 5 камней на нижней стороне (C1, D1, E1)».</returns>
+    private static string Group(Board board, IReadOnlyList<Point> group) =>
+        $"{Name(board.At(group[0]))} группа из {StonesOf(group.Count)} {Where(group[0], board.Size)} ({Points(group, board.Size)})";
+
+    /// <summary>Где стоит группа: угол, сторона или центр.</summary>
+    /// <param name="point">Точка группы.</param>
+    /// <param name="size">Размер доски.</param>
+    /// <returns>Словами.</returns>
+    private static string Where(Point point, BoardSize size)
+    {
+        var region = MoveDescriber.RegionOf(point, size.Value);
+
+        return region switch
+        {
+            "угол" => "в углу",
+            "сторона" => "на стороне",
+            _ => "в центре"
+        };
+    }
+
+    /// <summary>Точки группы подписями вида «E5, F5, G5».</summary>
+    /// <param name="group">Камни группы.</param>
+    /// <param name="size">Размер доски.</param>
+    /// <returns>Подписи через запятую.</returns>
+    private static string Points(IReadOnlyList<Point> group, BoardSize size) =>
+        string.Join(", ", group.Select(point => BoardCoordinates.Label(point, size)));
+
+    /// <summary>Что нужно сделать с группой по цели задачи.</summary>
+    /// <param name="goal">Цель задачи.</param>
+    /// <returns>Начало фразы цели.</returns>
+    private static string Action(ProblemGoal goal) => goal switch
+    {
+        var value when value == ProblemGoal.Capture => "Снять",
+        var value when value == ProblemGoal.Dead => "Убить",
+        var value when value == ProblemGoal.Live => "Сделать живой",
+        var value when value == ProblemGoal.Survive => "Спасти",
+        var value when value == ProblemGoal.Eyes => "Построить два глаза",
+        var value when value == ProblemGoal.Ko => "Начать ко-борьбу",
+        _ => "Решить задачу"
+    };
+
+    /// <summary>Название цвета для текста.</summary>
+    /// <param name="colour">Цвет.</param>
+    /// <returns>«чёрная» или «белая».</returns>
+    private static string Name(StoneColor colour) => colour == StoneColor.Black ? "чёрная" : "белая";
+
+    /// <summary>Название цвета в родительном падеже: «у чёрной группы».</summary>
+    /// <param name="colour">Цвет.</param>
+    /// <returns>«чёрной» или «белой».</returns>
+    private static string NameOf(StoneColor colour) => colour == StoneColor.Black ? "чёрной" : "белой";
+
+    /// <summary>Чья это группа для решающего: своя или соперника.</summary>
+    /// <param name="problem">Задача.</param>
+    /// <param name="colour">Цвет группы.</param>
+    /// <returns><c>true</c>, если группа принадлежит решающему.</returns>
+    private static bool IsOwn(Problem problem, StoneColor colour) => colour == problem.SolverColor;
+
+    /// <summary>Слово о числе камней.</summary>
+    /// <param name="stones">Число камней.</param>
+    /// <returns>«1 камень», «2 камня», «5 камней».</returns>
+    private static string Stones(int stones) => stones == 1 ? "1 камень" : $"{stones} камней";
+
+    /// <summary>Число камней после слова «из»: «из 1 камня», «из 5 камней».</summary>
+    /// <param name="stones">Число камней.</param>
+    /// <returns>Слова в родительном падеже.</returns>
+    private static string StonesOf(int stones) => stones == 1 ? "1 камня" : $"{stones} камней";
+
+    /// <summary>Слово о числе дыханий.</summary>
+    /// <param name="liberties">Число дыханий.</param>
+    /// <returns>«1 дыхание», «3 дыхания», «6 дыханий».</returns>
+    private static string Breaths(int liberties) => liberties switch
+    {
+        1 => "1 дыхание",
+        >= 2 and <= 4 => $"{liberties} дыхания",
+        _ => $"{liberties} дыханий"
+    };
+}

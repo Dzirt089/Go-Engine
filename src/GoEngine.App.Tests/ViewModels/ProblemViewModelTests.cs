@@ -63,12 +63,13 @@ public sealed class ProblemViewModelTests
 
             solved = model.IsSolved;
             Assert.True(
-                model.Verdict is ProblemViewModel.SolvedText or ProblemViewModel.CorrectText,
+                model.Verdict.StartsWith(ProblemViewModel.SolvedText, StringComparison.Ordinal)
+                || model.Verdict.StartsWith(ProblemViewModel.CorrectText, StringComparison.Ordinal),
                 $"Неожиданный вердикт после верного хода: {model.Verdict}");
         }
 
         Assert.True(solved, "Задача не доведена до конца по собственной подсказке.");
-        Assert.Equal(ProblemViewModel.SolvedText, model.Verdict);
+        Assert.StartsWith(ProblemViewModel.SolvedText, model.Verdict, StringComparison.Ordinal);
         Assert.False(model.CanHint);
     }
 
