@@ -20,7 +20,8 @@
                            Board="{Binding Board}"
                            LastMove="{Binding LastMove}"
                            HintPoint="{Binding HintPoint}"
-                           ShapePoints="{Binding ShapePoints}" />
+                           ShapePoints="{Binding ShapePoints}"
+                           ShapeIsGood="{Binding ShapeIsGood}" />
 
     <Border x:Name="Panel"
             Grid.Column="1"

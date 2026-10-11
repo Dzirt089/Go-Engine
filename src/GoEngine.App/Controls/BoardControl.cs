@@ -49,6 +49,10 @@ public sealed class BoardControl : Control
     public static readonly StyledProperty<IReadOnlyList<GoPoint>?> ShapePointsProperty =
         AvaloniaProperty.Register<BoardControl, IReadOnlyList<GoPoint>?>(nameof(ShapePoints));
 
+    /// <summary>Хорошая ли форма: у плохой подсветка предупреждающего цвета.</summary>
+    public static readonly StyledProperty<bool> ShapeIsGoodProperty =
+        AvaloniaProperty.Register<BoardControl, bool>(nameof(ShapeIsGood), defaultValue: true);
+
     /// <summary>Точки-подсказки: рисуются тем же знаком, что и подсказка хода.</summary>
     public static readonly StyledProperty<IReadOnlyList<GoPoint>?> HighlightPointsProperty =
         AvaloniaProperty.Register<BoardControl, IReadOnlyList<GoPoint>?>(nameof(HighlightPoints));
@@ -164,11 +168,18 @@ public sealed class BoardControl : Control
     /// Отдельно от <see cref="HintPoint"/>: подсказка — предлагаемый ход, а подсветка объясняет,
     /// куда смотреть. Рисуются они одинаково, но живут в разных шагах урока.
     /// </remarks>
-    /// <summary>Камни формы: под ними рисуется зелёная неоновая подсветка.</summary>
+    /// <summary>Камни формы: под ними рисуется неоновая подсветка.</summary>
     public IReadOnlyList<GoPoint>? ShapePoints
     {
         get => GetValue(ShapePointsProperty);
         set => SetValue(ShapePointsProperty, value);
+    }
+
+    /// <summary>Хорошая ли форма: зелёная подсветка у хорошей, предупреждающая у плохой.</summary>
+    public bool ShapeIsGood
+    {
+        get => GetValue(ShapeIsGoodProperty);
+        set => SetValue(ShapeIsGoodProperty, value);
     }
 
     /// <summary>Точки-подсказки вида: «смотри сюда».</summary>
@@ -227,8 +238,9 @@ public sealed class BoardControl : Control
                 Territory,
                 DeadPoints,
                 HintPoint,
+                HighlightPoints,
                 ShapePoints,
-        HighlightPoints,
+                ShapeIsGood,
                 ShowCoordinates,
                 Outcome));
         }
@@ -329,6 +341,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
     private readonly GoPoint? _hint;
     private readonly IReadOnlyList<GoPoint>? _highlights;
     private readonly IReadOnlyList<GoPoint>? _shape;
+    private readonly bool _shapeIsGood;
     private readonly bool _showCoordinates;
     private readonly BoardOutcome _outcome;
 
@@ -343,6 +356,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
         GoPoint? hint,
         IReadOnlyList<GoPoint>? highlights,
         IReadOnlyList<GoPoint>? shape,
+        bool shapeIsGood,
         bool showCoordinates,
         BoardOutcome outcome)
     {
@@ -355,6 +369,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
         _hint = hint;
         _highlights = highlights;
         _shape = shape;
+        _shapeIsGood = shapeIsGood;
         _showCoordinates = showCoordinates;
         _outcome = outcome;
         Bounds = bounds;
@@ -397,6 +412,7 @@ internal sealed class BoardDrawOperation : ICustomDrawOperation
             _hint,
             _highlights,
             _shape,
+            _shapeIsGood,
             _showCoordinates,
             _outcome);
     }

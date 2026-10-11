@@ -38,7 +38,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     private static readonly string[] PropertyNames =
     [
         nameof(Current), nameof(Board), nameof(LastMove), nameof(Title), nameof(GoalText), nameof(ToMoveText),
-        nameof(SizeText), nameof(Verdict), nameof(HasVerdict), nameof(Explanation), nameof(HasExplanation), nameof(ShapePoints),
+        nameof(SizeText), nameof(Verdict), nameof(HasVerdict), nameof(Explanation), nameof(HasExplanation), nameof(ShapePoints), nameof(ShapeIsGood),
         nameof(IsSolved), nameof(CanBack), nameof(CanHint), nameof(HintPoint), nameof(CanGoPrevious),
         nameof(CanGoNext), nameof(StatusText), nameof(SelectedIndex), nameof(LastCaptured),
         nameof(LastCapturedColor)
@@ -52,6 +52,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     private string _verdict = string.Empty;
     private string _explanation = string.Empty;
     private IReadOnlyList<Point> _shapePoints = [];
+    private bool _shapeIsGood = true;
 
     /// <summary>Логгер задач: по нему видно, какие задачи решались перед сбоем.</summary>
     private readonly ILogger _log = AppLog.For<ProblemViewModel>();
@@ -156,6 +157,9 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// </remarks>
     public IReadOnlyList<Point> ShapePoints => _shapePoints;
 
+    /// <summary>Хорошая ли форма решения: вид выбирает цвет подсветки — зелёный или предупреждающий.</summary>
+    public bool ShapeIsGood => _shapeIsGood;
+
     /// <summary>Есть что объяснить после решения.</summary>
     public bool HasExplanation => Explanation.Length > 0;
 
@@ -258,7 +262,19 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
 
             var played = _session.SolverMoves.Where(move => move.Type == MoveType.Play).ToList();
 
-            _shapePoints = played.Count > 0 ? MoveShape.Of(_session.Board, played[^1]).Points : [];
+            if (played.Count > 0)
+            {
+                var shape = MoveShape.Of(_session.Board, played[^1]);
+
+                _shapePoints = shape.Points;
+                _shapeIsGood = shape.Good;
+            }
+            else
+            {
+                _shapePoints = [];
+        _shapeIsGood = true;
+                _shapeIsGood = true;
+            }
         }
 
         if (verdict == ProblemVerdict.Wrong || verdict == ProblemVerdict.Failed)
@@ -314,6 +330,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         _verdict = string.Empty;
         _explanation = string.Empty;
         _shapePoints = [];
+        _shapeIsGood = true;
         _hint = null;
         ClearAnimation();
         NotifyAll();
@@ -326,6 +343,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         _verdict = string.Empty;
         _explanation = string.Empty;
         _shapePoints = [];
+        _shapeIsGood = true;
         _hint = null;
         ClearAnimation();
         NotifyAll();
@@ -365,6 +383,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         _verdict = string.Empty;
         _explanation = string.Empty;
         _shapePoints = [];
+        _shapeIsGood = true;
         _hint = null;
         ClearAnimation();
 

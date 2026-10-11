@@ -54,6 +54,20 @@ public sealed class BoardShapeGlowRenderTests
     }
 
     [Fact]
+    public void Плохая_Форма_Светится_Предупреждающим_Цветом()
+    {
+        // Цвет означает смысл: у плохой формы (пустой треугольник, кирпич) подсветка тёплая,
+        // а не зелёная — иначе игрок читал бы «всё хорошо» там, где форма вредит.
+        var board = Position();
+        var good = RenderWith(board, [new Point(3, 3), new Point(4, 3)], good: true);
+        var bad = RenderWith(board, [new Point(3, 3), new Point(4, 3)], good: false);
+
+        Assert.True(GreenPixels(good) > 100, "зелёной подсветки нет");
+        Assert.True(GreenPixels(bad) < 30, $"плохая форма светится зелёным: {GreenPixels(bad)}");
+        Assert.True(WarmPixels(bad) > 100, "предупреждающей подсветки нет");
+    }
+
+    [Fact]
     public void Точки_Формы_Приходят_От_Распознавания()
     {
         // Связка: распознаватель отдаёт камни формы, а не только название.
@@ -80,10 +94,18 @@ public sealed class BoardShapeGlowRenderTests
     /// <param name="board">Позиция.</param>
     /// <param name="shape">Камни формы или <c>null</c>.</param>
     /// <returns>Пиксели в формате RGBA.</returns>
-    private static SKColor[] Render(Board board, IReadOnlyList<Point>? shape)
+    private static SKColor[] Render(Board board, IReadOnlyList<Point>? shape) =>
+        RenderWith(board, shape, good: true);
+
+    /// <summary>Рисует доску с подсветкой заданного смысла.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="shape">Камни формы.</param>
+    /// <param name="good">Хорошая ли форма.</param>
+    /// <returns>Пиксели в формате RGBA.</returns>
+    private static SKColor[] RenderWith(Board board, IReadOnlyList<Point>? shape, bool good)
     {
         using var surface = SKSurface.Create(new SKImageInfo(CanvasSize, CanvasSize));
-        BoardRenderer.Draw(surface.Canvas, board, CanvasSize, CanvasSize, shape: shape);
+        BoardRenderer.Draw(surface.Canvas, board, CanvasSize, CanvasSize, shape: shape, shapeIsGood: good);
 
         using var image = surface.Snapshot();
         using var bitmap = SKBitmap.FromImage(image);
@@ -96,6 +118,12 @@ public sealed class BoardShapeGlowRenderTests
     /// <returns>Число зелёных пикселей.</returns>
     private static int GreenPixels(IReadOnlyList<SKColor> pixels) =>
         pixels.Count(pixel => pixel.Green > pixel.Red + 30 && pixel.Green > pixel.Blue + 30);
+
+    /// <summary>Считает тёплые пиксели: по ним видно предупреждающую подсветку плохой формы.</summary>
+    /// <param name="pixels">Пиксели.</param>
+    /// <returns>Число тёплых пикселей.</returns>
+    private static int WarmPixels(IReadOnlyList<SKColor> pixels) =>
+        pixels.Count(pixel => pixel.Red > pixel.Green + 30 && pixel.Red > pixel.Blue + 60);
 
     /// <summary>Считает тёмные пиксели: по ним видно, что камни не закрашены свечением.</summary>
     /// <param name="pixels">Пиксели.</param>

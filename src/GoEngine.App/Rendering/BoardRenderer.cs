@@ -41,8 +41,18 @@ public static class BoardRenderer
     /// <summary>Цвет маркера последнего хода.</summary>
     private static readonly SKColor LastMoveColor = new(0xC0, 0x28, 0x18);
 
-    /// <summary>Цвет неоновой подсветки формы: яркий зелёный, как подсветка снизу.</summary>
+    /// <summary>Цвет неоновой подсветки хорошей формы: яркий зелёный, как подсветка снизу.</summary>
     private static readonly SKColor ShapeGlowColor = new(0x2A, 0xFF, 0x8A);
+
+    /// <summary>Цвет подсветки плохой формы: тёплый оранжевый, «сюда смотреть не надо».</summary>
+    /// <remarks>
+    /// Цвет означает <b>смысл</b>, а не «какая это форма»: зелёный — форма хорошая, оранжевый —
+    /// плохая (пустой треугольник, кирпич). Различать формы цветом нельзя: оттенков, которые
+    /// человек надёжно различает, пять-семь, а на доске уже есть жёлтый фон, чёрные и белые камни,
+    /// красная метка хода и синее кольцо подсказки. Если форм несколько, их различают номерами
+    /// и списком в разборе, а не цветом.
+    /// </remarks>
+    private static readonly SKColor ShapeGlowBadColor = new(0xFF, 0x7A, 0x3C);
 
     /// <summary>Сколько слоёв у свечения: больше — мягче ореол.</summary>
     private const int ShapeGlowLayers = 4;
@@ -139,6 +149,7 @@ public static class BoardRenderer
     /// Камни формы решения или <c>null</c>. Под ними рисуется зелёная неоновая подсветка: игрок
     /// видит форму на доске, а не только читает её название (замечание пользователя 2026-10-11).
     /// </param>
+    /// <param name="shapeIsGood">Хорошая ли форма решения: у плохой подсветка предупреждающего цвета.</param>
     /// <param name="showCoordinates">Рисовать ли подписи координат.</param>
     /// <param name="outcome">Итог партии для подсветки края доски; <see cref="BoardOutcome.None"/> — без подсветки.</param>
     /// <remarks>
@@ -159,6 +170,7 @@ public static class BoardRenderer
         Point? hint = null,
         IReadOnlyList<Point>? highlights = null,
         IReadOnlyList<Point>? shape = null,
+        bool shapeIsGood = true,
         bool showCoordinates = true,
         BoardOutcome outcome = BoardOutcome.None)
     {
@@ -193,7 +205,7 @@ public static class BoardRenderer
         // (замечание пользователя 2026-10-11: «неоновой подсветкой снизу камня, как автомобили внизу»).
         if (shape is not null)
         {
-            DrawShapeGlow(canvas, geometry, shape);
+            DrawShapeGlow(canvas, geometry, shape, shapeIsGood);
         }
 
         DrawStones(canvas, board, geometry, animation);
@@ -344,14 +356,17 @@ public static class BoardRenderer
     /// <param name="canvas">Холст.</param>
     /// <param name="geometry">Геометрия доски.</param>
     /// <param name="points">Камни формы.</param>
+    /// <param name="good">Хорошая ли форма: у плохой цвет подсветки предупреждающий.</param>
     /// <remarks>
     /// Свечение — несколько кругов с убывающей яркостью: дешёвая замена размытию, дающая мягкий
     /// край. Цвет выбран ярко-зелёный: он не встречается ни в камнях, ни в разметке территории
     /// и не спорит с красной меткой последнего хода. Подсветка не заменяет текст: форма названа
     /// и в разборе, поэтому смысл не теряется, если цвет не различается.
     /// </remarks>
-    private static void DrawShapeGlow(SKCanvas canvas, BoardGeometry geometry, IReadOnlyList<Point> points)
+    private static void DrawShapeGlow(SKCanvas canvas, BoardGeometry geometry, IReadOnlyList<Point> points, bool good)
     {
+        var colour = good ? ShapeGlowColor : ShapeGlowBadColor;
+
         foreach (var point in points)
         {
             var centre = geometry.Pixel(point);
@@ -364,7 +379,7 @@ public static class BoardRenderer
 
                 using var paint = new SKPaint
                 {
-                    Color = ShapeGlowColor.WithAlpha(alpha),
+                    Color = colour.WithAlpha(alpha),
                     IsAntialias = true,
                     Style = SKPaintStyle.Fill
                 };
