@@ -1,0 +1,420 @@
+using GoEngine.Core;
+
+namespace GoEngine.Problems;
+
+/// <summary>Форма, которую образовал ход: название, чем она хороша или плоха и что будет дальше.</summary>
+/// <param name="Name">Название формы: «ноби», «косуми», «пасть тигра», «пустой треугольник».</param>
+/// <param name="Good">Хорошая ли форма: крепкая, лёгкая или хотя бы не вредная.</param>
+/// <param name="Why">Чем форма хороша или плоха и что из этого следует в партии.</param>
+public readonly record struct ShapeFacts(string Name, bool Good, string Why);
+
+/// <summary>Распознавание формы хода: что игрок построил своим камнем.</summary>
+/// <remarks>
+/// <para>
+/// Замечание пользователя 2026-10-11: «форма — нужна ли отдельная строка вида „форма: косуми, два
+/// камня по диагонали“. Хорошая эта форма или нет, чем хороша\плоха тут в перспективе». Форма
+/// считается по позиции: как поставленный камень связан со своими и какие точки остались между ними.
+/// </para>
+/// <para>
+/// Выдумывать нечего: распознаются формы из уроков — ноби, косуми, кейма, тоби, никкен тоби, бамбук,
+/// пасть тигра и пустой треугольник. Всё остальное честно называется «без формы».
+/// </para>
+/// </remarks>
+public static class MoveShape
+{
+    /// <summary>Определяет форму, которую образовал ход.</summary>
+    /// <param name="after">Позиция после хода.</param>
+    /// <param name="move">Сделанный ход.</param>
+    /// <returns>Название формы, её оценку и объяснение.</returns>
+    public static ShapeFacts Of(Board after, Move move)
+    {
+        ArgumentNullException.ThrowIfNull(after);
+        ArgumentNullException.ThrowIfNull(move);
+
+        if (move.Type != MoveType.Play)
+        {
+            return new ShapeFacts("пас", true, "Пас форму не строит: он передаёт ход и начинает подсчёт.");
+        }
+
+        var point = move.Point;
+        var colour = after.At(point);
+        var own = Neighbours(after, point).Where(other => after.At(other) == colour).ToList();
+        var nearby = Nearby(after, point, colour);
+        var jumps = Jump(after, point, colour);
+
+        // Порядок проверок — от самой характерной формы к простой связи: пустой треугольник и пасть
+        // тигра важнее, чем «камень рядом с камнем».
+        if (Brick(after, point, colour))
+        {
+            return new ShapeFacts(
+                "кирпич",
+                false,
+                "плохая форма: четыре камня квадратом — внутри ни глаза, ни территории, а камней больше, чем нужно. "
+                + "Такая группа тяжёлая: она бежит, а не строит, и играть лучше шире.");
+        }
+
+        if (EmptyTriangle(after, point, colour, nearby))
+        {
+            return new ShapeFacts(
+                "пустой треугольник",
+                false,
+                "плохая форма: камней стало больше, а дыханий и территории — нет. Такой камень тянет группу "
+                + "вниз, и соперник может разрезать её с выгодой. Обычно лучше играть шире — косуми или прыжком.");
+        }
+
+        if (TigerMouth(after, point, colour))
+        {
+            return new ShapeFacts(
+                "пасть тигра",
+                true,
+                "крепкая форма: между камнями осталась точка, войти в неё нельзя — камень соперника сразу "
+                + "попадёт в плен. Держит территорию без лишних камней.");
+        }
+
+        if (Bamboo(after, point, colour))
+        {
+            return new ShapeFacts(
+                "бамбук",
+                true,
+                "прочная связь: соперник займёт одну соединительную точку, а вы соединитесь через вторую. "
+                + "Разрезать такую форму нельзя.");
+        }
+
+        if (own.Count >= 2 && own.Any(other => IsLine(point, other)))
+        {
+            return new ShapeFacts(
+                "соединение в линию",
+                true,
+                "камни связаны плотно: разрезать их нельзя. Форма надёжная, но медленная — камень работает "
+                + "на соединение, а не на территорию.");
+        }
+
+        if (own.Any(other => IsLine(point, other)))
+        {
+            return new ShapeFacts(
+                "ноби",
+                true,
+                "плотная связь: два камня в линию имеют общие дыхания, и разрезать их нельзя. Растёт медленно, "
+                + "зато надёжно — так строят группы, которым важна жизнь.");
+        }
+
+        if (nearby.Any(other => IsDiagonal(point, other)))
+        {
+            return new ShapeFacts(
+                "косуми",
+                true,
+                "связано по диагонали: соперник не разрежет одним ходом, а форма растёт быстрее, чем в линию. "
+                + "Хороша у края и для лёгкого расширения.");
+        }
+
+        if (jumps.Contains(1))
+        {
+            return new ShapeFacts(
+                "тоби",
+                true,
+                "прыжок через точку: форма растёт вдвое быстрее, а связь сохраняется. В промежуток соперник "
+                + "может влезть, но разрезать не сможет.");
+        }
+
+        if (jumps.Contains(2))
+        {
+            return new ShapeFacts(
+                "кейма",
+                true,
+                "ход конём: быстро и легко, между камнями остаётся точка разрезания — за ней нужно следить. "
+                + "Хороша, когда играют широко, а не в тесноте.");
+        }
+
+        if (jumps.Contains(3))
+        {
+            return new ShapeFacts(
+                "никкен тоби",
+                true,
+                "широкий прыжок: занимает сторону быстро, но связь тонкая — соперник может влезть в промежуток. "
+                + "Так расширяются, когда места много и группа уже обеспечена.");
+        }
+
+        return own.Count > 0
+            ? new ShapeFacts("рядом со своими камнями", true, "камень стоит рядом со своими: форма не построена, но группа стала плотнее.")
+            : new ShapeFacts("отдельный камень", true, "камень поставлен сам по себе: формы ещё нет — она появится следующим ходом.");
+    }
+
+    /// <summary>Проверяет пустой треугольник: три своих камня в квадрате 2×2 и пустая точка внутри.</summary>
+    /// <param name="board">Позиция после хода.</param>
+    /// <param name="point">Точка хода.</param>
+    /// <param name="colour">Цвет хода.</param>
+    /// <param name="nearby">Свои камни рядом с точкой.</param>
+    /// <returns><c>true</c>, если форма — пустой треугольник.</returns>
+    private static bool EmptyTriangle(Board board, Point point, StoneColor colour, IReadOnlyList<Point> nearby)
+    {
+        // Пустой треугольник — квадрат 2×2, где три точки заняты своими камнями, а четвёртая пуста.
+        // Ход обязан быть одним из трёх: иначе форму построил не он.
+        foreach (var square in Squares(point, board.Size.Value))
+        {
+            if (!square.Contains(point) || square.Count(other => board.At(other) == colour) != 3)
+            {
+                continue;
+            }
+
+            var fourth = square.First(other => board.At(other) != colour);
+
+            // Четвёртая точка обязана быть пустой: камень соперника в квадрате — это контактная
+            // борьба, а не пустой треугольник.
+            if (board.At(fourth) != StoneColor.Empty)
+            {
+                continue;
+            }
+
+            // Пустая точка может быть глазом: тогда это не пустой треугольник, а форма жизни —
+            // тот самый четвёртый пункт, который и делает группу живой (проверено на задаче
+            // «обеспечить жизнь», где движок признавал группу живой, а форма называлась плохой).
+            if (!ProblemLife.IsEye(board, fourth, colour))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Проверяет кирпич: четыре своих камня в квадрате 2×2.</summary>
+    /// <param name="board">Позиция после хода.</param>
+    /// <param name="point">Точка хода.</param>
+    /// <param name="colour">Цвет хода.</param>
+    /// <returns><c>true</c>, если все четыре точки квадрата заняты своими камнями.</returns>
+    private static bool Brick(Board board, Point point, StoneColor colour)
+    {
+        foreach (var square in Squares(point, board.Size.Value))
+        {
+            if (square.All(other => board.At(other) == colour))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Четыре квадрата 2×2, в которые входит точка.</summary>
+    /// <param name="point">Точка.</param>
+    /// <param name="size">Размер доски.</param>
+    /// <returns>Квадраты из четырёх точек.</returns>
+    private static IEnumerable<IReadOnlyList<Point>> Squares(Point point, int size)
+    {
+        for (var dx = -1; dx <= 0; dx++)
+        {
+            for (var dy = -1; dy <= 0; dy++)
+            {
+                var x = point.X + dx;
+                var y = point.Y + dy;
+
+                if (x < 0 || y < 0 || x + 1 >= size || y + 1 >= size)
+                {
+                    continue;
+                }
+
+                yield return
+                [
+                    new Point((byte)x, (byte)y),
+                    new Point((byte)(x + 1), (byte)y),
+                    new Point((byte)x, (byte)(y + 1)),
+                    new Point((byte)(x + 1), (byte)(y + 1))
+                ];
+            }
+        }
+    }
+
+    /// <summary>Свои камни на расстоянии до трёх точек: для косыми, кейма и прыжков.</summary>
+    /// <param name="board">Позиция после хода.</param>
+    /// <param name="point">Точка хода.</param>
+    /// <param name="colour">Цвет хода.</param>
+    /// <returns>Свои камни рядом.</returns>
+    private static IReadOnlyList<Point> Nearby(Board board, Point point, StoneColor colour)
+    {
+        List<Point> found = [];
+
+        for (var x = Math.Max(0, point.X - 3); x <= Math.Min(board.Size.Value - 1, point.X + 3); x++)
+        {
+            for (var y = Math.Max(0, point.Y - 3); y <= Math.Min(board.Size.Value - 1, point.Y + 3); y++)
+            {
+                var other = new Point((byte)x, (byte)y);
+
+                if (board.At(other) == colour)
+                {
+                    found.Add(other);
+                }
+            }
+        }
+
+        return found;
+    }
+
+    /// <summary>Проверяет пасть тигра: вокруг пустой точки стоят три своих камня.</summary>
+    /// <param name="board">Позиция после хода.</param>
+    /// <param name="point">Точка хода.</param>
+    /// <param name="colour">Цвет хода.</param>
+    /// <returns><c>true</c>, если ход замкнул пасть тигра.</returns>
+    private static bool TigerMouth(Board board, Point point, StoneColor colour)
+    {
+        foreach (var candidate in Neighbours(board, point))
+        {
+            if (board.At(candidate) != StoneColor.Empty)
+            {
+                continue;
+            }
+
+            var guards = Neighbours(board, candidate).Count(other => board.At(other) == colour);
+
+            // Три своих камня вокруг пустой точки и сама точка — не дыхание чужой группы рядом.
+            if (guards >= 3)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Проверяет бамбук: две пары своих камней со сдвигом на одну точку.</summary>
+    /// <param name="board">Позиция после хода.</param>
+    /// <param name="point">Точка хода.</param>
+    /// <param name="colour">Цвет хода.</param>
+    /// <returns><c>true</c>, если форма — бамбук.</returns>
+    private static bool Bamboo(Board board, Point point, StoneColor colour)
+    {
+        // Бамбук — две пары камней со сдвигом на одну точку: пара по линии, вторая пара через точку
+        // по диагонали. Пример из урока: D5, E5 и F6, G6.
+        var size = board.Size.Value;
+
+        for (var dx = -3; dx <= 0; dx++)
+        {
+            for (var dy = -1; dy <= 0; dy++)
+            {
+                var x = point.X + dx;
+                var y = point.Y + dy;
+
+                if (x < 0 || y < 0 || x + 1 >= size || y + 1 >= size)
+                {
+                    continue;
+                }
+
+                // Первая пара — по строке, вторая — через две точки по строке ниже: между ними
+                // остаются две соединительные точки, как у бамбука D5, E5 и F6, G6.
+                if (x + 3 < size
+                    && y + 1 < size
+                    && board.At(new Point((byte)x, (byte)y)) == colour
+                    && board.At(new Point((byte)(x + 1), (byte)y)) == colour
+                    && board.At(new Point((byte)(x + 2), (byte)(y + 1))) == colour
+                    && board.At(new Point((byte)(x + 3), (byte)(y + 1))) == colour)
+                {
+                    return true;
+                }
+
+                // То же по вертикали: пара в столбце и вторая пара через две точки в соседнем столбце.
+                if (y + 3 < size
+                    && x + 1 < size
+                    && board.At(new Point((byte)x, (byte)y)) == colour
+                    && board.At(new Point((byte)x, (byte)(y + 1))) == colour
+                    && board.At(new Point((byte)(x + 1), (byte)(y + 2))) == colour
+                    && board.At(new Point((byte)(x + 1), (byte)(y + 3))) == colour)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Ищет свои камни на расстоянии прыжка: 1 — тоби, 2 — кейма, 3 — никкен тоби.</summary>
+    /// <param name="board">Позиция после хода.</param>
+    /// <param name="point">Точка хода.</param>
+    /// <param name="colour">Цвет хода.</param>
+    /// <returns>Набор найденных расстояний.</returns>
+    private static HashSet<int> Jump(Board board, Point point, StoneColor colour)
+    {
+        HashSet<int> found = [];
+
+        for (var x = 0; x < board.Size.Value; x++)
+        {
+            for (var y = 0; y < board.Size.Value; y++)
+            {
+                var other = new Point((byte)x, (byte)y);
+
+                if (board.At(other) != colour)
+                {
+                    continue;
+                }
+
+                var dx = Math.Abs(point.X - other.X);
+                var dy = Math.Abs(point.Y - other.Y);
+
+                if (dx == 2 && dy == 0 || dx == 0 && dy == 2)
+                {
+                    _ = found.Add(1);
+                }
+                else if (dx == 2 && dy == 1 || dx == 1 && dy == 2)
+                {
+                    _ = found.Add(2);
+                }
+                else if (dx == 3 && dy == 0 || dx == 0 && dy == 3)
+                {
+                    _ = found.Add(3);
+                }
+            }
+        }
+
+        return found;
+    }
+
+    /// <summary>Соседние точки в пределах доски.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="point">Точка.</param>
+    /// <returns>Соседей по линиям.</returns>
+    private static IEnumerable<Point> Neighbours(Board board, Point point) =>
+        Directions
+            .Select(direction => Step(point, direction, board.Size.Value))
+            .Where(step => step is not null)
+            .Select(step => step!.Value);
+
+    /// <summary>Шаг в сторону, если он остаётся на доске.</summary>
+    /// <param name="point">Точка.</param>
+    /// <param name="direction">Направление.</param>
+    /// <param name="size">Размер доски.</param>
+    /// <returns>Соседняя точка или <c>null</c>.</returns>
+    private static Point? Step(Point point, (int Dx, int Dy) direction, int size)
+    {
+        var x = point.X + direction.Dx;
+        var y = point.Y + direction.Dy;
+
+        return x < 0 || y < 0 || x >= size || y >= size ? null : new Point((byte)x, (byte)y);
+    }
+
+    /// <summary>Стоят ли точки в одной линии рядом.</summary>
+    /// <param name="first">Первая точка.</param>
+    /// <param name="second">Вторая точка.</param>
+    /// <returns><c>true</c>, если соседи по линии.</returns>
+    private static bool IsLine(Point first, Point second) =>
+        Math.Abs(first.X - second.X) + Math.Abs(first.Y - second.Y) == 1;
+
+    /// <summary>Стоят ли точки по диагонали рядом.</summary>
+    /// <param name="first">Первая точка.</param>
+    /// <param name="second">Вторая точка.</param>
+    /// <returns><c>true</c>, если соседи по диагонали.</returns>
+    private static bool IsDiagonal(Point first, Point second) =>
+        Math.Abs(first.X - second.X) == 1 && Math.Abs(first.Y - second.Y) == 1;
+
+    /// <summary>Стоят ли точки в одной строке.</summary>
+    /// <param name="first">Первая точка.</param>
+    /// <param name="second">Вторая точка.</param>
+    /// <returns><c>true</c>, если точки в одной строке.</returns>
+    private static bool IsHorizontal(Point first, Point second) => first.Y == second.Y;
+
+    /// <summary>Противоположное направление.</summary>
+    /// <param name="direction">Направление.</param>
+    /// <returns>Обратное направление.</returns>
+    private static (int Dx, int Dy) Opposite((int Dx, int Dy) direction) => (-direction.Dx, -direction.Dy);
+
+    /// <summary>Четыре направления по линиям доски.</summary>
+    private static readonly (int Dx, int Dy)[] Directions = [(0, -1), (1, 0), (0, 1), (-1, 0)];
+}

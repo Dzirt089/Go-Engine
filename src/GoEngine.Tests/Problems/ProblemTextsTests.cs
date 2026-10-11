@@ -145,18 +145,35 @@ public sealed class ProblemTextsTests
 
             if (!text.Contains("дыхани", StringComparison.Ordinal))
             {
-                errors.Add($"{problem.Id}: разбор не говорит о дыханиях — «{text}»");
+                errors.Add($"{problem.Id}: нет дыханий: {text[..Math.Min(60, text.Length)]}");
             }
 
-            // Разбор обязан ответить, что дало решение: либо вердикт перебора о жизни,
-            // либо снятая группа. Описания позиции без вывода недостаточно (жалоба 2026-10-11).
-            if (!text.Contains("Перебор", StringComparison.Ordinal) && !text.Contains("снята", StringComparison.Ordinal))
+            // Разбор обязан ответить, что дало решение: жива группа, обречена или уже снята.
+            // Описания позиции без вывода недостаточно (жалоба пользователя 2026-10-11),
+            // и сказано это должно быть человеческим языком, без слов о поиске и переборе.
+            var verdict = text.Contains("живая", StringComparison.Ordinal)
+                || text.Contains("обречена", StringComparison.Ordinal)
+                || text.Contains("держится", StringComparison.Ordinal)
+                || text.Contains("не живая", StringComparison.Ordinal)
+                || text.Contains("снята", StringComparison.Ordinal);
+
+            if (!verdict)
             {
                 errors.Add($"{problem.Id}: разбор не говорит, что дало решение — «{text}»");
             }
+
+            if (text.Contains("перебор", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add($"{problem.Id}: в разборе программистский жаргон — «{text}»");
+            }
+
+            if (!text.Contains("Форма:", StringComparison.Ordinal))
+            {
+                errors.Add($"{problem.Id}: разбор не называет форму хода — «{text}»");
+            }
         }
 
-        Assert.Empty(errors);
+        Assert.True(errors.Count == 0, string.Join(" | ", errors.Take(3)));
     }
 
     [Fact]
