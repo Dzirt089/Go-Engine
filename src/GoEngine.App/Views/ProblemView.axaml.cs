@@ -119,6 +119,17 @@ public sealed partial class ProblemView : UserControl
     /// <param name="e">Событие нажатия.</param>
     private void OnHintClick(object? sender, RoutedEventArgs e) => ViewModel.ShowHint();
 
+    /// <summary>Выбирает форму по номеру: подсветка на доске показывает только её.</summary>
+    /// <param name="sender">Кнопка формы.</param>
+    /// <param name="e">Аргументы события.</param>
+    private void OnShapeChipClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: int number })
+        {
+            ViewModel.SelectShape(number - 1);
+        }
+    }
+
     /// <summary>Отменяет последний ход.</summary>
     /// <param name="sender">Кнопка.</param>
     /// <param name="e">Событие нажатия.</param>

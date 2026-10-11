@@ -38,7 +38,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     private static readonly string[] PropertyNames =
     [
         nameof(Current), nameof(Board), nameof(LastMove), nameof(Title), nameof(GoalText), nameof(ToMoveText),
-        nameof(SizeText), nameof(Verdict), nameof(HasVerdict), nameof(Explanation), nameof(HasExplanation), nameof(ShapePoints), nameof(ShapeIsGood),
+        nameof(SizeText), nameof(Verdict), nameof(HasVerdict), nameof(Explanation), nameof(HasExplanation), nameof(ShapePoints), nameof(ShapeIsGood), nameof(Shapes), nameof(SelectedShape), nameof(HasSeveralShapes),
         nameof(IsSolved), nameof(CanBack), nameof(CanHint), nameof(HintPoint), nameof(CanGoPrevious),
         nameof(CanGoNext), nameof(StatusText), nameof(SelectedIndex), nameof(LastCaptured),
         nameof(LastCapturedColor)
@@ -52,7 +52,8 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     private string _verdict = string.Empty;
     private string _explanation = string.Empty;
     private IReadOnlyList<Point> _shapePoints = [];
-    private bool _shapeIsGood = true;
+    private IReadOnlyList<ShapeItem> _shapes = [];
+    private int _selectedShape;
 
     /// <summary>Логгер задач: по нему видно, какие задачи решались перед сбоем.</summary>
     private readonly ILogger _log = AppLog.For<ProblemViewModel>();
@@ -158,7 +159,39 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     public IReadOnlyList<Point> ShapePoints => _shapePoints;
 
     /// <summary>Хорошая ли форма решения: вид выбирает цвет подсветки — зелёный или предупреждающий.</summary>
-    public bool ShapeIsGood => _shapeIsGood;
+    /// <remarks>
+    /// Пока всегда <c>true</c>: предупреждающий цвет на живой форме противоречил вердикту (проверено
+    /// на задаче «обеспечить жизнь», где пустой треугольник оказался формой жизни). Плохая форма
+    /// называется словами в разборе, а цвет остаётся знаком «это ваша форма».
+    /// </remarks>
+    public bool ShapeIsGood => true;
+
+    /// <summary>Формы решения: независимые формы позиции, от крупной к мелкой.</summary>
+    /// <remarks>
+    /// Замечание пользователя 2026-10-11: независимые формы различаются номерами и списком, а не
+    /// цветом. Список нужен, когда форм больше одной: тогда игрок выбирает, какую смотреть.
+    /// </remarks>
+    public IReadOnlyList<ShapeItem> Shapes => _shapes;
+
+    /// <summary>Выбранная форма или <c>null</c>, когда выбрана первая (самая крупная).</summary>
+    public ShapeItem? SelectedShape => _shapes.Count == 0 ? null : _shapes[Math.Clamp(_selectedShape, 0, _shapes.Count - 1)];
+
+    /// <summary>Есть ли несколько форм: тогда показываются номера и список.</summary>
+    public bool HasSeveralShapes => _shapes.Count > 1;
+
+    /// <summary>Выбирает форму по номеру: подсветка на доске показывает только её.</summary>
+    /// <param name="index">Номер формы в списке.</param>
+    public void SelectShape(int index)
+    {
+        if (index < 0 || index >= _shapes.Count)
+        {
+            return;
+        }
+
+        _selectedShape = index;
+        UpdateShapeHighlight();
+        NotifyAll();
+    }
 
     /// <summary>Есть что объяснить после решения.</summary>
     public bool HasExplanation => Explanation.Length > 0;
@@ -261,20 +294,14 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
             _explanation = ProblemTexts.Solution(Current, _session.Board, _session.SolverMoves, _session.Replies);
 
             var played = _session.SolverMoves.Where(move => move.Type == MoveType.Play).ToList();
+            var stones = played.Select(move => move.Point).ToList();
 
-            if (played.Count > 0)
-            {
-                var shape = MoveShape.Of(_session.Board, played[^1]);
-
-                _shapePoints = shape.Points;
-                _shapeIsGood = shape.Good;
-            }
-            else
-            {
-                _shapePoints = [];
-        _shapeIsGood = true;
-                _shapeIsGood = true;
-            }
+            // Независимые формы считает домен: он же отбрасывает вложенные (пасть тигра включает
+            // камни косыми — показывать обе формы на доске нельзя).
+            _shapes = [.. ShapeSet.Of(_session.Board, Current.SolverColor, stones)
+                .Select((shape, index) => new ShapeItem(index + 1, shape.Name, shape.Good, shape.Points))];
+            _selectedShape = 0;
+            UpdateShapeHighlight();
         }
 
         if (verdict == ProblemVerdict.Wrong || verdict == ProblemVerdict.Failed)
@@ -301,6 +328,12 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         }
 
         NotifyAll();
+    }
+
+    /// <summary>Ставит подсветку по выбранной форме.</summary>
+    private void UpdateShapeHighlight()
+    {
+        _shapePoints = SelectedShape?.Points ?? [];
     }
 
     /// <summary>Показывает подсказку: первый правильный ход в текущей позиции.</summary>
@@ -330,7 +363,8 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         _verdict = string.Empty;
         _explanation = string.Empty;
         _shapePoints = [];
-        _shapeIsGood = true;
+        _shapes = [];
+        _selectedShape = 0;
         _hint = null;
         ClearAnimation();
         NotifyAll();
@@ -343,7 +377,8 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         _verdict = string.Empty;
         _explanation = string.Empty;
         _shapePoints = [];
-        _shapeIsGood = true;
+        _shapes = [];
+        _selectedShape = 0;
         _hint = null;
         ClearAnimation();
         NotifyAll();
@@ -383,7 +418,8 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         _verdict = string.Empty;
         _explanation = string.Empty;
         _shapePoints = [];
-        _shapeIsGood = true;
+        _shapes = [];
+        _selectedShape = 0;
         _hint = null;
         ClearAnimation();
 

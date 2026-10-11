@@ -119,6 +119,16 @@
     <Setter Property="Foreground" Value="{DynamicResource AppAccentBrush}" />
   </Style>
 
+  <!-- Чип формы решения: компактная кнопка в горизонтальной полосе. Минимальная высота 32 точки —
+       палец уверенно попадает, а полоса не съедает место у доски (замечание пользователя 2026-10-11). -->
+  <Style Selector="Button.app-chip">
+    <Setter Property="MinHeight" Value="32" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="10,4" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusMedium}" />
+  </Style>
+
   <!-- Баннер итога партии: заметная карточка над доской. Цвет ставит код вида по признаку
        «выиграл / проиграл / ничья»: игроку важно не «победили чёрные», а выиграл он сам. -->
   <Style Selector="Border.app-banner">

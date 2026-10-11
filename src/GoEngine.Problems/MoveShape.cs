@@ -55,14 +55,14 @@ public static class MoveShape
                 [point, .. own]);
         }
 
-        if (EmptyTriangle(after, point, colour, nearby))
+        if (EmptyTriangleSquare(after, point, colour) is { } triangle)
         {
             return new ShapeFacts(
                 "пустой треугольник",
                 false,
                 "плохая форма: камней стало больше, а дыханий и территории — нет. Такой камень тянет группу "
                 + "вниз, и соперник может разрезать её с выгодой. Обычно лучше играть шире — косуми или прыжком.",
-                [point, .. nearby.Where(other => OwnInSquare(after, point, other, colour)).Take(2)]);
+                triangle);
         }
 
         if (TigerMouth(after, point, colour))
@@ -151,12 +151,12 @@ public static class MoveShape
     }
 
     /// <summary>Проверяет пустой треугольник: три своих камня в квадрате 2×2 и пустая точка внутри.</summary>
+    /// <summary>Возвращает камни пустого треугольника или <c>null</c>, если формы нет.</summary>
     /// <param name="board">Позиция после хода.</param>
     /// <param name="point">Точка хода.</param>
     /// <param name="colour">Цвет хода.</param>
-    /// <param name="nearby">Свои камни рядом с точкой.</param>
-    /// <returns><c>true</c>, если форма — пустой треугольник.</returns>
-    private static bool EmptyTriangle(Board board, Point point, StoneColor colour, IReadOnlyList<Point> nearby)
+    /// <returns>Три камня формы по порядку обхода квадрата.</returns>
+    private static IReadOnlyList<Point>? EmptyTriangleSquare(Board board, Point point, StoneColor colour)
     {
         // Пустой треугольник — квадрат 2×2, где три точки заняты своими камнями, а четвёртая пуста.
         // Ход обязан быть одним из трёх: иначе форму построил не он.
@@ -181,11 +181,11 @@ public static class MoveShape
             // «обеспечить жизнь», где движок признавал группу живой, а форма называлась плохой).
             if (!ProblemLife.IsEye(board, fourth, colour))
             {
-                return true;
+                return [.. square.Where(other => board.At(other) == colour)];
             }
         }
 
-        return false;
+        return null;
     }
 
     /// <summary>Проверяет кирпич: четыре своих камня в квадрате 2×2.</summary>
@@ -376,25 +376,6 @@ public static class MoveShape
         }
 
         return found;
-    }
-
-    /// <summary>Стоит ли камень рядом с точкой так, что вместе с ней образует пустой треугольник.</summary>
-    /// <param name="board">Позиция.</param>
-    /// <param name="point">Точка хода.</param>
-    /// <param name="other">Свой камень рядом.</param>
-    /// <param name="colour">Цвет хода.</param>
-    /// <returns><c>true</c>, если камень входит в квадрат пустого треугольника.</returns>
-    private static bool OwnInSquare(Board board, Point point, Point other, StoneColor colour)
-    {
-        foreach (var square in Squares(point, board.Size.Value))
-        {
-            if (square.Contains(point) && square.Contains(other) && square.Count(item => board.At(item) == colour) == 3)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /// <summary>Стоит ли камень на расстоянии прыжка по линии.</summary>
