@@ -71,8 +71,14 @@ public sealed class BoardViewTests
     {
         var (view, model) = Create();
         Finish(model);
+        var layout = view.FindControl<Grid>("Layout")!;
 
-        Assert.Equal(1, CountTexts(view.FindControl<Grid>("Layout")!, model.ScoreDetail));
+        // Три величины — три блока: «стену» из японской и китайской строк читать нельзя
+        // (жалоба пользователя 2026-10-11). Каждая строка стоит ровно один раз.
+        Assert.Equal(1, CountTexts(layout, model.ScoreJapanese));
+        Assert.Equal(1, CountTexts(layout, model.ScoreChinese));
+        Assert.Equal(1, CountTexts(layout, model.ScoreDeadGroups));
+        Assert.NotEqual(model.ScoreJapanese, model.ScoreChinese);
     }
 
     [Fact]
@@ -80,8 +86,42 @@ public sealed class BoardViewTests
     {
         var (view, model) = Create();
         Finish(model);
+        var sheet = view.FindControl<Grid>("MobileLayout")!;
 
-        Assert.Equal(1, CountTexts(view.FindControl<Grid>("MobileLayout")!, model.ScoreDetail));
+        Assert.Equal(1, CountTexts(sheet, model.ScoreJapanese));
+        Assert.Equal(1, CountTexts(sheet, model.ScoreChinese));
+        Assert.Equal(1, CountTexts(sheet, model.ScoreDeadGroups));
+    }
+
+    [Fact]
+    public void Карточка_Итога_Видна_В_Подробностях_Шторки()
+    {
+        // Жалоба пользователя 2026-10-11: «была когда синее объявление об исходе партии
+        // в подробностях. Давай вернем». Карточка показывает исход словами и цветом.
+        var (view, model) = Create();
+        Finish(model);
+
+        var card = view.FindControl<Border>("MobileResultCard")!;
+
+        Assert.True(card.IsVisible, "карточка итога скрыта");
+        Assert.Equal(model.ResultHeadline, view.FindControl<TextBlock>("MobileResultHeadline")!.Text);
+        Assert.True(
+            card.Classes.Contains("result-win") || card.Classes.Contains("result-loss") || card.Classes.Contains("result-draw"),
+            "у карточки нет цвета исхода");
+    }
+
+    [Fact]
+    public void После_Конца_Партии_Шапка_Телефона_Молчит()
+    {
+        // Жалоба пользователя 2026-10-11: итог «Завершена двумя пасами» наезжал на часы.
+        // После конца партии в шапке не остаётся ни состояния, ни часов, ни «Паузы»:
+        // состояние и итог называет шторка «Подробности».
+        var (view, model) = Create();
+        Finish(model);
+
+        Assert.False(view.FindControl<TextBlock>("MobileTurnText")!.IsVisible, "состояние осталось в шапке");
+        Assert.False(view.FindControl<TextBlock>("MobileClockText")!.IsVisible, "часы остались в шапке");
+        Assert.False(view.FindControl<Button>("MobilePauseButton")!.IsVisible, "кнопка паузы осталась в шапке");
     }
 
     [Fact]

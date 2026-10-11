@@ -174,7 +174,24 @@
               <!-- Разбор обеих систем словами: он нужен тому, кто проверяет счёт, а не тому,
                    кто играет. Отдельное имя: строка короткого счёта стоит выше и заполняется
                    тем же текстом, но живёт всегда. -->
-              <TextBlock x:Name="DesktopScoreSystemsText"
+              <Border x:Name="DesktopResultCard"
+                      Classes="app-banner result-card"
+                      IsVisible="False"
+                      Padding="10"
+                      CornerRadius="8">
+                <StackPanel Spacing="4">
+                  <TextBlock x:Name="DesktopResultHeadline" Classes="app-banner-title" TextWrapping="Wrap" />
+                  <TextBlock x:Name="DesktopResultDetail" Classes="app-banner-detail" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+
+              <TextBlock x:Name="DesktopScoreJapaneseText"
+                         Classes="app-label"
+                         TextWrapping="Wrap" />
+              <TextBlock x:Name="DesktopScoreChineseText"
+                         Classes="app-label"
+                         TextWrapping="Wrap" />
+              <TextBlock x:Name="DesktopScoreDeadText"
                          Classes="app-label"
                          TextWrapping="Wrap" />
 
@@ -440,7 +457,25 @@
                    и пленные (SheetSummaryDetails) уже стоят в свёрнутой шторке, и повторять их
                    в подробностях нельзя — игрок видел одну и ту же величину дважды (жалоба
                    пользователя 2026-10-02 «дублирование счетов»). -->
-              <TextBlock x:Name="MobileScoreDetailText" Classes="app-label" TextWrapping="Wrap" />
+              <!-- Итог объявляется карточкой: цвет говорит «выиграл / проиграл / ничья»,
+                   и она видна всегда, пока партия окончена. Игрок просил вернуть это объявление
+                   (жалоба 2026-10-11): раньше итог был только в закрываемом баннере. -->
+              <Border x:Name="MobileResultCard"
+                      Classes="app-banner result-card"
+                      IsVisible="False"
+                      Padding="10"
+                      CornerRadius="8">
+                <StackPanel Spacing="4">
+                  <TextBlock x:Name="MobileResultHeadline" Classes="app-banner-title" TextWrapping="Wrap" />
+                  <TextBlock x:Name="MobileResultDetail" Classes="app-banner-detail" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+
+              <!-- Три системы подсчёта — тремя блоками, а не одним куском текста: «стену»
+                   из японской и китайской величин читать нельзя (жалоба 2026-10-11). -->
+              <TextBlock x:Name="MobileScoreJapaneseText" Classes="app-label" TextWrapping="Wrap" />
+              <TextBlock x:Name="MobileScoreChineseText" Classes="app-label" TextWrapping="Wrap" />
+              <TextBlock x:Name="MobileScoreDeadText" Classes="app-label" TextWrapping="Wrap" />
 
               <!-- Числа разметки видны всегда: переключатель «Территория» показывает и прячет
                    картинку на доске, а не счёт (D-071, замечание пользователя 2026-10-03).

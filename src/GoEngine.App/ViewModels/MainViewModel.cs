@@ -250,13 +250,27 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 lines.Add(ProvisionalInGame);
             }
 
-            lines.Add(JapaneseLine(score));
-            lines.Add(ChineseLine(score));
-            lines.Add(DeadLine(score));
+            lines.Add(ScoreJapanese);
+            lines.Add(ScoreChinese);
+            lines.Add(ScoreDeadGroups);
 
             return string.Join(Environment.NewLine, lines);
         }
     }
+
+    /// <summary>Японская система: очки = территория + пленные + снятые как мёртвые, белым ещё коми.</summary>
+    /// <remarks>
+    /// Величины называются отдельными строками: раньше все три шли одним куском текста, и игрок
+    /// читал «стену», в которой японская и китайская величины сливались (жалоба пользователя
+    /// 2026-10-11). Каждую строку вид показывает своим блоком.
+    /// </remarks>
+    public string ScoreJapanese => JapaneseLine(CurrentScore);
+
+    /// <summary>Китайская система: очки = свои камни на доске + территория, пленные не считаются.</summary>
+    public string ScoreChinese => ChineseLine(CurrentScore);
+
+    /// <summary>Мёртвые группы и нейтральные точки: что снято и что не засчитано никому.</summary>
+    public string ScoreDeadGroups => DeadLine(CurrentScore);
 
     /// <summary>Состояние партии словами.</summary>
     public string Status => _game.Status switch
@@ -1603,6 +1617,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(ScoreBreakdown),
             nameof(Score),
             nameof(ScoreDetail),
+            nameof(ScoreJapanese),
+            nameof(ScoreChinese),
+            nameof(ScoreDeadGroups),
             nameof(Outcome),
             nameof(HasOutcome),
             nameof(ResultHeadline),
@@ -1680,6 +1697,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(ScoringRule),
             nameof(Score),
             nameof(ScoreDetail),
+            nameof(ScoreJapanese),
+            nameof(ScoreChinese),
+            nameof(ScoreDeadGroups),
             nameof(DeadPoints),
             nameof(DeadRevision),
             nameof(Status),

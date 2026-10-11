@@ -108,8 +108,6 @@ public sealed partial class BoardView : UserControl
     /// <summary>Ответ на ход, сделанный на паузе: ход не играется, и игрок должен понять почему.</summary>
     private const string PausedHint = "Партия на паузе: нажмите «Продолжить».";
 
-    /// <summary>Подсказка после конца партии: почему щелчок по доске молчит.</summary>
-    private const string OutcomeHint = "Партия окончена. Мёртвые группы определила программа — щелчок по доске их не меняет.";
 
     /// <summary>Подсказка на правую кнопку: пометки мёртвых ставит программа.</summary>
     private const string DeadByProgramHint = "Мёртвые группы определяет программа: пометки по доске не ставятся.";
@@ -156,8 +154,14 @@ public sealed partial class BoardView : UserControl
     private readonly TextBlock? _desktopScore;
     private readonly TextBlock? _desktopStatus;
     private readonly TextBlock? _mobileStatusText;
-    private readonly TextBlock? _desktopScoreSystems;
-    private readonly TextBlock? _mobileScoreDetail;
+    private readonly TextBlock? _mobileScoreJapanese;
+    private readonly TextBlock? _mobileScoreChinese;
+    private readonly TextBlock? _mobileScoreDead;
+    private readonly TextBlock? _desktopScoreJapanese;
+    private readonly TextBlock? _desktopScoreChinese;
+    private readonly TextBlock? _desktopScoreDead;
+    private readonly Border? _mobileResultCard;
+    private readonly Border? _desktopResultCard;
     private readonly TextBlock? _desktopBreakdown;
     private readonly TextBlock? _mobileBreakdown;
     private readonly TextBlock? _desktopStats;
@@ -275,8 +279,14 @@ public sealed partial class BoardView : UserControl
         _desktopScore = this.FindControl<TextBlock>("DesktopScoreText");
         _desktopStatus = this.FindControl<TextBlock>("DesktopStatusText");
         _mobileStatusText = this.FindControl<TextBlock>("MobileStatusText");
-        _desktopScoreSystems = this.FindControl<TextBlock>("DesktopScoreSystemsText");
-        _mobileScoreDetail = this.FindControl<TextBlock>("MobileScoreDetailText");
+        _desktopScoreJapanese = this.FindControl<TextBlock>("DesktopScoreJapaneseText");
+        _desktopScoreChinese = this.FindControl<TextBlock>("DesktopScoreChineseText");
+        _desktopScoreDead = this.FindControl<TextBlock>("DesktopScoreDeadText");
+        _mobileScoreJapanese = this.FindControl<TextBlock>("MobileScoreJapaneseText");
+        _mobileScoreChinese = this.FindControl<TextBlock>("MobileScoreChineseText");
+        _mobileScoreDead = this.FindControl<TextBlock>("MobileScoreDeadText");
+        _mobileResultCard = this.FindControl<Border>("MobileResultCard");
+        _desktopResultCard = this.FindControl<Border>("DesktopResultCard");
         _desktopBreakdown = this.FindControl<TextBlock>("DesktopBreakdownText");
         _mobileBreakdown = this.FindControl<TextBlock>("MobileBreakdownText");
         _desktopStats = this.FindControl<TextBlock>("DesktopStatsText");
@@ -1167,7 +1177,6 @@ public sealed partial class BoardView : UserControl
         // её называть нельзя (жалоба 2026-10-02).
         var provisional = ViewModel.Status == "Идёт";
         var score = GameStatusLines.ScoreLine(provisional, ViewModel.Score);
-        var detail = ViewModel.ScoreDetail;
         var breakdown = ViewModel.ScoreBreakdown;
         var stats = GameStatusLines.StatsLine(
             ViewModel.LevelDescription,
@@ -1176,9 +1185,25 @@ public sealed partial class BoardView : UserControl
             ViewModel.Komi);
         var stone = GameStatusLines.ShowTurnStone(verdict);
 
+        var finished = ViewModel.HasOutcome;
+
         if (_mobileTurnText is not null)
         {
+            // Длинный итог («Завершена двумя пасами») наезжал на часы в короткой шапке телефона:
+            // после конца партии шапка молчит, а состояние и итог называет шторка «Подробности»
+            // (жалоба пользователя 2026-10-11).
             _mobileTurnText.Text = status;
+            _mobileTurnText.IsVisible = !finished;
+        }
+
+        if (_mobileClock is not null)
+        {
+            _mobileClock.IsVisible = !finished;
+        }
+
+        if (_mobilePause is not null)
+        {
+            _mobilePause.IsVisible = !finished;
         }
 
         if (_mobileMoveText is not null)
@@ -1191,19 +1216,52 @@ public sealed partial class BoardView : UserControl
 
         if (_mobileTurnBlack is not null)
         {
-            _mobileTurnBlack.IsVisible = stone && IsBlackTurn();
+            _mobileTurnBlack.IsVisible = stone && !finished && IsBlackTurn();
         }
 
         if (_mobileTurnWhite is not null)
         {
-            _mobileTurnWhite.IsVisible = stone && !IsBlackTurn();
+            _mobileTurnWhite.IsVisible = stone && !finished && !IsBlackTurn();
         }
 
         SetText(_desktopStatus, status);
         SetText(_mobileStatusText, $"Статус: {ViewModel.Status}");
         SetText(_desktopScore, score);
-        SetText(_desktopScoreSystems, detail);
-        SetText(_mobileScoreDetail, detail);
+        // Карточка итога в подробностях: объявление исхода словами и цветом. Игрок просил
+        // вернуть его (жалоба 2026-10-11) — раньше итог жил только в закрываемом баннере.
+        foreach (var (card, headlineName, detailName) in new[]
+        {
+            (_mobileResultCard, "MobileResultHeadline", "MobileResultDetail"),
+            (_desktopResultCard, "DesktopResultHeadline", "DesktopResultDetail")
+        })
+        {
+            if (card is null)
+            {
+                continue;
+            }
+
+            card.IsVisible = ViewModel.HasOutcome;
+
+            foreach (var (tone, name) in new[]
+            {
+                (GameTone.Win, "result-win"),
+                (GameTone.Loss, "result-loss"),
+                (GameTone.Draw, "result-draw")
+            })
+            {
+                card.Classes.Set(name, ViewModel.HasOutcome && tone == ViewModel.ResultTone);
+            }
+
+            SetText(card.FindControl<TextBlock>(headlineName), ViewModel.ResultHeadline);
+            SetText(card.FindControl<TextBlock>(detailName), ViewModel.ResultDetail);
+        }
+
+        SetText(_desktopScoreJapanese, ViewModel.ScoreJapanese);
+        SetText(_desktopScoreChinese, ViewModel.ScoreChinese);
+        SetText(_desktopScoreDead, ViewModel.ScoreDeadGroups);
+        SetText(_mobileScoreJapanese, ViewModel.ScoreJapanese);
+        SetText(_mobileScoreChinese, ViewModel.ScoreChinese);
+        SetText(_mobileScoreDead, ViewModel.ScoreDeadGroups);
         SetText(_desktopBreakdown, breakdown);
         SetText(_mobileBreakdown, breakdown);
         SetText(_desktopStats, stats);
@@ -1597,7 +1655,9 @@ public sealed partial class BoardView : UserControl
     {
         if (ViewModel.HasOutcome)
         {
-            ShowHint(OutcomeHint);
+            // Партия окончена: щелчок по доске молчит, но объяснять это игроку не нужно — текст
+            // «мёртвые группы определила программа» вводил в заблуждение (жалоба 2026-10-11).
+            // Итог и подсчёт видны в шторке «Подробности».
             return;
         }
 
