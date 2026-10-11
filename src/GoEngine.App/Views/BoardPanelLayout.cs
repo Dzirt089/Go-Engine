@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Layout;
 using GoEngine.App.Controls;
 using GoEngine.App.Services;
 
@@ -21,10 +22,10 @@ internal sealed class BoardPanelLayout
 {
     /// <summary>Наименьшая высота панели в вертикальной раскладке.</summary>
     /// <remarks>
-    /// Текст шага и три ряда кнопок занимают около 230 точек; остальное — название материала
-    /// и список выбора, и они прокручиваются. Меньше этой границы панель отдавать нельзя: кнопки
-    /// уехали бы за край экрана, и материал нельзя было бы пройти. Число то же, что у панели
-    /// задач: раскладки одинаковые, и нижняя навигация на телефоне обязана помещаться целиком.
+    /// Панель собирается в четыре полосы: шапка с выбором материала (44), прокручиваемый текст,
+    /// полоса сообщения (40) и строка управления (52) плюс отступы — около 200 точек; остальное
+    /// достаётся тексту шага. Меньше этой границы панель отдавать нельзя: кнопки и сообщение уехали
+    /// бы за край экрана, и материал нельзя было бы пройти.
     /// </remarks>
     public const double MinimumPanelHeight = 280;
 
@@ -63,12 +64,12 @@ internal sealed class BoardPanelLayout
     public void Apply(double width, double height)
     {
         var narrow = BoardLayoutRules.IsNarrow(width, height);
+        var panelWidth = BoardLayoutRules.DesktopPanelWidth(width);
 
         if (_narrow != narrow)
         {
             _narrow = narrow;
 
-            _layout.ColumnDefinitions = new ColumnDefinitions(narrow ? "*" : "*,320");
             _layout.RowDefinitions = new RowDefinitions(narrow ? "Auto,*" : "*");
 
             Grid.SetColumn(_board, 0);
@@ -79,6 +80,10 @@ internal sealed class BoardPanelLayout
             _panel.BorderThickness = narrow ? new Thickness(0, 1, 0, 0) : new Thickness(1, 0, 0, 0);
         }
 
+        // Ширина панели пересчитывается на каждое изменение размера: на большом экране панель
+        // растёт вместе с окном, но в границах читаемости (жалоба 2026-10-11 о узкой панели).
+        _layout.ColumnDefinitions = new ColumnDefinitions(narrow ? "*" : $"*,{panelWidth:0.##}");
+
         // На телефоне заголовок и описание дублируют подпись раздела в нижней навигации
         // и строку выбора, а их высота нужна тексту материала: без этого текст уходил
         // под прокрутку целиком (проверено живым прогоном).
@@ -87,7 +92,29 @@ internal sealed class BoardPanelLayout
             control.IsVisible = !narrow;
         }
 
-        _board.Height = narrow ? NarrowBoardHeight(width, height) : double.NaN;
+        // Доска квадратная и стоит по центру своего места: на настольном экране сторона считается
+        // по месту доски и высоте окна, на телефоне — по вертикальной раскладке (жалоба 2026-10-11
+        // «доску центровать»).
+        if (narrow)
+        {
+            // На телефоне доска занимает ширину панели: сторону задаёт высота раскладки. Ширину
+            // и выравнивание сбрасываем явно — иначе после настольного окна (или поворота экрана)
+            // остаётся прежняя настольная сторона, и доска «уезжает» за край (жалоба пользователя
+            // 2026-10-11: «на android доска поехала, нельзя угробить его»).
+            _board.Width = double.NaN;
+            _board.Height = NarrowBoardHeight(width, height);
+            _board.HorizontalAlignment = HorizontalAlignment.Stretch;
+            _board.VerticalAlignment = VerticalAlignment.Stretch;
+        }
+        else
+        {
+            var side = BoardLayoutRules.DesktopBoardSide(width - panelWidth, height);
+
+            _board.Width = side;
+            _board.Height = side;
+            _board.HorizontalAlignment = HorizontalAlignment.Center;
+            _board.VerticalAlignment = VerticalAlignment.Center;
+        }
     }
 
     /// <summary>Считает высоту доски в вертикальной раскладке.</summary>

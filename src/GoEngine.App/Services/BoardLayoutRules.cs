@@ -30,6 +30,75 @@ public static class BoardLayoutRules
     /// <summary>Наименьшая разумная высота доски в вертикальной раскладке.</summary>
     public const double MinimumBoardHeight = 240;
 
+    /// <summary>Наименьшая ширина панели на настольном экране.</summary>
+    /// <remarks>
+    /// 360 точек — строка текста в 45–55 знаков: меньше — и разбор начинает рваться на слоги,
+    /// а кнопки в ряду не помещаются (жалоба пользователя 2026-10-11: панель 320 была узкой).
+    /// </remarks>
+    public const double MinimumDesktopPanelWidth = 360;
+
+    /// <summary>Наибольшая ширина панели на настольном экране.</summary>
+    /// <remarks>
+    /// Дальше панель только съедала бы место у доски: длинную строку читать труднее, чем короткую,
+    /// и в продуктах колонку текста ограничивают, а не растягивают на весь экран.
+    /// </remarks>
+    public const double MaximumDesktopPanelWidth = 520;
+
+    /// <summary>Доля ширины окна, которую занимает панель на настольном экране.</summary>
+    /// <remarks>
+    /// Треть ширины: на 1366 точках это 410, на 1920 — предел 520. Доля важнее фиксированной
+    /// ширины: на большом экране панель растёт вместе с окном, но не бесконечно.
+    /// </remarks>
+    private const double DesktopPanelShare = 0.30;
+
+    /// <summary>Зазор между доской и краями её места.</summary>
+    /// <remarks>Отступ в 24 точки — шаг сетки отступов интерфейса: доска не липнет к краю окна.</remarks>
+    public const double DesktopGutter = 24;
+
+    /// <summary>Наибольшая сторона доски на настольном экране.</summary>
+    /// <remarks>
+    /// Больше 900 точек доска на мониторе не нужна: клетка становится крупнее ладони, взгляд
+    /// не охватывает позицию целиком, а лишнее место лучше отдать панели разбора.
+    /// </remarks>
+    public const double MaximumBoardSide = 900;
+
+    /// <summary>Считает ширину панели на настольном экране.</summary>
+    /// <param name="viewWidth">Ширина вида.</param>
+    /// <returns>Ширину панели: доля окна в границах читаемости.</returns>
+    public static double DesktopPanelWidth(double viewWidth)
+    {
+        if (viewWidth <= 0)
+        {
+            return MinimumDesktopPanelWidth;
+        }
+
+        return Math.Clamp(
+            viewWidth * DesktopPanelShare,
+            MinimumDesktopPanelWidth,
+            MaximumDesktopPanelWidth);
+    }
+
+    /// <summary>Считает сторону доски в настольной раскладке.</summary>
+    /// <param name="areaWidth">Ширина места, отведённого доске.</param>
+    /// <param name="viewHeight">Высота вида.</param>
+    /// <returns>Сторону квадрата: доска вписана в место с зазорами и не больше предела.</returns>
+    /// <remarks>
+    /// Доска квадратная и центруется: свободное место делится поровну слева и справа (жалоба
+    /// пользователя 2026-10-11: «доску центровать»). Сторона берётся по меньшей из доступных
+    /// величин, поэтому на низком окне доска уменьшается, а не обрезается.
+    /// </remarks>
+    public static double DesktopBoardSide(double areaWidth, double viewHeight)
+    {
+        if (areaWidth <= 0 || viewHeight <= 0)
+        {
+            return 0;
+        }
+
+        var side = Math.Min(areaWidth - (2 * DesktopGutter), viewHeight - (2 * DesktopGutter));
+
+        return Math.Min(Math.Max(side, MinimumBoardHeight), MaximumBoardSide);
+    }
+
     /// <summary>Наименьший кегль подписи координат, при котором она ещё читается на телефоне.</summary>
     public const double MinimumCoordinateTextSize = 10;
 

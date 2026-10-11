@@ -86,13 +86,16 @@
         <Grid Grid.Row="2" RowDefinitions="Auto,Auto" Margin="0,6,0,0">
 
           <!-- Вердикт хода: «Верно», «Это не решает задачу», «Задача решена», «Подсказка: …». -->
-          <TextBlock x:Name="Verdict"
-                     Grid.Row="0"
-                     Text="{Binding Verdict}"
-                     IsVisible="{Binding HasVerdict}"
-                     FontWeight="SemiBold"
-                     TextWrapping="Wrap"
-                     Margin="0,0,0,6" />
+          <!-- Полоса вердикта зарезервирована: его появление не сдвигает текст задачи
+               (жалоба пользователя 2026-10-11: «прыгает текст описания»). -->
+          <Border Grid.Row="0" MinHeight="44" Margin="0,0,0,6">
+            <TextBlock x:Name="Verdict"
+                       Text="{Binding Verdict}"
+                       IsVisible="{Binding HasVerdict}"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       VerticalAlignment="Center" />
+          </Border>
 
           <Grid x:Name="PanelActions" Grid.Row="1" ColumnDefinitions="*,6,*,6,*">
 

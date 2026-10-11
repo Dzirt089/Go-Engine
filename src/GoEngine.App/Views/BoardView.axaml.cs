@@ -36,6 +36,7 @@ namespace GoEngine.App.Views;
 public sealed partial class BoardView : UserControl
 {
     /// <summary>Ширина настольной панели управления: та же, что в разметке.</summary>
+    /// <summary>Ширина панели по умолчанию: до первого измерения раскладку задаёт разметка.</summary>
     private const double DesktopPanelWidth = 360;
 
     /// <summary>С какого смещения шторка меню выезжает снизу.</summary>
@@ -975,6 +976,21 @@ public sealed partial class BoardView : UserControl
         }
 
         UpdateMobileBoardSize();
+
+        // Настольная раскладка: панель занимает долю окна в границах читаемости, а доска стоит
+        // квадратом по центру своего места (жалоба пользователя 2026-10-11: «доску центровать,
+        // панель сделать пошире»).
+        if (mode == LayoutMode.Desktop && _layout is not null && _boardControl is not null)
+        {
+            var panelWidth = BoardLayoutRules.DesktopPanelWidth(width);
+            var side = BoardLayoutRules.DesktopBoardSide(width - panelWidth, height);
+
+            _layout.ColumnDefinitions = new ColumnDefinitions($"*,{panelWidth:0.##}");
+            _boardControl.Width = side;
+            _boardControl.Height = side;
+            _boardControl.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
+            _boardControl.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+        }
     }
 
     /// <summary>Показывает выбранную раскладку и переносит в неё доску.</summary>
@@ -1052,6 +1068,18 @@ public sealed partial class BoardView : UserControl
         // Из высоты вычитается зазор: доска не должна наезжать на панель действий.
         var width = _mobileLayout.Bounds.Width - (2 * MobileBoardMargin);
         var height = (_mobileBoardRow?.Bounds.Height ?? 0) - (2 * MobileBoardMargin);
+
+        // Доска одна на обе раскладки: после настольного окна у неё осталась настольная сторона,
+        // и на телефоне она вылезала за экран (жалоба 2026-10-11 «доска поехала»). Сброс идёт
+        // до расчёта стороны: на первом проходе размеры строки ещё нулевые, и ранний выход
+        // оставил бы настольную ширину навсегда.
+        if (_boardControl is not null)
+        {
+            _boardControl.Width = double.NaN;
+            _boardControl.Height = double.NaN;
+            _boardControl.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
+            _boardControl.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch;
+        }
 
         var side = BoardLayoutRules.MobileBoardSide(width, height);
 

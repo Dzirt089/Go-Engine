@@ -36,7 +36,7 @@
             BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
             BorderThickness="1,0,0,0"
             Padding="12,10">
-      <Grid RowDefinitions="Auto,*,Auto">
+      <Grid RowDefinitions="Auto,*,Auto,Auto">
 
         <!-- Шапка панели: выбор урока и словарь терминов. Не прокручивается: список уроков
              должен стоять на месте, пока игрок читает текст шага. -->
@@ -99,13 +99,6 @@
                        Text="{Binding StepText}"
                        TextWrapping="Wrap" />
 
-            <!-- Что сказать игроку об его ходе: похвала акцентом, отказ — красным. -->
-            <TextBlock x:Name="MessageText"
-                       Text="{Binding Message}"
-                       IsVisible="{Binding HasMessage}"
-                       TextWrapping="Wrap"
-                       FontWeight="SemiBold" />
-
             <TextBlock x:Name="LessonTitleText"
                        Text="{Binding LessonTitle}"
                        Margin="0,8,0,0"
@@ -125,9 +118,20 @@
           </StackPanel>
         </ScrollViewer>
 
+        <!-- Полоса сообщения зарезервирована: похвала или отказ появляются здесь, а не в тексте
+             шага, и ничего не сдвигают (жалоба пользователя 2026-10-11: «прыгает текст»). -->
+        <Border x:Name="MessageSlot" Grid.Row="2" MinHeight="40" Margin="0,4,0,0">
+          <TextBlock x:Name="MessageText"
+                     Text="{Binding Message}"
+                     IsVisible="{Binding HasMessage}"
+                     TextWrapping="Wrap"
+                     FontWeight="SemiBold"
+                     VerticalAlignment="Center" />
+        </Border>
+
         <!-- Управление: одна строка. Второстепенные действия — значки 44×44 с подсказкой,
              главное действие занимает остаток строки. -->
-        <Grid x:Name="PanelActions" Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,6,0,0">
+        <Grid x:Name="PanelActions" Grid.Row="3" ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,6,0,0">
 
           <Button x:Name="HintButton"
                   Classes="app-icon"
