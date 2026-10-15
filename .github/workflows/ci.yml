@@ -27,10 +27,19 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
-      - name: Проверка проекта
+      # Шаги разделены намеренно: если проверка падает, в списке шагов видно, что именно —
+      # сборка, тесты или режимы приложения. Одна команда ./check.sh прятала это в общем выводе
+      # (сбой CI #126 2026-10-15: сообщение было только «exit code 1»).
+      - name: Сборка решения
+        run: dotnet build src/GoEngine.sln --nologo
+      - name: Тесты решения
+        run: dotnet test src/GoEngine.sln --nologo
+      - name: Проверочные режимы приложения
         run: |
-          chmod +x ./check.sh
-          ./check.sh
+          for mode in --smoke --check --state --settings --sgf --animation --problems --result --territory --clock --update --e2e --stress; do
+            echo "Go Engine: режим $mode"
+            dotnet run --project src/GoEngine.App.Desktop/GoEngine.App.Desktop.csproj --no-build -- "$mode" || exit 1
+          done
 
   windows:
     name: Windows — сборка и тесты
