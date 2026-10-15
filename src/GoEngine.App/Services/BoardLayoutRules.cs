@@ -103,7 +103,13 @@ public static class BoardLayoutRules
     public const double MinimumCoordinateTextSize = 10;
 
     /// <summary>Какую долю высоты занимает доска в вертикальной раскладке.</summary>
-    private const double BoardHeightShare = 0.62;
+    /// <remarks>
+    /// Половина экрана, а не две трети: в разделах обучения (задачи, уроки, разбор партий) под доской
+    /// стоит панель с текстом, и текст важнее размера доски. Замечание пользователя 2026-10-15:
+    /// «дай больше места на экране для текста». Раньше доска занимала 62 % высоты, и панели
+    /// оставалось меньше трети экрана.
+    /// </remarks>
+    private const double BoardHeightShare = 0.50;
 
     /// <summary>Во сколько раз высота должна превышать ширину, чтобы экран считался портретным.</summary>
     private const double PortraitRatio = 1.25;

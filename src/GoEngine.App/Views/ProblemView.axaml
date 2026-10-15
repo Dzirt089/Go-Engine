@@ -30,7 +30,7 @@
             BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
             BorderThickness="1,0,0,0"
             Padding="12,10">
-      <Grid RowDefinitions="Auto,*,Auto">
+      <Grid RowDefinitions="Auto,Auto,*,Auto">
 
         <!-- Шапка панели: стрелки перехода и выбор задачи. Список не прячется в свёртку
              и не прокручивается вместе с текстом: игрок видит, из чего выбирать. -->
@@ -63,37 +63,8 @@
         </Grid>
 
         <!-- Условие задачи и цель: то, что можно прочитать не спеша. -->
-        <ScrollViewer x:Name="Conditions" Grid.Row="1" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer x:Name="Conditions" Grid.Row="2" VerticalScrollBarVisibility="Auto">
           <StackPanel Spacing="4" Margin="0,0,0,8">
-
-            <!-- Формы решения: номерами, а не цветом. Полоса прокручивается по горизонтали:
-                 на телефоне места мало, а форм бывает до трёх (замечание пользователя 2026-10-11).
-                 Подпись «Формы решения» стоит только когда форм больше одной. -->
-            <StackPanel Spacing="4" x:Name="ShapeList">
-              <TextBlock x:Name="ShapeListTitle"
-                         Classes="app-label"
-                         Text="Формы решения"
-                         IsVisible="{Binding HasSeveralShapes}" />
-              <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                            VerticalScrollBarVisibility="Disabled">
-                <ItemsControl ItemsSource="{Binding Shapes}">
-                  <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                      <StackPanel Orientation="Horizontal" Spacing="6" />
-                    </ItemsPanelTemplate>
-                  </ItemsControl.ItemsPanel>
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                      <Button Classes="app-chip"
-                              Content="{Binding Label}"
-                              ClickMode="Press"
-                              Tag="{Binding Number}"
-                              Click="OnShapeChipClick" />
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </ScrollViewer>
-            </StackPanel>
 
             <TextBlock x:Name="Heading" Text="Задачи" FontSize="16" FontWeight="SemiBold" />
             <TextBlock Text="{Binding StatusText}" />
@@ -137,12 +108,12 @@
 
         <!-- Вердикт и управление: эта часть не прокручивается и не уезжает за край экрана.
              Значки растянуты по ширине панели: три равные цели вместо ряда кнопок вразнобой. -->
-        <Grid Grid.Row="2" RowDefinitions="Auto,Auto" Margin="0,6,0,0">
+        <Grid Grid.Row="3" RowDefinitions="Auto,Auto" Margin="0,6,0,0">
 
           <!-- Вердикт хода: «Верно», «Это не решает задачу», «Задача решена», «Подсказка: …». -->
           <!-- Полоса вердикта зарезервирована: его появление не сдвигает текст задачи
                (жалоба пользователя 2026-10-11: «прыгает текст описания»). -->
-          <Border Grid.Row="0" MinHeight="44" Margin="0,0,0,6">
+          <Border Grid.Row="0" MinHeight="30" Margin="0,0,0,4">
             <TextBlock x:Name="Verdict"
                        Text="{Binding Verdict}"
                        IsVisible="{Binding HasVerdict}"

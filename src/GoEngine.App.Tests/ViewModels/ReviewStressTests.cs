@@ -79,6 +79,23 @@ public sealed class ReviewStressTests
             _ = model.QuizPoints;
             _ = model.HintPoint;
 
+            // Панель обязана объяснять текущий ход на каждом шаге партии: либо заметкой разбора,
+            // либо строкой о ходе. Пустая панель — это и есть баг, который увидел пользователь
+            // 2026-10-15 («нет информации о ходах, хотя в коде она есть»).
+            Assert.Matches(@"^Ход \d+ из \d+$", model.MoveCounter);
+
+            if (!model.HasNote)
+            {
+                Assert.False(
+                    string.IsNullOrWhiteSpace(model.MoveInfo),
+                    $"пустая панель на ходу {model.MoveCounter} ({game.Id})");
+            }
+            else
+            {
+                Assert.False(string.IsNullOrWhiteSpace(model.NoteTitle), $"нет названия заметки на {model.MoveCounter}");
+                Assert.False(string.IsNullOrWhiteSpace(model.NoteText), $"нет текста заметки на {model.MoveCounter}");
+            }
+
             if (model.IsQuiz)
             {
                 // Ответ на вопрос: ход партии в этой точке — он всегда верный.

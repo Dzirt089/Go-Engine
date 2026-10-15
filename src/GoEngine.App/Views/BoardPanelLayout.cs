@@ -27,7 +27,7 @@ internal sealed class BoardPanelLayout
     /// достаётся тексту шага. Меньше этой границы панель отдавать нельзя: кнопки и сообщение уехали
     /// бы за край экрана, и материал нельзя было бы пройти.
     /// </remarks>
-    public const double MinimumPanelHeight = 280;
+    public const double MinimumPanelHeight = 320;
 
     /// <summary>Высота доски на совсем низком экране, где половина высоты меньше разумного минимума.</summary>
     private const double MinimumBoardHeightForTinyScreen = 120;

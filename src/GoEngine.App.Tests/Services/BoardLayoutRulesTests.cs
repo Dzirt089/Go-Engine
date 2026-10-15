@@ -42,9 +42,19 @@ public sealed class BoardLayoutRulesTests
     [Fact]
     public void Доска_В_Портрете_Квадратная_И_Не_Выше_Экрана()
     {
+        // Половина высоты: в разделах обучения под доской стоит панель с текстом, и текст важнее
+        // размера доски (замечание пользователя 2026-10-15: «дай больше места для текста»).
         var height = BoardLayoutRules.BoardHeight(420, 800);
 
-        Assert.Equal(420, height);
+        Assert.Equal(400, height);
+        Assert.True(height < 420, "доска отдала часть высоты тексту");
+    }
+
+    [Fact]
+    public void Широкая_Доска_Ограничена_Половиной_Высоты()
+    {
+        // Даже на широком телефоне доска не забирает больше половины экрана: остальное — текст.
+        Assert.Equal(400, BoardLayoutRules.BoardHeight(600, 800));
     }
 
     [Fact]
