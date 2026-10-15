@@ -246,8 +246,11 @@ public sealed partial class LessonView : UserControl
             return;
         }
 
-        _message.Foreground = this.FindResource(ViewModel.IsMessageGood ? "AppAccentBrush" : "AppDangerBrush")
-            as Avalonia.Media.IBrush;
+        // Цвет задаётся классами: кисть берётся из темы через DynamicResource. Раньше здесь стоял
+        // FindResource без темы — он возвращал null, Foreground становился null, и Skia не рисовал
+        // ни одной буквы, хотя место под сообщение было занято (находка ревизии 2026-10-15).
+        _message.Classes.Set("message-good", ViewModel.IsMessageGood);
+        _message.Classes.Set("message-bad", !ViewModel.IsMessageGood);
     }
 
     /// <summary>Перестраивает раскладку при изменении размера вида.</summary>

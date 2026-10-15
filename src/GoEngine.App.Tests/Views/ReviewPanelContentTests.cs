@@ -101,6 +101,68 @@ public sealed class ReviewPanelContentTests
     }
 
     [Fact]
+    public void Сообщение_Панели_Занято_Мало_И_Видно()
+    {
+        // Находка ревизии 2026-10-15: полоса сообщения росла до 131 точки (в узком окне — 149 при
+        // области текста 48) и при этом не рисовалась: кисть не находилась, Foreground становился
+        // null, Skia не выводил ни одной буквы. Проверка держит обе границы: место и видимость.
+        var model = new ReviewViewModel();
+        var view = new ReviewView(model);
+
+        Arrange(view);
+
+        var slot = view.FindControl<Border>("MessageSlot");
+        var text = view.FindControl<TextBlock>("MessageText");
+        var scroll = view.FindControl<ScrollViewer>("NoteScroll");
+
+        Assert.NotNull(slot);
+        Assert.NotNull(text);
+        Assert.NotNull(scroll);
+
+        // Место под сообщение ограничено: панель не может отдать ему больше двух строк.
+        Assert.True(slot!.MaxHeight <= 40, $"полоса сообщения может вырасти до {slot.MaxHeight} точек");
+
+        // Текст шага/хода виден: у него есть и кисть, и цвет.
+        Assert.True(text!.IsVisible || !model.HasMessage);
+        Assert.NotNull(text.Foreground);
+        Assert.NotEqual(Avalonia.Media.Colors.Transparent, ((Avalonia.Media.ISolidColorBrush)text.Foreground!).Color);
+
+        // Область текста больше полосы сообщения — иначе игрок видит полторы строки.
+        Assert.True(scroll!.Bounds.Height > slot.MaxHeight, $"текст {scroll.Bounds.Height} против полосы {slot.MaxHeight}");
+    }
+
+    [Fact]
+    public void Текст_Хода_Не_Дублируется_В_Сообщении()
+    {
+        // Регрессия: Message получал текст заметки целиком, и панель резервировала вторую копию
+        // абзаца. Сообщение говорит только об исходе хода.
+        var game = ReviewLibrary.All[0];
+        var model = new ReviewViewModel();
+        var guard = 0;
+
+        while (!model.IsCompleted && guard++ < 12)
+        {
+            if (model.HasNote && model.HasMessage)
+            {
+                Assert.NotEqual(model.NoteText, model.Message);
+            }
+
+            if (model.IsQuiz)
+            {
+                model.Play(game.Moves[model.MoveNumber].Point);
+                continue;
+            }
+
+            if (!model.CanGoNext)
+            {
+                break;
+            }
+
+            model.Next();
+        }
+    }
+
+    [Fact]
     public void В_Разметке_Есть_Все_Элементы_Панели()
     {
         // Список обязательных элементов панели: если элемент потеряется при правке разметки,

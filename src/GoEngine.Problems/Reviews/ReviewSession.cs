@@ -256,7 +256,11 @@ public sealed class ReviewSession
         HintPoint = null;
         Verdict = LessonVerdict.None;
         LastMove = move;
-        Message = Game.NoteBefore(_played)?.Text ?? Message;
+        // Заметка разбора показывается отдельной строкой (NoteText): копировать её целиком
+        // в сообщение нельзя — панель резервировала под неё вторую копию абзаца и отнимала место
+        // у самой заметки (жалоба пользователя 2026-10-15: «нужно нормальное отображение
+        // информации ходов, а не 1.5 строки»). Сообщение говорит только об исходе хода.
+        Message = string.Empty;
 
         return true;
     }

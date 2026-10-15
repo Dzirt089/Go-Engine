@@ -121,6 +121,15 @@
 
   <!-- Чип формы решения: компактная кнопка в горизонтальной полосе. Минимальная высота 32 точки —
        палец уверенно попадает, а полоса не съедает место у доски (замечание пользователя 2026-10-11). -->
+  <!-- Сообщение панели: похвала или отказ. Цвет из темы, поэтому DynamicResource. -->
+  <Style Selector="TextBlock.message-good">
+    <Setter Property="Foreground" Value="{DynamicResource AppAccentBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.message-bad">
+    <Setter Property="Foreground" Value="{DynamicResource AppDangerBrush}" />
+  </Style>
+
   <Style Selector="Button.app-chip">
     <Setter Property="MinHeight" Value="32" />
     <Setter Property="MinWidth" Value="0" />

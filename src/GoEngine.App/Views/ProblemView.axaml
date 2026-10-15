@@ -30,7 +30,7 @@
             BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
             BorderThickness="1,0,0,0"
             Padding="12,10">
-      <Grid RowDefinitions="Auto,Auto,*,Auto">
+      <Grid RowDefinitions="Auto,*,Auto">
 
         <!-- Шапка панели: стрелки перехода и выбор задачи. Список не прячется в свёртку
              и не прокручивается вместе с текстом: игрок видит, из чего выбирать. -->
@@ -63,8 +63,32 @@
         </Grid>
 
         <!-- Условие задачи и цель: то, что можно прочитать не спеша. -->
-        <ScrollViewer x:Name="Conditions" Grid.Row="2" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer x:Name="Conditions" Grid.Row="1" VerticalScrollBarVisibility="Auto">
           <StackPanel Spacing="4" Margin="0,0,0,8">
+          <!-- Формы хода: строка чипов внутри прокрутки. Отдельная полоса панели отнимала у текста
+               44 точки, а на телефоне это две строки разбора (жалоба пользователя 2026-10-15). -->
+          <StackPanel x:Name="ShapeList" Spacing="4" Margin="0,0,0,6" IsVisible="{Binding HasShapesSummary}" AutomationProperties.Name="Формы решения">
+            <TextBlock Classes="app-label" Text="Формы решения" IsVisible="{Binding HasSeveralShapes}" />
+            <ItemsControl ItemsSource="{Binding Shapes}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button Classes="app-chip"
+                          Margin="0,0,6,4"
+                          Content="{Binding Label}"
+                          Tag="{Binding Number}"
+                          Click="OnShapeChipClick" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+
+          
 
             <TextBlock x:Name="Heading" Text="Задачи" FontSize="16" FontWeight="SemiBold" />
             <TextBlock Text="{Binding StatusText}" />
@@ -108,7 +132,7 @@
 
         <!-- Вердикт и управление: эта часть не прокручивается и не уезжает за край экрана.
              Значки растянуты по ширине панели: три равные цели вместо ряда кнопок вразнобой. -->
-        <Grid Grid.Row="3" RowDefinitions="Auto,Auto" Margin="0,6,0,0">
+        <Grid Grid.Row="2" RowDefinitions="Auto,Auto" Margin="0,6,0,0">
 
           <!-- Вердикт хода: «Верно», «Это не решает задачу», «Задача решена», «Подсказка: …». -->
           <!-- Полоса вердикта зарезервирована: его появление не сдвигает текст задачи

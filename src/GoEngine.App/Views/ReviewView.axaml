@@ -30,7 +30,7 @@
             BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
             BorderThickness="1,0,0,0"
             Padding="12,10">
-      <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+      <Grid RowDefinitions="Auto,*,Auto,Auto">
 
         <!-- Шапка панели: выбор партии и словарь терминов. Не прокручивается: список партий
              должен стоять на месте, пока игрок читает разбор. -->
@@ -72,33 +72,33 @@
           </Button>
         </Grid>
 
-          <!-- Формы хода: отдельная полоса панели, а не прокрутка. Список форм не должен
-               зависеть от прокрутки текста: раньше полоса стояла внутри неё, и содержимое
-               разбора могло уехать из виду (жалоба пользователя 2026-10-15). Чипов не больше
-               трёх, поэтому WrapPanel обходится без собственной прокрутки. -->
-          <StackPanel x:Name="ShapeList" Grid.Row="1" Spacing="4" Margin="0,0,0,6" IsVisible="{Binding HasShapesSummary}">
-            <TextBlock Classes="app-label" Text="Формы хода" IsVisible="{Binding HasSeveralShapes}" />
-            <ItemsControl ItemsSource="{Binding Shapes}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <WrapPanel Orientation="Horizontal" />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Button Classes="app-chip"
-                          Margin="0,0,6,4"
-                          Content="{Binding Label}"
-                          Tag="{Binding Number}"
-                          Click="OnShapeChipClick" />
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </StackPanel>
-
         <!-- Разбор текущей позиции: то, ради чего партия открыта. -->
-        <ScrollViewer x:Name="NoteScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer x:Name="NoteScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto">
           <StackPanel Spacing="4" Margin="0,0,0,8">
+
+              <!-- Формы хода: строка чипов внутри разбора. Отдельная полоса панели отнимала
+                   у текста 44 точки, а на телефоне это две строки разбора (жалоба пользователя
+                   2026-10-15: «нужно нормальное отображение информации ходов, а не 1.5 строки»). -->
+            <StackPanel x:Name="ShapeList" Spacing="4" Margin="0,0,0,6" IsVisible="{Binding HasShapesSummary}">
+              <TextBlock Classes="app-label" Text="Формы хода" IsVisible="{Binding HasSeveralShapes}" />
+              <ItemsControl ItemsSource="{Binding Shapes}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Button Classes="app-chip"
+                              Margin="0,0,6,4"
+                              Content="{Binding Label}"
+                              Tag="{Binding Number}"
+                              Click="OnShapeChipClick" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+
 
             <TextBlock x:Name="Heading" Text="Разбор партии" FontSize="16" FontWeight="SemiBold" />
 
@@ -156,7 +156,7 @@
 
         <!-- Полоса сообщения зарезервирована: похвала или отказ появляются здесь, а не в разборе,
              и ничего не сдвигают (жалоба пользователя 2026-10-11: «прыгает текст»). -->
-        <Border x:Name="MessageSlot" Grid.Row="3" MinHeight="30" Margin="0,2,0,0">
+        <Border x:Name="MessageSlot" Grid.Row="2" MinHeight="0" MaxHeight="34" Margin="0,2,0,0">
           <TextBlock x:Name="MessageText"
                      Text="{Binding Message}"
                      IsVisible="{Binding HasMessage}"
@@ -166,7 +166,7 @@
         </Border>
 
         <!-- Управление: одна строка — как в уроке. -->
-        <Grid x:Name="PanelActions" Grid.Row="4" ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,6,0,0">
+        <Grid x:Name="PanelActions" Grid.Row="3" ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,6,0,0">
 
           <Button x:Name="HintButton"
                   Classes="app-icon"
