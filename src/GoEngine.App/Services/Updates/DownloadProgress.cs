@@ -10,8 +10,6 @@ namespace GoEngine.App.Services.Updates;
 /// </remarks>
 public readonly record struct DownloadProgress(long Received, long Total)
 {
-    /// <summary>Известен ли общий размер файла.</summary>
-    public bool HasTotal => Total > 0;
 
     /// <summary>Доля загрузки от 0 до 1; <c>0</c>, если размер неизвестен.</summary>
     public double Fraction => Total > 0 ? Math.Clamp((double)Received / Total, 0d, 1d) : 0d;

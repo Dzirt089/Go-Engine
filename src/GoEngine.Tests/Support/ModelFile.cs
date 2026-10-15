@@ -37,9 +37,6 @@ internal static class ModelFile
     /// <summary>Полный путь к специализированной модели 9×9.</summary>
     public static string Finetuned9x9Path { get; } = PathOf(Finetuned9x9Name);
 
-    /// <summary>Есть ли модель 9×9 на диске.</summary>
-    public static bool Finetuned9x9Exists => File.Exists(Finetuned9x9Path);
-
     /// <summary>Ищет корень репозитория вверх по каталогам.</summary>
     /// <returns>Каталог с `PROJECT.md` и решением `src/GoEngine.sln`, либо каталог сборки.</returns>
     /// <remarks>

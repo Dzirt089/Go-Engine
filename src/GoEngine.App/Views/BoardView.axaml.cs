@@ -108,10 +108,6 @@ public sealed partial class BoardView : UserControl
     /// <summary>Ответ на ход, сделанный на паузе: ход не играется, и игрок должен понять почему.</summary>
     private const string PausedHint = "Партия на паузе: нажмите «Продолжить».";
 
-
-    /// <summary>Подсказка на правую кнопку: пометки мёртвых ставит программа.</summary>
-    private const string DeadByProgramHint = "Мёртвые группы определяет программа: пометки по доске не ставятся.";
-
     /// <summary>Логгер вида: сюда попадают сохранение и загрузка партии с их отказами.</summary>
     private readonly ILogger _log = AppLog.For<BoardView>();
 
@@ -1623,7 +1619,6 @@ public sealed partial class BoardView : UserControl
             button.Click += handler;
         }
     }
-
 
     /// <summary>Раскрывает и сворачивает подробности настольной панели.</summary>
     /// <param name="sender">Переключатель «Подробности».</param>

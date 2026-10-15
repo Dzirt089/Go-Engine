@@ -432,12 +432,6 @@ public static class MoveShape
     private static bool IsDiagonal(Point first, Point second) =>
         Math.Abs(first.X - second.X) == 1 && Math.Abs(first.Y - second.Y) == 1;
 
-    /// <summary>Стоят ли точки в одной строке.</summary>
-    /// <param name="first">Первая точка.</param>
-    /// <param name="second">Вторая точка.</param>
-    /// <returns><c>true</c>, если точки в одной строке.</returns>
-    private static bool IsHorizontal(Point first, Point second) => first.Y == second.Y;
-
     /// <summary>Противоположное направление.</summary>
     /// <param name="direction">Направление.</param>
     /// <returns>Обратное направление.</returns>

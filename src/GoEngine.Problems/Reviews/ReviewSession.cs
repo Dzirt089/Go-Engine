@@ -88,9 +88,6 @@ public sealed class ReviewSession
     /// <summary>Точка подсказки или <c>null</c>, если подсказка не показана.</summary>
     public Point? HintPoint { get; private set; }
 
-    /// <summary>Ответ на вопрос текущей позиции уже найден.</summary>
-    public bool IsAnswered => _answered;
-
     /// <summary>В позиции есть нерешённый вопрос: подсказку показать можно.</summary>
     public bool CanHint => !IsCompleted && !_answered && Note?.Quiz is not null;
 

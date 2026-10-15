@@ -60,9 +60,6 @@ public sealed class Lesson
     /// <summary>Число шагов.</summary>
     public int StepCount => Steps.Count;
 
-    /// <summary>Сколько шагов в уроке — заданий.</summary>
-    public int TaskCount => Steps.Count(static step => step.IsTask);
-
     /// <summary>Подпись урока в списке: номер и название.</summary>
     /// <remarks>
     /// Тем же правилом живёт список задач («ts-001 · Спасти пять камней»): игрок ищет урок

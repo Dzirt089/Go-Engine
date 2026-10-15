@@ -18,10 +18,6 @@ public static partial class AppLogMessages
     [LoggerMessage(EventId = 1001, Level = LogLevel.Information, Message = "Приложение завершено, код возврата {ExitCode}")]
     public static partial void AppFinished(ILogger logger, int exitCode);
 
-    /// <summary>Логирование в файл недоступно.</summary>
-    [LoggerMessage(EventId = 1002, Level = LogLevel.Warning, Message = "Логирование в файл недоступно: {Reason}")]
-    public static partial void FileLoggingUnavailable(ILogger logger, string reason);
-
     /// <summary>Найдена запись о сбое прошлого запуска.</summary>
     [LoggerMessage(EventId = 1003, Level = LogLevel.Warning, Message = "Прошлый запуск завершился сбоем {Moment}: {Reason}; лог: {CrashFile}")]
     public static partial void PreviousCrashFound(ILogger logger, string moment, string reason, string crashFile);
