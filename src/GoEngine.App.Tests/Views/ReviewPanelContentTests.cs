@@ -63,6 +63,44 @@ public sealed class ReviewPanelContentTests
     }
 
     [Fact]
+    public void Панель_Показывает_Ход_С_Начала()
+    {
+        // Жалоба пользователя 2026-10-15: «На 8-м ходу и далее место урезанное, ничего не видно» —
+        // прокрутка панели сохраняла смещение с прошлого хода, и заголовок заметки обрезался сверху.
+        var game = ReviewLibrary.All[0];
+        var model = new ReviewViewModel();
+        var view = new ReviewView(model);
+        var scroll = view.FindControl<ScrollViewer>("NoteScroll");
+        List<string> errors = [];
+        var guard = 0;
+
+        while (!model.IsCompleted && guard++ < game.Moves.Count + 20)
+        {
+            Arrange(view);
+
+            if (scroll is not null && scroll.Offset.Y > 0.5)
+            {
+                errors.Add($"ход {model.MoveNumber}: панель прокручена на {scroll.Offset.Y:F0} точек");
+            }
+
+            if (model.IsQuiz)
+            {
+                model.Play(game.Moves[model.MoveNumber].Point);
+                continue;
+            }
+
+            if (!model.CanGoNext)
+            {
+                break;
+            }
+
+            model.Next();
+        }
+
+        Assert.True(errors.Count == 0, string.Join(" | ", errors.Take(4)));
+    }
+
+    [Fact]
     public void В_Разметке_Есть_Все_Элементы_Панели()
     {
         // Список обязательных элементов панели: если элемент потеряется при правке разметки,

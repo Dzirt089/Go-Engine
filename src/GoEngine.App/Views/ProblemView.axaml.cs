@@ -23,6 +23,7 @@ public sealed partial class ProblemView : UserControl
     private readonly Border? _panel;
     private readonly ComboBox? _problemBox;
     private readonly TextBlock? _heading;
+    private readonly ScrollViewer? _conditionsScroll;
 
     /// <summary>Состояние списка задач: программное обновление не считается выбором игрока.</summary>
     private readonly ComboState _problemCombo = new();
@@ -48,6 +49,7 @@ public sealed partial class ProblemView : UserControl
         DataContext = viewModel;
 
         _boardControl = this.FindControl<BoardControl>("Board");
+        _conditionsScroll = this.FindControl<ScrollViewer>("Conditions");
         _layout = this.FindControl<Grid>("Layout");
         _panel = this.FindControl<Border>("Panel");
         _problemBox = this.FindControl<ComboBox>("ProblemBox");

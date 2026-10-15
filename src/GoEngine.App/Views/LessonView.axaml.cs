@@ -33,6 +33,7 @@ public sealed partial class LessonView : UserControl
     private readonly TextBlock? _lessonTitle;
     private readonly TextBlock? _lessonSummary;
     private readonly TextBlock? _message;
+    private readonly ScrollViewer? _noteScroll;
 
     /// <summary>Выбирает форму по номеру: подсветка на доске показывает только её.</summary>
     /// <param name="sender">Кнопка формы.</param>
@@ -77,6 +78,7 @@ public sealed partial class LessonView : UserControl
         _lessonTitle = this.FindControl<TextBlock>("LessonTitleText");
         _lessonSummary = this.FindControl<TextBlock>("LessonSummaryText");
         _message = this.FindControl<TextBlock>("MessageText");
+        _noteScroll = this.FindControl<ScrollViewer>("NoteScroll");
 
         if (_boardControl is not null)
         {
@@ -124,6 +126,14 @@ public sealed partial class LessonView : UserControl
     /// <param name="e">Имя изменившегося свойства.</param>
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // Новый шаг показывается с начала: смещение прокрутки относится к прежнему шагу
+        // (та же причина, что в разборе партий — жалоба пользователя 2026-10-15).
+        if (e.PropertyName is nameof(LessonViewModel.StepCounter) or nameof(LessonViewModel.StepTitle)
+            or nameof(LessonViewModel.StepText) or nameof(LessonViewModel.SelectedIndex))
+        {
+            PanelScroll.Home(_noteScroll);
+        }
+
         if (e.PropertyName is nameof(LessonViewModel.SelectedIndex))
         {
             SyncLessonBox();
