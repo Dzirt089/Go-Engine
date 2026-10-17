@@ -1793,7 +1793,30 @@ public sealed partial class BoardView : UserControl
     {
         var position = e.GetPosition(this);
         var source = e.Source as Avalonia.Controls.Control;
-        var name = source?.Name ?? source?.GetType().Name ?? "?";
-        Console.WriteLine($"TAP-DEBUG логические=({position.X:F1},{position.Y:F1}) элемент={name}");
+        var chain = string.Empty;
+
+        for (var control = source; control is not null && chain.Length < 120; control = control.Parent as Avalonia.Controls.Control)
+        {
+            var name = control.Name;
+            if (!string.IsNullOrEmpty(name))
+            {
+                chain += "/" + name;
+            }
+        }
+
+        // Ближайшая кнопка вверх по дереву: она и решает, что произошло.
+        Avalonia.Controls.Control? button = source;
+        while (button is not null && button is not Avalonia.Controls.Button && button is not Avalonia.Controls.Primitives.ToggleButton)
+        {
+            button = button.Parent as Avalonia.Controls.Control;
+        }
+
+        var info = "нет";
+        if (button is not null && button.TranslatePoint(new Avalonia.Point(0, 0), this) is { } origin)
+        {
+            info = $"{button.Name ?? button.GetType().Name} логические=({origin.X:F1},{origin.Y:F1}) размер=({button.Bounds.Width:F1}x{button.Bounds.Height:F1})";
+        }
+
+        Console.WriteLine($"TAP-DEBUG точка=({position.X:F1},{position.Y:F1}) кнопка={info} путь={chain}");
     }
 }
