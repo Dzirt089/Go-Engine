@@ -34,12 +34,6 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
         // пустой экран — игрок думал, что приложение зависло (жалоба пользователя 2026-10-10).
         // Экран загрузки показывает оболочка (App): она открывает его первым и убирает,
         // когда подготовка закончена.
-        // Отрисовка и касания должны начинаться от одного края экрана. Без этого координаты
-        // касаний и картинка расходились на высоту статус-бара: тап по центру кнопки внизу
-        // приходился на её верхнюю границу (блокер B1 из отчёта QA 2026-10-17).
-        Window?.AddFlags(Android.Views.WindowManagerFlags.Fullscreen);
-        Window?.ClearFlags(Android.Views.WindowManagerFlags.TranslucentStatus);
-
         var activity = this;
 
         global::GoEngine.App.App.Prepare = () => AndroidModelStartup.Prepare(activity);
