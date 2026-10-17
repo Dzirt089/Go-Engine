@@ -21,7 +21,9 @@ namespace GoEngine.App.Android;
     // Доска квадратная: в ландшафте приложение не выигрывает места, а мобильная раскладка
     // в низком окне ломается (пропадает шапка партии и обрезаются кнопки). Поэтому телефон
     // закреплён в портрете (находки QA 2026-10-17, B2 и B11).
-    ScreenOrientation = Android.Content.PM.ScreenOrientation.Portrait,
+    // global:: обязателен: внутри пространства имён GoEngine.App.Android имя Android указывает
+  // на сам проект, а не на платформенную библиотеку (на этом падала сборка APK).
+    ScreenOrientation = global::Android.Content.PM.ScreenOrientation.Portrait,
     ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.UiMode)]
 public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App>
 {
