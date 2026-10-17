@@ -55,6 +55,62 @@ public sealed class ShapeHighlightTests
     }
 
     [Fact]
+    public void Плохая_Форма_Не_Попадает_В_Список_Решения()
+    {
+        // Регрессия QA 2026-10-17: в «Формах решения» решённой задачи стоял «пустой треугольник» —
+        // форма с пометкой «плохая». С отбором в список решения попадают только хорошие формы;
+        // у этой позиции хороших нет, поэтому список пуст и подсвечивать нечего.
+        var board = Build((3, 3, StoneColor.Black), (3, 4, StoneColor.Black), (4, 4, StoneColor.Black));
+        var marks = new ShapeHighlight();
+
+        _ = marks.Refresh(
+            board,
+            StoneColor.Black,
+            [new Point(3, 3), new Point(3, 4), new Point(4, 4)],
+            goodOnly: true);
+
+        Assert.Empty(marks.Shapes);
+    }
+
+    [Fact]
+    public void Без_Отбора_Плохая_Форма_Остаётся_Формой_Хода()
+    {
+        // Уроки и разбор партий показывают форму хода как есть, в том числе плохую: отбор
+        // включается только для списка решения задачи, а не для общего механизма.
+        var board = Build((3, 3, StoneColor.Black), (3, 4, StoneColor.Black), (4, 4, StoneColor.Black));
+        var marks = new ShapeHighlight();
+
+        _ = marks.Refresh(board, StoneColor.Black, [new Point(3, 3), new Point(3, 4), new Point(4, 4)]);
+
+        var shape = Assert.Single(marks.Shapes);
+        Assert.Equal("пустой треугольник", shape.Name);
+        Assert.False(shape.Good);
+    }
+
+    [Fact]
+    public void Отбор_Оставляет_Хорошие_Формы_С_Номерами_Подряд()
+    {
+        // Смешанная позиция: пара в углу (ноби, хорошая) и плотный квадрат (кирпич, плохая).
+        // Отбор не должен оставлять дыру в нумерации чипов: номера идут подряд с единицы.
+        var board = Build(
+            (1, 1, StoneColor.Black), (1, 2, StoneColor.Black),
+            (6, 6, StoneColor.Black), (7, 6, StoneColor.Black),
+            (6, 7, StoneColor.Black), (7, 7, StoneColor.Black),
+            (4, 4, StoneColor.White));
+        var marks = new ShapeHighlight();
+
+        _ = marks.Refresh(
+            board,
+            StoneColor.Black,
+            [new Point(1, 1), new Point(6, 6), new Point(7, 7)],
+            goodOnly: true);
+
+        Assert.All(marks.Shapes, shape => Assert.True(shape.Good, $"в списке решения плохая форма: {shape.Name}"));
+        Assert.Equal(Enumerable.Range(1, marks.Shapes.Count), marks.Shapes.Select(shape => shape.Number));
+        Assert.Equal("ноби", marks.Shapes[0].Name);
+    }
+
+    [Fact]
     public void Выбор_Формы_Меняет_Камни_Подсветки()
     {
         // Две формы с разными названиями: пара в углу и плотный квадрат.

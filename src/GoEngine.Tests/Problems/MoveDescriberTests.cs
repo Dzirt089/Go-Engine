@@ -149,6 +149,36 @@ public sealed class MoveDescriberTests
     }
 
     [Fact]
+    public void Строка_Партий_Говорит_ОСоединении_ТолькоПриДвухГруппах()
+    {
+        // Находка живого прогона 2026-10-17: «соединяю свои группы» на ходе, который лишь
+        // продолжает одну группу. Число групп считается по доске до хода, независимо от фактов.
+        foreach (var game in ReviewLibrary.All)
+        {
+            var board = game.StartPosition();
+
+            for (var index = 0; index < game.Moves.Count; index++)
+            {
+                var move = game.Moves[index];
+                var before = board;
+                board = board.ApplyMove(move);
+
+                if (move.Type != MoveType.Play)
+                {
+                    continue;
+                }
+
+                var text = MoveDescriber.Describe(MoveDescriber.FactsOf(before, board, move, index + 1), game.Size);
+
+                if (AdjacentOwnGroups(before, move.Point, move.Color) <= 1)
+                {
+                    Assert.DoesNotContain("соединяю свои группы", text, StringComparison.Ordinal);
+                }
+            }
+        }
+    }
+
+    [Fact]
     public void Строка_О_Ходе_Меняется_От_Хода_К_Ходу()
     {
         var game = ReviewLibrary.All[0];
@@ -162,6 +192,34 @@ public sealed class MoveDescriberTests
         }
 
         Assert.True(lines.Count >= 10, $"разных строк за 12 ходов: {lines.Count}");
+    }
+
+    /// <summary>Сколько разных своих групп стоит вплотную к точке до хода.</summary>
+    /// <param name="board">Позиция до хода.</param>
+    /// <param name="point">Точка хода.</param>
+    /// <param name="color">Цвет хода.</param>
+    /// <returns>Число групп; две и больше — ход их соединяет.</returns>
+    private static int AdjacentOwnGroups(Board board, Point point, StoneColor color)
+    {
+        HashSet<Point> seen = [];
+        var groups = 0;
+
+        foreach (var neighbour in point.Neighbors(board.Size))
+        {
+            if (board.At(neighbour) != color || seen.Contains(neighbour))
+            {
+                continue;
+            }
+
+            groups++;
+
+            foreach (var stone in GroupTracker.FindGroup(board, neighbour).Stones)
+            {
+                _ = seen.Add(stone);
+            }
+        }
+
+        return groups;
     }
 
     /// <summary>Строит позицию после первых ходов.</summary>

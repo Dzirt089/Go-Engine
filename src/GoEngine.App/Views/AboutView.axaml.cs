@@ -83,10 +83,25 @@ public sealed partial class AboutView : UserControl
     {
         if (this.FindControl<TextBlock>("VersionText") is { } versionText)
         {
-            versionText.Text = $"Версия: {AppVersion.Display}";
+            // Номер — из того же источника, что у проверки обновлений: одна версия на всё
+            // приложение. Строка не собирается заново из отдельных чисел, поэтому трёхзначный
+            // патч выпуска (0.2.100) не может превратиться в 0.2.1 (находка QA 2026-10-17).
+            versionText.Text = VersionLine(AppVersion.InformationalVersion, AppVersion.IsOfficialBuild);
             ToolTip.SetTip(versionText, $"Сборка: {AppVersion.InformationalVersion}");
         }
     }
+
+    /// <summary>Строка версии для экрана «О программе».</summary>
+    /// <param name="informational">Строка версии из сборки головы: «0.2.100+коммит».</param>
+    /// <param name="official">Сборку собрал CI, то есть это выпуск, а не локальная сборка.</param>
+    /// <returns>Например, «Версия: 0.2.100»; у локальной сборки — с пометкой.</returns>
+    /// <remarks>
+    /// Отдельная функция нужна проверке: тест сверяет строку на экране с источником версии
+    /// приложения и требует, чтобы версия выпуска совпадала с ним целиком. Хвост коммита
+    /// отбрасывается, как и в модели обновления, чтобы номер на экране был чистом номером.
+    /// </remarks>
+    internal static string VersionLine(string? informational, bool official) =>
+        $"Версия: {AppVersion.DisplayFor(informational, official)}";
 
     /// <summary>Показывает состояние моделей, о котором сообщила голова платформы.</summary>
     /// <remarks>

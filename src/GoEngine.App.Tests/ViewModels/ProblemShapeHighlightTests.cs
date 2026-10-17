@@ -35,7 +35,9 @@ public sealed class ProblemShapeHighlightTests
     {
         // Пять задач (ts-007, ts-011, ts-019, ts-031, ts-033) решаются одиночными камнями:
         // узнаваемой формы из двух и более камней в них нет, и подсвечивать нечего — это честно,
-        // а не пропуск. Проверка сторожит, что таких задач не становится больше.
+        // а не пропуск. Шестая возможность — единственная форма оказалась плохой: у ts-004 это
+        // «кирпич», а плохие формы в список решения не попадают (находка QA 2026-10-17).
+        // Проверка сторожит, что таких задач не становится больше.
         List<string> without = [];
         var total = 0;
 
@@ -70,7 +72,48 @@ public sealed class ProblemShapeHighlightTests
         }
 
         Assert.True(total >= 36, $"задач проверено: {total}");
-        Assert.True(without.Count <= 5, $"без формы оказались: {string.Join(", ", without)}");
+        Assert.True(without.Count <= 6, $"без формы оказались: {string.Join(", ", without)}");
+    }
+
+    [Fact]
+    public void В_Формах_Решения_Только_Хорошие()
+    {
+        // Регрессия QA 2026-10-17: после верного хода в списке форм стоял «пустой треугольник»
+        // с пометкой «плохая». Решение не подаётся как правильная форма: в чипах, строке разбора
+        // и подсветке остаются только хорошие формы.
+        List<string> bad = [];
+
+        foreach (var problem in GoEngine.Problems.ProblemLibrary.All)
+        {
+            var model = new ProblemViewModel();
+            var index = model.Problems.ToList().FindIndex(item => item.Id == problem.Id);
+
+            if (index < 0)
+            {
+                continue;
+            }
+
+            model.SelectedIndex = index;
+            var guard = 0;
+
+            while (!model.IsSolved && guard++ < 30 && model.AcceptedMoves.Count > 0)
+            {
+                model.Play(model.AcceptedMoves[0].Point);
+            }
+
+            foreach (var shape in model.Shapes.Where(shape => !shape.Good))
+            {
+                bad.Add($"{problem.Id}: чип «{shape.Label}»");
+            }
+
+            if (model.ShapesSummary.Contains("пустой треугольник", StringComparison.Ordinal)
+                || model.ShapesSummary.Contains("кирпич", StringComparison.Ordinal))
+            {
+                bad.Add($"{problem.Id}: строка «{model.ShapesSummary}»");
+            }
+        }
+
+        Assert.Empty(bad);
     }
 
     [Fact]

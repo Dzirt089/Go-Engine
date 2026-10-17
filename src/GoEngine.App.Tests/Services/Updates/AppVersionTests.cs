@@ -84,6 +84,14 @@ public sealed class AppVersionTests
         Assert.Equal(expected, AppVersion.DisplayFor(informational, official: true));
     }
 
+    [Fact]
+    public void Версия_Выпуска_С_Трёхзначным_Патчем_Не_Обрезается()
+    {
+        // Регрессия QA 2026-10-17: «О программе» показывало 0.2.1 вместо 0.2.100.
+        // Номер выпуска не собирается из отдельных цифр и не теряет третий разряд.
+        Assert.Equal("0.2.100", AppVersion.DisplayFor("0.2.100+d4cce20", official: true));
+    }
+
     [Theory]
     [InlineData("0.2.15", "0.2.9", 1)]
     [InlineData("0.2.9", "0.2.15", -1)]

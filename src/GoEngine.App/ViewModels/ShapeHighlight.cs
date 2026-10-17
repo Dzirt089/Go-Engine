@@ -46,14 +46,24 @@ public sealed class ShapeHighlight
     /// <param name="board">Позиция.</param>
     /// <param name="colour">Цвет того, кто строил формы.</param>
     /// <param name="stones">Камни, о которых идёт речь.</param>
+    /// <param name="goodOnly">Оставить только хорошие формы: плохие в список решения не попадают.</param>
     /// <returns><c>true</c>, если набор форм изменился.</returns>
-    public bool Refresh(Board board, StoneColor colour, IReadOnlyList<Point> stones)
+    /// <remarks>
+    /// Отбор плохих форм нужен режиму задач: в «Формах решения» не должно быть формы с оценкой
+    /// «плохая» — решение не подаётся как правильная форма (находка QA 2026-10-17: пустой
+    /// треугольник попадал в чипы решённой задачи). Уроки и разбор партий показывают форму
+    /// хода как есть, поэтому по умолчанию отбора нет.
+    /// </remarks>
+    public bool Refresh(Board board, StoneColor colour, IReadOnlyList<Point> stones, bool goodOnly = false)
     {
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(colour);
         ArgumentNullException.ThrowIfNull(stones);
 
+        // Отбор идёт до нумерации: номера чипов и значков на доске обязаны идти подряд, 1) 2) 3),
+        // без пропусков на месте отброшенной плохой формы.
         var shapes = ShapeSet.Of(board, colour, stones)
+            .Where(shape => !goodOnly || shape.Good)
             .Select((shape, index) => new ShapeItem(index + 1, shape.Name, shape.Good, shape.Points))
             .ToList();
 

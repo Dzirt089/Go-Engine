@@ -122,6 +122,99 @@ public sealed class ProblemTextsTests
     }
 
     [Fact]
+    public void Отклик_ПродолжениеОднойГруппы_НеНазываетСоединением()
+    {
+        var problem = ProblemLibrary.All[0];
+        var board = new Board(BoardSize.Size9);
+        board = board.ApplyMove(Move.Play(new Point(3, 4), StoneColor.Black));
+        board = board.ApplyMove(Move.Play(new Point(8, 8), StoneColor.White));
+
+        // D6 продолжает D5: рядом только одна своя группа, соединения двух групп нет.
+        var move = Move.Play(new Point(3, 5), StoneColor.Black);
+        var after = board.ApplyMove(move);
+        var feedback = ProblemTexts.Feedback(problem, board, move, after);
+
+        Assert.Contains("продолжаю свою группу", feedback, StringComparison.Ordinal);
+        Assert.DoesNotContain("соединяю свои группы", feedback, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Отклик_СоединениеДвухГрупп_НазываетСоединением()
+    {
+        var problem = ProblemLibrary.All[0];
+        var board = new Board(BoardSize.Size9);
+        board = board.ApplyMove(Move.Play(new Point(3, 4), StoneColor.Black));
+        board = board.ApplyMove(Move.Play(new Point(8, 8), StoneColor.White));
+        board = board.ApplyMove(Move.Play(new Point(5, 4), StoneColor.Black));
+
+        // E5 сводит D5 и F5 в одну группу: это настоящее соединение.
+        var move = Move.Play(new Point(4, 4), StoneColor.Black);
+        var after = board.ApplyMove(move);
+        var feedback = ProblemTexts.Feedback(problem, board, move, after);
+
+        Assert.Contains("соединяю свои группы", feedback, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Отклик_Библиотеки_СоединениеТолькоДляДвухГрупп()
+    {
+        // Находка живого прогона 2026-10-17: «соединяю свои группы» стояло на ходе, который
+        // лишь продлевал одну группу (ts-001 — G9, ts-002 — A5, ts-020 — E9). Проверяются все
+        // ходы решающего в линии, а не только первый: число своих групп по соседству считается
+        // здесь независимо от фактов MoveDescriber — по доске до хода.
+        List<string> errors = [];
+
+        foreach (var problem in ProblemLibrary.All)
+        {
+            var board = new ProblemSession(problem).Board;
+            var node = problem.Solution;
+            var ply = 0;
+
+            while (!node.IsLeaf)
+            {
+                var accepted = node.Moves[0];
+                var move = accepted.Move;
+                ply++;
+
+                if (move.Type == MoveType.Play)
+                {
+                    var after = board.ApplyMove(move);
+                    var feedback = ProblemTexts.Feedback(problem, board, move, after);
+                    var groups = AdjacentOwnGroups(board, move.Point, move.Color);
+                    var label = BoardCoordinates.Label(move.Point, problem.Size);
+
+                    if (groups > 1 && !feedback.Contains("соединяю свои группы", StringComparison.Ordinal))
+                    {
+                        errors.Add($"{problem.Id}, полуход {ply}: ход {label} соединяет {groups} группы, а отклик молчит — «{feedback}»");
+                    }
+
+                    if (groups <= 1 && feedback.Contains("соединяю свои группы", StringComparison.Ordinal))
+                    {
+                        errors.Add($"{problem.Id}, полуход {ply}: ход {label} продолжает одну группу, а отклик говорит о соединении — «{feedback}»");
+                    }
+
+                    board = after;
+                }
+
+                node = accepted.Next;
+
+                if (node.IsLeaf)
+                {
+                    break;
+                }
+
+                // Ответ соперника из дерева: сессия играет его так же — первым принимаемым ходом узла.
+                var reply = node.Moves[0];
+                board = board.ApplyMove(reply.Move);
+                node = reply.Next;
+                ply++;
+            }
+        }
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
     public void Разбор_Объясняет_Жизнь_Группы_Точками()
     {
         List<string> errors = [];
@@ -263,6 +356,34 @@ public sealed class ProblemTextsTests
 
         Assert.True(described > 0, "ни для одной задачи смысл не написан");
         Assert.Empty(errors);
+    }
+
+    /// <summary>Сколько разных своих групп стоит вплотную к точке до хода.</summary>
+    /// <param name="board">Позиция до хода.</param>
+    /// <param name="point">Точка хода.</param>
+    /// <param name="color">Цвет хода.</param>
+    /// <returns>Число групп; две и больше — ход их соединяет.</returns>
+    private static int AdjacentOwnGroups(Board board, Point point, StoneColor color)
+    {
+        HashSet<Point> seen = [];
+        var groups = 0;
+
+        foreach (var neighbour in point.Neighbors(board.Size))
+        {
+            if (board.At(neighbour) != color || seen.Contains(neighbour))
+            {
+                continue;
+            }
+
+            groups++;
+
+            foreach (var stone in GroupTracker.FindGroup(board, neighbour).Stones)
+            {
+                _ = seen.Add(stone);
+            }
+        }
+
+        return groups;
     }
 
     /// <summary>Находит в тексте подписи точек.</summary>

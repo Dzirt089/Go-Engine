@@ -296,8 +296,14 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
 
             var played = _session.SolverMoves.Where(move => move.Type == MoveType.Play).ToList();
             // Независимые формы считает домен: он же отбрасывает вложенные (пасть тигра включает
-            // камни косыми — показывать обе формы на доске нельзя).
-            _ = Highlight.Refresh(_session.Board, Current.SolverColor, [.. played.Select(move => move.Point)]);
+            // камни косыми — показывать обе формы на доске нельзя). Плохие формы в список решения
+            // не попадают: «пустой треугольник» и «кирпич» — не то, что подаётся как правильная
+            // форма (находка QA 2026-10-17; подсветка и чипы показывают только хорошие).
+            _ = Highlight.Refresh(
+                _session.Board,
+                Current.SolverColor,
+                [.. played.Select(move => move.Point)],
+                goodOnly: true);
         }
 
         if (verdict == ProblemVerdict.Wrong || verdict == ProblemVerdict.Failed)

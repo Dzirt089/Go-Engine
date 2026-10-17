@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using GoEngine.App.Services.Updates;
 using GoEngine.App.Views;
 
 namespace GoEngine.App.Tests;
@@ -32,6 +33,41 @@ public sealed class AboutViewTests
         var view = new AboutView();
 
         Assert.StartsWith("Версия: ", view.FindControl<TextBlock>("VersionText")!.Text ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Строка_Версии_Совпадает_С_Источником_Версии()
+    {
+        // Регрессия QA 2026-10-17: «О программе» показывало 0.2.1 вместо 0.2.100. Строка на экране
+        // обязана собираться из того же источника, что и версия приложения (сборка головы),
+        // а не из своего числа, которое можно обрезать.
+        var view = new AboutView();
+
+        Assert.Equal(
+            AboutView.VersionLine(AppVersion.InformationalVersion, AppVersion.IsOfficialBuild),
+            view.FindControl<TextBlock>("VersionText")!.Text ?? string.Empty);
+    }
+
+    [Theory]
+    [InlineData("0.2.100")]
+    [InlineData("0.2.100+d4cce20")]
+    [InlineData("v0.2.100")]
+    public void Версия_Выпуска_Не_Обрезается(string informational)
+    {
+        // Трёхзначный патч выпуска обязан остаться собой: «0.2.100», а не «0.2.1».
+        Assert.Equal("Версия: 0.2.100", AboutView.VersionLine(informational, official: true));
+    }
+
+    [Fact]
+    public void Подсказка_Показывает_Версию_Сборки_Целиком()
+    {
+        // Полная строка сборки (с хвостом коммита) нужна для диагностики, поэтому она
+        // в подсказке рядом с номером выпуска, а не вместо него.
+        var view = new AboutView();
+
+        Assert.Equal(
+            $"Сборка: {AppVersion.InformationalVersion}",
+            ToolTip.GetTip(view.FindControl<TextBlock>("VersionText")!));
     }
 
     [Fact]

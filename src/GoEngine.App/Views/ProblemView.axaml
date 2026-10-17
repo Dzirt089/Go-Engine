@@ -111,8 +111,9 @@
               </StackPanel>
             </Border>
 
-            <!-- Вердикт хода: внутри прокрутки, чтобы длинную строку можно было дочитать
-                 (замечание пользователя 2026-10-17: «сообщение не прокручивается»). -->
+            <!-- Полный вердикт хода: внутри прокрутки, чтобы длинную строку можно было дочитать
+                 (замечание пользователя 2026-10-17: «сообщение не прокручивается»). Краткая копия
+                 всегда видна в закреплённой строке над кнопками (VerdictPinned внизу панели). -->
             <TextBlock x:Name="Verdict"
                        Text="{Binding Verdict}"
                        IsVisible="{Binding HasVerdict}"
@@ -143,9 +144,29 @@
 
         <!-- Вердикт и управление: эта часть не прокручивается и не уезжает за край экрана.
              Значки растянуты по ширине панели: три равные цели вместо ряда кнопок вразнобой. -->
-        <Grid Grid.Row="2" RowDefinitions="Auto" Margin="0,6,0,0">
+        <Grid Grid.Row="2" RowDefinitions="Auto,Auto" Margin="0,6,0,0">
 
-          <Grid x:Name="PanelActions" Grid.Row="0" ColumnDefinitions="*,6,*,6,*">
+          <!-- Вердикт закреплён над кнопками и виден всегда: строка в прокрутке уезжала вниз
+               при длинном разборе, и «Задача решена» приходилось искать прокруткой (находка QA
+               2026-10-17, задача 26). Высота постоянная: появление и исчезновение вердикта
+               не сдвигает ни кнопки, ни доску — место под две строки занято всегда. Полный
+               текст остаётся в прокрутке (Verdict), здесь — начало строки с многоточием. -->
+          <Border x:Name="VerdictBar"
+                  Grid.Row="0"
+                  Height="44"
+                  Padding="2,0"
+                  ClipToBounds="True">
+            <TextBlock x:Name="VerdictPinned"
+                       Text="{Binding Verdict}"
+                       MaxLines="2"
+                       TextWrapping="Wrap"
+                       TextTrimming="CharacterEllipsis"
+                       FontSize="{DynamicResource AppFontBody}"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center" />
+          </Border>
+
+          <Grid x:Name="PanelActions" Grid.Row="1" ColumnDefinitions="*,6,*,6,*">
 
             <Button x:Name="HintButton"
                     Classes="app-icon"

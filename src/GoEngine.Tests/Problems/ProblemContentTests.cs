@@ -26,6 +26,7 @@ public sealed class ProblemContentTests
         ("ts-030", "Обеспечить", 7, 0),
         ("ts-031", "ко", 2, 2),
         ("ts-033", "Обеспечить", 8, 0),
+        ("ts-036", "Стеснить", 4, 0),
     ];
 
     [Fact]
@@ -59,6 +60,42 @@ public sealed class ProblemContentTests
         }
 
         Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Задачи_26и36_НеОбещаютЗахватГруппы()
+    {
+        // Разбор этих задач честно говорит, что снятие за горизонт не найдено. Цель не может
+        // обещать убийство: иначе «Задача решена» спорит с собственным разбором (находка живого
+        // прогона 2026-10-17). Числа финала — дыхания и глаза — проверяет Fixed выше.
+        foreach (var id in new[] { "ts-026", "ts-036" })
+        {
+            var problem = ProblemLibrary.ById(id)!;
+            var text = SolutionText(problem);
+
+            Assert.DoesNotContain("убить", problem.Name, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("убить", problem.Description, StringComparison.OrdinalIgnoreCase);
+            Assert.NotEmpty(FinalGroup(problem).Stones);
+            Assert.DoesNotContain("снята", text, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Смысл_Задач_26и36_НазываетИтогЛинии()
+    {
+        // Формулировка и смысл решения называют то, что стоит на доске после линии: иначе текст
+        // обещает одно, а позиция показывает другое (находка живого прогона 2026-10-17).
+        var p26 = ProblemLibrary.ById("ts-026")!;
+        var s26 = ProblemStrategy.Of(p26);
+
+        Assert.Contains("один глаз E8", s26, StringComparison.Ordinal);
+        Assert.Contains("пять дыханий", s26, StringComparison.Ordinal);
+
+        var p36 = ProblemLibrary.ById("ts-036")!;
+        var s36 = ProblemStrategy.Of(p36);
+
+        Assert.Contains("четыре дыхания", s36, StringComparison.Ordinal);
+        Assert.Contains("ни одного глаза", s36, StringComparison.Ordinal);
     }
 
     /// <summary>Соединение целевой группы с точкой, которую ставит исправленная линия.</summary>
@@ -144,6 +181,22 @@ public sealed class ProblemContentTests
 
         Assert.NotNull(note);
         Assert.Contains("+14.5", note!.Title, StringComparison.Ordinal);
+    }
+
+    /// <summary>Проходит линию задачи и возвращает разбор финальной позиции.</summary>
+    /// <param name="problem">Задача.</param>
+    /// <returns>Текст разбора, который видит игрок после решения.</returns>
+    private static string SolutionText(Problem problem)
+    {
+        var session = new ProblemSession(problem);
+        var guard = 0;
+
+        while (session.State != ProblemState.Solved && guard++ < 30 && session.AcceptedMoves.Count > 0)
+        {
+            _ = session.Play(session.AcceptedMoves[0].Point);
+        }
+
+        return ProblemTexts.Solution(problem, session.Board, session.SolverMoves, session.Replies);
     }
 
     /// <summary>Проходит линию задачи и возвращает целевую группу в финале.</summary>

@@ -213,6 +213,18 @@ public sealed class AppMenuViewTests
         Assert.StartsWith("Go Engine ", view.FindControl<TextBlock>("VersionText")!.Text ?? string.Empty, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Версия_В_Меню_И_В_О_Программе_Совпадает()
+    {
+        // Регрессия QA 2026-10-17: «О программе» показывало 0.2.1, а меню — 0.2.100. Число версии
+        // одно на приложение, поэтому обе строки обязаны называть один и тот же номер.
+        var (view, _) = Create();
+        var about = new AboutView().FindControl<TextBlock>("VersionText")!.Text ?? string.Empty;
+        var menu = view.FindControl<TextBlock>("VersionText")!.Text ?? string.Empty;
+
+        Assert.Equal($"Go Engine {about["Версия: ".Length..]}", menu);
+    }
+
     /// <summary>Собирает вид общего меню с моделью оболочки на пустой партии.</summary>
     /// <returns>Вид меню и его модель.</returns>
     private static (AppMenuView View, ShellViewModel Shell) Create()
