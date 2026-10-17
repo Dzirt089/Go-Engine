@@ -101,34 +101,40 @@ public sealed class ReviewPanelContentTests
     }
 
     [Fact]
-    public void Сообщение_Панели_Занято_Мало_И_Видно()
+    public void Сообщение_Внутри_Прокрутки_И_С_Цветом_Из_Темы()
     {
-        // Находка ревизии 2026-10-15: полоса сообщения росла до 131 точки (в узком окне — 149 при
-        // области текста 48) и при этом не рисовалась: кисть не находилась, Foreground становился
-        // null, Skia не выводил ни одной буквы. Проверка держит обе границы: место и видимость.
+        // Замечание пользователя 2026-10-17: «сообщение „Верно!..“ не прокручивается» — строка
+        // стояла в отдельной полосе панели и обрезалась. Теперь она внутри прокрутки и берёт цвет
+        // из темы классами; старая ошибка с FindResource без темы давала Foreground = null,
+        // и Skia не рисовал ни одной буквы.
         var model = new ReviewViewModel();
         var view = new ReviewView(model);
 
         Arrange(view);
 
-        var slot = view.FindControl<Border>("MessageSlot");
         var text = view.FindControl<TextBlock>("MessageText");
         var scroll = view.FindControl<ScrollViewer>("NoteScroll");
 
-        Assert.NotNull(slot);
         Assert.NotNull(text);
         Assert.NotNull(scroll);
 
-        // Место под сообщение ограничено: панель не может отдать ему больше двух строк.
-        Assert.True(slot!.MaxHeight <= 40, $"полоса сообщения может вырасти до {slot.MaxHeight} точек");
+        // Сообщение прокручивается вместе с текстом: оно внутри области прокрутки.
+        var inside = false;
+        for (var parent = text!.Parent; parent is not null; parent = parent.Parent)
+        {
+            if (ReferenceEquals(parent, scroll))
+            {
+                inside = true;
+                break;
+            }
+        }
 
-        // Текст шага/хода виден: у него есть и кисть, и цвет.
-        Assert.True(text!.IsVisible || !model.HasMessage);
-        Assert.NotNull(text.Foreground);
-        Assert.NotEqual(Avalonia.Media.Colors.Transparent, ((Avalonia.Media.ISolidColorBrush)text.Foreground!).Color);
+        Assert.True(inside, "сообщение стоит вне прокрутки: длинную строку не дочитать");
 
-        // Область текста больше полосы сообщения — иначе игрок видит полторы строки.
-        Assert.True(scroll!.Bounds.Height > slot.MaxHeight, $"текст {scroll.Bounds.Height} против полосы {slot.MaxHeight}");
+        // Цвет задаётся классами сообщения, а не кистью, найденной без темы.
+        Assert.True(
+            text.Classes.Contains("message-good") || text.Classes.Contains("message-bad"),
+            "у сообщения нет класса цвета: " + string.Join(",", text.Classes));
     }
 
     [Fact]

@@ -30,13 +30,12 @@ public static class ShapeSet
 
         List<ShapeFacts> found = [];
 
-        foreach (var point in stones)
+        // Форма считается не только по сыгранному камню, но и по всей его группе: две точки,
+        // поставленные раньше, к середине партии вырастают в пасть тигра, бамбук или кирпич,
+        // и в обучении эти выросшие формы должны называться так же, как в разборе партии
+        // (замечание пользователя 2026-10-17).
+        foreach (var point in GroupStones(board, colour, stones))
         {
-            if (board.At(point) != colour)
-            {
-                continue;
-            }
-
             var shape = MoveShape.Of(board, Move.Play(point, colour));
 
             // Форма из одного камня — это не форма: «отдельный камень» и «рядом со своими» ничего
@@ -56,7 +55,41 @@ public static class ShapeSet
         // бессмысленно — это один и тот же участок доски.
         var ordered = found.OrderByDescending(shape => shape.Points.Count).ToList();
 
-        return [.. ordered.Where(shape => !ordered.Any(other => other != shape && shape.Points.All(other.Points.Contains)))];
+        return [.. ordered
+            .Where(shape => !ordered.Any(other => other != shape && shape.Points.All(other.Points.Contains)))
+            .Take(MaxShapes)];
+    }
+
+    /// <summary>Сколько форм показывается: столько чипов помещается в строку панели.</summary>
+    private const int MaxShapes = 3;
+
+    /// <summary>Камни групп, в которые входят указанные камни: по ним ищутся выросшие формы.</summary>
+    /// <param name="board">Позиция.</param>
+    /// <param name="colour">Цвет того, кто строил формы.</param>
+    /// <param name="stones">Камни, о которых идёт речь.</param>
+    /// <returns>Камни всех групп указанных камней, без повторов.</returns>
+    private static IReadOnlyList<Point> GroupStones(Board board, StoneColor colour, IReadOnlyList<Point> stones)
+    {
+        HashSet<Point> result = [];
+        HashSet<Point> seen = [];
+
+        foreach (var point in stones)
+        {
+            if (board.At(point) != colour || !seen.Add(point))
+            {
+                continue;
+            }
+
+            var group = GroupTracker.FindGroup(board, point);
+
+            foreach (var stone in group.Stones)
+            {
+                _ = seen.Add(stone);
+                _ = result.Add(stone);
+            }
+        }
+
+        return [.. result];
     }
 
     /// <summary>Совпадают ли формы по названию и камням.</summary>

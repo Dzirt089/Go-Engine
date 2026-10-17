@@ -35,13 +35,16 @@ public static class MoveDescriber
 
         if (move.Type != MoveType.Play)
         {
-            return new MoveFacts(moveNumber, move.Color, null, 0, [], 0, string.Empty, false, false, 0);
+            return new MoveFacts(moveNumber, move.Color, null, 0, [], 0, string.Empty, false, false, 0, 0, 0, 0, -1, false, false);
         }
 
         var point = move.Point;
         var size = after.Size.Value;
         var own = OwnGroups(before, point, move.Color);
         var enemy = EnemyGroups(before, point, move.Color);
+
+        Group? group = after.At(point) == move.Color ? GroupTracker.FindGroup(after, point) : null;
+        var before2 = GroupStonesInRegion(before, move.Color, point, size);
 
         return new MoveFacts(
             moveNumber,
@@ -53,7 +56,13 @@ public static class MoveDescriber
             RegionOf(point, size),
             own > 0,
             enemy > 1,
-            own);
+            own,
+            group?.Stones.Count ?? 0,
+            group?.Liberties.Count ?? 0,
+            OpenNeighbours(after, point),
+            NearestEnemy(after, point, move.Color.Opponent()),
+            before2 == 0,
+            enemy > 0);
     }
 
     /// <summary>Говорит за игрока: строка о ходе для панели разбора.</summary>
@@ -95,28 +104,162 @@ public static class MoveDescriber
                 : "продолжаю свою группу и держу её крепкой формой");
         }
 
-        // Где сделан ход и что это даёт по урокам.
-        parts.Add(Intent(facts, label));
+        // Первым делом говорится, что дал ход по позиции: дыхания, размер группы, близость соперника.
+        parts.Add(State(facts));
+
+        // И только потом — замысел, построенный по этой же позиции, а не заготовка из хода в ход.
+        parts.Add(Intent(facts));
 
         return $"{Who(facts.Color)}: {label} — {string.Join("; ", parts)}.";
     }
 
-    /// <summary>Что значит место хода по урокам: угол, сторона, центр и линия.</summary>
+    /// <summary>Что стало с группой после хода: дыхания, размер, близость соперника.</summary>
     /// <param name="facts">Факты о ходе.</param>
-    /// <param name="label">Подпись точки.</param>
-    /// <returns>Слова о смысле места.</returns>
-    private static string Intent(MoveFacts facts, string label)
+    /// <returns>Слова о состоянии группы, посчитанные по позиции.</returns>
+    private static string State(MoveFacts facts)
     {
-        _ = label;
+        if (facts.GroupSize == 0)
+        {
+            return "камень поставлен";
+        }
+
+        // Дыхания — главный факт: по ним видно, можно ли давить или пора спасать.
+        var breath = (facts.GroupSize, facts.Liberties) switch
+        {
+            (1, >= 4) => (facts.MoveNumber % 3) switch
+            {
+                0 => $"камень один, и у него {facts.Liberties.ToString(CultureInfo.InvariantCulture)} дыхания — одним ходом его не окружить",
+                1 => "у одиночного камня дыханий хватает: окружить его сразу нельзя",
+                _ => "камень стоит свободно: рядом пусто, и окружать его ещё нечем"
+            },
+            (_, 0) => "у группы не осталось дыханий — такую позицию надо было играть иначе",
+            (_, 1) => "у группы осталось одно дыхание: следующий ход придётся её спасать",
+            (_, 2) => "у группы два дыхания — давить её ещё рано",
+            (_, 3) => "у группы три дыхания: держится, но давить её ещё можно",
+            _ => $"у группы {facts.Liberties.ToString(CultureInfo.InvariantCulture)} дыхания: она держится сама"
+        };
+
+        // Размер называется только когда камней больше одного: одиночный камень уже назван выше.
+        var size = facts.GroupSize switch
+        {
+            1 => string.Empty,
+            2 => ", нас двое",
+            _ => $", в группе {facts.GroupSize.ToString(CultureInfo.InvariantCulture)} {Stones(facts.GroupSize)}"
+        };
+
+        var enemy = facts.NearestEnemy switch
+        {
+            < 0 => "и рядом никого: место свободное",
+            0 => "соперник вплотную",
+            1 => "до соперника одна точка",
+            _ => $"до ближайшего камня соперника {facts.NearestEnemy.ToString(CultureInfo.InvariantCulture)} точки"
+        };
+
+        return $"{breath}{size}, {enemy}";
+    }
+
+    /// <summary>Замысел хода: строится по месту, дыханиям, свободным соседям и близости соперника.</summary>
+    /// <param name="facts">Факты о ходе.</param>
+    /// <returns>Слова о том, зачем понадобился именно этот ход.</returns>
+    /// <remarks>
+    /// Замечание пользователя 2026-10-17: в разборе повторялись одни и те же фразы из хода в ход
+    /// («здесь территория строится двумя краями доски, а не четырьмя»). Поэтому замысел собирается
+    /// из посчитанных фактов позиции, а варианты формулировки чередуются по номеру хода: два соседних
+    /// хода не могут получить одинаковую фразу, даже если сделанны в одной области доски.
+    /// </remarks>
+    private static string Intent(MoveFacts facts)
+    {
+        var line = Line(facts.Line);
+        var free = facts.OpenNeighbours;
 
         return facts.Region switch
         {
-            "угол" => $"занимаю угол на {Line(facts.Line)}: здесь территория строится двумя краями доски, а не четырьмя",
+            "угол" => (facts.MoveNumber % 3) switch
+            {
+                0 => $"закрываю угол {FromLine(facts.Line)}: в углу территория строится дешевле всего, и упускать его нельзя",
+                1 => $"занимаю угол {OnLine(facts.Line)}: отсюда группа скорее получит вторые глаза, чем в центре",
+                _ => $"беру угол на {line}: у меня {free.ToString(CultureInfo.InvariantCulture)} свободных соседних точек, есть куда расти"
+            },
             "сторона" => facts.Line <= 2
-                ? $"иду по {Line(facts.Line)} вдоль края: край закрывает территорию, но живёт такая группа хуже"
-                : $"расширяюсь по стороне на {Line(facts.Line)}: отсюда растёт территория и остаётся выход в центр",
-            _ => $"иду в центр на {Line(facts.Line)}: центр связывает углы и стороны"
+                ? $"прижимаюсь к краю на {line}: сделанные камни здесь уже не убегут, а в центре их было бы нечем связать"
+                : (facts.MoveNumber % 3) switch
+                {
+                    0 => $"растягиваюсь вдоль стороны на {line}: край прикрывает тыл, а {free.ToString(CultureInfo.InvariantCulture)} свободных соседей дают ход в центр",
+                    1 => $"занимаю сторону на {line}: отсюда одинаково удобно и строить территорию, и помочь углу",
+                    _ => $"выхожу на {line} вдоль стороны: ближний край прикрывает, а сверху открыт путь наверх"
+                },
+            _ => (facts.MoveNumber % 3) switch
+            {
+                0 => $"выхожу на {line} в центр: отсюда мой камень поддержит и угол, и сторону",
+                1 => $"ставлю камень в центр на {line}: центр связывает углы и стороны, и такая позиция уже не пойдёт назад",
+                _ => $"занимаю центр на {line}: свежих углов на доске не осталось, дальше спор идёт за влияние в центре"
+            }
         };
+    }
+
+    /// <summary>Сколько своих камней стоит в той же области доски, что и точка.</summary>
+    /// <param name="board">Позиция до хода.</param>
+    /// <param name="colour">Цвет хода.</param>
+    /// <param name="point">Точка хода.</param>
+    /// <param name="size">Размер доски.</param>
+    /// <returns>Число своих камней в области; 0 — это первый камень здесь.</returns>
+    private static int GroupStonesInRegion(Board board, StoneColor colour, Point point, int size)
+    {
+        var region = RegionOf(point, size);
+        var stones = 0;
+
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                var other = new Point((byte)x, (byte)y);
+
+                if (board.At(other) == colour && RegionOf(other, size) == region)
+                {
+                    stones++;
+                }
+            }
+        }
+
+        return stones;
+    }
+
+    /// <summary>Сколько соседних точек хода осталось пустыми.</summary>
+    /// <param name="board">Позиция после хода.</param>
+    /// <param name="point">Точка хода.</param>
+    /// <returns>Число пустых соседей.</returns>
+    private static int OpenNeighbours(Board board, Point point) =>
+        Neighbours(point, board.Size).Count(neighbour => board.At(neighbour) == StoneColor.Empty);
+
+    /// <summary>Расстояние до ближайшего камня соперника в точках пути.</summary>
+    /// <param name="board">Позиция после хода.</param>
+    /// <param name="point">Точка хода.</param>
+    /// <param name="enemy">Цвет соперника.</param>
+    /// <returns>Манхэттенское расстояние; -1 — соперника на доске нет.</returns>
+    private static int NearestEnemy(Board board, Point point, StoneColor enemy)
+    {
+        var size = board.Size.Value;
+        var best = -1;
+
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                if (board.At(new Point((byte)x, (byte)y)) != enemy)
+                {
+                    continue;
+                }
+
+                var distance = Math.Abs(x - point.X) + Math.Abs(y - point.Y);
+
+                if (best < 0 || distance < best)
+                {
+                    best = distance;
+                }
+            }
+        }
+
+        return best;
     }
 
     /// <summary>Кто говорит: «Чёрные» или «Белые».</summary>
@@ -135,6 +278,16 @@ public static class MoveDescriber
         4 => "четвёртой линии",
         _ => $"{line.ToString(CultureInfo.InvariantCulture)}-й линии"
     };
+
+    /// <summary>Название линии с предлогом «на»: «на первой линии», «на второй».</summary>
+    /// <param name="line">Номер линии от края.</param>
+    /// <returns>Подпись места.</returns>
+    private static string OnLine(int line) => $"на {Line(line)}";
+
+    /// <summary>Название линии с предлогом «с»: «с первой», «со второй».</summary>
+    /// <param name="line">Номер линии от края.</param>
+    /// <returns>Подпись места.</returns>
+    private static string FromLine(int line) => (line == 2 ? "со " : "с ") + Line(line);
 
     /// <summary>Прилагательное цвета: «чёрную» или «белую».</summary>
     /// <param name="color">Цвет группы.</param>

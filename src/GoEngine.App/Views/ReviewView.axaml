@@ -30,7 +30,7 @@
             BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
             BorderThickness="1,0,0,0"
             Padding="12,10">
-      <Grid RowDefinitions="Auto,*,Auto,Auto">
+      <Grid RowDefinitions="Auto,*,Auto">
 
         <!-- Шапка панели: выбор партии и словарь терминов. Не прокручивается: список партий
              должен стоять на месте, пока игрок читает разбор. -->
@@ -102,6 +102,14 @@
 
             <TextBlock x:Name="Heading" Text="Разбор партии" FontSize="16" FontWeight="SemiBold" />
 
+            <!-- Похвала или отказ: внутри прокрутки, чтобы длинную строку можно было дочитать
+                 (замечание пользователя 2026-10-17: «сообщение не прокручивается»). -->
+            <TextBlock x:Name="MessageText"
+                       Text="{Binding Message}"
+                       IsVisible="{Binding HasMessage}"
+                       TextWrapping="Wrap"
+                       FontWeight="SemiBold" />
+
             <TextBlock x:Name="MoveCounterText"
                        Text="{Binding MoveCounter}"
                        FontWeight="SemiBold" />
@@ -154,19 +162,8 @@
           </StackPanel>
         </ScrollViewer>
 
-        <!-- Полоса сообщения зарезервирована: похвала или отказ появляются здесь, а не в разборе,
-             и ничего не сдвигают (жалоба пользователя 2026-10-11: «прыгает текст»). -->
-        <Border x:Name="MessageSlot" Grid.Row="2" MinHeight="0" MaxHeight="34" Margin="0,2,0,0">
-          <TextBlock x:Name="MessageText"
-                     Text="{Binding Message}"
-                     IsVisible="{Binding HasMessage}"
-                     TextWrapping="Wrap"
-                     FontWeight="SemiBold"
-                     VerticalAlignment="Center" />
-        </Border>
-
         <!-- Управление: одна строка — как в уроке. -->
-        <Grid x:Name="PanelActions" Grid.Row="3" ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,6,0,0">
+        <Grid x:Name="PanelActions" Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,6,0,0">
 
           <Button x:Name="HintButton"
                   Classes="app-icon"

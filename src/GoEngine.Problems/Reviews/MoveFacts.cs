@@ -13,6 +13,12 @@ using GoEngine.Core;
 /// <param name="Connects">Ход примыкает к своим камням.</param>
 /// <param name="Cuts">Ход примыкает к двум разным группам соперника: разрезает их.</param>
 /// <param name="OwnGroups">Сколько своих групп стоит рядом: две и больше — ход их соединяет.</param>
+/// <param name="GroupSize">Сколько камней в своей группе после хода.</param>
+/// <param name="Liberties">Сколько у своей группы дыханий после хода.</param>
+/// <param name="OpenNeighbours">Сколько соседних точек хода осталось пустыми.</param>
+/// <param name="NearestEnemy">Расстояние до ближайшего камня соперника; -1 — соперника нет.</param>
+/// <param name="FirstInRegion">Первый ли это свой камень в этой области доски.</param>
+/// <param name="EnemyAdjacent">Стоит ли соперник вплотную к точке хода.</param>
 /// <remarks>
 /// Факты считаются по двум позициям: <c>before</c> нужна для соединения и разрезания (что было
 /// до хода), <c>after</c> — для снятий и атари. Ничего не выдумывается: за игрока говорится только
@@ -28,4 +34,10 @@ public readonly record struct MoveFacts(
     string Region,
     bool Connects,
     bool Cuts,
-    int OwnGroups);
+    int OwnGroups,
+    int GroupSize,
+    int Liberties,
+    int OpenNeighbours,
+    int NearestEnemy,
+    bool FirstInRegion,
+    bool EnemyAdjacent);

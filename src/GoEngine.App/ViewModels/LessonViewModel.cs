@@ -294,6 +294,11 @@ public sealed class LessonViewModel : INotifyPropertyChanged
         _session.Next();
         ResetAnimation();
 
+        // Новый шаг — новая доска и новое задание: подсветка форм прошлого шага обязана исчезнуть
+        // (замечание пользователя 2026-10-17: «после перехода на следующую задачу зелёным
+        // подсвечиваются прошлые формы»).
+        _ = ShapeMarks.Clear();
+
         if (_session.IsCompleted)
         {
             AppLogMessages.LessonCompleted(_log, _session.Lesson.Id, _session.StepCount);

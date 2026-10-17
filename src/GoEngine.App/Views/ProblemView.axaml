@@ -91,6 +91,15 @@
           
 
             <TextBlock x:Name="Heading" Text="Задачи" FontSize="16" FontWeight="SemiBold" />
+
+            <!-- Вердикт хода: внутри прокрутки, чтобы длинную строку можно было дочитать
+                 (замечание пользователя 2026-10-17: «сообщение не прокручивается»). -->
+            <TextBlock x:Name="Verdict"
+                       Text="{Binding Verdict}"
+                       IsVisible="{Binding HasVerdict}"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap" />
+
             <TextBlock Text="{Binding StatusText}" />
 
             <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
@@ -132,21 +141,9 @@
 
         <!-- Вердикт и управление: эта часть не прокручивается и не уезжает за край экрана.
              Значки растянуты по ширине панели: три равные цели вместо ряда кнопок вразнобой. -->
-        <Grid Grid.Row="2" RowDefinitions="Auto,Auto" Margin="0,6,0,0">
+        <Grid Grid.Row="2" RowDefinitions="Auto" Margin="0,6,0,0">
 
-          <!-- Вердикт хода: «Верно», «Это не решает задачу», «Задача решена», «Подсказка: …». -->
-          <!-- Полоса вердикта зарезервирована: его появление не сдвигает текст задачи
-               (жалоба пользователя 2026-10-11: «прыгает текст описания»). -->
-          <Border Grid.Row="0" MinHeight="30" Margin="0,0,0,4">
-            <TextBlock x:Name="Verdict"
-                       Text="{Binding Verdict}"
-                       IsVisible="{Binding HasVerdict}"
-                       FontWeight="SemiBold"
-                       TextWrapping="Wrap"
-                       VerticalAlignment="Center" />
-          </Border>
-
-          <Grid x:Name="PanelActions" Grid.Row="1" ColumnDefinitions="*,6,*,6,*">
+          <Grid x:Name="PanelActions" Grid.Row="0" ColumnDefinitions="*,6,*,6,*">
 
             <Button x:Name="HintButton"
                     Classes="app-icon"

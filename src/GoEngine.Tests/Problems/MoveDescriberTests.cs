@@ -25,7 +25,7 @@ public sealed class MoveDescriberTests
         var text = MoveDescriber.Describe(MoveDescriber.FactsOf(before, after, move, 1), Size);
 
         Assert.Contains("Чёрные: C3", text, StringComparison.Ordinal);
-        Assert.Contains("занимаю угол", text, StringComparison.Ordinal);
+        Assert.Contains("угол", text, StringComparison.Ordinal);
         Assert.Contains("третьей линии", text, StringComparison.Ordinal);
     }
 
