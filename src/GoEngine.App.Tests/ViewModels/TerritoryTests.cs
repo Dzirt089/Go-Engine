@@ -186,6 +186,20 @@ public sealed class TerritoryTests
     }
 
     [Fact]
+    public void Новая_Партия_Выключает_Предпросмотр_Территории()
+    {
+        // N5 отчёта QA 2026-10-17: разметка, включённая в прошлой партии, оставалась на новой
+        // доске. Новая партия — новый предпросмотр: переключатель выключен, знаков нет.
+        var model = Create();
+        _ = model.LoadGame(CornerGame());
+        model.ShowTerritory = true;
+
+        model.StartNewGame();
+
+        Assert.False(model.HasTerritory);
+    }
+
+    [Fact]
     public void Переключатель_Территории_Доступен_И_До_Первого_Хода()
     {
         // Находка QA L7 отчёта 2026-10-17: кнопка «Территория» была серой, и новичок не понимал

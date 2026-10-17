@@ -33,6 +33,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private const string ProvisionalInGame =
         "Предварительный счёт: партия идёт, позиция недоиграна — числа изменятся.";
 
+    /// <summary>Пометка непринятого счёта: партия закрыта, но позиция явно недоиграна.</summary>
+    /// <remarks>
+    /// Счёт не называется окончательным, пока одна сторона не поставила ни одного камня:
+    /// на почти пустой доске наивный подсчёт отдаёт всю её одному цвету, и игрок видит
+    /// «0 : 85.5» вместо честного «0 : коми» (N2 отчёта QA 2026-10-17).
+    /// </remarks>
+    internal const string UnfinishedScoreNotice =
+        "Партия недоиграна: отметьте мёртвые камни или доиграйте — счёт не принят.";
+
+    /// <summary>Итог закрытой, но недоигранной партии словами.</summary>
+    /// <remarks>Победитель не называется: счёт не принят, и называть его не по чему.</remarks>
+    internal const string UnfinishedOutcome = "Счёт не принят";
+
     private GameState _game;
     private AppSettings _settings;
 
@@ -109,7 +122,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _scoring = new ScoringState(
             _game.Board,
             _game.Status,
-            dead => _game.FinalScore(dead, ScoringRule));
+            ScoreOf);
         _scoring.Changed += OnDeadChanged;
 
         // Часы создаются до первого хода соперника: партия ещё не начата, и время не идёт.
@@ -214,11 +227,41 @@ public sealed class MainViewModel : INotifyPropertyChanged
         + "Территория в обеих системах считается по доске без мёртвых камней. "
         + "Коми задаёт регламент встречи: в турнирах РФ на 19×19 типично 6,5.";
 
+    /// <summary>Партия явно недоиграна: одна из сторон не поставила ни одного камня.</summary>
+    /// <remarks>
+    /// <para>
+    /// Пока сторона не играла, пустые области граничат только с камнями соперника, и подсчёт
+    /// территории отдаёт ей всю доску. Это не территория по правилам, а признак того, что
+    /// партия не доиграна: территорию образуют окружённые области, а не пустое поле с одним
+    /// камнем (<c>GO_RULES.md</c>, п. 9).
+    /// </para>
+    /// <para>
+    /// Проверяется по истории ходов, а не по доске: снятые камни — законная часть партии,
+    /// и сторона, все камни которой сняты, всё равно играла. Свойство считается на месте:
+    /// история меняется вместе с позицией, а панель читает его на каждое изменение.
+    /// </para>
+    /// </remarks>
+    public bool IsPositionUnfinished =>
+        !HasPlayed(StoneColor.Black) || !HasPlayed(StoneColor.White);
+
+    /// <summary>Счёт партии не принят: партия закрыта, но позиция явно недоиграна.</summary>
+    /// <remarks>
+    /// В этом состоянии победитель не называется, счёт показывается без территории (только
+    /// пленные и коми), а игроку предлагается доиграть партию
+    /// (<see cref="ResumeFinishedGame"/>). Иначе первый же «доигранный» конец на почти пустой
+    /// доске выглядел бы ошибкой подсчёта (N2 отчёта QA 2026-10-17).
+    /// </remarks>
+    public bool NeedsScoreConfirmation =>
+        IsPositionUnfinished
+        && (_game.Status == GameStatus.FinishedByTwoPasses
+            || _game.Status == GameStatus.FinishedByAgreement);
+
     /// <summary>Счёт партии строкой по основной системе: предварительный или окончательный.</summary>
     /// <remarks>
     /// Пока партия идёт, счёт предварительный: он считается по доске без помеченных мёртвых,
     /// поэтому пометка программы сразу видна в числе. Как только партия закончена, число —
-    /// окончательный итог: подтверждать его не нужно (D-070).
+    /// окончательный итог: подтверждать его не нужно (D-070). Исключение — явно недоигранная
+    /// позиция: её счёт показывается без территории и окончательным не называется.
     /// </remarks>
     public string Score => CurrentScore.ToString();
 
@@ -248,7 +291,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
             var score = CurrentScore;
             List<string> lines = [];
 
-            if (_game.Status == GameStatus.InProgress)
+            if (NeedsScoreConfirmation)
+            {
+                // Позиция закрыта, но не доиграна: счёт не принят, и территория в нём
+                // не засчитана. Без этой строки игрок принял бы «0 : 5.5» за окончательный
+                // итог партии (N2 отчёта QA 2026-10-17).
+                lines.Add(UnfinishedScoreNotice);
+            }
+            else if (_game.Status == GameStatus.InProgress)
             {
                 lines.Add(ProvisionalInGame);
             }
@@ -370,6 +420,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     /// <summary>Итог завершённой партии или пустая строка, пока партия идёт.</summary>
+    /// <remarks>
+    /// У явно недоигранной позиции итог — «Счёт не принят»: победитель не называется,
+    /// пока игрок не доиграет (<see cref="NeedsScoreConfirmation"/>).
+    /// </remarks>
     public string Outcome
     {
         get
@@ -377,6 +431,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (_game.Status == GameStatus.InProgress)
             {
                 return string.Empty;
+            }
+
+            if (NeedsScoreConfirmation)
+            {
+                // Счёт не принят: победитель не называется, пока позиция не доиграна.
+                return UnfinishedOutcome;
             }
 
             // Сдача и лимит ходов не проходят согласование, и победителя в них называет партия,
@@ -411,11 +471,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// строка стоит среди прочих, а на телефоне прячется в шторке. Баннер называет исход
     /// отдельно и заметно (жалоба 2026-09-30).
     /// </remarks>
-    public string ResultHeadline => Views.GameStatusLines.ResultHeadline(
-        HasOutcome,
-        Outcome,
-        Margin.ToString(CultureInfo.InvariantCulture),
-        ResultTone);
+    public string ResultHeadline => NeedsScoreConfirmation
+        ? "Партия недоиграна"
+        : Views.GameStatusLines.ResultHeadline(
+            HasOutcome,
+            Outcome,
+            Margin.ToString(CultureInfo.InvariantCulture),
+            ResultTone);
 
     /// <summary>Строка под заголовком баннера: только исход словами, без счёта.</summary>
     /// <remarks>
@@ -423,7 +485,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// пользователя 2026-10-02). Пока партия идёт, подписи нет: итог ещё не назван, и баннер
     /// в это время скрыт (<see cref="Views.GameStatusLines.ShowOutcome"/>).
     /// </remarks>
-    public string ResultDetail => Views.GameStatusLines.ResultDetail(Outcome);
+    public string ResultDetail => NeedsScoreConfirmation
+        ? UnfinishedScoreNotice
+        : Views.GameStatusLines.ResultDetail(Outcome);
 
     /// <summary>Итог глазами игрока: выиграл он, проиграл или ничья.</summary>
     /// <remarks>
@@ -444,7 +508,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         get
         {
-            if (_game.Status == GameStatus.InProgress)
+            if (_game.Status == GameStatus.InProgress || NeedsScoreConfirmation)
             {
                 return GameTone.None;
             }
@@ -504,7 +568,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// спорная — нейтральна. Мёртвый камень внутри чужого владения не отменяет территорию
     /// соперника и не приносит очков своему цвету. Второго подсчёта территории в проекте нет.
     /// </remarks>
-    public IReadOnlyList<StoneColor>? Territory => HasTerritory ? Scorer.Ownership(ScoringBoard) : null;
+    public IReadOnlyList<StoneColor>? Territory => HasTerritory ? OwnershipOfScoringBoard() : null;
 
     /// <summary>Разбор площади: сколько у сторон камней и территории и сколько нейтральных точек.</summary>
     /// <remarks>
@@ -519,6 +583,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get
         {
             var area = Scorer.Breakdown(ScoringBoard);
+
+            // Недоигранная позиция территории не даёт: пустые области остаются нейтральными,
+            // иначе один камень забирал бы всю доску (N2 отчёта QA 2026-10-17).
+            if (IsPositionUnfinished)
+            {
+                area = new AreaBreakdown(
+                    area.BlackStones,
+                    0,
+                    area.WhiteStones,
+                    0,
+                    area.BlackTerritory + area.WhiteTerritory + area.Neutral);
+            }
 
             // Компактно и в две строки: панель партии — 320 точек, прежняя формулировка
             // («чёрные 8 (камни 4 + территория 4) · белые 2 (камни 2 + территория 0) · нейтрально 75»)
@@ -1013,6 +1089,45 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return true;
     }
 
+    /// <summary>Возвращает партию в игру, если её счёт не принят: позиция недоиграна.</summary>
+    /// <returns><c>true</c>, если партия снова идёт.</returns>
+    /// <remarks>
+    /// <para>
+    /// Закрытая по пасам или согласию партия — не приговор позиции. Если одна сторона ещё
+    /// не поставила ни камня, счёт не принят, и игрок возвращается к той же позиции, чтобы
+    /// доиграть (<see cref="NeedsScoreConfirmation"/>): иначе первый же конец на почти пустой
+    /// доске показывал бы «0 : 85.5» (N2 отчёта QA 2026-10-17).
+    /// </para>
+    /// <para>
+    /// Позиция, ходы и очередь не меняются: <see cref="GameState.Resume"/> только снимает
+    /// признак завершения. Часы продолжают идти с накопленного времени, как после отмены хода.
+    /// </para>
+    /// </remarks>
+    public bool ResumeFinishedGame()
+    {
+        if (!NeedsScoreConfirmation)
+        {
+            return false;
+        }
+
+        CancelThinking();
+
+        if (!_game.Resume().IsSuccess)
+        {
+            return false;
+        }
+
+        _scoring.Sync(_game.Board, _game.Status);
+        SyncClockWithGame();
+        NotifyAll();
+
+        // Партия могла остаться на ходе соперника (второй пас сделал игрок): после возврата
+        // он обязан ответить, иначе доска молча ждала бы хода, которого никто не делает.
+        _ = PlayAiTurnAsync();
+
+        return true;
+    }
+
     /// <summary>Пульс часов: вид зовёт его раз в секунду, чтобы строка времени обновилась.</summary>
     /// <remarks>
     /// Время считается по запросу, поэтому пересчитывать нечего: тик лишь сообщает панели,
@@ -1331,6 +1446,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         CancelThinking();
         _settings = settings;
+
+        // Новая партия начинается с чистой доски: предпросмотр территории прошлой партии
+        // на ней ничего не значит и оставался включённым (N5 отчёта QA 2026-10-17).
+        // Поле сбрасывается напрямую, а о новом состоянии вида сообщает NotifyAll:
+        // в его списке имя ShowTerritory есть, иначе переключатель остался бы нажатым.
+        _showTerritory = false;
+
         _game = CreateGame(settings);
         _scoring.Sync(_game.Board, _game.Status);
         LogNewGame();
@@ -1682,7 +1804,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(ResultDetail),
             nameof(ResultTone),
             nameof(Margin),
-            nameof(PrisonersLine)
+            nameof(PrisonersLine),
+            nameof(IsPositionUnfinished),
+            nameof(NeedsScoreConfirmation)
         })
         {
             OnPropertyChanged(name);
@@ -1736,6 +1860,77 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// внутри чужого владения отменял бы территорию соперника.</remarks>
     private Board ScoringBoard => _scoring.ScoringBoard;
 
+    /// <summary>Считает итог по пометкам мёртвых и не принимает территорию на недоигранной позиции.</summary>
+    /// <param name="dead">Помеченные мёртвыми камни.</param>
+    /// <returns>Итог партии: на явно недоигранной позиции — без территории.</returns>
+    /// <remarks>
+    /// Территория — пустые точки, окружённые камнями одного цвета (<c>GO_RULES.md</c>, п. 9).
+    /// На доске, где вторая сторона не поставила ни камня, «окружённой» оказывается вся доска:
+    /// формально это следует из определения, но итогом партии не является. Поэтому на такой
+    /// позиции пустые точки остаются нейтральными, а в счёте стоят только пленные и коми
+    /// (N2 отчёта QA 2026-10-17). Камни при этом считаются как обычно — китайской величине
+    /// они нужны.
+    /// </remarks>
+    private FinalScore ScoreOf(IReadOnlyCollection<Point> dead)
+    {
+        var score = _game.FinalScore(dead, ScoringRule);
+
+        if (!IsPositionUnfinished)
+        {
+            return score;
+        }
+
+        return score with
+        {
+            BlackTerritory = 0,
+            WhiteTerritory = 0,
+            Neutral = score.BlackTerritory + score.WhiteTerritory + score.Neutral
+        };
+    }
+
+    /// <summary>Владение точками для разметки: на недоигранной позиции пустые точки нейтральны.</summary>
+    /// <returns>Цвет каждой точки доски в порядке обхода.</returns>
+    /// <remarks>
+    /// Считает <see cref="Scorer.Ownership"/> по доске подсчёта — второго подсчёта территории
+    /// в проекте нет. Недоигранная позиция отличается только тем, что владение пустых точек
+    /// снимается: доска, камни и пометки мёртвых остаются теми же, что и в счёте.
+    /// </remarks>
+    private IReadOnlyList<StoneColor> OwnershipOfScoringBoard()
+    {
+        var board = ScoringBoard;
+        var ownership = Scorer.Ownership(board);
+
+        if (!IsPositionUnfinished)
+        {
+            return ownership;
+        }
+
+        var neutral = new StoneColor[ownership.Count];
+        Array.Fill(neutral, StoneColor.Empty);
+
+        foreach (var point in board.AllPoints())
+        {
+            if (board.At(point) != StoneColor.Empty)
+            {
+                var index = (point.Y * board.Size.Value) + point.X;
+
+                neutral[index] = ownership[index];
+            }
+        }
+
+        return neutral;
+    }
+
+    /// <summary>Ставила ли сторона хотя бы один камень за партию.</summary>
+    /// <param name="color">Цвет стороны.</param>
+    /// <returns><c>true</c>, если в истории есть ход камнем этого цвета.</returns>
+    /// <remarks>
+    /// Пас ходом не считается: сторона, которая только пасовала, партию не играла.
+    /// Снятые камни тоже игрались — поэтому смотреть надо на историю, а не на доску.
+    /// </remarks>
+    private bool HasPlayed(StoneColor color) =>
+        _game.Moves.Any(move => move.Type == MoveType.Play && move.Color == color);
+
     /// <summary>Сообщает об изменении всех свойств партии.</summary>
     /// <remarks>Свойства выводятся из одной партии, поэтому после хода меняются все сразу.</remarks>
     private void NotifyAll()
@@ -1772,6 +1967,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(ResultDetail),
             nameof(ResultTone),
             nameof(Margin),
+            nameof(IsPositionUnfinished),
+            nameof(NeedsScoreConfirmation),
             nameof(IsGameStarted),
             nameof(IsGameRunning),
             nameof(IsGamePaused),

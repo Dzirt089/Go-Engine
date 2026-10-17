@@ -226,6 +226,44 @@ public sealed class GameState
         return Result<GameResult>.Ok(FinishByScore(GameStatus.FinishedByAgreement));
     }
 
+    /// <summary>Возвращает завершённую партию в игру: счёт не принят, игрок продолжает.</summary>
+    /// <returns>Успех или причина отказа.</returns>
+    /// <remarks>
+    /// <para>
+    /// Продолжить можно партию, законченную пасами или по согласию сторон: обе — не приговор
+    /// позиции, а решение её закрыть. Сдача и лимит ходов окончательны: отменять их нечем,
+    /// и победитель в них уже назван.
+    /// </para>
+    /// <para>
+    /// Позиция при возврате не меняется: ни доска, ни номер хода, ни очередь не трогаются.
+    /// Сбрасываются только признак завершения и счётчик пасов — иначе первый же следующий пас
+    /// снова закрыл бы партию, хотя игрок как раз решил её доиграть.
+    /// </para>
+    /// <para>
+    /// Нужно интерфейсу для честного подсчёта: явно недоигранную позицию (одна сторона ещё
+    /// не поставила ни камня) нельзя принимать за итог — игрок возвращается к партии и доигрывает
+    /// (N2 отчёта QA 2026-10-17).
+    /// </para>
+    /// </remarks>
+    public Result Resume()
+    {
+        if (Status == GameStatus.InProgress)
+        {
+            return Result.Fail("Партия идёт: продолжать нечего.");
+        }
+
+        if (Status != GameStatus.FinishedByTwoPasses && Status != GameStatus.FinishedByAgreement)
+        {
+            return Result.Fail($"Партия завершена ({Status.Name}): продолжить её нельзя.");
+        }
+
+        Status = GameStatus.InProgress;
+        _result = null;
+        _consecutivePasses = 0;
+
+        return Result.Ok();
+    }
+
     /// <summary>Записывает снятые ходом камни в счёт пленных ходившего.</summary>
     /// <param name="color">Цвет ходившего.</param>
     /// <param name="count">Сколько камней снято; ноль у паса и сдачи.</param>

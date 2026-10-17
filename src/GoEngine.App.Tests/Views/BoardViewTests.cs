@@ -591,6 +591,19 @@ public sealed class BoardViewTests
     }
 
     [Fact]
+    public void Новая_Партия_Из_Меню_Не_Открывает_Настройки()
+    {
+        // N6 отчёта QA 2026-10-17: «Новая партия» должна начинать игру, а не показывать
+        // настройку партии. Настройки открывает отдельная строка меню — она и остаётся входом.
+        var (view, _) = Create();
+        view.ShowMenu();
+
+        Click(view.FindControl<Button>("MenuNewGameButton")!);
+
+        Assert.False(view.FindControl<Border>("SettingsOverlay")!.IsVisible);
+    }
+
+    [Fact]
     public void Кнопка_Закрыть_Убирает_Меню()
     {
         var (view, _) = Create();
@@ -643,13 +656,17 @@ public sealed class BoardViewTests
     }
 
     [Fact]
-    public void Новая_Партия_Из_Меню_Открывает_Настройки()
+    public void Новая_Партия_Из_Меню_Начинает_Игру()
     {
-        var (view, _) = Create();
+        // N6 отчёта QA 2026-10-17: «Новая партия» больше не открывает настройки, а сразу
+        // начинает новую игру — иначе новичок видел настройки вместо партии.
+        var (view, model) = Create();
+        var before = model.Board;
 
         Click(view.FindControl<Button>("MenuNewGameButton")!);
 
-        Assert.True(view.FindControl<Border>("SettingsOverlay")!.IsVisible);
+        Assert.NotSame(before, model.Board);
+        Assert.False(view.FindControl<Border>("SettingsOverlay")!.IsVisible);
     }
 
     [Fact]
@@ -675,15 +692,14 @@ public sealed class BoardViewTests
     }
 
     [Fact]
-    public void Отмена_Из_Меню_Партию_Не_Начинает()
+    public void Новая_Партия_Из_Меню_Не_Меняет_Правило_Счёта()
     {
         var (view, model) = Create();
-        var board = model.Board;
+        var rule = model.ScoringRule;
 
         Click(view.FindControl<Button>("MenuNewGameButton")!);
-        Click(SettingsButton(view, "CancelButton"));
 
-        Assert.Same(board, model.Board);
+        Assert.Equal(rule, model.ScoringRule);
     }
 
     [Fact]

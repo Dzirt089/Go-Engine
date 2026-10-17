@@ -35,9 +35,14 @@ public sealed partial class SettingsView : UserControl
     /// </remarks>
     private static readonly ScoringRule[] ScoringRules = [ScoringRule.Japanese, ScoringRule.Chinese];
 
-    /// <summary>Подписи систем подсчёта для списка выбора: описания берутся у самих правил.</summary>
-    private static readonly IReadOnlyList<string> ScoringLabels =
-        ScoringRules.Select(rule => rule.Descriptions ?? rule.Name).ToList().AsReadOnly();
+    /// <summary>Подписи систем подсчёта для списка выбора: короткие названия, а не описания.</summary>
+    /// <remarks>
+    /// В списке должны читаться названия систем: длинное описание в поле выбора обрезалось
+    /// и вытесняло само название (N6 отчёта QA 2026-10-17). Описание выбранной системы
+    /// показывается отдельной строкой под полем (<see cref="ShowScoringHint"/>), поэтому
+    /// в списке ему места нет. Порядок совпадает с <see cref="ScoringRules"/>.
+    /// </remarks>
+    private static readonly IReadOnlyList<string> ScoringLabels = ["Японская", "Китайская"];
 
     /// <summary>Уровни, показанные сейчас: зависят от доски и наличия модели (D-038).</summary>
     private LevelListView _levels = LevelListView.ForSettings(BoardSize.Size9, false);

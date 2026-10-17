@@ -177,6 +177,25 @@
     <Setter Property="Fill" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
+  <!-- Значок с подписью: у кнопок урока (лампа, «назад», «заново») подпись объясняет
+       действие — без неё новичок видит три непонятных значка (N6 отчёта QA 2026-10-17).
+       Ширина и высота снимаются с Button.app-icon (там 44×44): подпись в них не помещается.
+       Цель нажатия при этом только растёт: 64×52 вместо 44×44. -->
+  <Style Selector="Button.app-icon-caption">
+    <Setter Property="Width" Value="NaN" />
+    <Setter Property="Height" Value="NaN" />
+    <Setter Property="MinWidth" Value="64" />
+    <Setter Property="MinHeight" Value="52" />
+    <Setter Property="Padding" Value="4,2" />
+  </Style>
+
+  <Style Selector="TextBlock.app-icon-caption-text">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextMutedBrush}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="TextAlignment" Value="Center" />
+  </Style>
+
   <!-- Строка меню: значок, подпись и, если надо, пометка справа. Высота не меньше 56 точек —
        строка списка по Material, и по ней уверенно попадает палец. Выравнивание содержимого
        по ширине строки: подпись стоит слева, пометка — у правого края. -->

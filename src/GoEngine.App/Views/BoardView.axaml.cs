@@ -1282,8 +1282,10 @@ public sealed partial class BoardView : UserControl
             ? PausedDetail
             : GameStatusLines.Detail(verdict, ViewModel.Outcome, ViewModel.MoveNumber);
         // Счёт предварительный, пока партия идёт: позиция недоиграна, и окончательным счётом
-        // её называть нельзя (жалоба 2026-10-02).
-        var provisional = ViewModel.Status == "Идёт";
+        // её называть нельзя (жалоба 2026-10-02). Недоигранный счёт закрытой партии — тоже
+        // не окончательный: победитель не назван, и игроку предложено доиграть
+        // (N2 отчёта QA 2026-10-17).
+        var provisional = ViewModel.Status == "Идёт" || ViewModel.NeedsScoreConfirmation;
         var score = GameStatusLines.ScoreLine(provisional, ViewModel.Score);
         var breakdown = ViewModel.ScoreBreakdown;
         var stats = GameStatusLines.StatsLine(
@@ -1938,7 +1940,11 @@ public sealed partial class BoardView : UserControl
 
         if (ViewModel.FinishGame())
         {
-            ShowHint("Партия окончена: счёт подсчитан. Начать новую — «Новая партия».");
+            // Явно недоигранную позицию партия закрывает, но счёт не принимает: победитель
+            // не назван, и игроку предлагается доиграть (N2 отчёта QA 2026-10-17).
+            ShowHint(ViewModel.NeedsScoreConfirmation
+                ? "Партия недоиграна: счёт не принят. Доиграйте партию или начните новую."
+                : "Партия окончена: счёт подсчитан. Начать новую — «Новая партия».");
         }
     }
 
@@ -1957,12 +1963,13 @@ public sealed partial class BoardView : UserControl
     /// <param name="e">Событие нажатия.</param>
     private void OnSettingsClick(object? sender, RoutedEventArgs e) => ShowSettings();
 
-    /// <summary>Меню: показывает настройки партии перед новой партией.</summary>
+    /// <summary>Меню: сразу начинает новую партию по текущим настройкам.</summary>
     /// <param name="sender">Кнопка «Начать партию» в меню.</param>
     /// <param name="e">Событие нажатия.</param>
     /// <remarks>
-    /// Карточка меню закрывается, а вместо неё открывается экран настроек на подразделе «Партия»:
-    /// партия начнётся, когда игрок закроет его кнопкой «Готово» (жалоба пользователя 2026-10-03).
+    /// «Новая партия» начинает игру, а не открывает настройки: игрок нажал именно «начать»,
+    /// и лишний экран только сбивал (N6 отчёта QA 2026-10-17). Прежний порядок — «Готово»
+    /// в настройках — остаётся у строки «Настройка партии»; там настройки и ждут.
     /// </remarks>
     private void OnMenuNewGameClick(object? sender, RoutedEventArgs e)
     {
@@ -1970,7 +1977,8 @@ public sealed partial class BoardView : UserControl
         _ = e;
 
         CloseMenu();
-        ShowSettingsForNewGame();
+        _ = ViewModel.StartNewGameAsync();
+        ShowHint("Начата новая партия.");
     }
 
     /// <summary>Меню: спрашивает подтверждение отмены тем же путём, что кнопка панели.</summary>

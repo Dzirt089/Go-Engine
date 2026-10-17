@@ -102,7 +102,7 @@
           <!-- Пояснение к выбранной системе: строка меняется вместе с выбором. -->
           <TextBlock x:Name="ScoringHintText" TextWrapping="Wrap" />
 
-          <TextBlock Text="Японская система (для РФ)" FontWeight="SemiBold" Margin="0,6,0,0" />
+          <TextBlock Text="Японская система" FontWeight="SemiBold" Margin="0,6,0,0" />
           <TextBlock x:Name="JapaneseText" Classes="app-label" TextWrapping="Wrap" />
 
           <TextBlock Text="Китайская система" FontWeight="SemiBold" Margin="0,6,0,0" />

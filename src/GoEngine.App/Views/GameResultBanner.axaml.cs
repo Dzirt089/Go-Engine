@@ -43,7 +43,7 @@ public sealed partial class GameResultBanner : UserControl
     private const string TouchClass = "touch";
 
     /// <summary>Кнопки карточки: на телефоне всем им нужен размер пальца.</summary>
-    private static readonly string[] ActionButtons = ["NewGameButton", "CloseButton"];
+    private static readonly string[] ActionButtons = ["ResumeButton", "NewGameButton", "CloseButton"];
 
     /// <summary>Подключённая модель представления; <c>null</c>, пока владелец вида не подключил баннер.</summary>
     private MainViewModel? _viewModel;
@@ -101,6 +101,7 @@ public sealed partial class GameResultBanner : UserControl
 
         _viewModel = viewModel;
 
+        Wire("ResumeButton", OnResumeClick);
         Wire("NewGameButton", OnNewGameClick);
         Wire("CloseButton", OnCloseClick);
 
@@ -145,6 +146,7 @@ public sealed partial class GameResultBanner : UserControl
         var show = GameStatusLines.ShowOutcome(_viewModel.HasOutcome);
         var headline = _viewModel.ResultHeadline;
         var detail = _viewModel.ResultDetail;
+        var unfinished = _viewModel.NeedsScoreConfirmation;
 
         // Итог сменился (новая партия, другой результат) — закрытие снимается. Пока итога нет,
         // текст пуст, и это тоже «другой итог»: начатая партия отменяет прошлое решение игрока.
@@ -163,6 +165,18 @@ public sealed partial class GameResultBanner : UserControl
         if (this.FindControl<TextBlock>("DetailText") is { } detailText)
         {
             detailText.Text = detail;
+        }
+
+        if (this.FindControl<Button>("ResumeButton") is { } resume)
+        {
+            resume.IsVisible = unfinished;
+        }
+
+        // Непринятый счёт нельзя спрятать: тогда партия осталась бы закрытой, а вернуться
+        // к ней было бы нечем. «Закрыть» возвращается вместе с принятым итогом.
+        if (this.FindControl<Button>("CloseButton") is { } close)
+        {
+            close.IsVisible = !unfinished;
         }
 
         if (this.FindControl<Border>("BannerCard") is { } card)
@@ -184,6 +198,7 @@ public sealed partial class GameResultBanner : UserControl
 
         // Обработчики кнопок снимаются теми же методами, которыми ставились: лямбда не дала бы
         // снять подписку, и после повторного Attach одно нажатие начинало бы две партии.
+        Unwire("ResumeButton", OnResumeClick);
         Unwire("NewGameButton", OnNewGameClick);
         Unwire("CloseButton", OnCloseClick);
 
@@ -205,6 +220,13 @@ public sealed partial class GameResultBanner : UserControl
     /// </remarks>
     private void OnCloseClick(object? sender, RoutedEventArgs e)
     {
+        // Непринятый счёт не закрывается: кнопка «Закрыть» в этом состоянии скрыта,
+        // а проверка страхует от нажатия через программный вызов.
+        if (_viewModel?.NeedsScoreConfirmation == true)
+        {
+            return;
+        }
+
         _dismissedOutcome = _viewModel is { } viewModel
             ? OutcomeKey(viewModel.ResultHeadline, viewModel.ResultDetail)
             : null;
@@ -238,6 +260,23 @@ public sealed partial class GameResultBanner : UserControl
         {
             button.Click -= handler;
         }
+    }
+
+    /// <summary>Возвращает игрока к недоигранной партии: счёт ещё не принят.</summary>
+    /// <param name="sender">Кнопка «Продолжить партию».</param>
+    /// <param name="e">Событие нажатия.</param>
+    /// <remarks>
+    /// Кнопка есть только там, где итог закрытой партии не принят (<see cref="MainViewModel.NeedsScoreConfirmation"/>):
+    /// на почти пустой доске счёт отдавал бы всю её одному цвету. Позиция и ходы не меняются —
+    /// игрок просто продолжает с того же места (N2 отчёта QA 2026-10-17).
+    /// </remarks>
+    private void OnResumeClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+
+        _viewModel?.ResumeFinishedGame();
+        Refresh();
     }
 
     /// <summary>Начинает новую партию по текущим настройкам.</summary>

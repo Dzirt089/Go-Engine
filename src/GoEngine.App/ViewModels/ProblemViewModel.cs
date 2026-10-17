@@ -329,7 +329,10 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
             UpdateAnimation(before, _session.Board, point);
             // К «верно» добавляется разбор хода: координата и что она дала группе. Игрок должен
             // понимать, что произошло, а не только что ход принят (жалоба пользователя 2026-10-11).
-            var feedback = ProblemTexts.Feedback(Current, before, Move.Play(point, mover), _session.Board);
+            // Служебная оговорка домена про «линию решения источника» игроку ничего не говорит
+            // и только удлиняет строку: снимаем её перед показом (N6 отчёта QA 2026-10-17).
+            var feedback = ProblemVerdictText.Shorten(
+                ProblemTexts.Feedback(Current, before, Move.Play(point, mover), _session.Board));
 
             _verdict = verdict == ProblemVerdict.Solved
                 ? $"{SolvedText}: {feedback}"

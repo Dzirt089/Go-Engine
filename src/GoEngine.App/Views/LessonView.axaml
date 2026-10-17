@@ -13,8 +13,8 @@
        сверху выбор урока и словарь, посередине текст шага, снизу одна строка управления.
        Раньше выбор урока стоял в прокрутке и «уезжал» при чтении, а кнопки занимали три ряда —
        на телефоне управление съедало четверть экрана, хотя текст обучения и есть то, ради чего
-       раздел открыт. Теперь управление — две полосы по 44 точки, а всё остальное место отдано
-       тексту.
+       раздел открыт. Теперь управление — две полосы (шапка 44 точки и подписанные значки),
+       а всё остальное место отдано тексту.
 
        Ходы принимает модель (<see cref="LessonViewModel"/>), а не вид: правило «какой ход верный»
        живёт в уроке, и вид только рисует то, что решила модель.
@@ -57,7 +57,16 @@
                     Grid.Column="1"
                     MinHeight="44"
                     Margin="6,0"
-                    HorizontalAlignment="Stretch" />
+                    HorizontalAlignment="Stretch">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <!-- Длинное название в поле обрезается с многоточием, а не посреди слова
+                     (N6 отчёта QA 2026-10-17). Полный текст уже укорочен до 34 знаков
+                     в модели уроков, здесь страхует само поле. -->
+                <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
 
           <Button x:Name="NextLessonButton"
                   Grid.Column="2"
@@ -160,38 +169,49 @@
           </StackPanel>
         </ScrollViewer>
 
-        <!-- Управление: одна строка. Второстепенные действия — значки 44×44 с подсказкой,
+        <!-- Управление: одна строка. Второстепенные действия — подписанные значки (не уже 64),
              главное действие занимает остаток строки. -->
         <Grid x:Name="PanelActions" Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,6,0,0">
 
+          <!-- Значки урока подписаны: лампа, стрелка и кольцо без слов ничего не говорят
+               новичку (N6 отчёта QA 2026-10-17). -->
           <Button x:Name="HintButton"
-                  Classes="app-icon"
+                  Classes="app-icon app-icon-caption"
                   AutomationProperties.Name="Подсказка"
                   ToolTip.Tip="Показать ход"
                   IsEnabled="{Binding CanHint}">
-            <!-- Лампа: колба и цоколь. -->
-            <Path Width="22" Height="22" Stretch="Uniform"
-                  Data="M12,3.4 A5.6,5.6 0 0 1 15.2,13.6 L8.8,13.6 A5.6,5.6 0 0 1 12,3.4 Z M9.4,15.4 h5.2 v1.8 h-5.2 z M10.2,18.2 h3.6 v1.8 h-3.6 z" />
+            <StackPanel Spacing="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <!-- Лампа: колба и цоколь. -->
+              <Path Width="20" Height="20" Stretch="Uniform"
+                    Data="M12,3.4 A5.6,5.6 0 0 1 15.2,13.6 L8.8,13.6 A5.6,5.6 0 0 1 12,3.4 Z M9.4,15.4 h5.2 v1.8 h-5.2 z M10.2,18.2 h3.6 v1.8 h-3.6 z" />
+              <TextBlock Text="Подсказка" Classes="app-icon-caption-text" />
+            </StackPanel>
           </Button>
 
           <Button x:Name="BackButton"
                   Grid.Column="1"
-                  Classes="app-icon"
+                  Classes="app-icon app-icon-caption"
                   AutomationProperties.Name="Назад"
                   ToolTip.Tip="Предыдущий шаг"
                   IsEnabled="{Binding CanGoBack}">
-            <Path Width="22" Height="22" Stretch="Uniform"
-                  Data="M14.6,5.2 L7.8,12 L14.6,18.8 L16.7,16.7 L12,12 L16.7,7.3 Z" />
+            <StackPanel Spacing="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Path Width="20" Height="20" Stretch="Uniform"
+                    Data="M14.6,5.2 L7.8,12 L14.6,18.8 L16.7,16.7 L12,12 L16.7,7.3 Z" />
+              <TextBlock Text="Назад" Classes="app-icon-caption-text" />
+            </StackPanel>
           </Button>
 
           <Button x:Name="ResetButton"
                   Grid.Column="2"
-                  Classes="app-icon"
+                  Classes="app-icon app-icon-caption"
                   AutomationProperties.Name="Заново"
                   ToolTip.Tip="Начать урок заново">
-            <!-- Кольцо с остриём: значок «заново», отличный от крестика отмены. -->
-            <Path Width="22" Height="22" Stretch="Uniform"
-                  Data="F1 M12,4 A8,8 0 1 1 12,20 A8,8 0 1 1 12,4 Z M12,6 A6,6 0 1 0 12,18 A6,6 0 1 0 12,6 Z M12,0.8 L16.4,4.8 L12,8.8 Z" />
+            <StackPanel Spacing="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <!-- Кольцо с остриём: значок «заново», отличный от крестика отмены. -->
+              <Path Width="20" Height="20" Stretch="Uniform"
+                    Data="F1 M12,4 A8,8 0 1 1 12,20 A8,8 0 1 1 12,4 Z M12,6 A6,6 0 1 0 12,18 A6,6 0 1 0 12,6 Z M12,0.8 L16.4,4.8 L12,8.8 Z" />
+              <TextBlock Text="Заново" Classes="app-icon-caption-text" />
+            </StackPanel>
           </Button>
 
           <Button x:Name="NextButton"

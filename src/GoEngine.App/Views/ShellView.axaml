@@ -3,7 +3,8 @@
              xmlns:views="clr-namespace:GoEngine.App.Views"
              xmlns:vm="clr-namespace:GoEngine.App.ViewModels"
              x:Class="GoEngine.App.Views.ShellView"
-             x:DataType="vm:ShellViewModel">
+             x:DataType="vm:ShellViewModel"
+             Background="{DynamicResource AppBackgroundBrush}">
 
   <!-- Оболочка приложения: три раздела — партия, задачи и общее меню. Режимы не смешиваются,
        оболочка только показывает один из них; содержимое создаётся кодом вида (ShellView.axaml.cs),
@@ -18,7 +19,9 @@
        Настройки и меню партии в нижней навигации не стоят: они принадлежат партии и живут
        в её разделе — «Настройка партии» открывается из меню партии и шестерёнкой в шапке
        (замечание пользователя 2026-10-06, DECISIONS.md D-075). -->
-  <Grid RowDefinitions="Auto,*,Auto">
+  <Grid x:Name="Root"
+        RowDefinitions="Auto,*,Auto"
+        Background="{DynamicResource AppBackgroundBrush}">
 
     <!-- Верхняя полоса: строка режимов. Приглашение обновления живёт отдельным слоем ниже
          и стоит по центру экрана: полосой сверху оно на телефоне оказывалось строкой поверх доски

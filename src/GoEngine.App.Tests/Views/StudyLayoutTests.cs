@@ -47,6 +47,23 @@ public sealed class StudyLayoutTests
         Assert.Equal("PanelHeader", review.FindControl<Button>("GlossaryButton")!.FindLogicalAncestorOfType<Grid>()!.Name);
     }
 
+    /// <summary>Кнопки урока, у которых должна быть подпись.</summary>
+    private static readonly string[] LessonIconButtons = ["HintButton", "BackButton", "ResetButton"];
+
+    [Fact]
+    public void Значки_Урока_Подписаны()
+    {
+        // N6 отчёта QA 2026-10-17: лампа, стрелка и кольцо без подписи ничего не говорят
+        // новичку. Подпись стоит внутри кнопки — она не отнимает отдельного места у текста урока.
+        var view = new LessonView(new LessonViewModel());
+
+        Assert.All(
+            LessonIconButtons,
+            name => Assert.Contains(
+                view.FindControl<Button>(name)!.GetLogicalDescendants().OfType<TextBlock>(),
+                text => !string.IsNullOrWhiteSpace(text.Text)));
+    }
+
     [Fact]
     public void Управление_Урока_Собрано_В_Одну_Строку()
     {

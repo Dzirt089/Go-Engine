@@ -302,6 +302,54 @@ public sealed class GameResultBannerTests
         Assert.DoesNotContain(model.Score, Detail(banner), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Баннер_Недоигранной_Партии_Предлагает_Продолжить()
+    {
+        // N2 отчёта QA 2026-10-17: счёт на почти пустой доске не принят. Карточка называет
+        // это словами и даёт вернуться к той же партии; спрятать её нельзя.
+        var banner = new GameResultBanner(UnfinishedModel());
+
+        Assert.True(ResumeButton(banner).IsVisible);
+        Assert.False(CloseButton(banner).IsVisible);
+    }
+
+    [Fact]
+    public void Продолжение_С_Баннера_Возвращает_Партию_В_Игру()
+    {
+        var model = UnfinishedModel();
+        var banner = new GameResultBanner(model);
+
+        ResumeButton(banner).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        Assert.Equal("Идёт", model.Status);
+        Assert.False(banner.IsVisible);
+    }
+
+    /// <summary>Модель закрытой, но явно недоигранной партии: камня нет у чёрных.</summary>
+    /// <returns>Модель с двумя пасами подряд после одного белого камня.</returns>
+    private static MainViewModel UnfinishedModel()
+    {
+        var model = Create();
+        _ = model.LoadGame(new SgfGame(
+            Size,
+            Komi.For9x9,
+            [
+                Move.Pass(StoneColor.Black),
+                Move.Play(new Point(4, 4), StoneColor.White),
+                Move.Pass(StoneColor.Black),
+                Move.Pass(StoneColor.White)
+            ],
+            null));
+
+        return model;
+    }
+
+    /// <summary>Кнопка «Продолжить партию» внутри карточки.</summary>
+    /// <param name="banner">Баннер с разметкой.</param>
+    /// <returns>Кнопка разметки.</returns>
+    private static Button ResumeButton(GameResultBanner banner) =>
+        banner.FindControl<Button>("ResumeButton")!;
+
     /// <summary>Создаёт модель представления со случайным соперником: партия в тесте идёт быстро.</summary>
     /// <returns>Модель представления партии 9×9; построение — общее для тестов.</returns>
     private static MainViewModel Create() => TestViewModel.Create(null, DifficultyLevel.Kyu30, size: Size);

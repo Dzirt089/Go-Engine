@@ -36,13 +36,23 @@
              посмотреть итоговую доску: затемнение закрывает её от нажатий, пока карточка стоит.
              Крупный размер телефона (класс touch) ставит код вида по раскладке — в разметке его
              нет: иначе крупной стала бы и настольная кнопка, а признак раскладки потерял бы смысл. -->
-        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-          <Button x:Name="NewGameButton"
+        <StackPanel Spacing="8" HorizontalAlignment="Center">
+          <!-- Счёт не принят, пока позиция явно недоиграна: главное действие — вернуться
+               к той же партии и доиграть, а не начинать новую (N2 отчёта QA 2026-10-17).
+               Кнопка отдельной строкой: три кнопки в ряд на телефоне 360 точек не помещаются. -->
+          <Button x:Name="ResumeButton"
                   Classes="app-banner-action primary"
-                  Content="Новая партия" />
-          <Button x:Name="CloseButton"
-                  Classes="app-banner-action"
-                  Content="Закрыть" />
+                  Content="Продолжить партию"
+                  HorizontalAlignment="Center"
+                  IsVisible="False" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+            <Button x:Name="NewGameButton"
+                    Classes="app-banner-action primary"
+                    Content="Новая партия" />
+            <Button x:Name="CloseButton"
+                    Classes="app-banner-action"
+                    Content="Закрыть" />
+          </StackPanel>
         </StackPanel>
 
       </StackPanel>
