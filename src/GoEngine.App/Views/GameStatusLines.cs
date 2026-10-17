@@ -16,6 +16,14 @@ public static class GameStatusLines
     /// <summary>Название предварительного счёта: счёт показан, но пометки ещё можно изменить.</summary>
     private const string ProvisionalMark = "Предварительный счёт";
 
+    /// <summary>Признак конца партии для шапки и панели.</summary>
+    /// <remarks>
+    /// Слова «Завершена двумя пасами» называют способ, а не состояние: игроку после диалога итога
+    /// нужно видеть, что партия окончена, и кто в ней победил. Без этого признака шапка пустела,
+    /// и результат было не посмотреть (дефект 2 QA 2026-10-17).
+    /// </remarks>
+    public const string FinishedMark = "Партия окончена";
+
     /// <summary>Строка о состоянии партии: кто ходит или чем партия окончена.</summary>
     /// <param name="hasOutcome">У партии есть итог.</param>
     /// <param name="status">Состояние партии словами: «Идёт», «Завершена двумя пасами» и т. п.</param>
@@ -23,6 +31,18 @@ public static class GameStatusLines
     /// <returns>Строку для шапки вида.</returns>
     public static string Headline(bool hasOutcome, string status, string toMove) =>
         hasOutcome ? status : $"Ход: {toMove}";
+
+    /// <summary>Строка оконченной партии: признак конца и итог словами.</summary>
+    /// <param name="hasOutcome">У партии есть итог.</param>
+    /// <param name="outcome">Итог партии словами: «Победили белые», «Ничья».</param>
+    /// <returns>Строку «Партия окончена · Победили белые»; пустую, пока итога нет.</returns>
+    /// <remarks>
+    /// Счёт в строку не входит: он стоит отдельной строкой счёта рядом, и его повтор читался бы
+    /// как два разных числа. В шапке телефона строка обрезается многоточием, поэтому первым
+    /// словом идёт признак конца, а итог — сразу за ним.
+    /// </remarks>
+    public static string FinishedLine(bool hasOutcome, string outcome) =>
+        hasOutcome ? $"{FinishedMark} · {outcome}" : string.Empty;
 
     /// <summary>Вторая строка состояния: номер хода или итог.</summary>
     /// <param name="hasOutcome">У партии есть итог.</param>

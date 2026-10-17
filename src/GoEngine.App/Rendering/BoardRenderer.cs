@@ -85,6 +85,20 @@ public static class BoardRenderer
     /// </remarks>
     public const float CoordinateSizeRatio = 0.42f;
 
+    /// <summary>Ширина одной литеры подписи в долях кегля.</summary>
+    /// <remarks>
+    /// Ширина не замеряется шрифтом: у букв столбцов и цифр строк одного начертания она почти
+    /// одинаковая, а замер каждой подписи на каждом кадре — лишняя работа для телефона.
+    /// Величину читает и подложка подписи (<see cref="CoordinatePlateRect"/>).
+    /// </remarks>
+    private const float CoordinateGlyphWidthRatio = 0.62f;
+
+    /// <summary>Поля подложки подписи вокруг литеры в долях кегля.</summary>
+    private const float CoordinatePlatePaddingRatio = 0.18f;
+
+    /// <summary>Высота подложки подписи в долях кегля.</summary>
+    private const float CoordinatePlateHeightRatio = 1.1f;
+
     /// <summary>Доля клетки, которую занимает знак территории.</summary>
     private const float TerritorySizeRatio = 0.34f;
 
@@ -243,8 +257,8 @@ public static class BoardRenderer
         }
 
         // Подписи координат — последними: камень на крайней линии заходит в поле для подписей
-        // и закрывал буквы A/B/C и цифру 9 (находка QA 2026-10-17, B3). Теперь подпись видна
-        // всегда, а камень под ней не мешает: подписи стоят вне сетки.
+        // и закрывал буквы A/B/C и цифру 9 (находка QA 2026-10-17, B3). Подпись рисуется
+        // на подложке цветом доски, поэтому читается и на камне (дефект 3 QA 2026-10-17).
         if (showCoordinates)
         {
             DrawCoordinates(canvas, board.Size, geometry);
@@ -579,6 +593,7 @@ public static class BoardRenderer
     /// Подписи стоят в поле вокруг сетки: оно уже заложено в геометрию, поэтому место есть всегда
     /// и доска не сдвигается. Номер строки считается сверху вниз — как в <c>Point.ToString()</c>
     /// (<c>DECISIONS.md</c>, D-009), буква «I» пропускается, как в настоящих Го-программах.
+    /// Каждая подпись рисуется на подложке цветом доски — см. <see cref="CoordinatePlateRect"/>.
     /// </remarks>
     private static void DrawCoordinates(SKCanvas canvas, BoardSize size, BoardGeometry geometry)
     {
@@ -590,18 +605,26 @@ public static class BoardRenderer
 
         using var font = new SKFont(SKTypeface.Default, textSize);
         using var paint = new SKPaint { Color = GridColor, IsAntialias = true };
-        using var halo = new SKPaint { Color = BoardColor, IsAntialias = true };
+        using var platePaint = new SKPaint
+        {
+            Color = BoardColor,
+            IsAntialias = true,
+            Style = SKPaintStyle.Fill
+        };
 
-        // Обводка цветом доски: камень на крайней линии заходит в поле подписей, и без неё
-        // тёмная подпись на чёрном камне не читалась (находки QA 2026-10-17, B3 и B10).
-        var haloOffset = Math.Max(1f, textSize / 10f);
-
+        // Подложка, а не обводка: поле вокруг сетки (8% стороны) уже радиуса камня на досках
+        // 9×9 и 13×13, и камень крайней линии заходит под подпись. Обводка цветом доски
+        // в пару пикселей не спасала — тёмная литера тонула в чёрном камне (дефект 3 QA
+        // 2026-10-17: «подписи координат печатаются поверх камней»). Непрозрачная «пилюля»
+        // цветом доски закрывает камень ровно под литерой: на пустом поле её не видно,
+        // а на камне подпись читается при любом фоне.
         void Label(string text, float x, float y)
         {
-            canvas.DrawText(text, x - haloOffset, y, SKTextAlign.Center, font, halo);
-            canvas.DrawText(text, x + haloOffset, y, SKTextAlign.Center, font, halo);
-            canvas.DrawText(text, x, y - haloOffset, SKTextAlign.Center, font, halo);
-            canvas.DrawText(text, x, y + haloOffset, SKTextAlign.Center, font, halo);
+            var centre = new SKPoint(x, y - baseline);
+            var plate = CoordinatePlateRect(text, textSize, centre);
+            var radius = plate.Height / 2;
+
+            canvas.DrawRoundRect(plate, radius, radius, platePaint);
             canvas.DrawText(text, x, y, SKTextAlign.Center, font, paint);
         }
 
@@ -616,6 +639,31 @@ public static class BoardRenderer
             Label(number, first - gap, center + baseline);
             Label(number, last + gap, center + baseline);
         }
+    }
+
+    /// <summary>Прямоугольник подложки под подписью координаты.</summary>
+    /// <param name="text">Подпись: буква столбца или число строки.</param>
+    /// <param name="textSize">Кегль подписи.</param>
+    /// <param name="centre">Середина подписи в пикселях.</param>
+    /// <returns>Прямоугольник подложки вокруг середины подписи.</returns>
+    /// <remarks>
+    /// Подложка нужна потому, что камень крайней линии заходит в поле подписей: на досках 9×9
+    /// и 13×13 поле уже радиуса камня, и литера рисовалась прямо по чёрному камню. Размер
+    /// считается по кеглю, а не замером текста: ширина литеры у одного начертания почти
+    /// постоянна, и замер на каждом кадре телефону не нужен. Открыта тестам: по ней
+    /// проверяется, что подпись стоит на цвете доски, а не на камне (дефект 3 QA 2026-10-17).
+    /// </remarks>
+    internal static SKRect CoordinatePlateRect(string text, float textSize, SKPoint centre)
+    {
+        var halfWidth = ((text.Length * CoordinateGlyphWidthRatio * textSize) / 2)
+            + (textSize * CoordinatePlatePaddingRatio);
+        var halfHeight = (textSize * CoordinatePlateHeightRatio) / 2;
+
+        return new SKRect(
+            centre.X - halfWidth,
+            centre.Y - halfHeight,
+            centre.X + halfWidth,
+            centre.Y + halfHeight);
     }
 
     /// <summary>Рисует звёздные точки (хоси).</summary>

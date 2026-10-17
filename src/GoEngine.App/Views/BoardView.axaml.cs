@@ -106,7 +106,12 @@ public sealed partial class BoardView : UserControl
     private const string PausedMark = "пауза";
 
     /// <summary>Ответ на ход, сделанный на паузе: ход не играется, и игрок должен понять почему.</summary>
-    private const string PausedHint = "Партия на паузе: нажмите «Продолжить».";
+    /// <remarks>
+    /// Кнопка выхода из паузы называется «Дальше» (<see cref="ResumeLabel"/>): подсказка обязана
+    /// называть её так же, иначе игрок ищет кнопку «Продолжить», которой в интерфейсе нет
+    /// (дефект 5 QA 2026-10-17).
+    /// </remarks>
+    internal const string PausedHint = "Партия на паузе: нажмите «Дальше».";
 
     /// <summary>Логгер вида: сюда попадают сохранение и загрузка партии с их отказами.</summary>
     private readonly ILogger _log = AppLog.For<BoardView>();
@@ -117,9 +122,18 @@ public sealed partial class BoardView : UserControl
     private readonly Border? _desktopBoardHost;
     private readonly Border? _mobileBoardHost;
     private readonly Border? _overlay;
+    private readonly Border? _abortOverlay;
     private readonly SettingsView? _settingsView;
     private readonly TextBlock? _hint;
     private readonly TextBlock? _mobileHint;
+
+    /// <summary>Плашка сообщения на телефоне: оверлей, не участвующий в раскладке.</summary>
+    /// <remarks>
+    /// Раньше сообщение было строкой в нижней карточке: её появление меняло высоту карточки,
+    /// и доска сдвигалась на 29 px (дефект 4 QA 2026-10-17). Плашка живёт в месте доски,
+    /// поэтому строке состояния нечего двигать.
+    /// </remarks>
+    private readonly Border? _mobileHintPill;
     private readonly TextBlock? _mobileTurnText;
     private readonly TextBlock? _mobileMoveText;
     private readonly Ellipse? _mobileTurnBlack;
@@ -149,6 +163,7 @@ public sealed partial class BoardView : UserControl
     private readonly TextBlock? _desktopPrisoners;
     private readonly TextBlock? _desktopScore;
     private readonly TextBlock? _desktopStatus;
+    private readonly TextBlock? _desktopStatusReason;
     private readonly TextBlock? _mobileStatusText;
     private readonly TextBlock? _mobileScoreJapanese;
     private readonly TextBlock? _mobileScoreChinese;
@@ -251,9 +266,11 @@ public sealed partial class BoardView : UserControl
         _desktopBoardHost = this.FindControl<Border>("DesktopBoardHost");
         _mobileBoardHost = this.FindControl<Border>("MobileBoardHost");
         _overlay = this.FindControl<Border>("SettingsOverlay");
+        _abortOverlay = this.FindControl<Border>("AbortOverlay");
         _settingsView = this.FindControl<SettingsView>("SettingsArea");
         _hint = this.FindControl<TextBlock>("Hint");
         _mobileHint = this.FindControl<TextBlock>("MobileHint");
+        _mobileHintPill = this.FindControl<Border>("MobileHintPill");
         _mobileTurnText = this.FindControl<TextBlock>("MobileTurnText");
         _mobileMoveText = this.FindControl<TextBlock>("MobileMoveText");
         _mobileTurnBlack = this.FindControl<Ellipse>("MobileTurnBlack");
@@ -274,6 +291,7 @@ public sealed partial class BoardView : UserControl
         _desktopPrisoners = this.FindControl<TextBlock>("DesktopPrisonersText");
         _desktopScore = this.FindControl<TextBlock>("DesktopScoreText");
         _desktopStatus = this.FindControl<TextBlock>("DesktopStatusText");
+        _desktopStatusReason = this.FindControl<TextBlock>("DesktopStatusReasonText");
         _mobileStatusText = this.FindControl<TextBlock>("MobileStatusText");
         _desktopScoreJapanese = this.FindControl<TextBlock>("DesktopScoreJapaneseText");
         _desktopScoreChinese = this.FindControl<TextBlock>("DesktopScoreChineseText");
@@ -329,11 +347,16 @@ public sealed partial class BoardView : UserControl
         WireButton("SaveButton", OnSaveClick);
         WireButton("LoadButton", OnLoadClick);
 
-        // Часы партии: «Пауза» / «Продолжить» — одна кнопка на два состояния в каждой раскладке,
+        // Часы партии: «Пауза» / «Дальше» — одна кнопка на два состояния в каждой раскладке,
         // а «Отменить партию» прекращает партию целиком.
         WireButton("DesktopPauseButton", OnPauseResumeClick);
         WireButton("MobilePauseButton", OnPauseResumeClick);
         WireButton("DesktopAbortButton", OnAbortGameClick);
+
+        // Подтверждение отмены партии — тот же вопрос, что у «Выхода» в оболочке:
+        // без него одно нажатие обнуляло партию (дефект 1 QA 2026-10-17).
+        WireButton("AbortCancelButton", OnAbortCancelClick);
+        WireButton("AbortConfirmButton", OnAbortConfirmClick);
 
         // Кнопки мобильной раскладки делают то же самое: обработчики общие.
         WireButton("MobilePassButton", OnPassClick);
@@ -442,6 +465,36 @@ public sealed partial class BoardView : UserControl
 
     /// <summary>Экран «Настройка партии» показан.</summary>
     public bool IsSettingsShown => _overlay?.IsVisible == true;
+
+    /// <summary>Показано подтверждение отмены партии.</summary>
+    /// <remarks>
+    /// Нужно оболочке: системная кнопка «Назад» на телефоне закрывает сначала вопрос, а партию
+    /// не отменяет (дефект 1 QA 2026-10-17 — до правки отмена шла без вопроса).
+    /// </remarks>
+    public bool IsAbortConfirmShown => _abortOverlay?.IsVisible == true;
+
+    /// <summary>Спрашивает подтверждение отмены партии.</summary>
+    /// <remarks>
+    /// Сам партию не трогает: «Отменить партию» в подтверждении — единственный путь к отмене,
+    /// «Отмена» закрывает вопрос и оставляет партию как была. Открыто и тестам, и оболочке:
+    /// тесту не нужно нажимать кнопку, чтобы проверить порядок «Назад».
+    /// </remarks>
+    public void ShowAbortConfirm()
+    {
+        if (_abortOverlay is not null)
+        {
+            _abortOverlay.IsVisible = true;
+        }
+    }
+
+    /// <summary>Закрывает подтверждение отмены: партия продолжается.</summary>
+    public void HideAbortConfirm()
+    {
+        if (_abortOverlay is not null)
+        {
+            _abortOverlay.IsVisible = false;
+        }
+    }
 
     /// <summary>Показывает меню партии: шторку снизу экрана.</summary>
     /// <remarks>
@@ -786,9 +839,14 @@ public sealed partial class BoardView : UserControl
         Patterns = [$"*.{SgfStore.Extension}"]
     };
 
-    /// <summary>Показывает сообщение под панелью и в мобильной шторке.</summary>
+    /// <summary>Показывает сообщение под панелью и плашкой над панелью действий телефона.</summary>
     /// <param name="message">Текст сообщения.</param>
-    private void ShowHint(string message)
+    /// <remarks>
+    /// На телефоне сообщение — оверлей, а не строка нижней карточки: строка меняла высоту
+    /// карточки и двигала доску (дефект 4 QA 2026-10-17). Открыт тестам: окно в прогоне
+    /// не открывается, а плашку иначе не показать.
+    /// </remarks>
+    internal void ShowHint(string message)
     {
         if (_hint is not null)
         {
@@ -798,9 +856,15 @@ public sealed partial class BoardView : UserControl
 
         if (_mobileHint is not null)
         {
-            // На телефоне сообщение видно и в свёрнутой шторке: системных диалогов там нет.
             _mobileHint.Text = message;
             _mobileHint.IsVisible = true;
+        }
+
+        // Плашка — то, что видит игрок: текст в ней может быть и пустым, а рамка без сообщения
+        // не нужна. Поэтому видимость решает вид, а не разметка.
+        if (_mobileHintPill is not null)
+        {
+            _mobileHintPill.IsVisible = true;
         }
 
         ScheduleHintHide();
@@ -839,6 +903,11 @@ public sealed partial class BoardView : UserControl
         if (_mobileHint is not null)
         {
             _mobileHint.IsVisible = false;
+        }
+
+        if (_mobileHintPill is not null)
+        {
+            _mobileHintPill.IsVisible = false;
         }
     }
 
@@ -1163,10 +1232,14 @@ public sealed partial class BoardView : UserControl
         var paused = ViewModel.IsGamePaused;
 
         // На паузе слова «кто ходит» ничего не объясняют: ход не принимается, и игрок обязан
-        // видеть, что партия остановлена, а не думать, что интерфейс завис.
+        // видеть, что партия остановлена, а не думать, что интерфейс завис. После конца партии
+        // шапка называет не способ завершения, а сам факт и победителя: иначе после закрытия
+        // диалога итог было негде посмотреть (дефект 2 QA 2026-10-17).
         var status = paused
             ? PausedHeadline
-            : GameStatusLines.Headline(verdict, ViewModel.Status, ViewModel.ToMove);
+            : verdict
+                ? GameStatusLines.FinishedLine(verdict, ViewModel.Outcome)
+                : GameStatusLines.Headline(verdict, ViewModel.Status, ViewModel.ToMove);
         var second = paused
             ? PausedDetail
             : GameStatusLines.Detail(verdict, ViewModel.Outcome, ViewModel.MoveNumber);
@@ -1186,11 +1259,11 @@ public sealed partial class BoardView : UserControl
 
         if (_mobileTurnText is not null)
         {
-            // Длинный итог («Завершена двумя пасами») наезжал на часы в короткой шапке телефона:
-            // после конца партии шапка молчит, а состояние и итог называет шторка «Подробности»
-            // (жалоба пользователя 2026-10-11).
+            // После конца партии шапка не молчит: в ней остаётся «Партия окончена» и победитель.
+            // Длинная строка обрезается многоточием, а часы и «Пауза» уходят — места хватает,
+            // и прежняя жалоба «итог наезжает на часы» не возвращается (дефект 2 QA 2026-10-17).
             _mobileTurnText.Text = status;
-            _mobileTurnText.IsVisible = !finished;
+            _mobileTurnText.IsVisible = true;
         }
 
         if (_mobileClock is not null)
@@ -1222,6 +1295,13 @@ public sealed partial class BoardView : UserControl
         }
 
         SetText(_desktopStatus, status);
+
+        // «Партия окончена · Победили белые» отвечает на вопрос «что случилось», а способ
+        // завершения — на «почему». Вторая строка приглушена и есть только у оконченной партии:
+        // раньше способ стоял вместо признака конца, и итог было не понять (дефект 2).
+        SetText(_desktopStatusReason, ViewModel.Status);
+        SetVisible(_desktopStatusReason, verdict);
+
         SetText(_mobileStatusText, $"Статус: {ViewModel.Status}");
         SetText(_desktopScore, score);
         // Карточка итога в подробностях: объявление исхода словами и цветом. Игрок просил
@@ -1690,7 +1770,7 @@ public sealed partial class BoardView : UserControl
     private void OnNewGameClick(object? sender, RoutedEventArgs e) => _ = ViewModel.StartGameAsync();
 
     /// <summary>Останавливает партию или снимает паузу — одна кнопка на два состояния.</summary>
-    /// <param name="sender">Кнопка «Пауза» / «Продолжить».</param>
+    /// <param name="sender">Кнопка «Пауза» / «Дальше».</param>
     /// <param name="e">Событие нажатия.</param>
     /// <remarks>
     /// Подпись кнопки ставит вид по состоянию партии, а действие выбирается здесь: пауза
@@ -1708,10 +1788,44 @@ public sealed partial class BoardView : UserControl
         ViewModel.PauseGame();
     }
 
-    /// <summary>Отменяет партию: доска возвращается в состояние «партия не начата».</summary>
+    /// <summary>Спрашивает подтверждение отмены партии.</summary>
     /// <param name="sender">Кнопка «Отменить партию».</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnAbortGameClick(object? sender, RoutedEventArgs e) => _ = ViewModel.AbortGameAsync();
+    /// <remarks>
+    /// Партию здесь никто не трогает: кнопка только открывает вопрос, «Отмена» в котором
+    /// возвращает к партии, а «Отменить партию» — единственный путь к отмене. Раньше нажатие
+    /// обнуляло доску сразу (дефект 1 QA 2026-10-17).
+    /// </remarks>
+    private void OnAbortGameClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+
+        ShowAbortConfirm();
+    }
+
+    /// <summary>Отменяет партию после подтверждения.</summary>
+    /// <param name="sender">Кнопка «Отменить партию» в подтверждении.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnAbortConfirmClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+
+        HideAbortConfirm();
+        _ = ViewModel.AbortGameAsync();
+    }
+
+    /// <summary>Отказывается от отмены: партия остаётся как была.</summary>
+    /// <param name="sender">Кнопка «Отмена» в подтверждении.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnAbortCancelClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+
+        HideAbortConfirm();
+    }
 
     /// <summary>Показывает настройки.</summary>
     /// <param name="sender">Кнопка «Настройки».</param>
@@ -1734,7 +1848,7 @@ public sealed partial class BoardView : UserControl
         ShowSettingsForNewGame();
     }
 
-    /// <summary>Меню: отменяет партию тем же путём, что кнопка панели.</summary>
+    /// <summary>Меню: спрашивает подтверждение отмены тем же путём, что кнопка панели.</summary>
     /// <param name="sender">Кнопка «Отменить партию» в меню.</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnMenuAbortClick(object? sender, RoutedEventArgs e)

@@ -772,7 +772,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <remarks>
     /// Завершённая партия паузой не считается: её часы просто останавливаются
     /// (<see cref="GameClock.Stop"/>), поэтому «Пауза» в панели не показывается,
-    /// а «Продолжить» не предлагается.
+    /// а «Дальше» не предлагается.
     /// </remarks>
     public bool IsGamePaused => _clock.IsPaused;
 
@@ -808,6 +808,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Ход разрешён: партия не на паузе.</summary>
     /// <remarks>Пауза — не украшение: на ней ходы отклоняются по-настоящему, а не только на вид.</remarks>
     public bool CanPlayMove => !_clock.IsPaused;
+
+    /// <summary>Пас доступен: партия идёт и ещё не окончена.</summary>
+    /// <remarks>
+    /// После конца партии пас ничего не делает — ходы не принимаются (дефект 2 QA 2026-10-17:
+    /// «Пас», «Отменить» и «Территория» оставались активными без понятного смысла). Кнопка
+    /// обязана это показывать, а не молчать по нажатию. Отмена и разметка территории после
+    /// конца партии осмысленны: отмена возвращает сделанный пас, разметка показывает владение
+    /// точками. Поэтому недоступен только пас.
+    /// </remarks>
+    public bool CanPass => CanPlayMove && !HasOutcome;
 
     /// <summary>Партия ещё не начата: на доске нет ни одного камня.</summary>
     /// <remarks>
@@ -1312,7 +1322,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     /// <summary>Останавливает часы, если партия завершилась: время законченной партии не растёт.</summary>
     /// <remarks>
-    /// Это не пауза: игрок партию не останавливал, и «Продолжить» предлагать нечего
+    /// Это не пауза: игрок партию не останавливал, и «Дальше» предлагать нечего
     /// (<see cref="GameClock.Stop"/>).
     /// </remarks>
     private void StopClockIfFinished()
@@ -1728,6 +1738,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(CanTogglePause),
             nameof(CanAbortGame),
             nameof(CanPlayMove),
+            nameof(CanPass),
             nameof(IsFirstMove),
             nameof(ShowTerritory),
             nameof(CanToggleTerritory),

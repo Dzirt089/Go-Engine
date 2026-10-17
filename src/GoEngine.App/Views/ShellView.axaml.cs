@@ -339,6 +339,7 @@ public sealed partial class ShellView : UserControl
     {
         HideAbout();
         HideGlossary();
+        GameArea?.HideAbortConfirm();
         GameArea?.CloseMenu();
         Shell.ShowGame();
     }
@@ -350,6 +351,7 @@ public sealed partial class ShellView : UserControl
     {
         HideAbout();
         HideGlossary();
+        GameArea?.HideAbortConfirm();
         GameArea?.CloseSettingsScreen();
         GameArea?.CloseMenu();
         Shell.ShowProblems();
@@ -362,6 +364,7 @@ public sealed partial class ShellView : UserControl
     {
         HideAbout();
         HideGlossary();
+        GameArea?.HideAbortConfirm();
         GameArea?.CloseSettingsScreen();
         GameArea?.CloseMenu();
         Shell.ShowLessons();
@@ -379,6 +382,7 @@ public sealed partial class ShellView : UserControl
         HideAbout();
         HideGlossary();
         HideExitConfirm();
+        GameArea?.HideAbortConfirm();
         GameArea?.CloseMenu();
         Shell.ShowMenu();
     }
@@ -626,9 +630,10 @@ public sealed partial class ShellView : UserControl
     /// <returns><c>true</c> — «Назад» обработан видом; <c>false</c> — закрывать нечего.</returns>
     /// <remarks>
     /// <para>
-    /// Порядок обратный открытию: подтверждение выхода, «О программе», шторка меню партии, экран
-    /// «Настройка партии» и только потом раздел «Меню» уступает партии. Если закрывать нечего,
-    /// событие остаётся необработанным — им распоряжается система (выход из приложения).
+    /// Порядок обратный открытию: подтверждение выхода, «О программе», подтверждение отмены партии,
+    /// шторка меню партии, экран «Настройка партии» и только потом раздел «Меню» уступает партии.
+    /// Если закрывать нечего, событие остаётся необработанным — им распоряжается система
+    /// (выход из приложения).
     /// </para>
     /// <para>
     /// Отдельным методом, а не телом обработчика: оконной платформы в тестах нет, верхнего уровня
@@ -655,6 +660,13 @@ public sealed partial class ShellView : UserControl
         if (IsAboutShown)
         {
             HideAbout();
+
+            return true;
+        }
+
+        if (GameArea?.IsAbortConfirmShown == true)
+        {
+            GameArea.HideAbortConfirm();
 
             return true;
         }

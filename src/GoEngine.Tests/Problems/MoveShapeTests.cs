@@ -87,7 +87,7 @@ public sealed class MoveShapeTests
 
         Assert.Equal("пустой треугольник", shape.Name);
         Assert.False(shape.Good);
-        Assert.Contains("плохая форма", shape.Why, StringComparison.Ordinal);
+        Assert.Contains("тяжёлая форма", shape.Why, StringComparison.Ordinal);
     }
 
     [Fact]

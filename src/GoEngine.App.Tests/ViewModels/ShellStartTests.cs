@@ -437,6 +437,22 @@ public sealed class ShellStartTests
     }
 
     [Fact]
+    public void Назад_Закрывает_Подтверждение_Отмены_Партии()
+    {
+        // Дефект 1 QA 2026-10-17: отмена партии спрашивает подтверждение, как и выход.
+        // Системная «Назад» закрывает вопрос и оставляет партию, а не приложение.
+        var (view, shell) = Start();
+        OnPhone(view);
+        shell.Game.StartGame();
+        view.GameArea!.ShowAbortConfirm();
+
+        view.HandleBack();
+
+        Assert.False(view.GameArea!.IsAbortConfirmShown);
+        Assert.True(shell.Game.IsGameStarted, "партия отменена по кнопке «Назад»");
+    }
+
+    [Fact]
     public void Назад_Закрывает_Шторку_Меню_Партии()
     {
         var (view, _) = Start();

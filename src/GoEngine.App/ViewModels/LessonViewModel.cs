@@ -374,7 +374,11 @@ public sealed class LessonViewModel : INotifyPropertyChanged
     {
         var lesson = _session.Lesson;
 
-        _progress.SaveLesson(lesson.Id, _session.StepNumber, _session.IsCompleted);
+        // Пройденный урок остаётся пройденным: открытие такого урока начинает его заново и не должно
+        // снимать отметку и уменьшать счётчик «пройдено N из 12» (находка QA 2026-10-17, высокая).
+        var alreadyCompleted = _progress.ForLesson(lesson.Id)?.Completed ?? false;
+
+        _progress.SaveLesson(lesson.Id, _session.StepNumber, _session.IsCompleted || alreadyCompleted);
 
         _labels = BuildLabels();
         ProgressChanged?.Invoke(this, EventArgs.Empty);

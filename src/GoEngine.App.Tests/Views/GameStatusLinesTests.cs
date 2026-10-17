@@ -37,6 +37,23 @@ public sealed class GameStatusLinesTests
     }
 
     [Fact]
+    public void Строка_Оконченной_Партии_Называет_Признак_Конца_И_Победителя()
+    {
+        // Дефект 2 QA 2026-10-17: после диалога итога шапка пустела, и результат было
+        // не посмотреть. Признак конца и победитель обязаны оставаться на экране.
+        var line = GameStatusLines.FinishedLine(hasOutcome: true, "Победили белые");
+
+        Assert.Equal("Партия окончена · Победили белые", line);
+        Assert.Contains(GameStatusLines.FinishedMark, line, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Строка_Оконченной_Партии_Пуста_Пока_Итога_Нет()
+    {
+        Assert.Empty(GameStatusLines.FinishedLine(hasOutcome: false, "Победили белые"));
+    }
+
+    [Fact]
     public void После_Конца_Партии_Вторая_Строка_Показывает_Итог()
     {
         var detail = GameStatusLines.Detail(hasOutcome: true, "Победили белые", "12");

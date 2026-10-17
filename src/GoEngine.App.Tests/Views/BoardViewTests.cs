@@ -111,17 +111,168 @@ public sealed class BoardViewTests
     }
 
     [Fact]
-    public void После_Конца_Партии_Шапка_Телефона_Молчит()
+    public void После_Конца_Партии_Шапка_Телефона_Показывает_Окончание_И_Итог()
     {
-        // Жалоба пользователя 2026-10-11: итог «Завершена двумя пасами» наезжал на часы.
-        // После конца партии в шапке не остаётся ни состояния, ни часов, ни «Паузы»:
-        // состояние и итог называет шторка «Подробности».
+        // Дефект 2 QA 2026-10-17: после диалога итога шапка пустела, и результат было
+        // не посмотреть. Признак конца и победитель остаются в шапке, а часы и «Пауза»,
+        // которые раньше перекрывались длинным итогом, уходят с экрана.
         var (view, model) = Create();
         Finish(model);
 
-        Assert.False(view.FindControl<TextBlock>("MobileTurnText")!.IsVisible, "состояние осталось в шапке");
+        var text = view.FindControl<TextBlock>("MobileTurnText")!;
+
+        Assert.True(text.IsVisible, "шапка молчит после конца партии");
+        Assert.Contains(GameStatusLines.FinishedMark, text.Text, StringComparison.Ordinal);
+        Assert.Contains(model.Outcome, text.Text, StringComparison.Ordinal);
         Assert.False(view.FindControl<TextBlock>("MobileClockText")!.IsVisible, "часы остались в шапке");
         Assert.False(view.FindControl<Button>("MobilePauseButton")!.IsVisible, "кнопка паузы осталась в шапке");
+
+        // Счёт остаётся в свёрнутой шторке: итог — это и победитель, и счёт.
+        Assert.Contains(
+            model.Score,
+            view.FindControl<TextBlock>("SheetSummary")!.Text ?? string.Empty,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void После_Закрытия_Карточки_Итог_Остаётся_В_Панели()
+    {
+        // Дефект 2 QA 2026-10-17: итог жил только в закрываемом диалоге. «Закрыть» прячет
+        // карточку, но не итог: признак конца, победитель и счёт остаются в панели.
+        var (view, model) = Create();
+        Finish(model);
+
+        var banner = view.FindControl<GameResultBanner>("ResultBanner")!;
+        Click(banner.FindControl<Button>("CloseButton")!);
+
+        Assert.False(banner.IsVisible, "карточка итога не закрылась");
+
+        var status = view.FindControl<TextBlock>("DesktopStatusText")!.Text ?? string.Empty;
+
+        Assert.Contains(GameStatusLines.FinishedMark, status, StringComparison.Ordinal);
+        Assert.Contains(model.Outcome, status, StringComparison.Ordinal);
+        Assert.Contains(
+            model.Score,
+            view.FindControl<TextBlock>("DesktopScoreText")!.Text ?? string.Empty,
+            StringComparison.Ordinal);
+
+        var reason = view.FindControl<TextBlock>("DesktopStatusReasonText")!;
+
+        Assert.True(reason.IsVisible, "способ завершения пропал");
+        Assert.Equal(model.Status, reason.Text);
+    }
+
+    [Fact]
+    public void Отмена_Партии_Спрашивает_Подтверждение()
+    {
+        // Дефект 1 QA 2026-10-17: «Отменить партию» обнуляла партию мгновенно, без вопроса.
+        var (view, model) = Create();
+        model.StartGame();
+
+        var board = model.Board;
+
+        Click(view.FindControl<Button>("DesktopAbortButton")!);
+
+        Assert.True(view.IsAbortConfirmShown, "подтверждение не появилось");
+        Assert.True(model.IsGameStarted, "партия отменена до ответа");
+        Assert.Same(board, model.Board);
+    }
+
+    [Fact]
+    public void Отказ_В_Подтверждении_Оставляет_Партию()
+    {
+        // «Отмена» в вопросе возвращает к партии, а не обнуляет её.
+        var (view, model) = Create();
+        model.StartGame();
+
+        var board = model.Board;
+
+        Click(view.FindControl<Button>("DesktopAbortButton")!);
+        Click(view.FindControl<Button>("AbortCancelButton")!);
+
+        Assert.False(view.IsAbortConfirmShown, "вопрос остался на экране");
+        Assert.True(model.IsGameStarted, "партия отменена по отказу");
+        Assert.Same(board, model.Board);
+    }
+
+    [Fact]
+    public void Подтверждение_Отменяет_Партию()
+    {
+        // Единственный путь к отмене — вторая кнопка вопроса.
+        var (view, model) = Create();
+        model.StartGame();
+        Click(view.FindControl<Button>("DesktopAbortButton")!);
+
+        Click(view.FindControl<Button>("AbortConfirmButton")!);
+
+        Assert.False(view.IsAbortConfirmShown, "вопрос не закрылся");
+        Assert.False(model.IsGameStarted, "партия не отменена по подтверждению");
+    }
+
+    [Fact]
+    public void Меню_Спрашивает_Подтверждение_Отмены()
+    {
+        // Меню партии — второй вход к отмене: вопрос тот же, партия до ответа не меняется.
+        var (view, model) = Create();
+        model.StartGame();
+
+        var board = model.Board;
+
+        view.ShowMenu();
+        Click(view.FindControl<Button>("MenuAbortButton")!);
+
+        Assert.True(view.IsAbortConfirmShown, "меню отменило партию без вопроса");
+        Assert.False(MenuOverlay(view).IsVisible, "меню осталось поверх вопроса");
+        Assert.Same(board, model.Board);
+    }
+
+    [Fact]
+    public void Строка_Сообщения_Не_Входит_В_Нижнюю_Карточку()
+    {
+        // Дефект 4 QA 2026-10-17: строка статуса стояла в нижней карточке, её появление
+        // росло карточку и двигало доску на 29 px. Сообщение — оверлей в месте доски.
+        var (view, _) = Create();
+        var sheet = view.FindControl<Border>("Sheet")!;
+        var hint = view.FindControl<TextBlock>("MobileHint")!;
+        var boardRow = view.FindControl<Panel>("MobileBoardRow")!;
+
+        Assert.DoesNotContain(hint, sheet.GetLogicalDescendants().OfType<TextBlock>());
+        Assert.Contains(hint, boardRow.GetLogicalDescendants().OfType<TextBlock>());
+    }
+
+    [Fact]
+    public void Плашка_Сообщения_Не_Ловит_Нажатия()
+    {
+        // Плашка висит над доской: если бы она ловила нажатия, часть доски стала бы мёртвой.
+        var (view, _) = Create();
+
+        Assert.False(view.FindControl<Border>("MobileHintPill")!.IsHitTestVisible);
+    }
+
+    [Fact]
+    public void Сообщение_Показывается_Плашкой_Над_Доской()
+    {
+        var (view, _) = Create();
+
+        view.ShowHint("Партия сохранена: game.sgf");
+
+        Assert.True(view.FindControl<Border>("MobileHintPill")!.IsVisible, "плашка не показалась");
+        Assert.Equal("Партия сохранена: game.sgf", view.FindControl<TextBlock>("MobileHint")!.Text);
+    }
+
+    [Fact]
+    public void Подсказка_Паузы_Называет_Действительную_Кнопку()
+    {
+        // Дефект 5 QA 2026-10-17: подсказка звала нажать «Продолжить», а кнопка — «Дальше».
+        var (view, model) = Create();
+        model.StartGame();
+        model.PauseGame();
+
+        var button = view.FindControl<Button>("MobilePauseButton")!;
+
+        Assert.Equal("Дальше", button.Content);
+        Assert.Contains($"«{button.Content}»", BoardView.PausedHint, StringComparison.Ordinal);
+        Assert.DoesNotContain("Продолжить", BoardView.PausedHint, StringComparison.Ordinal);
     }
 
     [Fact]

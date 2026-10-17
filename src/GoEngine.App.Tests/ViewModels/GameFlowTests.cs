@@ -275,6 +275,34 @@ public sealed class GameFlowTests
     }
 
     [Fact]
+    public void Пас_Доступен_Пока_Партия_Не_Окончена()
+    {
+        // Признак гасит пас только у оконченной партии: в остальное время кнопка работает.
+        var model = Model();
+
+        Assert.True(model.CanPass);
+    }
+
+    [Fact]
+    public void Пас_Недоступен_После_Конца_Партии()
+    {
+        // Дефект 2 QA 2026-10-17: после конца партии кнопка «Пас» оставалась активной,
+        // хотя партия ходов больше не принимает. Отмена и разметка территории осмысленны,
+        // а пас — нет.
+        var model = Model();
+
+        var loaded = model.LoadGame(new SgfGame(
+            BoardSize.Size9,
+            Komi.For9x9,
+            [Move.Pass(StoneColor.Black), Move.Pass(StoneColor.White)],
+            null));
+
+        Assert.True(loaded.IsSuccess);
+        Assert.True(model.HasOutcome);
+        Assert.False(model.CanPass);
+    }
+
+    [Fact]
     public async Task Пауза_Во_Время_Раздумий_Не_Даёт_Сопернику_Сходить()
     {
         var model = Model();

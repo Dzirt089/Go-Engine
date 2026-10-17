@@ -44,7 +44,7 @@
 
             <!-- Время партии и два действия с ним. Строка стоит выше прочих: время игрок
                  смотрит постоянно, а не ищет в подробностях. Кнопка часов одна на два
-                 состояния — «Пауза» и «Продолжить»: подпись меняет код вида. -->
+                 состояния — «Пауза» и «Дальше»: подпись меняет код вида. -->
             <Grid x:Name="DesktopClockRow" ColumnDefinitions="*,Auto,Auto" Margin="0,2,0,0">
               <TextBlock x:Name="DesktopClockText"
                          Classes="app-clock"
@@ -65,11 +65,22 @@
                       ToolTip.Tip="Прекратить партию и вернуть доску в исходное состояние" />
             </Grid>
 
-            <!-- Состояние партии: кто ходит и что происходит. Итог называет баннер, поэтому
-                 здесь его нет — иначе одно и то же сообщение стояло бы дважды. -->
+            <!-- Состояние партии: кто ходит, а после конца — «Партия окончена» и победитель.
+                 Итог стоит в панели, а не только в закрываемом баннере: после его закрытия
+                 результат обязан остаться на экране (дефект 2 QA 2026-10-17). Счёт — отдельной
+                 строкой ниже, поэтому в этой строке его нет: он не должен звучать дважды. -->
             <TextBlock x:Name="DesktopStatusText"
                        FontSize="16"
                        FontWeight="SemiBold"
+                       TextWrapping="Wrap" />
+
+            <!-- Чем партия окончена: «Завершена двумя пасами», «Завершена сдачей». Признак конца
+                 и победителя называет строка выше, а способ завершения — эта. Нужна после конца
+                 партии: раньше способ стоял вместо признака, и итог было не понять (дефект 2 QA
+                 2026-10-17). Пока партия идёт, строки нет. -->
+            <TextBlock x:Name="DesktopStatusReasonText"
+                       Classes="app-label"
+                       IsVisible="False"
                        TextWrapping="Wrap" />
 
             <TextBlock x:Name="DesktopScoreText"
@@ -90,7 +101,7 @@
                       Grid.Column="0"
                       Content="Пас"
                       Classes="app-row-action primary"
-                      IsEnabled="{Binding CanPlayMove}" />
+                      IsEnabled="{Binding CanPass}" />
               <Button x:Name="UndoButton"
                       Grid.Column="1"
                       Content="Отменить"
@@ -344,7 +355,30 @@
           <Border x:Name="MobileBoardHost"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center" />
-      </Panel>
+
+          <!-- Сообщения о сохранении, загрузке и отказах: всплывающая плашка над панелью
+               действий, а не строка в нижней карточке. Строка в карточке меняла её высоту,
+               и доска сдвигалась вверх на 29 px при каждом сообщении (дефект 4 QA 2026-10-17).
+               Плашка — оверлей: в раскладке она не участвует, доска не двигается. Нажатий
+               она не ловит, поэтому доска под ней остаётся играбельной. -->
+          <Border x:Name="MobileHintPill"
+                  VerticalAlignment="Bottom"
+                  HorizontalAlignment="Center"
+                  Margin="8"
+                  MaxWidth="420"
+                  Padding="12,6"
+                  CornerRadius="12"
+                  IsVisible="False"
+                  IsHitTestVisible="False"
+                  Background="{DynamicResource AppSurfaceBrush}"
+                  BorderBrush="{DynamicResource AppBorderBrush}"
+                  BorderThickness="1">
+            <TextBlock x:Name="MobileHint"
+                       Classes="app-label"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap" />
+          </Border>
+        </Panel>
 
       <!-- Панель действий: один ряд, и в нём — только ход партии: пас, отмена, возврат
            и разметка территории. Часы и «Пауза» стоят в шапке, «Новая партия», «Отменить партию»,
@@ -367,7 +401,7 @@
                       Grid.Column="0"
                       Content="Пас"
                       Classes="app-touch primary"
-                      IsEnabled="{Binding CanPlayMove}" />
+                      IsEnabled="{Binding CanPass}" />
               <Button x:Name="MobileUndoButton"
                       Grid.Column="1"
                       Content="Отменить"
@@ -433,12 +467,6 @@
               <TextBlock x:Name="SheetSummaryDetails"
                          Classes="app-label"
                          TextWrapping="Wrap" />
-              <!-- Сообщения о сохранении, загрузке и отказах видны и в свёрнутой шторке:
-                   на телефоне системных диалогов нет. -->
-              <TextBlock x:Name="MobileHint"
-                         Classes="app-label"
-                         TextWrapping="Wrap"
-                         IsVisible="False" />
               </StackPanel>
             </StackPanel>
           </Button>
@@ -658,6 +686,47 @@
          и теснила доску (жалоба пользователя 2026-10-02). Стоит до экрана настроек: настройки
          открываются поверх всего. -->
     <views:GameResultBanner x:Name="ResultBanner" />
+
+    <!-- Подтверждение отмены партии: тот же вопрос, что у «Выхода», и по той же причине —
+         одно неосторожное нажатие не должно уносить партию. Раньше «Отменить партию»
+         обнуляла доску сразу, без диалога (дефект 1 QA 2026-10-17). Затемнение и карточка —
+         те же классы темы, что у подтверждения выхода в оболочке; «Отмена» возвращает
+         к партии, «Отменить партию» — единственный путь отсюда к отмене. -->
+    <Border x:Name="AbortOverlay"
+            IsVisible="False"
+            Classes="app-overlay">
+      <Border Classes="app-banner app-overlay-card"
+              MaxWidth="420"
+              Padding="16"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <StackPanel Spacing="10">
+          <TextBlock Classes="app-subtitle"
+                     Text="Отменить партию?"
+                     HorizontalAlignment="Center" />
+          <TextBlock Classes="app-label"
+                     Text="Несохранённая партия будет потеряна."
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+          <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
+            <Button x:Name="AbortCancelButton"
+                    Grid.Column="0"
+                    Content="Отмена"
+                    Classes="app-action"
+                    Margin="0,0,4,0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" />
+            <Button x:Name="AbortConfirmButton"
+                    Grid.Column="1"
+                    Content="Отменить партию"
+                    Classes="app-action danger"
+                    Margin="4,0,0,0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" />
+          </Grid>
+        </StackPanel>
+      </Border>
+    </Border>
 
     <!-- Настройки — полноценный экран во всю высоту вида, а не карточка: подразделов три,
          и в карточке 460×640 они не помещались (жалоба пользователя 2026-10-03). Сверху заголовок,
