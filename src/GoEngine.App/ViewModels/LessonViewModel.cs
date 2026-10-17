@@ -418,8 +418,24 @@ public sealed class LessonViewModel : INotifyPropertyChanged
     /// Находка QA 2026-10-17 (B5): длинное название обрезалось посреди слова без многоточия
     /// («…сняти»), и было непонятно, что текст вообще обрезан.
     /// </remarks>
-    private static string Fit(string text) =>
-        text.Length <= LabelLength ? text : string.Concat(text.AsSpan(0, LabelLength - 1), "…");
+    private static string Fit(string text)
+    {
+        if (text.Length <= LabelLength)
+        {
+            return text;
+        }
+
+        // Режем по границе слова: «…9×9: углы, расширение…» читается, «…снят…» — нет
+        // (нюанс из отчёта QA 2026-10-17).
+        var cut = text.LastIndexOf(' ', LabelLength - 1);
+
+        if (cut < LabelLength / 2)
+        {
+            cut = LabelLength - 1;
+        }
+
+        return string.Concat(text.AsSpan(0, cut).TrimEnd(), "…");
+    }
 
     private IReadOnlyList<string> BuildLabels() =>
         _lessons

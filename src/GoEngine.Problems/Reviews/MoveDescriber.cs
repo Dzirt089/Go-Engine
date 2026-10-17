@@ -175,7 +175,7 @@ public static class MoveDescriber
         // Вариант выбирается и по номеру хода, и по фактам позиции: на доске с одинаковыми
         // «углами» одна и та же фраза больше не всплывает через каждые три хода
         // (замечание пользователя 2026-10-17 и находка QA: повтор на ходах 9/12/15/21).
-        var variant = Math.Abs((facts.MoveNumber * 7) + (facts.Line * 3) + free + facts.NearestEnemy + facts.GroupSize) % 4;
+        var variant = Math.Abs((facts.MoveNumber * 7) + (facts.Line * 3) + free + facts.NearestEnemy + facts.GroupSize) % 5;
 
         return facts.Region switch
         {
@@ -271,6 +271,17 @@ public static class MoveDescriber
 
         return best;
     }
+
+    /// <summary>Расстояние до ближайшего камня соперника словами.</summary>
+    /// <param name="facts">Факты о ходе.</param>
+    /// <returns>Фраза для замысла.</returns>
+    private static string EnemyDistance(MoveFacts facts) => facts.NearestEnemy switch
+    {
+        < 0 => "соперника на доске нет",
+        0 => "он вплотную",
+        1 => "одна точка",
+        _ => $"{facts.NearestEnemy.ToString(CultureInfo.InvariantCulture)} точки"
+    };
 
     /// <summary>Кто говорит: «Чёрные» или «Белые».</summary>
     /// <param name="color">Цвет.</param>

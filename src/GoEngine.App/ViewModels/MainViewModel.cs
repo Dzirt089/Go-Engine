@@ -1009,6 +1009,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _scoring.Sync(_game.Board, _game.Status);
         ShowAiMoveIfNeeded();
         SyncClockWithGame();
+
         NotifyAll();
 
         return true;
@@ -1095,6 +1096,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         return false;
     }
+
 
     /// <summary>Возвращает партию для сохранения в SGF.</summary>
     /// <returns>Данные партии: размер доски, коми и ходы.</returns>

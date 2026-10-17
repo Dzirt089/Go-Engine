@@ -3,6 +3,8 @@ using GoEngine.Core;
 
 namespace GoEngine.Problems;
 
+using System.Globalization;
+
 /// <summary>Тексты задачи: точная цель, отклик на ход и разбор решения.</summary>
 /// <remarks>
 /// <para>
@@ -74,9 +76,14 @@ public static class ProblemTexts
         var facts = MoveDescriber.FactsOf(before, after, move, 1);
         List<string> parts = [];
 
-        if (facts.Captured > 0)
+        // Сколько камней соперника действительно исчезло с доски: число берётся из разницы позиций,
+        // а не из счётчика снятий. Иначе строка говорила «снято 1 камень», а на доске ничего
+        // не менялось (нюанс из отчёта QA 2026-10-17).
+        var removed = Removed(before, after, move.Color.Opponent());
+
+        if (removed > 0)
         {
-            parts.Add($"снято {Stones(facts.Captured)}");
+            parts.Add($"снято {Stones(removed)}");
         }
         else if (facts.Atari.Count > 0)
         {
@@ -382,6 +389,32 @@ public static class ProblemTexts
         var value when value == ProblemGoal.Ko => "Начать ко-борьбу",
         _ => "Решить задачу"
     };
+
+    /// <summary>Сколько камней цвета исчезло с доски между позициями.</summary>
+    /// <param name="before">Позиция до хода.</param>
+    /// <param name="after">Позиция после хода.</param>
+    /// <param name="colour">Цвет исчезнувших камней.</param>
+    /// <returns>Разница в числе камней; 0 — ничего не снято.</returns>
+    private static int Removed(Board before, Board after, StoneColor colour)
+    {
+        var size = before.Size.Value;
+        var lost = 0;
+
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                var point = new Point((byte)x, (byte)y);
+
+                if (before.At(point) == colour && after.At(point) != colour)
+                {
+                    lost++;
+                }
+            }
+        }
+
+        return lost;
+    }
 
     /// <summary>Название цвета для текста.</summary>
     /// <param name="colour">Цвет.</param>
