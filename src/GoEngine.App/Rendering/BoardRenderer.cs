@@ -207,11 +207,6 @@ public static class BoardRenderer
 
         DrawGrid(canvas, board.Size, geometry);
 
-        if (showCoordinates)
-        {
-            DrawCoordinates(canvas, board.Size, geometry);
-        }
-
         DrawStarPoints(canvas, board.Size, geometry);
 
         // Подсветка формы рисуется под камнями: камень закрывает верхнюю часть ореола,
@@ -245,6 +240,14 @@ public static class BoardRenderer
             {
                 DrawHint(canvas, geometry, point);
             }
+        }
+
+        // Подписи координат — последними: камень на крайней линии заходит в поле для подписей
+        // и закрывал буквы A/B/C и цифру 9 (находка QA 2026-10-17, B3). Теперь подпись видна
+        // всегда, а камень под ней не мешает: подписи стоят вне сетки.
+        if (showCoordinates)
+        {
+            DrawCoordinates(canvas, board.Size, geometry);
         }
     }
 

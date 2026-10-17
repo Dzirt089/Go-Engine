@@ -408,9 +408,22 @@ public sealed class LessonViewModel : INotifyPropertyChanged
     /// Партия… — это не годится, у нас и так не хватает места, и всем понятно, что это партия»).
     /// Поэтому ни служебного идентификатора, ни слова раздела: место в списке дорого.
     /// </remarks>
+    /// <summary>Сколько знаков подписи помещается в поле выбора.</summary>
+    private const int LabelLength = 34;
+
+    /// <summary>Укорачивает подпись до поля выбора, ставя многоточие.</summary>
+    /// <param name="text">Полная подпись.</param>
+    /// <returns>Подпись, которая помещается в поле.</returns>
+    /// <remarks>
+    /// Находка QA 2026-10-17 (B5): длинное название обрезалось посреди слова без многоточия
+    /// («…сняти»), и было непонятно, что текст вообще обрезан.
+    /// </remarks>
+    private static string Fit(string text) =>
+        text.Length <= LabelLength ? text : string.Concat(text.AsSpan(0, LabelLength - 1), "…");
+
     private IReadOnlyList<string> BuildLabels() =>
         _lessons
-            .Select((lesson, index) => Mark($"{index + 1}. {lesson.Title}", _progress.ForLesson(lesson.Id)))
+            .Select((lesson, index) => Mark(Fit($"{index + 1}. {lesson.Title}"), _progress.ForLesson(lesson.Id)))
             .ToList()
             .AsReadOnly();
 

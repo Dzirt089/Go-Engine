@@ -407,9 +407,22 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
     /// </remarks>
     private IReadOnlyList<string> BuildLabels() =>
         _games
-            .Select((game, index) => Mark($"{index + 1}. {game.Title}", _progress.ForGame(game.Id)))
+            .Select((game, index) => Mark(Fit($"{index + 1}. {game.Title}"), _progress.ForGame(game.Id)))
             .ToList()
             .AsReadOnly();
+
+    /// <summary>Сколько знаков подписи помещается в поле выбора.</summary>
+    private const int LabelLength = 34;
+
+    /// <summary>Укорачивает подпись до поля выбора, ставя многоточие.</summary>
+    /// <param name="text">Полная подпись.</param>
+    /// <returns>Подпись, которая помещается в поле.</returns>
+    /// <remarks>
+    /// Находка QA 2026-10-17 (B5): длинное название обрезалось посреди слова без многоточия
+    /// («…сняти»), и было непонятно, что текст вообще обрезан.
+    /// </remarks>
+    private static string Fit(string text) =>
+        text.Length <= LabelLength ? text : string.Concat(text.AsSpan(0, LabelLength - 1), "…");
 
     /// <summary>Отмечает партию в списке: «✓» — разобрана, «▸» — начата.</summary>
     private static string Mark(string name, StudyItemProgress? saved) => saved switch

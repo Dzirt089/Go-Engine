@@ -320,6 +320,8 @@ public sealed partial class BoardView : UserControl
 
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
 
+        AddHandler(Avalonia.Input.InputElement.PointerPressedEvent, OnDebugPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+
         WireButton("PassButton", OnPassClick);
         WireButton("UndoButton", OnUndoClick);
         WireButton("RedoButton", OnRedoClick);
@@ -1783,4 +1785,15 @@ public sealed partial class BoardView : UserControl
     /// <param name="sender">Кнопка «Загрузить».</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnLoadClick(object? sender, RoutedEventArgs e) => _ = LoadGameAsync();
+
+    /// <summary>Временно: печатает касания в logcat, чтобы найти смещение области нажатия.</summary>
+    /// <param name="sender">Вид.</param>
+    /// <param name="e">Событие указателя.</param>
+    private void OnDebugPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)
+    {
+        var position = e.GetPosition(this);
+        var source = e.Source as Avalonia.Controls.Control;
+        var name = source?.Name ?? source?.GetType().Name ?? "?";
+        Console.WriteLine($"TAP-DEBUG логические=({position.X:F1},{position.Y:F1}) элемент={name}");
+    }
 }
