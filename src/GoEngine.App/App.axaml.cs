@@ -26,6 +26,9 @@ namespace GoEngine.App;
 /// </remarks>
 public sealed partial class App : Application
 {
+    /// <summary>Высота строки состояния Android: под неё отступает содержимое приложения.</summary>
+    private const double AndroidStatusBarHeight = 24;
+
     /// <summary>Оценка позиции нейросетью для уровней Дан.</summary>
     /// <remarks>
     /// Головы задают её до запуска: библиотека интерфейса не знает про ONNX
@@ -256,7 +259,16 @@ public sealed partial class App : Application
     {
         await PrepareAsync(loading).ConfigureAwait(true);
 
-        mobile.MainView = new ShellView();
+        // На Android отрисовка идёт от верхнего края экрана (см. MainActivity), а строка состояния
+        // системы перекрывала бы шапку: отступаем под неё внутри приложения. Отступ одинаковый
+        // сверху и в раскладке, поэтому картинка и касания совпадают (блокер B1, QA 2026-10-17).
+        mobile.MainView = OperatingSystem.IsAndroid()
+            ? new Border
+            {
+                Padding = new Thickness(0, AndroidStatusBarHeight, 0, 0),
+                Child = new ShellView()
+            }
+            : new ShellView();
     }
 
     /// <summary>Выполняет подготовку головы в фоне, показывая её ход на экране загрузки.</summary>
