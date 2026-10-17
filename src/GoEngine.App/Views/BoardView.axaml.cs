@@ -975,7 +975,7 @@ public sealed partial class BoardView : UserControl
             return;
         }
 
-        var mode = BoardLayoutRules.DecideLayout(width, height);
+        var mode = BoardLayoutRules.DecideLayoutFor(width, height, OperatingSystem.IsAndroid());
 
         if (_layoutMode != mode)
         {

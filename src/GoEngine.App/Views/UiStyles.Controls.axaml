@@ -48,8 +48,12 @@
     <Setter Property="HorizontalAlignment" Value="Stretch" />
   </Style>
 
+  <!-- Высота 64, а не 48: на Android отрисовка смещена вниз примерно на 24 точки относительно
+       областей нажатия (вставка статус-бара), и при высоте 48 тап в центр приходился ровно
+       на границу кнопки — срабатывала только кромка (блокер B1 из отчёта QA 2026-10-17).
+       С 64 точками смещение уходит в запас, а цель нажатия становится только удобнее. -->
   <Style Selector="Button.app-touch">
-    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="MinHeight" Value="64" />
     <Setter Property="MinWidth" Value="0" />
     <Setter Property="Padding" Value="4,0" />
     <Setter Property="FontSize" Value="13" />
@@ -98,7 +102,7 @@
   </Style>
 
   <Style Selector="ToggleButton.app-touch-toggle">
-    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="MinHeight" Value="64" />
     <Setter Property="MinWidth" Value="0" />
     <Setter Property="Padding" Value="4,0" />
     <Setter Property="FontSize" Value="13" />

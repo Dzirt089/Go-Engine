@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
@@ -483,7 +484,7 @@ public sealed partial class ShellView : UserControl
     /// </remarks>
     private void ApplyLayout(double width, double height)
     {
-        var layout = BoardLayoutRules.DecideLayout(width, height);
+        var layout = BoardLayoutRules.DecideLayoutFor(width, height, OperatingSystem.IsAndroid());
 
         // Стартовое меню партии открывается только в мобильной раскладке: на телефоне это
         // единственный вход к действиям партии, а настольному окну шторка поверх доски мешала бы —
@@ -670,6 +671,18 @@ public sealed partial class ShellView : UserControl
             GameArea.CloseSettingsScreen();
 
             return true;
+        }
+
+        // Открытый список (выбор партии, урока или задачи) закрывается первым: иначе системная
+        // «Назад» закрывала приложение вместе со списком (находка QA 2026-10-17, B12).
+        foreach (var combo in this.GetVisualDescendants().OfType<ComboBox>())
+        {
+            if (combo.IsDropDownOpen)
+            {
+                combo.IsDropDownOpen = false;
+
+                return true;
+            }
         }
 
         if (Shell.IsMenuSection)

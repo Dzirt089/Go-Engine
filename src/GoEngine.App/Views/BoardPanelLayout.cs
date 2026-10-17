@@ -63,7 +63,7 @@ internal sealed class BoardPanelLayout
     /// <param name="height">Высота вида.</param>
     public void Apply(double width, double height)
     {
-        var narrow = BoardLayoutRules.IsNarrow(width, height);
+        var narrow = OperatingSystem.IsAndroid() || BoardLayoutRules.IsNarrow(width, height);
         var panelWidth = BoardLayoutRules.DesktopPanelWidth(width);
 
         if (_narrow != narrow)

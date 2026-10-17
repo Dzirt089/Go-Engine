@@ -27,6 +27,20 @@ public static class BoardLayoutRules
     /// <summary>Ширина, ниже которой панель справа уже не помещается: с неё начинается мобильный вид.</summary>
     public const double NarrowWidth = 760;
 
+    /// <summary>Выбирает раскладку с учётом платформы: на телефоне она всегда мобильная.</summary>
+    /// <param name="width">Ширина вида.</param>
+    /// <param name="height">Высота вида.</param>
+    /// <param name="isPhone">Вид работает на телефоне (Android).</param>
+    /// <returns>Раскладка для этого размера и платформы.</returns>
+    /// <remarks>
+    /// Телефон в ландшафте (1010×445) по ширине выглядит настольным окном, но настольная раскладка
+    /// в нём обрезала правую панель и низ, а нижней навигации с разделом «Меню» не было вовсе
+    /// (находки QA 2026-10-17, B2 и B11). Поэтому платформа решает раньше размера: на телефоне —
+    /// всегда мобильная раскладка.
+    /// </remarks>
+    public static LayoutMode DecideLayoutFor(double width, double height, bool isPhone) =>
+        isPhone ? LayoutMode.Mobile : DecideLayout(width, height);
+
     /// <summary>Наименьшая разумная высота доски в вертикальной раскладке.</summary>
     public const double MinimumBoardHeight = 240;
 
