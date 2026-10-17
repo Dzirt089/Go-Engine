@@ -590,6 +590,20 @@ public static class BoardRenderer
 
         using var font = new SKFont(SKTypeface.Default, textSize);
         using var paint = new SKPaint { Color = GridColor, IsAntialias = true };
+        using var halo = new SKPaint { Color = BoardColor, IsAntialias = true };
+
+        // Обводка цветом доски: камень на крайней линии заходит в поле подписей, и без неё
+        // тёмная подпись на чёрном камне не читалась (находки QA 2026-10-17, B3 и B10).
+        var haloOffset = Math.Max(1f, textSize / 10f);
+
+        void Label(string text, float x, float y)
+        {
+            canvas.DrawText(text, x - haloOffset, y, SKTextAlign.Center, font, halo);
+            canvas.DrawText(text, x + haloOffset, y, SKTextAlign.Center, font, halo);
+            canvas.DrawText(text, x, y - haloOffset, SKTextAlign.Center, font, halo);
+            canvas.DrawText(text, x, y + haloOffset, SKTextAlign.Center, font, halo);
+            canvas.DrawText(text, x, y, SKTextAlign.Center, font, paint);
+        }
 
         for (var index = 0; index < size.Value; index++)
         {
@@ -597,10 +611,10 @@ public static class BoardRenderer
             var letter = ColumnLetters[index].ToString();
             var number = (index + 1).ToString(CultureInfo.InvariantCulture);
 
-            canvas.DrawText(letter, center, first - gap + baseline, SKTextAlign.Center, font, paint);
-            canvas.DrawText(letter, center, last + gap + baseline, SKTextAlign.Center, font, paint);
-            canvas.DrawText(number, first - gap, center + baseline, SKTextAlign.Center, font, paint);
-            canvas.DrawText(number, last + gap, center + baseline, SKTextAlign.Center, font, paint);
+            Label(letter, center, first - gap + baseline);
+            Label(letter, center, last + gap + baseline);
+            Label(number, first - gap, center + baseline);
+            Label(number, last + gap, center + baseline);
         }
     }
 

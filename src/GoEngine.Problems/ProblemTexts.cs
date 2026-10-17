@@ -80,7 +80,7 @@ public static class ProblemTexts
         }
         else if (facts.Atari.Count > 0)
         {
-            parts.Add($"ставлю {Name(facts.Atari[0].Color)} группу в атари: у неё одно дыхание");
+            parts.Add($"ставлю {Accusative(facts.Atari[0].Color)} группу в атари: у неё одно дыхание");
         }
 
         if (facts.Connects)
@@ -387,6 +387,11 @@ public static class ProblemTexts
     /// <param name="colour">Цвет.</param>
     /// <returns>«чёрная» или «белая».</returns>
     private static string Name(StoneColor colour) => colour == StoneColor.Black ? "чёрная" : "белая";
+
+    /// <summary>Прилагательное цвета в винительном падеже: «чёрную» или «белую».</summary>
+    /// <param name="colour">Цвет группы.</param>
+    /// <returns>Слово для строки об атари.</returns>
+    private static string Accusative(StoneColor colour) => colour == StoneColor.Black ? "чёрную" : "белую";
 
     /// <summary>Название цвета в родительном падеже: «у чёрной группы».</summary>
     /// <param name="colour">Цвет.</param>

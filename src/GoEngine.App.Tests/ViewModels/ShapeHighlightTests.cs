@@ -35,13 +35,17 @@ public sealed class ShapeHighlightTests
     public void Две_Формы_Получают_Номера_И_Значки()
     {
         // Две отдельные пары в разных углах: две независимые формы — номера и значки на доске.
+        // Две формы с разными названиями: пара в углу и плотный квадрат.
+        // Одинаковые названия в списке не показываются — иначе игрок видит «2) бамбук»
+        // и «3) бамбук» и не понимает разницы (B7 из отчёта QA 2026-10-17).
         var board = Build(
             (1, 1, StoneColor.Black), (1, 2, StoneColor.Black),
-            (7, 7, StoneColor.Black), (7, 8, StoneColor.Black),
-            (5, 5, StoneColor.White));
+            (6, 6, StoneColor.Black), (7, 6, StoneColor.Black),
+            (6, 7, StoneColor.Black), (7, 7, StoneColor.Black),
+            (4, 4, StoneColor.White));
         var marks = new ShapeHighlight();
 
-        _ = marks.Refresh(board, StoneColor.Black, [new Point(1, 1), new Point(1, 2), new Point(7, 7), new Point(7, 8)]);
+        _ = marks.Refresh(board, StoneColor.Black, [new Point(1, 1), new Point(6, 6), new Point(7, 7)]);
 
         Assert.True(marks.Shapes.Count >= 2, $"форм найдено: {marks.Shapes.Count}");
         Assert.True(marks.HasSeveral);
@@ -53,13 +57,17 @@ public sealed class ShapeHighlightTests
     [Fact]
     public void Выбор_Формы_Меняет_Камни_Подсветки()
     {
+        // Две формы с разными названиями: пара в углу и плотный квадрат.
+        // Одинаковые названия в списке не показываются — иначе игрок видит «2) бамбук»
+        // и «3) бамбук» и не понимает разницы (B7 из отчёта QA 2026-10-17).
         var board = Build(
             (1, 1, StoneColor.Black), (1, 2, StoneColor.Black),
-            (7, 7, StoneColor.Black), (7, 8, StoneColor.Black),
-            (5, 5, StoneColor.White));
+            (6, 6, StoneColor.Black), (7, 6, StoneColor.Black),
+            (6, 7, StoneColor.Black), (7, 7, StoneColor.Black),
+            (4, 4, StoneColor.White));
         var marks = new ShapeHighlight();
 
-        _ = marks.Refresh(board, StoneColor.Black, [new Point(1, 1), new Point(1, 2), new Point(7, 7), new Point(7, 8)]);
+        _ = marks.Refresh(board, StoneColor.Black, [new Point(1, 1), new Point(6, 6), new Point(7, 7)]);
 
         var first = marks.Points;
 
@@ -72,13 +80,17 @@ public sealed class ShapeHighlightTests
     [Fact]
     public void Значок_Стоит_На_Камне_Формы()
     {
+        // Две формы с разными названиями: пара в углу и плотный квадрат.
+        // Одинаковые названия в списке не показываются — иначе игрок видит «2) бамбук»
+        // и «3) бамбук» и не понимает разницы (B7 из отчёта QA 2026-10-17).
         var board = Build(
             (1, 1, StoneColor.Black), (1, 2, StoneColor.Black),
-            (7, 7, StoneColor.Black), (7, 8, StoneColor.Black),
-            (5, 5, StoneColor.White));
+            (6, 6, StoneColor.Black), (7, 6, StoneColor.Black),
+            (6, 7, StoneColor.Black), (7, 7, StoneColor.Black),
+            (4, 4, StoneColor.White));
         var marks = new ShapeHighlight();
 
-        _ = marks.Refresh(board, StoneColor.Black, [new Point(1, 1), new Point(1, 2), new Point(7, 7), new Point(7, 8)]);
+        _ = marks.Refresh(board, StoneColor.Black, [new Point(1, 1), new Point(6, 6), new Point(7, 7)]);
 
         foreach (var badge in marks.Badges)
         {

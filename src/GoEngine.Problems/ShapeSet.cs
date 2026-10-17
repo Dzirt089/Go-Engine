@@ -59,9 +59,9 @@ public static class ShapeSet
 
         foreach (var shape in ordered.Where(shape => !ordered.Any(other => other != shape && shape.Points.All(other.Points.Contains))))
         {
-            // Две формы с одним названием на одних и тех же камнях — это одна форма: показываем
-            // её один раз (находка QA 2026-10-17: в чипах стояло «пустой треугольник» дважды).
-            if (!unique.Any(kept => kept.Name == shape.Name && kept.Points.Intersect(shape.Points).Any()))
+            // Двух форм с одинаковым названием в списке быть не должно: игрок видит «2) бамбук»
+            // и «3) бамбук» и не понимает, чем они отличаются (находка QA-повтора 2026-10-17, B7).
+            if (!unique.Any(kept => kept.Name == shape.Name))
             {
                 unique.Add(shape);
             }

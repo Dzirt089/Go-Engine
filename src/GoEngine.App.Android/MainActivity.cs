@@ -18,6 +18,10 @@ namespace GoEngine.App.Android;
     Icon = "@mipmap/ic_launcher",
     Theme = "@style/MyTheme.NoActionBar",
     MainLauncher = true,
+    // Доска квадратная: в ландшафте приложение не выигрывает места, а мобильная раскладка
+    // в низком окне ломается (пропадает шапка партии и обрезаются кнопки). Поэтому телефон
+    // закреплён в портрете (находки QA 2026-10-17, B2 и B11).
+    ScreenOrientation = Android.Content.PM.ScreenOrientation.Portrait,
     ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.UiMode)]
 public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App>
 {
