@@ -109,23 +109,17 @@ public static class ProblemTexts
         }
 
         // Что стало с целевой группой: дыхания до и после — главное, что видит решающий.
+        // Ответ говорит и о цели: сократились дыхания или нет. Раньше здесь стояла голая
+        // разница, и на задаче «убить группу» отклик хвалил ход, который добавлял противнику
+        // дыхание («Верно: A6 — у белой группы 4 дыхания (было 3)»), — игрок не понимал,
+        // приближает ли это к цели (находка QA L18 отчёта 2026-10-17).
         var beforeGroup = TargetGroup(problem, before);
         var afterGroup = TargetGroup(problem, after);
+        var target = TargetState(problem, before, after, beforeGroup, afterGroup);
 
-        if (beforeGroup.Count > 0 && afterGroup.Count == 0)
+        if (target.Length > 0)
         {
-            parts.Add($"{Name(before.At(beforeGroup[0]))} группа снята: у неё не осталось дыханий");
-        }
-        else if (afterGroup.Count > 0)
-        {
-            var was = Liberties(before, beforeGroup);
-            var now = Liberties(after, afterGroup);
-
-
-            if (now != was)
-            {
-                parts.Add($"у {NameOf(after.At(afterGroup[0]))} группы {Breaths(now)} (было {was})");
-            }
+            parts.Add(target);
         }
 
         var label = BoardCoordinates.Label(point, after.Size);
@@ -237,6 +231,62 @@ public static class ProblemTexts
         var group = GroupTracker.FindGroup(board, problem.Target);
 
         return group.Stones;
+    }
+
+    /// <summary>Что ход сделал с целевой группой и приблизило ли это к цели задачи.</summary>
+    /// <param name="problem">Задача: по её цели решается, к чему стремится ход.</param>
+    /// <param name="before">Позиция до хода.</param>
+    /// <param name="after">Позиция после хода.</param>
+    /// <param name="beforeGroup">Целевая группа до хода.</param>
+    /// <param name="afterGroup">Целевая группа после хода.</param>
+    /// <returns>Строку о группе; пустую, если целевой группы в позиции нет.</returns>
+    /// <remarks>
+    /// Направление берётся из позиции, а не из текста: у задачи «снять группу соперника» меньше
+    /// дыханий — ближе к цели, у задачи «спасти свою» больше — тоже ближе. Формулировка не
+    /// обещает победы: у задачи из источника исход движком не проверяется, поэтому там прямо
+    /// сказано, что ход из линии решения, а цель достигается всей линией.
+    /// </remarks>
+    private static string TargetState(
+        Problem problem,
+        Board before,
+        Board after,
+        IReadOnlyList<Point> beforeGroup,
+        IReadOnlyList<Point> afterGroup)
+    {
+        if (afterGroup.Count == 0)
+        {
+            return beforeGroup.Count > 0
+                ? $"{Name(before.At(beforeGroup[0]))} группа снята: у неё не осталось дыханий"
+                : string.Empty;
+        }
+
+        var was = Liberties(before, beforeGroup);
+        var now = Liberties(after, afterGroup);
+        var colour = after.At(afterGroup[0]);
+        var opponent = colour != problem.SolverColor;
+        var state = now == was
+            ? $"у {NameOf(colour)} группы {Breaths(now)}"
+            : $"у {NameOf(colour)} группы {Breaths(now)} (было {was})";
+
+        var reference = problem.Goal == ProblemGoal.Reference
+            ? " — он из линии решения источника, а цель достигается всей линией"
+            : " — к цели это ход не приближает";
+
+        if (now < was)
+        {
+            return opponent
+                ? $"{state}: на шаг ближе к снятию"
+                : $"{state}: теснее, чем было, — цель ещё не достигнута";
+        }
+
+        if (now > was)
+        {
+            return opponent
+                ? $"{state}: этот ход её не теснит{reference}"
+                : $"{state}: свободнее, ближе к жизни";
+        }
+
+        return $"{state}: дыхания не изменились{reference}";
     }
 
     /// <summary>Свободные точки вокруг группы: её дыхания.</summary>

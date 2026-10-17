@@ -13,8 +13,14 @@
 
     <TabControl x:Name="SettingsTabs" Grid.Row="0" Classes="app-settings-tabs">
 
-    <!-- Подраздел «Партия»: размер доски, уровень соперника, цвет игрока, коми и звук. -->
-    <TabItem Header="Партия">
+    <!-- Высота заголовка 64, а не 48: на Android отрисовка смещена вниз примерно на 24 точки
+         относительно областей нажатия (вставка статус-бара, D-107), и при высоте 48 тап
+         по видимому центру подписи приходился ровно на нижнюю границу вкладки — вкладка
+         «Подсчёт» не открывалась (блокер B2 отчёта QA 2026-10-17). С 64 точками смещение
+         уходит в запас, как у кнопок партии. -->
+    <TabItem x:Name="GameTab"
+             Header="Партия"
+             MinHeight="64">
       <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="16" Spacing="10">
 
@@ -22,10 +28,23 @@
           <ComboBox x:Name="SizeBox" HorizontalAlignment="Stretch" MinHeight="44" />
 
           <TextBlock Text="Уровень AI" FontWeight="SemiBold" />
-          <ComboBox x:Name="LevelBox" HorizontalAlignment="Stretch" MinHeight="44" />
+          <ComboBox x:Name="LevelBox"
+                    HorizontalAlignment="Stretch"
+                    MinHeight="44"
+                    ToolTip.Tip="Кю и дан — сила соперника: меньше кю — сильнее, 30 кю — самый слабый; дан сильнее любого кю." />
+          <!-- Ранги кю и дан новичку ничего не говорят, а выбор силы соперника — первый
+               осмысленный выбор в партии (находка QA L8). Пояснение короткое и стоит у поля. -->
+          <TextBlock x:Name="LevelHintText"
+                     Classes="app-label"
+                     TextWrapping="Wrap"
+                     Text="Кю и дан — сила соперника: 30 кю — самый слабый, 1 кю сильнее 10 кю, дан сильнее любого кю. «Нейросеть» — соперник оценивает позицию обученной сетью, «перебор» — считает варианты ходы за ходом." />
 
           <TextBlock Text="Мой цвет" FontWeight="SemiBold" />
           <ComboBox x:Name="ColorBox" HorizontalAlignment="Stretch" MinHeight="44" />
+          <TextBlock x:Name="ColorHintText"
+                     Classes="app-label"
+                     TextWrapping="Wrap"
+                     Text="Вы играете этим цветом, соперник — противоположным. Первыми всегда ходят чёрные." />
 
           <TextBlock Text="Коми" FontWeight="SemiBold" />
           <NumericUpDown x:Name="KomiBox"
@@ -34,7 +53,14 @@
                          Increment="0.5"
                          FormatString="0.0"
                          MinHeight="44"
-                         HorizontalAlignment="Stretch" />
+                         HorizontalAlignment="Stretch"
+                         ToolTip.Tip="Коми — компенсация белым за то, что чёрные ходят первыми" />
+          <!-- Первая цифра, которую видит новичок в партии, — коми 5.5, и она необъяснима
+               (находка QA L3). Пояснение стоит у поля, которым коми меняют. -->
+          <TextBlock x:Name="KomiHintText"
+                     Classes="app-label"
+                     TextWrapping="Wrap"
+                     Text="Коми — компенсация белым за то, что чёрные ходят первыми: эти очки прибавляются белым при подсчёте. Для 9×9 обычно 5.5." />
 
           <!-- Звук ходов: короткий стук камня вместе с анимацией. Игрок вправе его выключить —
                в турнирном зале, в транспорте или просто потому, что не нужен. -->
@@ -58,7 +84,9 @@
     <!-- Подраздел «Подсчёт»: какая система называет победителя и что входит в очки.
          Пояснения берутся у самих правил (ScoringRule.Descriptions) и из подсказки
          MainViewModel.ScoringHint — своих формулировок правил вид не придумывает. -->
-    <TabItem Header="Подсчёт">
+    <TabItem x:Name="ScoringTab"
+             Header="Подсчёт"
+             MinHeight="64">
       <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="16" Spacing="10">
 

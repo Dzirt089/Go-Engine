@@ -21,6 +21,10 @@
         <MenuItem x:Name="NewGameItem" Header="Новая партия" />
         <MenuItem x:Name="SettingsItem" Header="Настройка партии…" />
         <Separator />
+        <!-- Конец партии по согласию: вопрос и подсчёт — те же, что у строки меню партии
+             на телефоне (блокер B1 отчёта QA 2026-10-17). -->
+        <MenuItem x:Name="FinishGameItem" Header="Закончить партию…" IsEnabled="{Binding CanFinishGame}" />
+        <Separator />
         <MenuItem x:Name="SaveGameItem" Header="Сохранить партию…" />
         <MenuItem x:Name="LoadGameItem" Header="Загрузить партию…" />
         <Separator />

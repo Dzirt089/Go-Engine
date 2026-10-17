@@ -63,6 +63,54 @@ public sealed class ProblemContentTests
     }
 
     [Fact]
+    public void Задачи_Спасения_Называют_Столько_Ходов_Сколько_Их_В_Линии()
+    {
+        // Находка QA L17 отчёта 2026-10-17: задача 1 обещала «покажите три хода», а решалась
+        // за два. Число берётся из линии, а не из текста: ход соперника между ними игрок
+        // не показывает, поэтому «два хода» — это два хода решающего.
+        foreach (var id in new[] { "ts-001", "ts-003", "ts-010" })
+        {
+            var problem = ProblemLibrary.ById(id);
+            Assert.NotNull(problem);
+
+            var session = new ProblemSession(problem!);
+            var guard = 0;
+
+            while (session.State != ProblemState.Solved && guard++ < 20 && session.AcceptedMoves.Count > 0)
+            {
+                _ = session.Play(session.AcceptedMoves[0].Point);
+            }
+
+            Assert.Equal(2, session.SolverMoveCount);
+            Assert.Contains("два хода", problem!.Description, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("три хода", problem.Description, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public void Отклик_Задачи_Убить_Группу_Говорит_О_Цели()
+    {
+        // Находка QA L18: «Верно: A6 — у белой группы 4 дыхания (было 3)» при цели «убить группу».
+        // Отклик обязан сказать, приближает ли ход к цели, и объяснить, почему ход всё же принят:
+        // он из линии решения источника, а цель достигается всей линией.
+        var problem = ProblemLibrary.ById("ts-002");
+        Assert.NotNull(problem);
+
+        var session = new ProblemSession(problem!);
+        var move = session.AcceptedMoves[0];
+        var before = session.Board;
+
+        _ = session.Play(move.Point);
+
+        var feedback = ProblemTexts.Feedback(problem!, before, move, session.Board);
+
+        Assert.StartsWith("A6 —", feedback, StringComparison.Ordinal);
+        Assert.Contains("дыхани", feedback, StringComparison.Ordinal);
+        Assert.Contains("не теснит", feedback, StringComparison.Ordinal);
+        Assert.Contains("линии решения", feedback, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Задачи_26и36_НеОбещаютЗахватГруппы()
     {
         // Разбор этих задач честно говорит, что снятие за горизонт не найдено. Цель не может

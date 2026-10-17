@@ -55,6 +55,20 @@ public sealed class ShapeHighlightTests
     }
 
     [Fact]
+    public void Формы_Несут_Объяснение_Для_Новичка()
+    {
+        // Находка QA L10 отчёта 2026-10-17: чипы «ноби» и «пасть тигра» нажимались, но никакого
+        // пояснения не появлялось. Объяснение приходит из распознавания формы и хранится в ней же.
+        var board = Build((3, 3, StoneColor.Black), (3, 4, StoneColor.Black), (5, 5, StoneColor.White), (5, 6, StoneColor.White));
+        var marks = new ShapeHighlight();
+
+        _ = marks.Refresh(board, StoneColor.Black, [new Point(3, 3), new Point(3, 4)]);
+
+        Assert.All(marks.Shapes, shape => Assert.False(string.IsNullOrWhiteSpace(shape.Why)));
+        Assert.Contains("разрезать", marks.Shapes[0].Why, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Плохая_Форма_Не_Попадает_В_Список_Решения()
     {
         // Регрессия QA 2026-10-17: в «Формах решения» решённой задачи стоял «пустой треугольник» —

@@ -123,6 +123,7 @@ public sealed partial class BoardView : UserControl
     private readonly Border? _mobileBoardHost;
     private readonly Border? _overlay;
     private readonly Border? _abortOverlay;
+    private readonly Border? _finishOverlay;
     private readonly SettingsView? _settingsView;
     private readonly TextBlock? _hint;
     private readonly TextBlock? _mobileHint;
@@ -267,6 +268,7 @@ public sealed partial class BoardView : UserControl
         _mobileBoardHost = this.FindControl<Border>("MobileBoardHost");
         _overlay = this.FindControl<Border>("SettingsOverlay");
         _abortOverlay = this.FindControl<Border>("AbortOverlay");
+        _finishOverlay = this.FindControl<Border>("FinishOverlay");
         _settingsView = this.FindControl<SettingsView>("SettingsArea");
         _hint = this.FindControl<TextBlock>("Hint");
         _mobileHint = this.FindControl<TextBlock>("MobileHint");
@@ -357,6 +359,12 @@ public sealed partial class BoardView : UserControl
         // без него одно нажатие обнуляло партию (дефект 1 QA 2026-10-17).
         WireButton("AbortCancelButton", OnAbortCancelClick);
         WireButton("AbortConfirmButton", OnAbortConfirmClick);
+
+        // Конец партии по согласию: вопрос и подтверждение — тем же путём, что у отмены.
+        // Без этой строки игрок не мог закрыть партию вовсе (блокер B1 отчёта QA 2026-10-17).
+        WireButton("MenuFinishButton", OnMenuFinishClick);
+        WireButton("FinishCancelButton", OnFinishCancelClick);
+        WireButton("FinishConfirmButton", OnFinishConfirmClick);
 
         // Кнопки мобильной раскладки делают то же самое: обработчики общие.
         WireButton("MobilePassButton", OnPassClick);
@@ -493,6 +501,36 @@ public sealed partial class BoardView : UserControl
         if (_abortOverlay is not null)
         {
             _abortOverlay.IsVisible = false;
+        }
+    }
+
+    /// <summary>Показано подтверждение конца партии.</summary>
+    /// <remarks>
+    /// Нужно оболочке: системная кнопка «Назад» на телефоне закрывает сначала вопрос, а партию
+    /// не заканчивает — так же, как у подтверждения отмены.
+    /// </remarks>
+    public bool IsFinishConfirmShown => _finishOverlay?.IsVisible == true;
+
+    /// <summary>Спрашивает подтверждение конца партии.</summary>
+    /// <remarks>
+    /// Сам партию не завершает: «Закончить партию» в вопросе — единственный путь к итогу,
+    /// «Отмена» возвращает к партии. Открыто и меню партии, и пункту настольного меню,
+    /// и тестам: вопрос проверяется без живого окна.
+    /// </remarks>
+    public void ShowFinishConfirm()
+    {
+        if (_finishOverlay is not null)
+        {
+            _finishOverlay.IsVisible = true;
+        }
+    }
+
+    /// <summary>Закрывает подтверждение конца: партия продолжается.</summary>
+    public void HideFinishConfirm()
+    {
+        if (_finishOverlay is not null)
+        {
+            _finishOverlay.IsVisible = false;
         }
     }
 
@@ -1748,15 +1786,57 @@ public sealed partial class BoardView : UserControl
         _ = ViewModel.PlayMoveAsync(e.Point);
     }
 
-    /// <summary>Передаёт ход.</summary>
+    /// <summary>Передаёт ход и говорит, что пас произошёл.</summary>
     /// <param name="sender">Кнопка «Пас».</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnPassClick(object? sender, RoutedEventArgs e) => _ = ViewModel.PassAsync();
+    /// <remarks>
+    /// Раньше пас проходил молча: на экране не менялось ничего, кроме ответа соперника,
+    /// и игрок не понимал, случилось ли что-то (находка QA L5). Строка сообщения называет
+    /// и сам факт паса, и то, как теперь закончить партию — правила двух пасов новичку
+    /// неизвестны, а ИИ пасовать не обязан.
+    /// </remarks>
+    private void OnPassClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+
+        _ = PassAsync();
+    }
+
+    /// <summary>Играет пас игрока и показывает сообщение о нём.</summary>
+    /// <returns>Задача передачи хода.</returns>
+    private async Task PassAsync()
+    {
+        if (await ViewModel.PassAsync().ConfigureAwait(true))
+        {
+            ShowHint(PassHint);
+        }
+    }
+
+    /// <summary>Сообщение о пасе: что произошло и где закончить партию.</summary>
+    internal const string PassHint =
+        "Вы спали: ход у соперника. Партия заканчивается двумя пасами; закончить её сейчас можно в меню — «Закончить партию».";
 
     /// <summary>Отменяет последний ход игрока вместе с ответом AI.</summary>
     /// <param name="sender">Кнопка «Отменить».</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnUndoClick(object? sender, RoutedEventArgs e) => ViewModel.Undo();
+    /// <remarks>
+    /// Отмена возвращает очередь игроку, снимая и его ход, и ответ соперника. Молча это делать
+    /// нельзя: игрок видел, как исчезли два камня, и не понимал почему (находка QA L6).
+    /// </remarks>
+    private void OnUndoClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+
+        if (ViewModel.Undo())
+        {
+            ShowHint(UndoHint);
+        }
+    }
+
+    /// <summary>Сообщение об отмене: отменены оба хода, и их можно вернуть.</summary>
+    internal const string UndoHint = "Отменены ваш ход и ответ соперника. «Вернуть» вернёт оба.";
 
     /// <summary>Возвращает отменённый ход.</summary>
     /// <param name="sender">Кнопка «Вернуть».</param>
@@ -1825,6 +1905,51 @@ public sealed partial class BoardView : UserControl
         _ = e;
 
         HideAbortConfirm();
+    }
+
+    /// <summary>Меню: спрашивает подтверждение конца партии.</summary>
+    /// <param name="sender">Строка «Закончить партию» в меню.</param>
+    /// <param name="e">Событие нажатия.</param>
+    /// <remarks>
+    /// Шторка закрывается до вопроса: иначе меню висело бы поверх подтверждения, и «Отмена»
+    /// в нём возвращала бы не к партии, а к той же шторке.
+    /// </remarks>
+    private void OnMenuFinishClick(object? sender, RoutedEventArgs e)
+    {
+        CloseMenu();
+        _ = sender;
+        _ = e;
+
+        ShowFinishConfirm();
+    }
+
+    /// <summary>Завершает партию после подтверждения и показывает итог.</summary>
+    /// <param name="sender">Кнопка «Закончить партию» в подтверждении.</param>
+    /// <param name="e">Событие нажатия.</param>
+    /// <remarks>
+    /// Счёт и победителя называет модель: вид только закрывает вопрос и сообщает, что партия
+    /// окончена. Итог появляется сам — баннер итога и карточка в панели читают состояние партии.
+    /// </remarks>
+    private void OnFinishConfirmClick(object? sender, RoutedEventArgs e)
+    {
+        HideFinishConfirm();
+        _ = sender;
+        _ = e;
+
+        if (ViewModel.FinishGame())
+        {
+            ShowHint("Партия окончена: счёт подсчитан. Начать новую — «Новая партия».");
+        }
+    }
+
+    /// <summary>Отказывается заканчивать партию: она продолжается.</summary>
+    /// <param name="sender">Кнопка «Отмена» в подтверждении.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnFinishCancelClick(object? sender, RoutedEventArgs e)
+    {
+        HideFinishConfirm();
+        _ = sender;
+        _ = e;
     }
 
     /// <summary>Показывает настройки.</summary>

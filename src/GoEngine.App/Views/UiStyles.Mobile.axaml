@@ -50,12 +50,14 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
 
-  <!-- Вкладки настроек на телефоне: три подписи в 360 точках, поэтому кегль и отступы меньше
-       настольных. Иначе «О программе» уезжало бы за край экрана. -->
+  <!-- Вкладки настроек на телефоне: подписи «Партия» и «Подсчёт» обязаны помещаться в 360 точек,
+       поэтому кегль и отступы меньше настольных. Высота 64 — запас на расхождение касаний
+       и картинки на Android (D-107, блокер B2 отчёта QA 2026-10-17): тап по видимому центру
+       подписи при высоте 48 попадал на нижнюю границу вкладки. -->
   <Style Selector="TabControl.app-settings-tabs TabItem">
     <Setter Property="FontSize" Value="{DynamicResource AppMobileFontAction}" />
-    <Setter Property="Padding" Value="10,6" />
-    <Setter Property="MinHeight" Value="{DynamicResource AppMobileTapTarget}" />
+    <Setter Property="Padding" Value="10,10" />
+    <Setter Property="MinHeight" Value="64" />
   </Style>
 
   <!-- Включённый переключатель обязан быть видно: без подсветки игрок не понимает, включена

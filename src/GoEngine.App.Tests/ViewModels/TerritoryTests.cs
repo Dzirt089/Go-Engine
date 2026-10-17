@@ -186,12 +186,19 @@ public sealed class TerritoryTests
     }
 
     [Fact]
-    public void Переключатель_Территории_Скрыт_До_Первого_Хода()
+    public void Переключатель_Территории_Доступен_И_До_Первого_Хода()
     {
-        // На пустой доске территории не бывает: все точки нейтральны, и запрашивать нечего.
+        // Находка QA L7 отчёта 2026-10-17: кнопка «Территория» была серой, и новичок не понимал
+        // почему — урок 4 обещает ею смотреть счёт. Предпросмотр ничего не меняет в правилах
+        // и счёте: на пустой доске все точки просто нейтральны, и это честный ответ.
         var model = Create();
 
-        Assert.False(model.CanToggleTerritory);
+        Assert.True(model.CanToggleTerritory);
+
+        model.ShowTerritory = true;
+
+        Assert.NotNull(model.Territory);
+        Assert.All(model.Territory!, owner => Assert.Equal(StoneColor.Empty, owner));
     }
 
     [Fact]

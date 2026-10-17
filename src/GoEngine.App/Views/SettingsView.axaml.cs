@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using GoEngine.AI;
@@ -70,6 +71,19 @@ public sealed partial class SettingsView : UserControl
         if (this.FindControl<ComboBox>("ScoringBox") is { } scoringBox)
         {
             scoringBox.SelectionChanged += OnScoringChanged;
+        }
+
+        // Переключение подразделов — явное: отпускание пальца на заголовке вкладки выбирает её.
+        // Штатное переключение TabControl опирается на совпадение точки нажатия и точки
+        // отпускания, а на Android отрисовка и касания расходятся на высоту статус-бара (D-107):
+        // тап по видимой подписи приходился на границу вкладки, и «Подсчёт» не открывался
+        // (блокер B2 отчёта QA 2026-10-17). Своё действие не зависит от этой арифметики.
+        if (this.FindControl<TabControl>("SettingsTabs") is { } tabs)
+        {
+            foreach (var tab in tabs.Items.OfType<TabItem>())
+            {
+                tab.PointerReleased += OnTabPointerReleased;
+            }
         }
 
         if (this.FindControl<CheckBox>("SoundBox") is { } soundBox)
@@ -388,14 +402,44 @@ public sealed partial class SettingsView : UserControl
     /// <summary>Сообщает об отказе: так работает кнопка «Отмена».</summary>
     public void Cancel() => Cancelled?.Invoke(this, EventArgs.Empty);
 
+    /// <summary>Выбирает вкладку, на которой отпустили палец.</summary>
+    /// <param name="sender">Заголовок вкладки.</param>
+    /// <param name="e">Событие указателя.</param>
+    /// <remarks>
+    /// Событие помечается обработанным: выбор делает этот обработчик, и второму (штатному)
+    /// переключению TabControl делать уже нечего. Так подраздел открывается одним касанием,
+    /// даже если платформа сдвинула координату касания относительно картинки (D-107).
+    /// </remarks>
+    private void OnTabPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (sender is not TabItem tab || this.FindControl<TabControl>("SettingsTabs") is not { } tabs)
+        {
+            return;
+        }
+
+        tabs.SelectedItem = tab;
+        e.Handled = true;
+    }
+
     /// <summary>Показывает подраздел «Партия».</summary>
     /// <remarks>С него начинается выбор перед новой партией: «Новая партия» в меню открывает
     /// настройки именно на нём.</remarks>
-    public void SelectGameTab()
+    public void SelectGameTab() => SelectTab(0);
+
+    /// <summary>Показывает подраздел «Подсчёт».</summary>
+    /// <remarks>
+    /// Нужен проверкам и оболочке: подраздел открывается тем же выбором вкладки, что и касанием,
+    /// поэтому тест может проверить его содержимое без живого окна (<c>AGENTS.md</c>, п. 14).
+    /// </remarks>
+    public void SelectScoringTab() => SelectTab(1);
+
+    /// <summary>Выбирает подраздел по номеру.</summary>
+    /// <param name="index">Номер подраздела: 0 — «Партия», 1 — «Подсчёт».</param>
+    private void SelectTab(int index)
     {
         if (this.FindControl<TabControl>("SettingsTabs") is { } tabs)
         {
-            tabs.SelectedIndex = 0;
+            tabs.SelectedIndex = index;
         }
     }
 

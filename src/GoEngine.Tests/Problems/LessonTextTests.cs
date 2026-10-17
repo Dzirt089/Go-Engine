@@ -34,6 +34,37 @@ public sealed class LessonTextTests
     }
 
     [Fact]
+    public void Урок4_Шаг2_НазываетНастоящуюДыркуСтены()
+    {
+        // Находка QA L12 отчёта 2026-10-17: текст говорил «стена C2–C8 не доходит до верхнего
+        // края», а на доске стояла стена C1–C8 и дырка была внизу (C9). Текст, позиция и ответ
+        // обязаны совпадать: новичок ищет дырку там, где её назвали.
+        var step = Step(LessonLibrary.ById("go-04")!, "Закрыть стену");
+
+        Assert.Contains("C1–C8", step.Text, StringComparison.Ordinal);
+        Assert.Contains("C9", step.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("верхнего края", step.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("C2", step.Text, StringComparison.Ordinal);
+
+        // Позиция подтверждает слова: столбец C занят с первой строки по восьмую, C9 пуста.
+        List<int> column = [];
+
+        for (byte y = 0; y < step.Position.Size.Value; y++)
+        {
+            if (step.Position.Stones.Any(stone => stone.Point == new Point(2, y) && stone.Color == StoneColor.Black))
+            {
+                column.Add(y + 1);
+            }
+        }
+
+        Assert.Equal("1,2,3,4,5,6,7,8", string.Join(',', column));
+        Assert.DoesNotContain(step.Position.Stones, stone => stone.Point == new Point(2, 8));
+
+        // И принимаемый ход — та же точка C9: текст, картинка и ответ говорят одно.
+        Assert.Contains(step.Answer, move => move.Point == new Point(2, 8));
+    }
+
+    [Fact]
     public void Урок9_ГоворитЧтоКосумиМожноРазрезать()
     {
         var step = Step(LessonLibrary.ById("go-09")!, "Косуми");

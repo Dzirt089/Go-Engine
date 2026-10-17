@@ -25,8 +25,8 @@ namespace GoEngine.App.Tests;
 /// </para>
 /// <para>
 /// Здесь же — вторая жалоба: «в начале матча загорается кнопка территория, которая не отключается».
-/// На пустой доске переключатель выключен и недоступен (<see cref="MainViewModel.CanToggleTerritory"/>
-/// ложно): территории без камней не бывает, включать нечего.
+/// На пустой доске переключатель выключен, но доступен: разметка — предпросмотр, и на пустой доске
+/// она честно показывает нейтральные точки (находка QA L7 отчёта 2026-10-17).
 /// </para>
 /// <para>
 /// Вид собирается без окна: библиотека <c>Avalonia.Headless</c> в проект не добавлена и новых
@@ -453,6 +453,21 @@ public sealed class ShellStartTests
     }
 
     [Fact]
+    public void Назад_Закрывает_Подтверждение_Конца_Партии()
+    {
+        // «Назад» закрывает вопрос, а не заканчивает партию: так же, как у подтверждения отмены.
+        var (view, shell) = Start();
+        OnPhone(view);
+        shell.Game.StartGame();
+        view.GameArea!.ShowFinishConfirm();
+
+        view.HandleBack();
+
+        Assert.False(view.GameArea!.IsFinishConfirmShown);
+        Assert.True(shell.Game.CanFinishGame, "партия закончена по кнопке «Назад»");
+    }
+
+    [Fact]
     public void Назад_Закрывает_Шторку_Меню_Партии()
     {
         var (view, _) = Start();
@@ -531,12 +546,13 @@ public sealed class ShellStartTests
     }
 
     [Fact]
-    public void На_Пустой_Доске_Переключатель_Территории_Недоступен()
+    public void На_Пустой_Доске_Переключатель_Территории_Доступен_Для_Предпросмотра()
     {
         var (view, _) = Start();
         OnPhone(view);
 
-        Assert.False(MobileTerritory(view).IsEnabled);
+        // Предпросмотр территории доступен всегда (D-115, находка QA-новичка 2026-10-17).
+        Assert.True(MobileTerritory(view).IsEnabled);
     }
 
     [Fact]

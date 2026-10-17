@@ -130,11 +130,15 @@
 
   <!-- Подразделы «Настройки партии»: две вкладки в одну строку — «Партия» и «Подсчёт».
        Отступы и кегль умеренные: на экране 360 точек подписи обязаны помещаться целиком,
-       а не уезжать под прокрутку. Ленту вкладок тема Fluent рисует сама. -->
+       а не уезжать под прокрутку. Ленту вкладок тема Fluent рисует сама.
+       Высота 64, а не 48: на Android координаты касаний расходятся с картинкой на высоту
+       статус-бара (D-107), и тап по центру подписи вкладки высотой 48 приходился на её нижнюю
+       границу — «Подсчёт» не открывался (блокер B2 отчёта QA 2026-10-17). У самих вкладок
+       в SettingsView.axaml MinHeight задан явно: там же объяснение. -->
   <Style Selector="TabControl.app-settings-tabs TabItem">
     <Setter Property="FontSize" Value="{DynamicResource AppFontBody}" />
-    <Setter Property="Padding" Value="12,8" />
-    <Setter Property="MinHeight" Value="{DynamicResource AppTouchTarget}" />
+    <Setter Property="Padding" Value="12,10" />
+    <Setter Property="MinHeight" Value="64" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>

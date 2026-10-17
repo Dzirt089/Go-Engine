@@ -246,6 +246,56 @@ public sealed class GameStateTests
     }
 
     [Fact]
+    public void Согласие_Завершает_Идущую_Партию()
+    {
+        // Блокер B1 отчёта QA 2026-10-17: партия не заканчивалась, потому что правило двух пасов
+        // требует паса от обеих сторон, а ИИ пасовать не обязан. Согласие — второй путь к итогу.
+        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+        _ = game.Play(Move.Play(new Point(4, 4), StoneColor.Black));
+
+        var finished = game.FinishByAgreement();
+
+        Assert.True(finished.IsSuccess);
+        Assert.Equal(GameStatus.FinishedByAgreement, game.Status);
+    }
+
+    [Fact]
+    public void Согласие_Считает_Счёт_По_Текущей_Позиции()
+    {
+        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+        _ = game.Play(Move.Play(new Point(4, 4), StoneColor.Black));
+
+        var result = game.FinishByAgreement();
+
+        Assert.Equal(Scorer.Calculate(game.Board, Komi.For9x9), result.Value.Score);
+    }
+
+    [Fact]
+    public void Согласие_Не_Делает_Ход_И_Не_Меняет_Доску()
+    {
+        // Это согласие закончить, а не пас: позиция и история ходов остаются прежними.
+        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+        _ = game.Play(Move.Play(new Point(4, 4), StoneColor.Black));
+        var board = game.Board;
+        var moves = game.Moves.Count;
+
+        _ = game.FinishByAgreement();
+
+        Assert.Same(board, game.Board);
+        Assert.Equal(moves, game.Moves.Count);
+    }
+
+    [Fact]
+    public void Согласие_После_Конца_Отклонено()
+    {
+        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+        _ = game.Play(Move.Pass(StoneColor.Black));
+        _ = game.Play(Move.Pass(StoneColor.White));
+
+        Assert.False(game.FinishByAgreement().IsSuccess);
+    }
+
+    [Fact]
     public void Play_После_Завершения_Отклонён()
     {
         var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);

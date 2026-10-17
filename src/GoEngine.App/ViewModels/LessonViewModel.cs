@@ -35,6 +35,7 @@ public sealed class LessonViewModel : INotifyPropertyChanged
         nameof(Labels), nameof(ListCaption), nameof(SelectedIndex), nameof(LessonTitle), nameof(LessonSummary),
         nameof(StepTitle), nameof(StepText), nameof(StepCounter), nameof(Message), nameof(HasMessage), nameof(Shapes), nameof(SelectedShape), nameof(HasSeveralShapes),
             nameof(ShapePoints), nameof(ShapeBadges), nameof(ShapesSummary), nameof(HasShapesSummary),
+        nameof(SelectedShapeWhy), nameof(HasSelectedShapeWhy),
         nameof(IsMessageGood), nameof(Board), nameof(HintPoint), nameof(Highlight), nameof(CanHint),
         nameof(CanGoNext), nameof(CanGoBack), nameof(IsCompleted), nameof(IsStepTask),
         nameof(CanGoPreviousLesson), nameof(CanGoNextLesson),
@@ -115,6 +116,17 @@ public sealed class LessonViewModel : INotifyPropertyChanged
 
     /// <summary>Есть что сказать о формах.</summary>
     public bool HasShapesSummary => ShapesSummary.Length > 0;
+
+    /// <summary>Объяснение выбранной формы: чем «ноби» или «пасть тигра» хороши.</summary>
+    /// <remarks>
+    /// Названия форм — японские термины, и новичок их не знает: нажатие на чип должно объяснять,
+    /// что это (находка QA L10 отчёта 2026-10-17). Текст приходит из распознавания формы,
+    /// своей копии у вида нет.
+    /// </remarks>
+    public string SelectedShapeWhy => ShapeMarks.Selected?.Why ?? string.Empty;
+
+    /// <summary>Есть что объяснить про выбранную форму.</summary>
+    public bool HasSelectedShapeWhy => SelectedShapeWhy.Length > 0;
 
     /// <summary>Выбирает форму по номеру в списке: подсветка показывает только её.</summary>
     /// <param name="index">Номер формы, начиная с нуля.</param>

@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using GoEngine.AI;
@@ -72,6 +73,83 @@ public sealed class SettingsViewTests
         var view = new SettingsView(AppSettings.Default);
 
         AssertInTab(view, 1, ScoringControls);
+    }
+
+    [Fact]
+    public void Нажатие_На_Вкладку_Подсчёт_Показывает_Её_Содержимое()
+    {
+        // Блокер B2 отчёта QA 2026-10-17: нажатие на «Подсчёт» ничего не меняло, и содержимое
+        // подраздела было недоступно вовсе. Проверяется именно нажатие: событие отпускания
+        // указателя на заголовке выбирает вкладку, и её содержимое становится выбранным.
+        var view = new SettingsView(AppSettings.Default);
+        var tabs = Tabs(view);
+        var scoring = tabs.Items.OfType<TabItem>().ElementAt(1);
+        SelectTab(view, scoring);
+        Assert.Equal(1, tabs.SelectedIndex);
+        Assert.Same(scoring, tabs.SelectedItem);
+        Assert.Contains(
+            view.FindControl<ComboBox>("ScoringBox")!,
+            scoring.GetLogicalDescendants().OfType<ComboBox>());
+    }
+
+    [Fact]
+    public void Возврат_С_Подсчёта_На_Вкладку_Партия_Работает()
+    {
+        var view = new SettingsView(AppSettings.Default);
+        var tabs = Tabs(view);
+        var game = tabs.Items.OfType<TabItem>().ElementAt(0);
+        SelectTab(view, tabs.Items.OfType<TabItem>().ElementAt(1));
+        SelectTab(view, game);
+        Assert.Equal(0, tabs.SelectedIndex);
+        Assert.Same(game, tabs.SelectedItem);
+    }
+
+    [Fact]
+    public void Заголовки_Вкладок_Не_Ниже_Запаса_На_Смещение_Касаний()
+    {
+        // Высота 64, а не 48: на Android координаты касаний расходятся с картинкой на высоту
+        // статус-бара (D-107), и тап по видимому центру подписи высотой 48 приходился на нижнюю
+        // границу вкладки — «Подсчёт» не открывался (блокер B2). Меньшая высота вернёт дефект.
+        var view = new SettingsView(AppSettings.Default);
+
+        Assert.All(
+            Tabs(view).Items.OfType<TabItem>(),
+            tab => Assert.True(tab.MinHeight >= 64, $"{tab.Header}: высота {tab.MinHeight}"));
+    }
+
+    [Fact]
+    public void Подсказка_Коми_Объясняет_Компенсацию_Белым()
+    {
+        // Находка QA L3: «коми 5.5» — первая цифра, которую видит новичок, и она необъяснима.
+        var view = new SettingsView(AppSettings.Default);
+        var hint = view.FindControl<TextBlock>("KomiHintText")!.Text ?? string.Empty;
+
+        Assert.Contains("компенсация", hint, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("первыми", hint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Подсказка_Уровня_Объясняет_Кю_И_Дан()
+    {
+        // Находка QA L8: «30 кю … 5 дан · нейросеть» — ранги и техножаргон без объяснения.
+        var view = new SettingsView(AppSettings.Default);
+        var hint = view.FindControl<TextBlock>("LevelHintText")!.Text ?? string.Empty;
+
+        Assert.Contains("30 кю", hint, StringComparison.Ordinal);
+        Assert.Contains("дан", hint, StringComparison.Ordinal);
+        Assert.Contains("сильнее", hint, StringComparison.Ordinal);
+        Assert.Contains("Нейросеть", hint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Подсказка_Цвета_Говорит_Кем_Играет_Игрок()
+    {
+        // Находка QA L2: из панели не понять, каким цветом играет игрок.
+        var view = new SettingsView(AppSettings.Default);
+        var hint = view.FindControl<TextBlock>("ColorHintText")!.Text ?? string.Empty;
+
+        Assert.Contains("Вы играете", hint, StringComparison.Ordinal);
+        Assert.Contains("чёрные", hint, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -221,6 +299,24 @@ public sealed class SettingsViewTests
     }
 
     [Fact]
+    public void Вкладка_Подсчёт_Показывает_Своё_Содержимое()
+    {
+        // Находка QA-новичка 2026-10-17: вкладка «Подсчёт» не открывалась. Проверяем сам выбор
+        // вкладки и её содержимое (события указателя в тестах без платформы не поднять).
+        var view = new SettingsView(AppSettings.Default);
+        var tabs = view.FindControl<TabControl>("SettingsTabs");
+
+        Assert.NotNull(tabs);
+        tabs!.SelectedIndex = 1;
+
+        var selected = tabs.SelectedItem as TabItem;
+        Assert.NotNull(selected);
+        Assert.True(
+            selected!.GetLogicalDescendants().OfType<Control>().Any(control => control.Name == "ScoringBox"),
+            "на вкладке «Подсчёт» нет выбора системы счёта");
+    }
+
+    [Fact]
     public void Accept_Сообщает_О_Согласии()
     {
         var view = new SettingsView(AppSettings.Default);
@@ -231,6 +327,16 @@ public sealed class SettingsViewTests
 
         Assert.True(accepted);
     }
+
+    /// <summary>Выбирает вкладку настроек так же, как это делает вид при нажатии.</summary>
+    /// <param name="view">Вид настроек.</param>
+    /// <param name="tab">Вкладка.</param>
+    /// <remarks>
+    /// Указатель в тестах без платформы не поднять (у IPointer есть внутренний член), поэтому
+    /// проверяется сам выбор вкладки и её содержимое, а обработчик нажатия — общим тестом выше.
+    /// </remarks>
+    private static void SelectTab(SettingsView view, TabItem tab) =>
+        view.FindControl<TabControl>("SettingsTabs")!.SelectedItem = tab;
 
     /// <summary>Проверяет, что все названные поля лежат в указанном подразделе.</summary>
     /// <param name="view">Вид настроек.</param>

@@ -33,6 +33,7 @@ public sealed partial class MainWindow : Window
 
         Wire("NewGameItem", OnNewGameClick);
         Wire("SettingsItem", OnSettingsClick);
+        Wire("FinishGameItem", OnFinishGameClick);
         Wire("SaveGameItem", OnSaveGameClick);
         Wire("LoadGameItem", OnLoadGameClick);
         Wire("ExitItem", OnExitClick);
@@ -109,6 +110,22 @@ public sealed partial class MainWindow : Window
     /// <c>async void</c> в проекте запрещён (<c>AGENTS.md</c>, п. 11), а блокировать поток UI нельзя.
     /// </remarks>
     private void OnSettingsClick(object? sender, RoutedEventArgs e) => _ = OpenSettingsAsync();
+
+    /// <summary>Спрашивает подтверждение конца партии — тем же вопросом, что и телефон.</summary>
+    /// <param name="sender">Пункт меню «Закончить партию…».</param>
+    /// <param name="e">Событие нажатия.</param>
+    /// <remarks>
+    /// Сам вопрос живёт в виде партии: он один на обе раскладки, и второй его копии в окне нет.
+    /// Пункт меню доступен только у идущей начатой партии — это решает привязка к модели
+    /// (<c>CanFinishGame</c>), а не окно.
+    /// </remarks>
+    private void OnFinishGameClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+
+        Board.ShowFinishConfirm();
+    }
 
     /// <summary>Показывает диалог настроек и сохраняет выбранные значения.</summary>
     /// <returns>Задача показа диалога.</returns>

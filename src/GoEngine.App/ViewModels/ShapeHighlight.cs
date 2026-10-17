@@ -64,7 +64,7 @@ public sealed class ShapeHighlight
         // без пропусков на месте отброшенной плохой формы.
         var shapes = ShapeSet.Of(board, colour, stones)
             .Where(shape => !goodOnly || shape.Good)
-            .Select((shape, index) => new ShapeItem(index + 1, shape.Name, shape.Good, shape.Points))
+            .Select((shape, index) => new ShapeItem(index + 1, shape.Name, shape.Good, shape.Points, shape.Why))
             .ToList();
 
         var changed = shapes.Count != Shapes.Count || !shapes.SequenceEqual(Shapes);

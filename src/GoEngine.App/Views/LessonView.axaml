@@ -100,10 +100,18 @@
                           Margin="0,0,6,4"
                           Content="{Binding Label}"
                           Tag="{Binding Number}"
+                          ToolTip.Tip="{Binding Why}"
                           Click="OnShapeChipClick" />
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+            <!-- Объяснение выбранной формы: «ноби» и «пасть тигра» — японские термины,
+                 и без расшифровки чипы ничего не говорят (находка QA L10). -->
+            <TextBlock x:Name="ShapeWhyText"
+                       Classes="app-label"
+                       Text="{Binding SelectedShapeWhy}"
+                       IsVisible="{Binding HasSelectedShapeWhy}"
+                       TextWrapping="Wrap" />
           </StackPanel>
 
 

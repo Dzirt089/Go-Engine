@@ -664,6 +664,13 @@ public sealed partial class ShellView : UserControl
             return true;
         }
 
+        if (GameArea?.IsFinishConfirmShown == true)
+        {
+            GameArea.HideFinishConfirm();
+
+            return true;
+        }
+
         if (GameArea?.IsAbortConfirmShown == true)
         {
             GameArea.HideAbortConfirm();

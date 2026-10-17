@@ -44,7 +44,7 @@ public sealed class BoardViewTests
     /// </remarks>
     private static readonly string[] MenuCaptions =
     [
-        "Начать партию", "Отменить партию", "Сохранить партию", "Загрузить партию",
+        "Начать партию", "Закончить партию", "Отменить партию", "Сохранить партию", "Загрузить партию",
         "Настройка партии", "Закрыть"
     ];
 
@@ -888,6 +888,108 @@ public sealed class BoardViewTests
         var banner = view.FindControl<GameResultBanner>("ResultBanner")!;
 
         Assert.True(root.Children.IndexOf(banner) > root.Children.IndexOf(view.FindControl<Grid>("MobileLayout")!));
+    }
+
+    [Fact]
+    public void Меню_Предлагает_Закончить_Партию()
+    {
+        // Блокер B1 отчёта QA 2026-10-17: в меню партии не было способа её закончить, и игрок
+        // не мог увидеть счёт. Строка доступна, пока партия идёт.
+        var (view, model) = Create();
+        model.StartGame();
+        view.ShowMenu();
+
+        var item = ButtonsIn(MenuOverlay(view))
+            .FirstOrDefault(button => string.Equals(LabelOf(button), "Закончить партию", StringComparison.Ordinal));
+
+        Assert.NotNull(item);
+        Assert.True(item!.IsEnabled);
+    }
+
+    [Fact]
+    public void Меню_Закончить_Партию_Спрашивает_Подтверждение()
+    {
+        // Одно неосторожное нажатие не должно завершать партию — вопрос тот же, что у отмены.
+        var (view, model) = Create();
+        model.StartGame();
+        var board = model.Board;
+        view.ShowMenu();
+
+        Click(view.FindControl<Button>("MenuFinishButton")!);
+
+        Assert.True(view.IsFinishConfirmShown, "подтверждение не появилось");
+        Assert.False(MenuOverlay(view).IsVisible, "меню осталось поверх вопроса");
+        Assert.False(model.HasOutcome, "партия завершена до ответа");
+        Assert.Same(board, model.Board);
+    }
+
+    [Fact]
+    public void Отказ_Заканчивать_Партию_Оставляет_Её_Идущей()
+    {
+        var (view, model) = Create();
+        model.StartGame();
+        Click(view.FindControl<Button>("MenuFinishButton")!);
+
+        Click(view.FindControl<Button>("FinishCancelButton")!);
+
+        Assert.False(view.IsFinishConfirmShown, "вопрос остался на экране");
+        Assert.False(model.HasOutcome, "партия завершена по отказу");
+        Assert.True(model.IsGameStarted);
+    }
+
+    [Fact]
+    public void Подтверждение_Завершает_Партию_И_Показывает_Итог()
+    {
+        // После «Закончить партию» счёт посчитан, итог виден в панели и в баннере, а не только
+        // в закрываемом диалоге (блокер B1 отчёта QA 2026-10-17).
+        var (view, model) = Create();
+        model.StartGame();
+        Assert.True(model.PlayMove(new Point(4, 4)));
+        Click(view.FindControl<Button>("MenuFinishButton")!);
+
+        Click(view.FindControl<Button>("FinishConfirmButton")!);
+
+        Assert.False(view.IsFinishConfirmShown, "вопрос не закрылся");
+        Assert.True(model.HasOutcome);
+        Assert.Equal("Завершена по согласию сторон", model.Status);
+        Assert.Contains(GameStatusLines.FinishedMark, view.FindControl<TextBlock>("DesktopStatusText")!.Text, StringComparison.Ordinal);
+        Assert.True(view.FindControl<GameResultBanner>("ResultBanner")!.IsVisible, "итог не показан");
+    }
+
+    [Fact]
+    public void Переключатель_Территории_Доступен_До_Первого_Хода()
+    {
+        // Находка QA L7: кнопка «Территория» была серой и не объясняла почему. Предпросмотр
+        // безопасен в любой момент — на пустой доске все точки просто нейтральны.
+        var (view, _) = Create();
+
+        Assert.True(view.FindControl<ToggleButton>("TerritoryButton")!.IsEnabled);
+        Assert.True(view.FindControl<ToggleButton>("MobileTerritoryButton")!.IsEnabled);
+    }
+
+    [Fact]
+    public void Подсказка_Терминов_Объясняет_Пленных_И_Коми()
+    {
+        // Находки QA L3 и L4: «пленные» и «коми» стоят в счёте без расшифровки. Строка стоит
+        // и в настольной панели, и в свёрнутой шторке телефона — там, где числа.
+        var (view, _) = Create();
+        var desktop = view.FindControl<TextBlock>("DesktopTermsHint")!.Text ?? string.Empty;
+        var mobile = view.FindControl<TextBlock>("MobileTermsHint")!.Text ?? string.Empty;
+
+        Assert.Contains("Пленные", desktop, StringComparison.Ordinal);
+        Assert.Contains("Коми", desktop, StringComparison.Ordinal);
+        Assert.Contains("первый ход", desktop, StringComparison.Ordinal);
+        Assert.Contains("Пленные", mobile, StringComparison.Ordinal);
+        Assert.Contains("Коми", mobile, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Подсказка_Паса_Называет_Способ_Закончить_Партию()
+    {
+        // Находки QA L5 и B1: пас проходил молча, а конца партии не было. Сообщение называет
+        // и сам пас, и строку меню, которая подводит итог.
+        Assert.Contains("спали", BoardView.PassHint, StringComparison.Ordinal);
+        Assert.Contains("Закончить партию", BoardView.PassHint, StringComparison.Ordinal);
     }
 
     /// <summary>Создаёт вид партии 9×9 вместе с его моделью представления.</summary>

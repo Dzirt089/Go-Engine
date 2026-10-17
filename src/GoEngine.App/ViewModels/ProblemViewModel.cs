@@ -41,6 +41,7 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         nameof(Current), nameof(Board), nameof(LastMove), nameof(Title), nameof(GoalText), nameof(ToMoveText),
         nameof(SizeText), nameof(Verdict), nameof(HasVerdict), nameof(Explanation), nameof(HasExplanation), nameof(ShapePoints), nameof(ShapeIsGood), nameof(Shapes), nameof(SelectedShape), nameof(HasSeveralShapes),
             nameof(ShapeBadges), nameof(ShapesSummary), nameof(HasShapesSummary),
+            nameof(SelectedShapeWhy), nameof(HasSelectedShapeWhy),
         nameof(IsSolved), nameof(CanBack), nameof(CanHint), nameof(HintPoint), nameof(CanGoPrevious),
         nameof(CanGoNext), nameof(StatusText), nameof(SelectedIndex), nameof(LastCaptured),
         nameof(LastCapturedColor)
@@ -182,6 +183,17 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
 
     /// <summary>Есть что сказать о формах.</summary>
     public bool HasShapesSummary => ShapesSummary.Length > 0;
+
+    /// <summary>Объяснение выбранной формы: чем «ноби» или «пасть тигра» хороши.</summary>
+    /// <remarks>
+    /// Термины форм — японские, и новичку они ничего не говорят: нажатие на чип показывает,
+    /// что это за форма и что из неё следует (находка QA L10 отчёта 2026-10-17). Текст берётся
+    /// у распознавания формы (<c>MoveShape</c>), второй копии в модели нет.
+    /// </remarks>
+    public string SelectedShapeWhy => Highlight.Selected?.Why ?? string.Empty;
+
+    /// <summary>Есть что объяснить про выбранную форму.</summary>
+    public bool HasSelectedShapeWhy => SelectedShapeWhy.Length > 0;
 
     /// <summary>Выбирает форму по номеру в списке: подсветка показывает только её.</summary>
     /// <param name="index">Номер формы, начиная с нуля.</param>

@@ -7,6 +7,6 @@ namespace GoEngine.Core;
 /// <param name="Reason">Причина завершения словами или <c>null</c>, если причина видна из <paramref name="Status"/>.</param>
 /// <remarks>
 /// Счёт по китайским правилам (<c>GO_RULES.md</c>, п. 9) считается только тогда, когда партия
-/// дошла до подсчёта: после двух пасов или по лимиту ходов. При сдаче счёта нет.
+/// дошла до подсчёта: после двух пасов, по лимиту ходов или по согласию сторон. При сдаче счёта нет.
 /// </remarks>
 public readonly record struct GameResult(GameStatus Status, Score? Score, StoneColor? Winner, string? Reason);

@@ -163,16 +163,18 @@ public sealed class GameFlowTests
     }
 
     [Fact]
-    public void Разметку_Территории_Можно_Выключить_До_Первого_Хода()
+    public void Разметку_Территории_До_Первого_Хода_Можно_Включить_И_Выключить()
     {
-        // Второй предохранитель: если разметка почему-то показана, игрок обязан суметь её снять.
+        // Находка QA L7 отчёта 2026-10-17: кнопка была серой, и посмотреть территорию
+        // до первого хода было нечем. Предпросмотр ничего не меняет в правилах и счёте:
+        // на пустой доске все точки нейтральны, и это честный ответ.
         var model = Model();
 
-        Assert.False(model.CanToggleTerritory);
+        Assert.True(model.CanToggleTerritory);
 
         model.ShowTerritory = true;
 
-        Assert.True(model.CanToggleTerritory);
+        Assert.True(model.HasTerritory);
 
         model.ShowTerritory = false;
 

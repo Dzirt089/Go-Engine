@@ -101,11 +101,13 @@
                       Grid.Column="0"
                       Content="Пас"
                       Classes="app-row-action primary"
+                      ToolTip.Tip="Передать ход: вы отказываетесь ставить камень. Партия заканчивается, когда спасуют обе стороны."
                       IsEnabled="{Binding CanPass}" />
               <Button x:Name="UndoButton"
                       Grid.Column="1"
                       Content="Отменить"
                       Classes="app-row-action"
+                      ToolTip.Tip="Отменить ваш последний ход вместе с ответом соперника"
                       IsEnabled="{Binding CanUndo}" />
               <Button x:Name="RedoButton"
                       Grid.Column="2"
@@ -119,7 +121,7 @@
                             Grid.Column="3"
                             Content="Территория"
                             Classes="app-toggle"
-                            ToolTip.Tip="Показать, кому принадлежат пустые точки"
+                            ToolTip.Tip="Предпросмотр: показать, кому принадлежат пустые точки. Правила и счёт не меняются."
                             IsEnabled="{Binding CanToggleTerritory}"
                             IsChecked="{Binding ShowTerritory}" />
             </Grid>
@@ -131,6 +133,14 @@
                        Classes="app-value"
                        TextWrapping="Wrap"
                        IsVisible="False" />
+
+            <!-- Расшифровка двух слов, которые новичок встречает первыми: «пленные» и «коми».
+                 Оба стоят в счёте без объяснения, и догадаться о их смысле неоткуда
+                 (находки QA L3 и L4 отчёта 2026-10-17). Строка короткая и стоит рядом с числами. -->
+            <TextBlock x:Name="DesktopTermsHint"
+                       Classes="app-label"
+                       TextWrapping="Wrap"
+                       Text="Пленные — снятые с доски камни. Коми — компенсация белым за первый ход чёрных." />
 
             <TextBlock x:Name="DesktopBreakdownText"
                        Classes="app-label"
@@ -156,7 +166,8 @@
                         Grid.Column="1"
                         Margin="8,0,0,0"
                         MinHeight="40"
-                        HorizontalAlignment="Stretch" />
+                        HorizontalAlignment="Stretch"
+                        ToolTip.Tip="Кю и дан — сила соперника: 30 кю — самый слабый, чем меньше кю, тем сильнее; дан сильнее любого кю. «Нейросеть» — оценка позиции обученной сетью." />
             </Grid>
 
             <!-- Сообщения о сохранении, загрузке и отказах: на телефоне системных диалогов нет.
@@ -401,11 +412,13 @@
                       Grid.Column="0"
                       Content="Пас"
                       Classes="app-touch primary"
+                      ToolTip.Tip="Передать ход: вы отказываетесь ставить камень. Партия заканчивается, когда спасуют обе стороны."
                       IsEnabled="{Binding CanPass}" />
               <Button x:Name="MobileUndoButton"
                       Grid.Column="1"
                       Content="Отменить"
                       Classes="app-touch"
+                      ToolTip.Tip="Отменить ваш последний ход вместе с ответом соперника"
                       IsEnabled="{Binding CanUndo}" />
               <Button x:Name="MobileRedoButton"
                       Grid.Column="2"
@@ -420,6 +433,7 @@
                             Grid.Column="3"
                             Content="Территория"
                             Classes="app-touch-toggle"
+                            ToolTip.Tip="Предпросмотр: показать, кому принадлежат пустые точки. Правила и счёт не меняются."
                             IsEnabled="{Binding CanToggleTerritory}"
                             IsChecked="{Binding ShowTerritory}" />
             </Grid>
@@ -467,6 +481,12 @@
               <TextBlock x:Name="SheetSummaryDetails"
                          Classes="app-label"
                          TextWrapping="Wrap" />
+              <!-- Толкование слов «пленные» и «коми»: они стоят в этой же свёрнутой шторке,
+                   и без расшифровки новичок их пропускает (находки QA L3 и L4). -->
+              <TextBlock x:Name="MobileTermsHint"
+                         Classes="app-label"
+                         TextWrapping="Wrap"
+                         Text="Пленные — снятые камни. Коми — компенсация белым за первый ход." />
               </StackPanel>
             </StackPanel>
           </Button>
@@ -601,6 +621,25 @@
               </Grid>
             </Button>
 
+            <!-- Закончить партию — выход из положения «доиграл, а соперник не пасует»:
+                 правило двух пасов требует паса от обеих сторон, и без этой строки партия
+                 не заканчивалась вовсе (блокер B1 отчёта QA 2026-10-17). Счёт подводится
+                 по текущей позиции, поэтому строка стоит рядом с «Начать партию». -->
+            <Button x:Name="MenuFinishButton"
+                    Classes="app-menu-row"
+                    AutomationProperties.Name="Закончить партию"
+                    IsEnabled="{Binding CanFinishGame}">
+              <Grid ColumnDefinitions="Auto,*">
+                <!-- Флажок: партия доведена до конца, и подводится итог. -->
+                <Path Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center"
+                      Data="M5,3 h2 v18 h-2 z M7,4 h11 l-2.6,3.5 L18,11 H7 z" />
+                <TextBlock Grid.Column="1"
+                           Margin="14,0,0,0"
+                           Text="Закончить партию"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </Button>
+
             <Button x:Name="MenuAbortButton"
                     Classes="app-menu-row"
                     AutomationProperties.Name="Отменить партию"
@@ -720,6 +759,46 @@
                     Grid.Column="1"
                     Content="Отменить партию"
                     Classes="app-action danger"
+                    Margin="4,0,0,0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" />
+          </Grid>
+        </StackPanel>
+      </Border>
+    </Border>
+
+    <!-- Подтверждение конца партии: счёт подводится, и продолжить эту партию уже нельзя.
+         Вопрос нужен по той же причине, что и у отмены: одно неосторожное нажатие в меню
+         не должно завершать недоигранную партию. «Отмена» возвращает к партии, «Закончить
+         партию» — единственный путь к итогу по согласию (блокер B1 отчёта QA 2026-10-17). -->
+    <Border x:Name="FinishOverlay"
+            IsVisible="False"
+            Classes="app-overlay">
+      <Border Classes="app-banner app-overlay-card"
+              MaxWidth="420"
+              Padding="16"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <StackPanel Spacing="10">
+          <TextBlock Classes="app-subtitle"
+                     Text="Закончить партию?"
+                     HorizontalAlignment="Center" />
+          <TextBlock Classes="app-label"
+                     Text="Партия завершится сейчас: счёт посчитается по текущей позиции, и итог появится на экране. Продолжить эту партию будет нельзя — только начать новую."
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+          <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
+            <Button x:Name="FinishCancelButton"
+                    Grid.Column="0"
+                    Content="Отмена"
+                    Classes="app-action"
+                    Margin="0,0,4,0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" />
+            <Button x:Name="FinishConfirmButton"
+                    Grid.Column="1"
+                    Content="Закончить партию"
+                    Classes="app-action"
                     Margin="4,0,0,0"
                     HorizontalAlignment="Stretch"
                     HorizontalContentAlignment="Center" />
