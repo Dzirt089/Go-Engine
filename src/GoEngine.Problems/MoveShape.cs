@@ -45,14 +45,14 @@ public static class MoveShape
 
         // Порядок проверок — от самой характерной формы к простой связи: пустой треугольник и пасть
         // тигра важнее, чем «камень рядом с камнем».
-        if (Brick(after, point, colour))
+        if (BrickSquare(after, point, colour) is { } brick)
         {
             return new ShapeFacts(
                 "кирпич",
                 false,
                 "плохая форма: четыре камня квадратом — внутри ни глаза, ни территории, а камней больше, чем нужно. "
                 + "Такая группа тяжёлая: она бежит, а не строит, и играть лучше шире.",
-                [point, .. own]);
+                brick);
         }
 
         if (EmptyTriangleSquare(after, point, colour) is { } triangle)
@@ -65,24 +65,24 @@ public static class MoveShape
                 triangle);
         }
 
-        if (TigerMouth(after, point, colour))
+        if (TigerMouthPoints(after, point, colour) is { } tiger)
         {
             return new ShapeFacts(
                 "пасть тигра",
                 true,
                 "крепкая форма: между камнями осталась точка, и вход в неё невыгоден — камень соперника "
                 + "окажется под атари и следующим ходом уйдёт в плен. Держит территорию без лишних камней.",
-                [point, .. own]);
+                tiger);
         }
 
-        if (Bamboo(after, point, colour))
+        if (BambooPoints(after, point, colour) is { } bamboo)
         {
             return new ShapeFacts(
                 "бамбук",
                 true,
                 "прочная связь: соперник займёт одну соединительную точку, а вы соединитесь через вторую. "
                 + "Разрезать такую форму нельзя.",
-                [point, .. own]);
+                bamboo);
         }
 
         if (own.Count >= 2 && own.Any(other => IsLine(point, other)))
@@ -195,17 +195,17 @@ public static class MoveShape
     /// <param name="point">Точка хода.</param>
     /// <param name="colour">Цвет хода.</param>
     /// <returns><c>true</c>, если все четыре точки квадрата заняты своими камнями.</returns>
-    private static bool Brick(Board board, Point point, StoneColor colour)
+    private static IReadOnlyList<Point>? BrickSquare(Board board, Point point, StoneColor colour)
     {
         foreach (var square in Squares(point, board.Size.Value))
         {
             if (square.All(other => board.At(other) == colour))
             {
-                return true;
+                return [.. square];
             }
         }
 
-        return false;
+        return null;
     }
 
     /// <summary>Четыре квадрата 2×2, в которые входит точка.</summary>
@@ -267,7 +267,7 @@ public static class MoveShape
     /// <param name="point">Точка хода.</param>
     /// <param name="colour">Цвет хода.</param>
     /// <returns><c>true</c>, если ход замкнул пасть тигра.</returns>
-    private static bool TigerMouth(Board board, Point point, StoneColor colour)
+    private static IReadOnlyList<Point>? TigerMouthPoints(Board board, Point point, StoneColor colour)
     {
         foreach (var candidate in Neighbours(board, point))
         {
@@ -276,16 +276,16 @@ public static class MoveShape
                 continue;
             }
 
-            var guards = Neighbours(board, candidate).Count(other => board.At(other) == colour);
+            List<Point> guards = [.. Neighbours(board, candidate).Where(other => board.At(other) == colour)];
 
             // Три своих камня вокруг пустой точки и сама точка — не дыхание чужой группы рядом.
-            if (guards >= 3)
+            if (guards.Count >= 3)
             {
-                return true;
+                return [point, .. guards];
             }
         }
 
-        return false;
+        return null;
     }
 
     /// <summary>Проверяет бамбук: две пары своих камней со сдвигом на одну точку.</summary>
@@ -293,7 +293,7 @@ public static class MoveShape
     /// <param name="point">Точка хода.</param>
     /// <param name="colour">Цвет хода.</param>
     /// <returns><c>true</c>, если форма — бамбук.</returns>
-    private static bool Bamboo(Board board, Point point, StoneColor colour)
+    private static IReadOnlyList<Point>? BambooPoints(Board board, Point point, StoneColor colour)
     {
         // Бамбук — две пары камней со сдвигом на одну точку: пара по линии, вторая пара через точку
         // по диагонали. Пример из урока: D5, E5 и F6, G6.
@@ -320,7 +320,15 @@ public static class MoveShape
                     && board.At(new Point((byte)(x + 2), (byte)(y + 1))) == colour
                     && board.At(new Point((byte)(x + 3), (byte)(y + 1))) == colour)
                 {
-                    return true;
+                    // Возвращаем ВСЕ ЧЕТЫРЕ камня формы: подсветка должна обводить бамбук целиком,
+                    // а не только соседей последнего хода (жалоба пользователя 2026-10-17).
+                    return
+                    [
+                        new Point((byte)x, (byte)y),
+                        new Point((byte)(x + 1), (byte)y),
+                        new Point((byte)(x + 2), (byte)(y + 1)),
+                        new Point((byte)(x + 3), (byte)(y + 1))
+                    ];
                 }
 
                 // То же по вертикали: пара в столбце и вторая пара через две точки в соседнем столбце.
@@ -331,12 +339,18 @@ public static class MoveShape
                     && board.At(new Point((byte)(x + 1), (byte)(y + 2))) == colour
                     && board.At(new Point((byte)(x + 1), (byte)(y + 3))) == colour)
                 {
-                    return true;
+                    return
+                    [
+                        new Point((byte)x, (byte)y),
+                        new Point((byte)x, (byte)(y + 1)),
+                        new Point((byte)(x + 1), (byte)(y + 2)),
+                        new Point((byte)(x + 1), (byte)(y + 3))
+                    ];
                 }
             }
         }
 
-        return false;
+        return null;
     }
 
     /// <summary>Ищет свои камни на расстоянии прыжка: 1 — тоби, 2 — кейма, 3 — никкен тоби.</summary>

@@ -28,6 +28,35 @@ public sealed class ShapeSetGroupTests
     }
 
     [Fact]
+    public void Бамбук_Подсвечивается_Целиком()
+    {
+        // Бамбук — четыре камня. Подсветка обязана обвести все четыре, а не только соседей
+        // последнего хода (жалоба пользователя 2026-10-17).
+        var board = Position([
+            (2, 3), (3, 3), (4, 4), (5, 4)
+        ]);
+
+        var shape = MoveShape.Of(board, Move.Play(new Point(2, 3), StoneColor.Black));
+
+        Assert.Equal("бамбук", shape.Name);
+        Assert.Equal(4, shape.Points.Count);
+    }
+
+    [Fact]
+    public void Пустой_Треугольник_Подсвечивается_Целиком()
+    {
+        // Три камня в квадрате 2×2 — это пустой треугольник: подсветка обводит все три камня,
+        // а не только соседей последнего хода (жалоба пользователя 2026-10-17).
+        var board = Position([
+            (2, 3), (3, 3), (2, 4)
+        ]);
+
+        var shape = MoveShape.Of(board, Move.Play(new Point(2, 3), StoneColor.Black));
+
+        Assert.Equal(3, shape.Points.Count);
+    }
+
+    [Fact]
     public void Форм_Показывается_Не_Больше_Трёх()
     {
         // Чипы форм помещаются в строку панели: больше трёх не показываем.
