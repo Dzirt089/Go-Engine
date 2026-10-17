@@ -92,6 +92,25 @@
 
             <TextBlock x:Name="Heading" Text="Задачи" FontSize="16" FontWeight="SemiBold" />
 
+            <Border x:Name="ExplanationCard"
+                    Classes="app-banner result-win"
+                    IsVisible="{Binding HasExplanation}"
+                    Padding="10"
+                    Margin="0,8,0,0">
+              <StackPanel Spacing="4">
+                <TextBlock Classes="app-banner-title" Text="Разбор задачи" />
+                <!-- Формы перечисляются одной строкой: номера совпадают с чипами и значками
+                     на доске (замечание пользователя 2026-10-11). -->
+                <TextBlock x:Name="ShapesSummaryText"
+                           Classes="app-banner-detail"
+                           Text="{Binding ShapesSummary}"
+                           IsVisible="{Binding HasShapesSummary}" />
+                <TextBlock x:Name="ExplanationText"
+                           Classes="app-banner-detail"
+                           Text="{Binding Explanation}" />
+              </StackPanel>
+            </Border>
+
             <!-- Вердикт хода: внутри прокрутки, чтобы длинную строку можно было дочитать
                  (замечание пользователя 2026-10-17: «сообщение не прокручивается»). -->
             <TextBlock x:Name="Verdict"
@@ -117,24 +136,7 @@
             <!-- Разбор решения: почему оно работает и что это даёт дальше. Появляется, когда
                  задача решена — замечание пользователя 2026-10-11: «я всё сделал с подсказками,
                  но так и не понял суть задачи. А задача должна в конце дать этот ответ». -->
-            <Border x:Name="ExplanationCard"
-                    Classes="app-banner result-win"
-                    IsVisible="{Binding HasExplanation}"
-                    Padding="10"
-                    Margin="0,8,0,0">
-              <StackPanel Spacing="4">
-                <TextBlock Classes="app-banner-title" Text="Разбор задачи" />
-                <!-- Формы перечисляются одной строкой: номера совпадают с чипами и значками
-                     на доске (замечание пользователя 2026-10-11). -->
-                <TextBlock x:Name="ShapesSummaryText"
-                           Classes="app-banner-detail"
-                           Text="{Binding ShapesSummary}"
-                           IsVisible="{Binding HasShapesSummary}" />
-                <TextBlock x:Name="ExplanationText"
-                           Classes="app-banner-detail"
-                           Text="{Binding Explanation}" />
-              </StackPanel>
-            </Border>
+
 
           </StackPanel>
         </ScrollViewer>

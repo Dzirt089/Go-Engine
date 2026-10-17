@@ -88,7 +88,7 @@ public static class MoveDescriber
 
         foreach (var (color, stones) in facts.Atari)
         {
-            parts.Add($"ставлю {Adjective(color)} группу в атари: у неё остаётся одно дыхание ({stones.ToString(CultureInfo.InvariantCulture)} {Stones(stones)})");
+            parts.Add($"ставлю {Accusative(color)} группу в атари: у неё остаётся одно дыхание ({stones.ToString(CultureInfo.InvariantCulture)} {Stones(stones)})");
         }
 
         // Как ход связан с камнями на доске.
@@ -172,23 +172,30 @@ public static class MoveDescriber
         var line = Line(facts.Line);
         var free = facts.OpenNeighbours;
 
+        // Вариант выбирается и по номеру хода, и по фактам позиции: на доске с одинаковыми
+        // «углами» одна и та же фраза больше не всплывает через каждые три хода
+        // (замечание пользователя 2026-10-17 и находка QA: повтор на ходах 9/12/15/21).
+        var variant = Math.Abs((facts.MoveNumber * 7) + (facts.Line * 3) + free + facts.NearestEnemy + facts.GroupSize) % 4;
+
         return facts.Region switch
         {
-            "угол" => (facts.MoveNumber % 3) switch
+            "угол" => variant switch
             {
                 0 => $"закрываю угол {FromLine(facts.Line)}: в углу территория строится дешевле всего, и упускать его нельзя",
                 1 => $"занимаю угол {OnLine(facts.Line)}: отсюда группа скорее получит вторые глаза, чем в центре",
                 _ => $"беру угол на {line}: у меня {free.ToString(CultureInfo.InvariantCulture)} свободных соседних точек, есть куда расти"
             },
             "сторона" => facts.Line <= 2
-                ? $"прижимаюсь к краю на {line}: сделанные камни здесь уже не убегут, а в центре их было бы нечем связать"
-                : (facts.MoveNumber % 3) switch
+                ? (variant % 2 == 0
+                    ? $"прижимаюсь к краю {OnLine(facts.Line)}: сделанные камни здесь уже не убегут, а в центре их было бы нечем связать"
+                    : $"иду по краю {OnLine(facts.Line)}: край закрывает спину, и такая группа переживёт давление")
+                : variant switch
                 {
                     0 => $"растягиваюсь вдоль стороны на {line}: край прикрывает тыл, а {free.ToString(CultureInfo.InvariantCulture)} свободных соседей дают ход в центр",
                     1 => $"занимаю сторону на {line}: отсюда одинаково удобно и строить территорию, и помочь углу",
                     _ => $"выхожу на {line} вдоль стороны: ближний край прикрывает, а сверху открыт путь наверх"
                 },
-            _ => (facts.MoveNumber % 3) switch
+            _ => variant switch
             {
                 0 => $"выхожу на {line} в центр: отсюда мой камень поддержит и угол, и сторону",
                 1 => $"ставлю камень в центр на {line}: центр связывает углы и стороны, и такая позиция уже не пойдёт назад",
@@ -292,7 +299,7 @@ public static class MoveDescriber
     /// <summary>Прилагательное цвета: «чёрную» или «белую».</summary>
     /// <param name="color">Цвет группы.</param>
     /// <returns>Слово для строки об атари.</returns>
-    private static string Adjective(StoneColor color) => color == StoneColor.Black ? "чёрную" : "белую";
+    private static string Accusative(StoneColor color) => color == StoneColor.Black ? "чёрную" : "белую";
 
     /// <summary>Слово «камень» в нужном числе.</summary>
     /// <param name="stones">Число камней.</param>

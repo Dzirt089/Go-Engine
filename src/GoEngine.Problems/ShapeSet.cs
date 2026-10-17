@@ -55,9 +55,19 @@ public static class ShapeSet
         // бессмысленно — это один и тот же участок доски.
         var ordered = found.OrderByDescending(shape => shape.Points.Count).ToList();
 
-        return [.. ordered
-            .Where(shape => !ordered.Any(other => other != shape && shape.Points.All(other.Points.Contains)))
-            .Take(MaxShapes)];
+        List<ShapeFacts> unique = [];
+
+        foreach (var shape in ordered.Where(shape => !ordered.Any(other => other != shape && shape.Points.All(other.Points.Contains))))
+        {
+            // Две формы с одним названием на одних и тех же камнях — это одна форма: показываем
+            // её один раз (находка QA 2026-10-17: в чипах стояло «пустой треугольник» дважды).
+            if (!unique.Any(kept => kept.Name == shape.Name && kept.Points.Intersect(shape.Points).Any()))
+            {
+                unique.Add(shape);
+            }
+        }
+
+        return [.. unique.Take(MaxShapes)];
     }
 
     /// <summary>Сколько форм показывается: столько чипов помещается в строку панели.</summary>
