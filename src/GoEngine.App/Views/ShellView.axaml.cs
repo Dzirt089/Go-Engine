@@ -1,9 +1,8 @@
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Platform;
-using Avalonia.Controls.Primitives;
 using Avalonia.VisualTree;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using GoEngine.App.Services;
@@ -30,10 +29,11 @@ namespace GoEngine.App.Views;
 /// </para>
 /// <para>
 /// При запуске оболочка открывается на разделе «Партия» — экрана настроек вместо доски нет
-/// (замечание 2026-10-03). Шторка «Меню партии» сама не открывается ни на телефоне, ни в окне:
-/// первый экран показывает доску, а действия партии открывает кнопка ☰ (N6 отчёта QA 2026-10-17).
-/// Раскладку выбирает <see cref="BoardLayoutRules.DecideLayout"/> по ширине вида
-/// (<see cref="ApplyLayout"/>).
+/// (замечание 2026-10-03). На телефоне над доской сразу показана шторка меню партии
+/// (<see cref="BoardView.ShowMenu"/>): там это единственный вход к действиям партии, а настольное
+/// окно стартует без неё — у него есть меню-бар и мышь, и шторка поверх доски только мешала бы.
+/// Раскладку выбирает <see cref="BoardLayoutRules.DecideLayout"/> по ширине вида, решение о меню
+/// принимается там же, где применяется раскладка (<see cref="ApplyLayout"/>).
 /// </para>
 /// </remarks>
 public sealed partial class ShellView : UserControl
@@ -53,23 +53,17 @@ public sealed partial class ShellView : UserControl
     private readonly AboutView? _aboutArea;
     private readonly UpdateBanner? _updateBanner;
 
-    /// <summary>Корень оболочки: на него ложится отступ безопасной области.</summary>
-    /// <remarks>
-    /// Отступ нужен на Android в полноэкранном режиме: отрисовка начинается от верхнего края
-    /// экрана, как и координаты касаний, а содержимое сдвигается вниз на строку состояния.
-    /// Без этого смещения мелкие цели нажатия (48 точек) попадали на границу (N3/N4 отчёта
-    /// QA 2026-10-17; D-107).
-    /// </remarks>
-    private readonly Grid? _root;
-
     /// <summary>Применённая раскладка: <c>null</c> — ещё не выбрана.</summary>
     private LayoutMode? _layout;
 
+    /// <summary>Стартовое меню партии ещё не решено: до первого измерения размер вида неизвестен.</summary>
+    private bool _startMenuPending = true;
+
     /// <summary>Создаёт оболочку с настройками из файла и оценкой сети, заданной головой.</summary>
     /// <remarks>
-    /// Стартовое состояние у обеих голов одно: приложение открывается на разделе «Партия»,
-    /// экрана настроек нет и шторка меню не открыта — игрок сразу видит доску
-    /// (N6 отчёта QA 2026-10-17).
+    /// Стартовое состояние у обеих голов одно: приложение открывается на разделе «Партия», экрана
+    /// настроек нет. Шторку меню партии при запуске получает только мобильная раскладка — её
+    /// выбирает размер вида, а не платформа (<see cref="ApplyLayout"/>).
     /// </remarks>
     public ShellView()
         : this(ShellViewModel.Create(
@@ -92,7 +86,6 @@ public sealed partial class ShellView : UserControl
 
         DataContext = shell;
 
-        _root = this.FindControl<Grid>("Root");
         _content = this.FindControl<Panel>("ModeContent");
         _gameButton = this.FindControl<ToggleButton>("GameModeButton");
         _problemButton = this.FindControl<ToggleButton>("ProblemModeButton");
@@ -497,9 +490,23 @@ public sealed partial class ShellView : UserControl
     {
         var layout = BoardLayoutRules.DecideLayoutFor(width, height, OperatingSystem.IsAndroid());
 
-        // Шторка «Меню партии» при запуске не открывается: первый экран — доска, а действия
-        // партии игрок открывает кнопкой ☰ (N6 отчёта QA 2026-10-17). Раньше на телефоне меню
-        // показывалось само, и новичок видел карточку вместо объяснения, что делать.
+        // Стартовое меню партии открывается только в мобильной раскладке: на телефоне это
+        // единственный вход к действиям партии, а настольному окну шторка поверх доски мешала бы —
+        // у него есть меню-бар и мышь (замечание пользователя 2026-10-03: «окно меню должно быть
+        // первым активным окном над партией» — речь про Android). Решаем по настоящему размеру:
+        // до первого измерения Bounds пуст, а DecideLayout(0, 0) отвечает «настольная» — по нулю
+        // решение было бы неверным. Показываем после UpdateMode: раздел «Партия» уже выбран,
+        // и вид партии видим.
+        if (_startMenuPending && width > 0 && height > 0)
+        {
+            _startMenuPending = false;
+
+            if (layout == LayoutMode.Mobile)
+            {
+                GameArea?.ShowMenu();
+            }
+        }
+
         if (_layout == layout)
         {
             return;
@@ -584,20 +591,12 @@ public sealed partial class ShellView : UserControl
         }
     }
 
-    /// <summary>Подписывается на системную кнопку «Назад» и включает полноэкранную отрисовку.</summary>
+    /// <summary>Подписывается на системную кнопку «Назад», пока вид показан.</summary>
     /// <param name="e">Признак подключения к дереву видов.</param>
     /// <remarks>
-    /// <para>
     /// На телефоне «Назад» — системный жест и кнопка: он обязан закрывать то, что открыто поверх,
     /// а не выходить из приложения сразу (DECISIONS.md, D-075). Верхний уровень у вида появляется
     /// только при подключении к дереву — в конструкторе его ещё нет.
-    /// </para>
-    /// <para>
-    /// Отрисовка от того же края, что и касания (N3/N4 отчёта QA 2026-10-17): на Android картинка
-    /// и координаты касаний расходились на высоту строки состояния, и цели в 48 точек попадали
-    /// на границу. Полноэкранный режим и отступ безопасной области убирают расхождение целиком,
-    /// а не подгоняют под него каждую кнопку (<see cref="ApplySafeArea"/>).
-    /// </para>
     /// </remarks>
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
@@ -607,97 +606,19 @@ public sealed partial class ShellView : UserControl
         {
             top.BackRequested -= OnBackRequested;
             top.BackRequested += OnBackRequested;
-            AttachInsets(top);
         }
     }
 
-    /// <summary>Снимает подписку на системную кнопку «Назад» и отступ безопасной области.</summary>
+    /// <summary>Снимает подписку на системную кнопку «Назад».</summary>
     /// <param name="e">Признак отключения от дерева видов.</param>
-    /// <remarks>
-    /// Отступ снимается вместе с подпиской: вид может вернуться в другую активность, и она
-    /// обязана получить свежие размеры безопасной области, а не отступ прежнего окна.
-    /// </remarks>
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         if (TopLevel.GetTopLevel(this) is { } top)
         {
             top.BackRequested -= OnBackRequested;
-            DetachInsets(top);
         }
 
         base.OnDetachedFromVisualTree(e);
-    }
-
-    /// <summary>Включает полноэкранную отрисовку и запоминает отступ безопасной области.</summary>
-    /// <param name="top">Верхний уровень, в который подключён вид.</param>
-    /// <remarks>
-    /// <para>
-    /// Полноэкранный режим включается только на Android: на настольной системе окно и так
-    /// начинается под заголовком, и менять его поведение незачем. Возможность берётся у Avalonia
-    /// (<see cref="IInsetsManager"/>), а не у платформенных API: она уже знает и про вырез
-    /// экрана, и про строку состояния, и про жестовую панель.
-    /// </para>
-    /// <para>
-    /// Если менеджера врезок нет (настольная система, проверка без окна), вид остаётся как был:
-    /// отступ не нужен, и раскладка не меняется.
-    /// </para>
-    /// </remarks>
-    private void AttachInsets(TopLevel top)
-    {
-        // Автоматический отступ Avalonia выключается на всех платформах: он ставится на сам вид
-        // и сложился бы с отступом корня. Один отступ — один источник (см. ApplySafeArea).
-        TopLevel.SetAutoSafeAreaPadding(this, false);
-
-        if (!OperatingSystem.IsAndroid() || top.InsetsManager is not { } insets)
-        {
-            // Не Android или платформа не умеет врезки: отступ не нужен, раскладка прежняя.
-            ApplySafeArea(default);
-
-            return;
-        }
-
-        insets.DisplayEdgeToEdge = true;
-        insets.SafeAreaChanged -= OnSafeAreaChanged;
-        insets.SafeAreaChanged += OnSafeAreaChanged;
-        ApplySafeArea(insets.SafeAreaPadding);
-    }
-
-    /// <summary>Снимает подписку на изменение безопасной области и убирает отступ.</summary>
-    /// <param name="top">Верхний уровень, от которого отключается вид.</param>
-    private void DetachInsets(TopLevel top)
-    {
-        if (top.InsetsManager is { } insets)
-        {
-            insets.SafeAreaChanged -= OnSafeAreaChanged;
-        }
-
-        ApplySafeArea(default);
-    }
-
-    /// <summary>Безопасная область изменилась: содержимое сдвигается на новую высоту.</summary>
-    /// <param name="sender">Менеджер врезок; не используется.</param>
-    /// <param name="e">Новые размеры безопасной области.</param>
-    private void OnSafeAreaChanged(object? sender, SafeAreaChangedArgs e)
-    {
-        _ = sender;
-
-        ApplySafeArea(e.SafeAreaPadding);
-    }
-
-    /// <summary>Сдвигает содержимое оболочки внутрь безопасной области.</summary>
-    /// <param name="padding">Отступы от краёв экрана: сверху строка состояния, снизу панель жестов.</param>
-    /// <remarks>
-    /// Отступ ставится корню оболочки, а не отдельным разделам: иначе партия, задачи и обучение
-    /// считали бы свой верх по-разному и «съезжали» друг относительно друга. Верхний уровень
-    /// при этом занят всем экраном — поэтому картинка и касания начинаются от одного края.
-    /// </remarks>
-    internal void ApplySafeArea(Thickness padding)
-    {
-        if (_root is not null)
-        {
-            // У Grid нет Padding: отступ задаётся полем — тот же эффект для картинки и касаний.
-            _root.Margin = padding;
-        }
     }
 
     /// <summary>Закрывает верхний открытый слой: «Назад» идёт снаружи внутрь.</summary>

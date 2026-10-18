@@ -47,12 +47,6 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
         global::GoEngine.App.App.ExitRequested = ExitGame;
         ConfigureUpdates();
 
-        // Вид приложения мог остаться привязанным к ContentPresenter прежней активности:
-        // Android вправе создать новую раньше, чем уничтожит старую. Отвязываем до base.OnCreate,
-        // иначе Avalonia кладёт ShellView во второй родитель и падает с InvalidOperationException —
-        // «ShellView already has a visual parent» (N1 отчёта QA 2026-10-17).
-        global::GoEngine.App.App.ReleaseMainView();
-
         base.OnCreate(savedInstanceState);
     }
 

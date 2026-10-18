@@ -161,47 +161,6 @@ public sealed partial class App : Application
         static () => new UpdateViewModel(CreateUpdateService()),
         LazyThreadSafetyMode.ExecutionAndPublication);
 
-    /// <summary>Единственный экземпляр оболочки на процесс.</summary>
-    /// <remarks>
-    /// Android пересоздаёт активность в том же процессе, а приложение и его виды остаются живыми.
-    /// Второй <see cref="ShellView"/> потерял бы партию и раздел, поэтому вид хранится здесь,
-    /// а не создаётся заново в каждой активности (N1 отчёта QA 2026-10-17).
-    /// </remarks>
-    private static readonly ShellViewHost _shellHost = new(static () => new ShellView());
-
-    /// <summary>Хранилище единственного экземпляра оболочки.</summary>
-    /// <remarks>Голова Android берёт вид отсюда и отвязывает его при пересоздании активности.</remarks>
-    public static ShellViewHost ShellHost => _shellHost;
-
-    /// <summary>Берёт оболочку для показа, отвязав её от прежнего родителя.</summary>
-    /// <returns>Единственный экземпляр вида.</returns>
-    public static ShellView AcquireShellView() => _shellHost.Acquire();
-
-    /// <summary>Отвязывает главный вид от родителя: активность закрывается или пересоздаётся.</summary>
-    /// <remarks>
-    /// <para>
-    /// Платформа Android может создать новую активность раньше, чем уничтожит прежнюю: тогда
-    /// <see cref="ISingleViewApplicationLifetime.MainView"/> ещё привязан к <c>ContentPresenter</c>
-    /// старого <c>AvaloniaView</c>, и попытка положить его в новый падает с «already has a visual
-    /// parent». Отвязка до создания вида снимает это состояние, а сам вид остаётся живым —
-    /// вместе с партией и выбранным разделом.
-    /// </para>
-    /// <para>
-    /// На настольной системе и в проверках без окна делать нечего: там жизненного цикла одного
-    /// вида нет, и метод молча выходит.
-    /// </para>
-    /// </remarks>
-    public static void ReleaseMainView()
-    {
-        if (Current is not { ApplicationLifetime: ISingleViewApplicationLifetime mobile }
-            || mobile.MainView is not { } view)
-        {
-            return;
-        }
-
-        ShellViewHost.Detach(view);
-    }
-
     /// <summary>Размер окна загрузки: небольшая карточка по центру экрана.</summary>
     private const double LoadingWidth = 420;
 
@@ -298,9 +257,7 @@ public sealed partial class App : Application
     {
         await PrepareAsync(loading).ConfigureAwait(true);
 
-        // Оболочка одна на процесс: возврат из фона и пересоздание активности берут её же,
-        // а не строят вторую копию (N1 отчёта QA 2026-10-17).
-        mobile.MainView = AcquireShellView();
+        mobile.MainView = new ShellView();
     }
 
     /// <summary>Выполняет подготовку головы в фоне, показывая её ход на экране загрузки.</summary>
