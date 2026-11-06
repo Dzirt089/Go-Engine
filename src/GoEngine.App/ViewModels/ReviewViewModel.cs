@@ -88,6 +88,11 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
         if (saved is { Step: > 0 } && !saved.Completed)
         {
             _ = _session.GoTo(saved.Step);
+
+            // Формы восстанавливаются сразу: иначе после перезапуска приложения разбор
+            // открывается на сохранённом ходе без чипов и подсветки до первого «Далее»/«Назад»
+            // (находка живой проверки D-116).
+            RefreshShapes();
         }
     }
 

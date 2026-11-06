@@ -1,4 +1,6 @@
+using GoEngine.App.Services;
 using GoEngine.App.ViewModels;
+using GoEngine.Problems;
 
 namespace GoEngine.App.Tests;
 
@@ -40,6 +42,20 @@ public sealed class ReviewShapeSelectionTests
         model.SelectShape(1);
 
         Assert.DoesNotContain(nameof(ReviewViewModel.LastMove), names);
+    }
+
+    [Fact]
+    public void Продолжение_Разбора_Показывает_Формы_Сразу()
+    {
+        // Регрессия живой проверки D-116: после перезапуска приложения разбор открывался
+        // на сохранённом ходе без чипов и подсветки, пока не нажмёшь «Далее»/«Назад».
+        var (model, game) = ShapeScenarios.ReviewWithSeveralShapes();
+        var progress = StudyProgress.Empty;
+        progress.SaveGame(game.Id, model.MoveNumber, false);
+
+        var resumed = new ReviewViewModel(ReviewLibrary.All, progress);
+
+        Assert.True(resumed.HasSeveralShapes);
     }
 
     [Fact]
