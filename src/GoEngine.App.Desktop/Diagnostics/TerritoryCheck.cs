@@ -244,6 +244,14 @@ internal static class TerritoryCheck
 
         failures += Check(fresh.CanToggleTerritory, "до первого хода переключатель территории доступен");
 
+        // Предпросмотр обязан быть честным, а не тавтологией над свойством-константой:
+        // включаем разметку на пустой доске и смотрим, что все точки нейтральны (D-115).
+        fresh.ShowTerritory = true;
+        failures += Check(
+            fresh.HasTerritory && fresh.Territory is { } preview
+                && preview.Count == Size.Area && preview.All(owner => owner == StoneColor.Empty),
+            "предпросмотр территории на пустой доске: все точки нейтральны");
+
         var playing = CreateModel();
         _ = playing.LoadGame(DeadCornerGame(finished: false));
 
