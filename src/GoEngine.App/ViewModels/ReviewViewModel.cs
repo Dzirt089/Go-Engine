@@ -37,7 +37,7 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
         nameof(MoveCounter), nameof(Message), nameof(HasMessage), nameof(IsMessageGood), nameof(Board),
         nameof(HintPoint), nameof(CanHint), nameof(CanGoNext), nameof(CanGoBack), nameof(IsCompleted),
         nameof(MoveCount), nameof(MoveNumber), nameof(QuizPoints), nameof(Shapes), nameof(SelectedShape),
-        nameof(HasSeveralShapes), nameof(ShapePoints), nameof(ShapeBadges), nameof(ShapesSummary), nameof(HasShapesSummary),
+        nameof(SelectedShapeIndex), nameof(HasSeveralShapes), nameof(ShapePoints), nameof(ShapeBadges), nameof(ShapesSummary), nameof(HasShapesSummary),
         nameof(LastMove), nameof(LastCaptured), nameof(LastCapturedColor)
     ];
 
@@ -120,16 +120,29 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
     /// <summary>Есть что сказать о формах.</summary>
     public bool HasShapesSummary => ShapesSummary.Length > 0;
 
-    /// <summary>Выбирает форму по номеру в списке: подсветка показывает только её.</summary>
-    /// <param name="index">Номер формы, начиная с нуля.</param>
-    public void SelectShape(int index)
+    /// <summary>Номер выбранной формы в списке, начиная с нуля.</summary>
+    /// <remarks>
+    /// Свойство, а не только метод: полоса форм — общий элемент управления для задач, уроков
+    /// и разбора партий, и её выбор приходит в модель двусторонней привязкой (D-116).
+    /// </remarks>
+    public int SelectedShapeIndex
     {
-        if (ShapeMarks.Select(index))
+        get => ShapeMarks.SelectedIndex;
+        set
         {
-            RefreshShapes();
-        NotifyAll();
+            // Формы не пересчитываются: выбор меняет только подсветку. Прежний вызов
+            // RefreshShapes() сбрасывал выбор на первую форму — переключение чипа не работало
+            // (регрессия 2026-11-06).
+            if (ShapeMarks.Select(value))
+            {
+                NotifyShapeSelection();
+            }
         }
     }
+
+    /// <summary>Выбирает форму по номеру в списке: подсветка показывает только её.</summary>
+    /// <param name="index">Номер формы, начиная с нуля.</param>
+    public void SelectShape(int index) => SelectedShapeIndex = index;
 
     /// <summary>Пересчитывает формы по текущему ходу партии.</summary>
     private void RefreshShapes()
@@ -288,7 +301,6 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
 
         RefreshShapes();
         SaveProgress();
-        RefreshShapes();
         NotifyAll();
     }
 
@@ -298,8 +310,10 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
         if (_session.ShowHint() is { } hint)
         {
             _hint = hint;
-            RefreshShapes();
-        NotifyAll();
+
+            // Формы не пересчитываются: подсказка не меняет позицию, а пересчёт сбросил бы
+            // выбранную форму (регрессия 2026-11-06).
+            NotifyAll();
         }
     }
 
@@ -493,6 +507,18 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
         _lastMove = null;
         _lastCaptured = [];
         _lastCapturedColor = StoneColor.Empty;
+    }
+
+    /// <summary>Сообщает виду о смене выбранной формы: только свойства формы, без хода и позиции.</summary>
+    /// <remarks>
+    /// <see cref="NotifyAll"/> поднимает и <see cref="LastMove"/> — вид на него перезапускает
+    /// анимацию камня. Нажатие чипа не должно заново анимировать последний ход (D-116).
+    /// </remarks>
+    private void NotifyShapeSelection()
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedShapeIndex)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedShape)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShapePoints)));
     }
 
     /// <summary>Сообщает виду обо всех свойствах позиции.</summary>

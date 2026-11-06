@@ -142,6 +142,25 @@
     <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusMedium}" />
   </Style>
 
+  <!-- Выбранный чип формы: без него на доске видно подсветку, но не видно, какая форма
+       активна, а на телефоне подсветка может уехать за край экрана (D-116). Background
+       и рамку рисует ContentPresenter шаблона Fluent, а не сама кнопка: та же причина,
+       что у ToggleButton.app-toggle:checked. Кегль и вес шрифта не меняются: иначе выбранный
+       чип менял бы ширину и переносился на узкой панели. -->
+  <Style Selector="Button.app-chip.selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AppAccentSoftBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource AppAccentBrush}" />
+  </Style>
+
+  <!-- Чип формы на телефоне: палец должен попадать в кнопку, а 32 точки меньше рекомендованных
+       48 dp — и это одна из возможных причин жалобы «переключение не работает» на Android
+       (D-116). Класс narrow ставит раскладка «доска и панель» на узком экране. -->
+  <Style Selector="Border.narrow Button.app-chip">
+    <Setter Property="MinHeight" Value="48" />
+  </Style>
+
   <!-- Баннер итога партии: заметная карточка над доской. Цвет ставит код вида по признаку
        «выиграл / проиграл / ничья»: игроку важно не «победили чёрные», а выиграл он сам. -->
   <Style Selector="Border.app-banner">

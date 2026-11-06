@@ -177,7 +177,7 @@ public sealed class ReviewPanelContentTests
         string[] required =
         [
             "MoveCounterText", "NoteTitleText", "NoteTextText", "MoveInfoText",
-            "GameTitleText", "MessageText", "ShapeList", "PanelActions", "Board"
+            "GameTitleText", "MessageText", "ShapeChips", "PanelActions", "Board"
         ];
 
         List<string> missing = [];

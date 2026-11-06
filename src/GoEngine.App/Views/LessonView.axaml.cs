@@ -35,17 +35,6 @@ public sealed partial class LessonView : UserControl
     private readonly TextBlock? _message;
     private readonly ScrollViewer? _noteScroll;
 
-    /// <summary>Выбирает форму по номеру: подсветка на доске показывает только её.</summary>
-    /// <param name="sender">Кнопка формы.</param>
-    /// <param name="e">Аргументы события.</param>
-    private void OnShapeChipClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: int number })
-        {
-            ViewModel.SelectShape(number - 1);
-        }
-    }
-
     /// <summary>Состояние списка уроков: программное обновление не считается выбором игрока.</summary>
     private readonly ComboState _lessonCombo = new();
 

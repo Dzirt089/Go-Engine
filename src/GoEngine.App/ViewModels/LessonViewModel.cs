@@ -33,9 +33,8 @@ public sealed class LessonViewModel : INotifyPropertyChanged
     private static readonly string[] PropertyNames =
     [
         nameof(Labels), nameof(ListCaption), nameof(SelectedIndex), nameof(LessonTitle), nameof(LessonSummary),
-        nameof(StepTitle), nameof(StepText), nameof(StepCounter), nameof(Message), nameof(HasMessage), nameof(Shapes), nameof(SelectedShape), nameof(HasSeveralShapes),
+        nameof(StepTitle), nameof(StepText), nameof(StepCounter), nameof(Message), nameof(HasMessage), nameof(Shapes), nameof(SelectedShape), nameof(SelectedShapeIndex), nameof(HasSeveralShapes),
             nameof(ShapePoints), nameof(ShapeBadges), nameof(ShapesSummary), nameof(HasShapesSummary),
-        nameof(SelectedShapeWhy), nameof(HasSelectedShapeWhy),
         nameof(IsMessageGood), nameof(Board), nameof(HintPoint), nameof(Highlight), nameof(CanHint),
         nameof(CanGoNext), nameof(CanGoBack), nameof(IsCompleted), nameof(IsStepTask),
         nameof(CanGoPreviousLesson), nameof(CanGoNextLesson),
@@ -117,26 +116,26 @@ public sealed class LessonViewModel : INotifyPropertyChanged
     /// <summary>Есть что сказать о формах.</summary>
     public bool HasShapesSummary => ShapesSummary.Length > 0;
 
-    /// <summary>Объяснение выбранной формы: чем «ноби» или «пасть тигра» хороши.</summary>
+    /// <summary>Номер выбранной формы в списке, начиная с нуля.</summary>
     /// <remarks>
-    /// Названия форм — японские термины, и новичок их не знает: нажатие на чип должно объяснять,
-    /// что это (находка QA L10 отчёта 2026-10-17). Текст приходит из распознавания формы,
-    /// своей копии у вида нет.
+    /// Свойство, а не только метод: полоса форм — общий элемент управления для задач, уроков
+    /// и разбора партий, и её выбор приходит в модель двусторонней привязкой (D-116).
     /// </remarks>
-    public string SelectedShapeWhy => ShapeMarks.Selected?.Why ?? string.Empty;
-
-    /// <summary>Есть что объяснить про выбранную форму.</summary>
-    public bool HasSelectedShapeWhy => SelectedShapeWhy.Length > 0;
+    public int SelectedShapeIndex
+    {
+        get => ShapeMarks.SelectedIndex;
+        set
+        {
+            if (ShapeMarks.Select(value))
+            {
+                NotifyShapeSelection();
+            }
+        }
+    }
 
     /// <summary>Выбирает форму по номеру в списке: подсветка показывает только её.</summary>
     /// <param name="index">Номер формы, начиная с нуля.</param>
-    public void SelectShape(int index)
-    {
-        if (ShapeMarks.Select(index))
-        {
-            NotifyAll();
-        }
-    }
+    public void SelectShape(int index) => SelectedShapeIndex = index;
 
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -493,6 +492,18 @@ public sealed class LessonViewModel : INotifyPropertyChanged
         _lastMove = null;
         _lastCaptured = [];
         _lastCapturedColor = StoneColor.Empty;
+    }
+
+    /// <summary>Сообщает виду о смене выбранной формы: только свойства формы, без хода и позиции.</summary>
+    /// <remarks>
+    /// <see cref="NotifyAll"/> поднимает и <see cref="LastMove"/> — вид на него перезапускает
+    /// анимацию камня. Нажатие чипа не должно заново анимировать последний ход (D-116).
+    /// </remarks>
+    private void NotifyShapeSelection()
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedShapeIndex)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedShape)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShapePoints)));
     }
 
     /// <summary>Сообщает виду обо всех свойствах шага.</summary>

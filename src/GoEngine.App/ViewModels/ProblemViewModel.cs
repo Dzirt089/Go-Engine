@@ -39,9 +39,8 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     private static readonly string[] PropertyNames =
     [
         nameof(Current), nameof(Board), nameof(LastMove), nameof(Title), nameof(GoalText), nameof(ToMoveText),
-        nameof(SizeText), nameof(Verdict), nameof(HasVerdict), nameof(Explanation), nameof(HasExplanation), nameof(ShapePoints), nameof(ShapeIsGood), nameof(Shapes), nameof(SelectedShape), nameof(HasSeveralShapes),
+        nameof(SizeText), nameof(Verdict), nameof(HasVerdict), nameof(Explanation), nameof(HasExplanation), nameof(ShapePoints), nameof(ShapeIsGood), nameof(Shapes), nameof(SelectedShape), nameof(SelectedShapeIndex), nameof(HasSeveralShapes),
             nameof(ShapeBadges), nameof(ShapesSummary), nameof(HasShapesSummary),
-            nameof(SelectedShapeWhy), nameof(HasSelectedShapeWhy),
         nameof(IsSolved), nameof(CanBack), nameof(CanHint), nameof(HintPoint), nameof(CanGoPrevious),
         nameof(CanGoNext), nameof(StatusText), nameof(SelectedIndex), nameof(LastCaptured),
         nameof(LastCapturedColor)
@@ -184,26 +183,26 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
     /// <summary>Есть что сказать о формах.</summary>
     public bool HasShapesSummary => ShapesSummary.Length > 0;
 
-    /// <summary>Объяснение выбранной формы: чем «ноби» или «пасть тигра» хороши.</summary>
+    /// <summary>Номер выбранной формы в списке, начиная с нуля.</summary>
     /// <remarks>
-    /// Термины форм — японские, и новичку они ничего не говорят: нажатие на чип показывает,
-    /// что это за форма и что из неё следует (находка QA L10 отчёта 2026-10-17). Текст берётся
-    /// у распознавания формы (<c>MoveShape</c>), второй копии в модели нет.
+    /// Свойство, а не только метод: полоса форм — общий элемент управления для задач, уроков
+    /// и разбора партий, и её выбор приходит в модель двусторонней привязкой (D-116).
     /// </remarks>
-    public string SelectedShapeWhy => Highlight.Selected?.Why ?? string.Empty;
-
-    /// <summary>Есть что объяснить про выбранную форму.</summary>
-    public bool HasSelectedShapeWhy => SelectedShapeWhy.Length > 0;
+    public int SelectedShapeIndex
+    {
+        get => Highlight.SelectedIndex;
+        set
+        {
+            if (Highlight.Select(value))
+            {
+                NotifyShapeSelection();
+            }
+        }
+    }
 
     /// <summary>Выбирает форму по номеру в списке: подсветка показывает только её.</summary>
     /// <param name="index">Номер формы, начиная с нуля.</param>
-    public void SelectShape(int index)
-    {
-        if (Highlight.Select(index))
-        {
-            NotifyAll();
-        }
-    }
+    public void SelectShape(int index) => SelectedShapeIndex = index;
 
 
     /// <summary>Есть что объяснить после решения.</summary>
@@ -524,6 +523,19 @@ public sealed class ProblemViewModel : INotifyPropertyChanged
         var label = string.Create(CultureInfo.InvariantCulture, $"{number}. {problem.Name}");
 
         return problem.IsWeak ? label + " · слабая" : label;
+    }
+
+    /// <summary>Сообщает виду о смене выбранной формы: только свойства формы, без хода и позиции.</summary>
+    /// <remarks>
+    /// Отдельный набор обязателен: <see cref="NotifyAll"/> поднимает и <see cref="LastMove"/>,
+    /// а вид на него перезапускает анимацию камня. Нажатие чипа не должно заново анимировать
+    /// последний ход (находка ревью D-116).
+    /// </remarks>
+    private void NotifyShapeSelection()
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedShapeIndex)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedShape)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShapePoints)));
     }
 
     /// <summary>Сообщает виду, что изменились все свойства задачи.</summary>

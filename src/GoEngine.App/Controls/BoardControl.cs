@@ -44,7 +44,6 @@ public sealed class BoardControl : Control
     public static readonly StyledProperty<GoPoint?> HintPointProperty =
         AvaloniaProperty.Register<BoardControl, GoPoint?>(nameof(HintPoint));
 
-    /// <summary>Свойство подсвеченных точек урока: изменение перерисовывает доску.</summary>
     /// <summary>Камни формы: под ними рисуется неоновая подсветка.</summary>
     public static readonly StyledProperty<IReadOnlyList<GoPoint>?> ShapePointsProperty =
         AvaloniaProperty.Register<BoardControl, IReadOnlyList<GoPoint>?>(nameof(ShapePoints));
@@ -57,7 +56,7 @@ public sealed class BoardControl : Control
     public static readonly StyledProperty<bool> ShapeIsGoodProperty =
         AvaloniaProperty.Register<BoardControl, bool>(nameof(ShapeIsGood), defaultValue: true);
 
-    /// <summary>Точки-подсказки: рисуются тем же знаком, что и подсказка хода.</summary>
+    /// <summary>Свойство подсвеченных точек урока: изменение перерисовывает доску.</summary>
     public static readonly StyledProperty<IReadOnlyList<GoPoint>?> HighlightPointsProperty =
         AvaloniaProperty.Register<BoardControl, IReadOnlyList<GoPoint>?>(nameof(HighlightPoints));
 
@@ -69,19 +68,44 @@ public sealed class BoardControl : Control
     public static readonly StyledProperty<BoardOutcome> OutcomeProperty =
         AvaloniaProperty.Register<BoardControl, BoardOutcome>(nameof(Outcome));
 
+    /// <summary>Свойства, которые доска рисует: изменение любого из них перерисовывает доску.</summary>
+    /// <remarks>
+    /// Список ведётся руками, поэтому свойство, добавленное в отрисовку и забытое здесь,
+    /// оставляет на экране старый кадр. Так вышло с подсветкой форм: выбор чипа менял точки
+    /// формы, а доска не перерисовывалась (регрессия 2026-11-06). Список сверяется тестом
+    /// со всеми свойствами элемента — новое свойство без регистрации валит проверку.
+    /// </remarks>
+    internal static readonly IReadOnlyList<AvaloniaProperty> DrawingProperties =
+    [
+        BoardProperty,
+        LastMoveProperty,
+        HoverPointProperty,
+        TerritoryProperty,
+        DeadPointsProperty,
+        HintPointProperty,
+        HighlightPointsProperty,
+        ShowCoordinatesProperty,
+        OutcomeProperty,
+        ShapePointsProperty,
+        ShapeIsGoodProperty,
+        ShapeBadgesProperty
+    ];
+
     static BoardControl()
     {
-        AffectsRender<BoardControl>(
-            BoardProperty,
-            LastMoveProperty,
-            HoverPointProperty,
-            TerritoryProperty,
-            DeadPointsProperty,
-            HintPointProperty,
-            HighlightPointsProperty,
-            ShowCoordinatesProperty,
-            OutcomeProperty);
+        AffectsRender<BoardControl>([.. DrawingProperties]);
+
+        // Тот же набор свойств, но со счётчиком: проверка не видит обработчики Avalonia,
+        // а «свойство изменилось, а кадра нет» — ровно та регрессия, из-за которой выбор формы
+        // не перерисовывал доску (D-116). Счётчик — шов для теста, поведение не меняет.
+        foreach (var property in DrawingProperties)
+        {
+            property.Changed.AddClassHandler<BoardControl>(static (control, _) => control.RenderRequests++);
+        }
     }
+
+    /// <summary>Сколько раз изменение рисуемого свойства запросило перерисовку доски.</summary>
+    internal int RenderRequests { get; private set; }
 
     private static readonly TimeProvider Clock = TimeProvider.System;
 

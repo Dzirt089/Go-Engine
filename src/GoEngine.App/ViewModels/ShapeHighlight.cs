@@ -23,6 +23,13 @@ public sealed class ShapeHighlight
     /// <summary>Выбранная форма или <c>null</c>, когда форм нет.</summary>
     public ShapeItem? Selected => Shapes.Count == 0 ? null : Shapes[Math.Clamp(_selected, 0, Shapes.Count - 1)];
 
+    /// <summary>Номер выбранной формы в списке, начиная с нуля.</summary>
+    /// <remarks>
+    /// Нужен видам: полоса форм — общий элемент управления, и её выбор приходит в модель
+    /// двусторонней привязкой, а не поиском выделенной кнопки (D-116).
+    /// </remarks>
+    public int SelectedIndex => _selected;
+
     /// <summary>Больше одной формы: тогда показываются номера и список.</summary>
     public bool HasSeveral => Shapes.Count > 1;
 
@@ -30,9 +37,12 @@ public sealed class ShapeHighlight
     public IReadOnlyList<Point> Points => Selected?.Points ?? [];
 
     /// <summary>Значки с номерами на доске: по одному на форму, и только когда форм несколько.</summary>
-    public IReadOnlyList<ShapeBadge> Badges => HasSeveral
-        ? [.. Shapes.Select(shape => new ShapeBadge(shape.Points[0], shape.Number))]
-        : [];
+    /// <remarks>
+    /// Список считается при пересчёте форм, а не при каждом чтении: изменение этого свойства
+    /// теперь перерисовывает доску, и новый список на каждое уведомление модели гонял бы
+    /// отрисовку без причины.
+    /// </remarks>
+    public IReadOnlyList<ShapeBadge> Badges => _badges;
 
     /// <summary>Строка разбора: «Формы: 1) пасть тигра · 2) ноби».</summary>
     public string Summary => Shapes.Count switch
@@ -70,6 +80,9 @@ public sealed class ShapeHighlight
         var changed = shapes.Count != Shapes.Count || !shapes.SequenceEqual(Shapes);
 
         Shapes = shapes;
+        _badges = shapes.Count > 1
+            ? [.. shapes.Select(shape => new ShapeBadge(shape.Points[0], shape.Number))]
+            : [];
         _selected = 0;
 
         return changed;
@@ -82,6 +95,7 @@ public sealed class ShapeHighlight
         var had = Shapes.Count > 0;
 
         Shapes = [];
+        _badges = [];
         _selected = 0;
 
         return had;
@@ -104,4 +118,7 @@ public sealed class ShapeHighlight
 
     /// <summary>Номер выбранной формы в списке.</summary>
     private int _selected;
+
+    /// <summary>Значки форм: пересчитываются вместе с формами, читаются без копий.</summary>
+    private IReadOnlyList<ShapeBadge> _badges = [];
 }

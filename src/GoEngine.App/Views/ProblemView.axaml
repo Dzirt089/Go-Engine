@@ -65,35 +65,15 @@
         <!-- Условие задачи и цель: то, что можно прочитать не спеша. -->
         <ScrollViewer x:Name="Conditions" Grid.Row="1" VerticalScrollBarVisibility="Auto">
           <StackPanel Spacing="4" Margin="0,0,0,8">
-          <!-- Формы хода: строка чипов внутри прокрутки. Отдельная полоса панели отнимала у текста
-               44 точки, а на телефоне это две строки разбора (жалоба пользователя 2026-10-15). -->
-          <StackPanel x:Name="ShapeList" Spacing="4" Margin="0,0,0,6" IsVisible="{Binding HasShapesSummary}" AutomationProperties.Name="Формы решения">
-            <TextBlock Classes="app-label" Text="Формы решения" IsVisible="{Binding HasSeveralShapes}" />
-            <ItemsControl ItemsSource="{Binding Shapes}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <WrapPanel Orientation="Horizontal" />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Button Classes="app-chip"
-                          Margin="0,0,6,4"
-                          Content="{Binding Label}"
-                          Tag="{Binding Number}"
-                          ToolTip.Tip="{Binding Why}"
-                          Click="OnShapeChipClick" />
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <!-- Объяснение выбранной формы: термины «ноби» и «пасть тигра» расшифровываются
-                 здесь, а не только в подсказке (находка QA L10). -->
-            <TextBlock x:Name="ShapeWhyText"
-                       Classes="app-label"
-                       Text="{Binding SelectedShapeWhy}"
-                       IsVisible="{Binding HasSelectedShapeWhy}"
-                       TextWrapping="Wrap" />
-          </StackPanel>
+          <!-- Формы решения: общий элемент с уроками и разбором партий (D-116). Чипы, заголовок
+               и объяснение выбранной формы живут в ShapeChipsControl, поэтому правка полосы
+               не расходится по трём видам. -->
+          <controls:ShapeChipsControl x:Name="ShapeChips"
+                               Header="Формы решения"
+                               Shapes="{Binding Shapes}"
+                               SelectedIndex="{Binding SelectedShapeIndex}"
+                               IsVisible="{Binding HasShapesSummary}"
+                               AutomationProperties.Name="Формы решения" />
 
 
           

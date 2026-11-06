@@ -78,6 +78,11 @@ internal sealed class BoardPanelLayout
             Grid.SetRow(_panel, narrow ? 1 : 0);
 
             _panel.BorderThickness = narrow ? new Thickness(0, 1, 0, 0) : new Thickness(1, 0, 0, 0);
+
+            // Класс раскладки: мобильные размеры органов управления, которых нет в настольном
+            // окне. Панель — общая у задач, уроков и разбора партий, поэтому чипы формы
+            // увеличиваются одним стилем (D-116).
+            _panel.Classes.Set("narrow", narrow);
         }
 
         // Ширина панели пересчитывается на каждое изменение размера: на большом экране панель

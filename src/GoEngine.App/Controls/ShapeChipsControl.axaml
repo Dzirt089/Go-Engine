@@ -1,0 +1,34 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:GoEngine.App.Controls"
+             x:Class="GoEngine.App.Controls.ShapeChipsControl">
+
+  <!-- Полоса форм хода: заголовок, чипы и объяснение выбранной формы. Один элемент на задачи,
+       уроки и разбор партий: раньше разметка и обработчик нажатия были скопированы в три вида,
+       и правка в одном разделе не доходила до остальных (D-116).
+
+       Чипы — кнопки в WrapPanel без собственной прокрутки: форм не больше трёх, а вложенная
+       прокрутка внутри панели уже один раз уводила содержимое разбора из видимой части (D-100). -->
+  <StackPanel Spacing="4" Margin="0,0,0,6">
+    <TextBlock x:Name="HeaderText" Classes="app-label" />
+    <ItemsControl x:Name="Chips">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <WrapPanel Orientation="Horizontal" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="controls:ShapeChip">
+          <Button Classes="app-chip"
+                  Classes.selected="{Binding IsSelected}"
+                  Margin="0,0,6,4"
+                  Content="{Binding Label}"
+                  Tag="{Binding Number}"
+                  ToolTip.Tip="{Binding Why}"
+                  Click="OnChipClick" />
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <TextBlock x:Name="WhyText" Classes="app-label" TextWrapping="Wrap" />
+  </StackPanel>
+</UserControl>
