@@ -28,6 +28,10 @@
        в приложение, а не копию в тестовом коде. -->
   <ItemGroup>
     <Content Include="..\GoEngine.App\Views\UiTheme.axaml" Link="Views\UiTheme.axaml" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Разметка полосы форм и стиль выбранного чипа: без окна и темы кнопки-чипы не
+         материализуются, поэтому проверяется сама связка класса со стилем (D-116). -->
+    <Content Include="..\GoEngine.App\Controls\ShapeChipsControl.axaml" Link="Views\ShapeChipsControl.axaml" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\GoEngine.App\Views\UiStyles.Controls.axaml" Link="Views\UiStyles.Controls.axaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

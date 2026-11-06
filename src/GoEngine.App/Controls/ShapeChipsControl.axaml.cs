@@ -110,16 +110,11 @@ public sealed partial class ShapeChipsControl : UserControl
     private void Refresh()
     {
         var shapes = Shapes ?? [];
+
+        // Выбор только для отображения: зажимать и писать обратно в модель нельзя. Модель
+        // сначала сообщает новые формы, и только потом новый номер; запись зажатого значения
+        // отменила бы сброс выбора на первую форму (находка ревью D-116).
         var selected = Math.Clamp(SelectedIndex, 0, Math.Max(0, shapes.Count - 1));
-
-        if (selected != SelectedIndex)
-        {
-            // Форм стало меньше, и старый номер вышел за границы. Зажимаем выбор: визуально
-            // и в привязке должен быть один и тот же номер (находка ревью D-116).
-            SetCurrentValue(SelectedIndexProperty, selected);
-
-            return;
-        }
 
         if (_header is not null)
         {

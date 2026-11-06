@@ -83,7 +83,8 @@
                                  ShowWhy="False"
                                  Shapes="{Binding Shapes}"
                                  SelectedIndex="{Binding SelectedShapeIndex}"
-                                 IsVisible="{Binding HasShapesSummary}" />
+                                 IsVisible="{Binding HasShapesSummary}"
+                                 AutomationProperties.Name="Формы хода" />
 
 
             <TextBlock x:Name="Heading" Text="Разбор партии" FontSize="16" FontWeight="SemiBold" />

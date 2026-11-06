@@ -93,14 +93,17 @@ public sealed class BoardControl : Control
 
     static BoardControl()
     {
-        AffectsRender<BoardControl>([.. DrawingProperties]);
-
-        // Тот же набор свойств, но со счётчиком: проверка не видит обработчики Avalonia,
-        // а «свойство изменилось, а кадра нет» — ровно та регрессия, из-за которой выбор формы
-        // не перерисовывал доску (D-116). Счётчик — шов для теста, поведение не меняет.
+        // Вместо AffectsRender — свой обработчик на каждое рисуемое свойство. Он делает то же
+        // (перерисовывает доску), но ещё и считает вызовы: без окна и Avalonia.Headless иначе
+        // не проверить, что свойство действительно подписано, — а «свойство изменилось, а кадра
+        // нет» и было регрессией выбора формы (D-116).
         foreach (var property in DrawingProperties)
         {
-            property.Changed.AddClassHandler<BoardControl>(static (control, _) => control.RenderRequests++);
+            property.Changed.AddClassHandler<BoardControl>(static (control, _) =>
+            {
+                control.InvalidateVisual();
+                control.RenderRequests++;
+            });
         }
     }
 

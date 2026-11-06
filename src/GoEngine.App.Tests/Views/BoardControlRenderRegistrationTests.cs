@@ -9,9 +9,10 @@ namespace GoEngine.App.Tests;
 /// <summary>Свойства, которые доска рисует, обязаны перерисовывать её при изменении.</summary>
 /// <remarks>
 /// Регрессия 2026-11-06: подсветка форм не переключалась. Модель меняла камни выбранной формы,
-/// но свойства формы не были зарегистрированы в <c>AffectsRender</c> — доска оставалась прежней,
-/// и выбор чипа был виден только в тексте. Список сверяется со всеми свойствами элемента,
-/// поэтому новое свойство отрисовки без регистрации валит проверку, а не ждёт живого прогона.
+/// но свойства формы не были подписаны на перерисовку — доска оставалась прежней, и выбор чипа
+/// был виден только в тексте. Список сверяется со всеми свойствами элемента, поэтому новое
+/// свойство отрисовки без регистрации валит проверку; счётчик обработчика ловит и потерю самой
+/// подписки (в Avalonia её иначе не увидеть без окна).
 /// </remarks>
 public sealed class BoardControlRenderRegistrationTests
 {
@@ -27,23 +28,10 @@ public sealed class BoardControlRenderRegistrationTests
     }
 
     [Fact]
-    public void Свойства_Формы_Перерисовывают_Доску()
-    {
-        AvaloniaProperty[] shapeProperties =
-        [
-            BoardControl.ShapePointsProperty,
-            BoardControl.ShapeBadgesProperty,
-            BoardControl.ShapeIsGoodProperty
-        ];
-
-        Assert.All(shapeProperties, property => Assert.Contains(property, BoardControl.DrawingProperties));
-    }
-
-    [Fact]
     public void Смена_Свойств_Формы_Запрашивает_Перерисовку()
     {
-        // Проверка идёт через счётчик обработчика: вернуть старый AffectsRender без свойств формы
-        // и оставить DrawingProperties полным тест не даст (находка ревью D-116).
+        // Счётчик стоит в том же обработчике, что и InvalidateVisual: если подписка пропала,
+        // тест падает, а не зеленеет от одного лишь полного списка (находка ревью D-116).
         var control = new BoardControl();
         var before = control.RenderRequests;
 

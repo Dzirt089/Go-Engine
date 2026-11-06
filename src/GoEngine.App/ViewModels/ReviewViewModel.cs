@@ -299,7 +299,13 @@ public sealed class ReviewViewModel : INotifyPropertyChanged
             AppLogMessages.ReviewQuizPassed(_log, _session.Game.Id, number + 1);
         }
 
-        RefreshShapes();
+        // Формы пересчитываются только когда позиция сменилась: отклонённый клик по доске
+        // не двигает партию и не должен сбрасывать выбранную форму (находка тестера D-116).
+        if (_session.MoveNumber != number)
+        {
+            RefreshShapes();
+        }
+
         SaveProgress();
         NotifyAll();
     }

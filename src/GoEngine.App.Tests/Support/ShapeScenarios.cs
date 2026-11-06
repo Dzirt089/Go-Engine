@@ -44,13 +44,15 @@ internal static class ShapeScenarios
     }
 
     /// <summary>Ход разбора партии, где на доске больше одной независимой формы.</summary>
-    /// <returns>Модель, стоящая на таком ходе.</returns>
+    /// <returns>Модель, стоящая на таком ходе, и партия: по ней отвечают на вопросы.</returns>
     /// <exception cref="InvalidOperationException">Во встроенных партиях нет такого хода.</exception>
     /// <remarks>
     /// Вопросы разбора проходятся так же, как игроком: ответ на вопрос — ход партии, после
     /// которого разбор идёт дальше. Без этого обход останавливается на первом же вопросе.
+    /// Возвращается только позиция, с которой можно идти дальше: иначе проверка сброса выбора
+    /// новым ходом была бы пустой.
     /// </remarks>
-    public static ReviewViewModel ReviewWithSeveralShapes()
+    public static (ReviewViewModel Model, ReviewGame Game) ReviewWithSeveralShapes()
     {
         for (var gameIndex = 0; gameIndex < ReviewLibrary.All.Count; gameIndex++)
         {
@@ -61,9 +63,9 @@ internal static class ShapeScenarios
 
             while (guard++ < 200)
             {
-                if (model.HasSeveralShapes)
+                if (model.HasSeveralShapes && (model.CanGoNext || model.IsQuiz))
                 {
-                    return model;
+                    return (model, game);
                 }
 
                 // Вопрос разбора идёт первым: пока он не отвечен, CanGoNext может быть false,

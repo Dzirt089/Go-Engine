@@ -12,7 +12,7 @@ public sealed class ReviewShapeSelectionTests
     [Fact]
     public void Выбор_Формы_В_Партии_Меняет_Камни_Подсветки()
     {
-        var model = ShapeScenarios.ReviewWithSeveralShapes();
+        var (model, _) = ShapeScenarios.ReviewWithSeveralShapes();
 
         model.SelectShape(1);
 
@@ -22,7 +22,7 @@ public sealed class ReviewShapeSelectionTests
     [Fact]
     public void Выбранная_Форма_Номерует_Подсветку()
     {
-        var model = ShapeScenarios.ReviewWithSeveralShapes();
+        var (model, _) = ShapeScenarios.ReviewWithSeveralShapes();
 
         model.SelectShape(1);
 
@@ -33,7 +33,7 @@ public sealed class ReviewShapeSelectionTests
     public void Выбор_Формы_Не_Сообщает_О_Смене_Хода()
     {
         // Выбор формы не должен поднимать LastMove: вид на него перезапускает анимацию камня.
-        var model = ShapeScenarios.ReviewWithSeveralShapes();
+        var (model, _) = ShapeScenarios.ReviewWithSeveralShapes();
         List<string?> names = [];
         model.PropertyChanged += (_, e) => names.Add(e.PropertyName);
 
@@ -43,12 +43,22 @@ public sealed class ReviewShapeSelectionTests
     }
 
     [Fact]
-    public void Начать_Разбор_Заново_Выбирает_Первую_Форму()
+    public void Новый_Ход_Начинает_Выбор_С_Первого_Номера()
     {
-        var model = ShapeScenarios.ReviewWithSeveralShapes();
-        model.SelectShape(1);
+        // Прежняя проверка через Restart была пустой: после него форм нет, и ноль получался
+        // сам собой. Здесь позиция меняется ходом или ответом на вопрос, и выбор обязан
+        // вернуться к первому номеру (находка ревью D-116).
+        var (model, game) = ShapeScenarios.ReviewWithSeveralShapes();
+        model.SelectShape(model.Shapes.Count - 1);
 
-        model.Restart();
+        if (model.IsQuiz)
+        {
+            model.Play(game.Moves[model.MoveNumber].Point);
+        }
+        else
+        {
+            model.Next();
+        }
 
         Assert.Equal(0, model.SelectedShapeIndex);
     }

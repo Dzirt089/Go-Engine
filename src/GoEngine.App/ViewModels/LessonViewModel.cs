@@ -261,18 +261,21 @@ public sealed class LessonViewModel : INotifyPropertyChanged
 
         if (verdict == LessonVerdict.Correct)
         {
+            // Уже отвеченный шаг принимает повторный легальный клик, но позиция не меняется:
+            // метку и формы такого клика трогать нельзя, иначе выбранная форма сбрасывается
+            // (находка тестера D-116).
             if (!ReferenceEquals(before, _session.Board))
             {
                 _lastMove = point;
                 _lastCaptured = _session.Board.CapturedStones;
                 _lastCapturedColor = _session.ToMove.Opponent();
+
+                // Показываем форму, которую построил ход урока: тем же механизмом, что в задачах
+                // (замечание пользователя 2026-10-11 — подсветка форм и в уроках).
+                _ = ShapeMarks.Refresh(_session.Board, move.Color, [point]);
             }
 
             AppLogMessages.LessonStepPassed(_log, _session.Lesson.Id, _session.StepNumber);
-
-            // Показываем форму, которую построил ход урока: тем же механизмом, что в задачах
-            // (замечание пользователя 2026-10-11 — подсветка форм и в уроках).
-            _ = ShapeMarks.Refresh(_session.Board, move.Color, [point]);
         }
         else
         {
