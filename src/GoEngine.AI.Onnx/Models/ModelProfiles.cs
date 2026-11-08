@@ -10,8 +10,8 @@ public sealed record ModelProfile(string FileName, int MinBoardSize, int MaxBoar
 /// <summary>Каталог профилей моделей: единственное место, где заданы имена файлов.</summary>
 /// <remarks>
 /// Профили — <c>DECISIONS.md</c>, D-039: одна сеть на все доски не работает, поэтому у каждого
-/// размера своя модель. Файлы в репозиторий не коммитятся (десятки мегабайт), их кладут
-/// в каталог <c>models</c>; что скачать — в <c>models/README.md</c>.
+/// размера своя модель. Файлы лежат в каталоге <c>models</c> и коммитятся в git
+/// (<c>DECISIONS.md</c>, D-117); источник и SHA-256 — в <c>models/README.md</c>.
 /// </remarks>
 public static class ModelProfiles
 {

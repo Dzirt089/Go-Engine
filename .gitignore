@@ -27,8 +27,9 @@ tools/
 # Копии моделей внутри проекта Android: их делает сборка из каталога models
 src/GoEngine.App.Android/Assets/models/
 
-# Модели нейросети: десятки мегабайт, скачиваются отдельно (models/README.md)
-models/*.onnx
+# Модели нейросети: ONNX-файлы коммитятся в git — перенос на другую машину идёт без
+# релизов и внешних ссылок (D-117, models/README.md). Исходные сети KataGo в .bin/.bin.gz
+# по-прежнему скачиваются отдельно и в индекс не входят.
 models/*.bin
 models/*.bin.gz
 

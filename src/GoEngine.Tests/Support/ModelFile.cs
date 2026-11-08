@@ -2,9 +2,9 @@ namespace GoEngine.Tests;
 
 /// <summary>Файл модели KataGo, скачанный в <c>models/</c>.</summary>
 /// <remarks>
-/// Модель весит около 72 МБ и в индекс git не попадает (`.gitignore`): её скачивают отдельно
-/// по адресу из `models/README.md`. Тесты, которым нужна модель, без неё пропускаются
-/// (см. <see cref="ModelFactAttribute"/>), поэтому проверка на агенте остаётся зелёной.
+/// Модель весит около 72 МБ и коммитится в git (`DECISIONS.md`, D-117), поэтому после клона
+/// лежит в `models/` без скачивания. Если файл удалить вручную, тесты, которым нужна модель,
+/// пропускаются (см. <see cref="ModelFactAttribute"/>), и проверка остаётся зелёной.
 /// </remarks>
 internal static class ModelFile
 {
