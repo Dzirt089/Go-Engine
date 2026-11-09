@@ -197,6 +197,27 @@ public sealed class MainViewModelNetworkTests
     }
 
     [Fact]
+    public async Task Выход_Из_Сети_Сбрасывает_Доску_И_Часы()
+    {
+        // Регрессия реального Android: после «Выйти из сетевой игры» на доске оставалась
+        // сетевая позиция, а шапка и часы выглядели как идущая партия с ИИ.
+        var time = new FakeTimeProvider();
+        using var model = CreateModel(time, Options(time));
+        var client = new FakeNetworkClient();
+        _ = model.StartNetworkGuest(
+            client,
+            new GuestSessionStarted("0123456789abcdef0123456789abcdef", 9, 5.5, StoneColor.White, 1, 90_000));
+
+        await model.LeaveNetworkGameAsync();
+
+        Assert.False(model.IsNetworkGame);
+        Assert.Equal("0", model.MoveNumber);
+        Assert.False(model.IsGameStarted);
+        Assert.Equal("00:00", model.ClockShortDisplay);
+        Assert.Equal(StoneColor.Empty, model.Board.At(new Point(4, 4)));
+    }
+
+    [Fact]
     public void Гость_Восстанавливает_Состояние_После_Переподключения()
     {
         var time = new FakeTimeProvider();

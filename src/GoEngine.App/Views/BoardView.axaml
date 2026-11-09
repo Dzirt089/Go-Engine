@@ -472,6 +472,10 @@
                            Classes="app-label"
                            VerticalAlignment="Center" />
               </Grid>
+              <TextBlock x:Name="MobileOpponentSummary"
+                         Classes="app-label"
+                         TextWrapping="Wrap"
+                         IsVisible="False" />
               <TextBlock x:Name="SheetSummaryDetails"
                          Classes="app-label"
                          TextWrapping="Wrap" />

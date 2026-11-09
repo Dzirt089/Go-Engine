@@ -260,7 +260,7 @@ public sealed class ShellStartTests
         var button = view.FindControl<ToggleButton>("NetworkModeButton");
 
         Assert.NotNull(button);
-        Assert.Equal("Играть с другом", button.Content);
+        Assert.Equal("Партия с другом", button.Content);
     }
 
     [Fact]

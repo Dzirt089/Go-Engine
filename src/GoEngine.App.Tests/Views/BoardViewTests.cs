@@ -140,7 +140,7 @@ public sealed class BoardViewTests
         var (view, _) = Create();
 
         Assert.Contains(
-            "Игра с ИИ",
+            "Партия с ИИ",
             view.FindControl<TextBlock>("DesktopStatusText")!.Text,
             StringComparison.Ordinal);
         Assert.True(view.FindControl<Grid>("LevelPanel")!.IsVisible);
@@ -177,7 +177,7 @@ public sealed class BoardViewTests
                 "0123456789abcdef0123456789abcdef", 9, 5.5, StoneColor.White, 1, 90_000));
 
         Assert.True(started.IsSuccess, started.Error);
-        Assert.Contains("Игра с другом", view.FindControl<TextBlock>("DesktopStatusText")!.Text, StringComparison.Ordinal);
+        Assert.Contains("Партия с другом", view.FindControl<TextBlock>("DesktopStatusText")!.Text, StringComparison.Ordinal);
         Assert.False(view.FindControl<Button>("NewGameButton")!.IsVisible);
         Assert.False(view.FindControl<Grid>("LevelPanel")!.IsVisible);
         Assert.False(view.FindControl<Button>("UndoButton")!.IsVisible);
@@ -197,6 +197,12 @@ public sealed class BoardViewTests
         Assert.Contains("Соперник", opponent.Text, StringComparison.Ordinal);
         Assert.True(mobileOpponent.IsVisible);
         Assert.Contains("Соперник", mobileOpponent.Text, StringComparison.Ordinal);
+
+        var mobileSummary = view.FindControl<TextBlock>("MobileOpponentSummary")!;
+
+        Assert.True(mobileSummary.IsVisible);
+        Assert.Contains("Ты: белые", mobileSummary.Text, StringComparison.Ordinal);
+        Assert.Contains("Соперник: чёрные", mobileSummary.Text, StringComparison.Ordinal);
     }
 
     [Fact]

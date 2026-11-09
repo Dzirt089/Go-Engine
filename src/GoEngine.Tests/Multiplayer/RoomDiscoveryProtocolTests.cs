@@ -27,6 +27,19 @@ public sealed class RoomDiscoveryProtocolTests
     }
 
     [Fact]
+    public void Шестизначный_Код_Комнаты_Кодируется_И_Разбирается()
+    {
+        var room = new RoomAnnouncement("042317", 1, 42, 9, 47810, 1);
+
+        var payload = RoomDiscoveryProtocol.Encode(room);
+        var decoded = RoomDiscoveryProtocol.TryDecode(payload, out var restored);
+
+        Assert.True(decoded);
+        Assert.NotNull(restored);
+        Assert.Equal("042317", restored.GameId);
+    }
+
+    [Fact]
     public void Некорректный_Размер_Доски_Отклонён()
     {
         var room = new RoomAnnouncement(

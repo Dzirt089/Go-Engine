@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Authentication;
@@ -168,7 +169,11 @@ public sealed class LanGameHost : INetworkGameHost
         }
 
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        var gameId = Guid.NewGuid().ToString("N");
+
+        // Короткий цифровой код вместо 32-символьного GUID: его диктуют взрослому
+        // при ручном подключении. Уникальности шести цифр в одной локальной сети достаточно;
+        // безопасность даёт отдельный sessionToken, а не этот код.
+        var gameId = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6", CultureInfo.InvariantCulture);
         var sessionToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
         var announcement = new RoomAnnouncement(gameId, hostAvatarId, roomNumber, boardSize, port, _options.ProtocolVersion);
         var announcer = new RoomAnnouncer(announcement, _options);

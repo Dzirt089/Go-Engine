@@ -1321,7 +1321,8 @@ public sealed partial class BoardView : UserControl
             _desktopDetails.IsVisible = !network && _desktopDetailsButton?.IsChecked == true;
         }
 
-        var opponent = $"Соперник: {NetworkAvatars.GlyphOf(ViewModel.NetworkOpponentAvatarId)} {NetworkAvatars.NameOf(ViewModel.NetworkOpponentAvatarId)}";
+        var opponentName = NetworkAvatars.NameOf(ViewModel.NetworkOpponentAvatarId);
+        var opponent = $"Соперник: {NetworkAvatars.GlyphOf(ViewModel.NetworkOpponentAvatarId)} {opponentName} · ты: {ViewModel.NetworkPlayerColorText} ({ViewModel.NetworkOpponentColorText})";
         if (_networkOpponentText is not null)
         {
             _networkOpponentText.IsVisible = network;
@@ -1337,6 +1338,15 @@ public sealed partial class BoardView : UserControl
             if (network)
             {
                 mobileOpponent.Text = opponent;
+            }
+        }
+
+        if (this.FindControl<TextBlock>("MobileOpponentSummary") is { } mobileSummary)
+        {
+            mobileSummary.IsVisible = network;
+            if (network)
+            {
+                mobileSummary.Text = $"Ты: {ViewModel.NetworkPlayerColorText} · Соперник: {ViewModel.NetworkOpponentColorText}";
             }
         }
 
@@ -1380,7 +1390,7 @@ public sealed partial class BoardView : UserControl
         // видеть, что партия остановлена, а не думать, что интерфейс завис. После конца партии
         // шапка называет не способ завершения, а сам факт и победителя: иначе после закрытия
         // диалога итог было негде посмотреть (дефект 2 QA 2026-10-17).
-        var gameType = ViewModel.IsNetworkGame ? "Игра с другом" : "Игра с ИИ";
+        var gameType = ViewModel.IsNetworkGame ? "Партия с другом" : "Партия с ИИ";
         var plainStatus = (ViewModel.IsNetworkGame
             ? (string.IsNullOrEmpty(ViewModel.NetworkTurnText)
                 ? ViewModel.NetworkStatusText
@@ -1393,7 +1403,7 @@ public sealed partial class BoardView : UserControl
         var status = $"{gameType} · {plainStatus}";
         // На телефоне полная подпись «Игра с ИИ · Ход: Чёрные» не влезает в строку;
         // короткий тип сохраняет различие и не обрезается.
-        var mobileStatus = $"{(ViewModel.IsNetworkGame ? "Друг" : "ИИ")} · {plainStatus}";
+        var mobileStatus = $"{gameType} · {plainStatus}";
         var second = ViewModel.IsNetworkGame
             ? ViewModel.NetworkTurnText
             : paused

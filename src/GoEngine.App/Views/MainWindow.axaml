@@ -20,7 +20,7 @@
       <MenuItem x:Name="GameMenuItem" Header="Партия">
         <MenuItem x:Name="NewGameItem" Header="Новая партия" />
         <MenuItem x:Name="SettingsItem" Header="Настройка партии…" />
-        <MenuItem x:Name="NetworkItem" Header="Игра с другом…" />
+        <MenuItem x:Name="NetworkItem" Header="Партия с другом…" />
         <Separator />
         <!-- Конец партии по согласию: вопрос и подсчёт — те же, что у строки меню партии
              на телефоне (блокер B1 отчёта QA 2026-10-17). -->

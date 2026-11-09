@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using GoEngine.App.Services.Logging;
+using System.Security.Cryptography;
 using GoEngine.Core;
 using GoEngine.Multiplayer;
 
@@ -85,6 +86,9 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
     private string? _error;
     private string _hostRoomText = string.Empty;
     private string _guestRequestText = string.Empty;
+    private StoneColor _hostColor = StoneColor.Black;
+    private StoneColor _guestColor = StoneColor.White;
+    private string? _colorDrawText;
 
     /// <summary>Создаёт лобби для модели партии.</summary>
     /// <param name="game">Модель партии, которой после подключения передаются сессии.</param>
@@ -172,6 +176,9 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
 
     /// <summary>Код комнаты (идентификатор партии) для ручного подключения.</summary>
     public string? HostCode => _host?.Room?.GameId;
+
+    /// <summary>Розыгрыш цвета перед «Пустить»: кто играет чёрными, кто белыми.</summary>
+    public string? ColorDrawText => _colorDrawText;
 
     /// <summary>Есть ли комнаты для подключения.</summary>
     public bool HasRooms => _roomsView.Count > 0;
@@ -278,7 +285,7 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
         OnPropertyChanged(nameof(IsJoinRequestVisible));
         SetStatus("Пустили гостя. Начинаем…");
         var komi = Komi.For(ToBoardSize(SelectedBoardSize)).Value;
-        var result = await host.AcceptGuestAsync(StoneColor.White, komi, CancellationToken.None).ConfigureAwait(true);
+        var result = await host.AcceptGuestAsync(_guestColor, komi, CancellationToken.None).ConfigureAwait(true);
         if (!result.IsSuccess)
         {
             SetError(result.Error);
@@ -565,11 +572,18 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
         Dispatch(() =>
         {
             _guestAvatarId = e.GuestAvatarId;
+
+            // Цвета разыгрываются случайно, как в турнире; оба игрока видят результат до «Пустить».
+            var hostIsBlack = RandomNumberGenerator.GetInt32(2) == 0;
+            _hostColor = hostIsBlack ? StoneColor.Black : StoneColor.White;
+            _guestColor = hostIsBlack ? StoneColor.White : StoneColor.Black;
+            _colorDrawText = $"Ты — {ColorName(_hostColor)}, {AvatarOf(e.GuestAvatarId).Name} — {ColorName(_guestColor)}.";
             _guestRequestText = $"{AvatarOf(e.GuestAvatarId).Name} хочет играть!";
             _joinRequestVisible = true;
             SetStatus($"{_guestRequestText} Пустить?");
             OnPropertyChanged(nameof(IsJoinRequestVisible));
             OnPropertyChanged(nameof(GuestRequestText));
+            OnPropertyChanged(nameof(ColorDrawText));
         });
 
     private void OnGuestConnected(object? sender, EventArgs e) =>
@@ -604,7 +618,7 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
             host,
             SelectedBoardSize,
             komi,
-            StoneColor.Black,
+            _hostColor,
             _guestAvatarId,
             _lifetime?.Token ?? CancellationToken.None).ConfigureAwait(true);
         _busy = false;
@@ -679,6 +693,9 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
         _error = error;
         OnPropertyChanged(nameof(ErrorText));
     }
+
+    private static string ColorName(StoneColor color) =>
+        color == StoneColor.Black ? "чёрные" : "белые";
 
     private static AvatarChoice AvatarOf(int id) => NetworkAvatars.All[id is >= 0 and < 8 ? id : 0];
 

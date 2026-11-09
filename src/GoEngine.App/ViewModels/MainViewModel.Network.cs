@@ -81,6 +81,16 @@ public sealed partial class MainViewModel : IDisposable
     /// <summary>Номер зверя-аватара соперника для подписи в панели.</summary>
     public int NetworkOpponentAvatarId => _networkOpponentAvatarId;
 
+    /// <summary>Цвет игрока в сетевой партии словами.</summary>
+    public string NetworkPlayerColorText => _networkMode
+        ? (_networkPlayerColor == StoneColor.Black ? "чёрные" : "белые")
+        : string.Empty;
+
+    /// <summary>Цвет соперника в сетевой партии словами.</summary>
+    public string NetworkOpponentColorText => _networkMode
+        ? (_networkPlayerColor == StoneColor.Black ? "белые" : "чёрные")
+        : string.Empty;
+
     /// <summary>Строка состояния сетевой партии.</summary>
     public string NetworkStatusText
     {

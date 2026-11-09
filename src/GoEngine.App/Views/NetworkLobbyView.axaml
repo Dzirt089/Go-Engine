@@ -74,6 +74,10 @@
                      FontSize="19"
                      FontWeight="Bold"
                      TextWrapping="Wrap" />
+          <TextBlock x:Name="ColorDrawText"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap"
+                     Text="{Binding ColorDrawText}" />
           <Grid ColumnDefinitions="*,*">
             <Button x:Name="AcceptGuestButton"
                     Grid.Column="0"
@@ -129,7 +133,7 @@
                  Watermark="Порт, например 47810"
                  MinHeight="44" />
         <TextBox x:Name="ManualCodeBox"
-                 Watermark="Код комнаты от хозяина"
+                 Watermark="6-значный код комнаты"
                  MinHeight="44" />
         <Button x:Name="ManualJoinButton"
                 Content="Подключиться по адресу"

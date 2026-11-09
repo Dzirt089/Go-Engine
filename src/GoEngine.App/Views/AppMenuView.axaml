@@ -33,7 +33,7 @@
                       Data="M4,12 A8,8 0 1 1 20,12 A8,8 0 1 1 4,12 Z" />
                 <TextBlock Grid.Column="1"
                            Margin="14,0,8,0"
-                           Text="Партия"
+                           Text="Партия с ИИ"
                            VerticalAlignment="Center" />
                 <!-- Пометка текущего режима: галочка стоит у выбранного. -->
                 <Path x:Name="GameModeCheck"
@@ -104,18 +104,18 @@
       <!-- Сетевая игра с другом: отдельная карточка в разделе «Меню», потому что это действие
            приложения, а не настройка партии. Открывает лобби с автоматическим поиском комнат. -->
       <StackPanel Spacing="6">
-        <TextBlock Classes="app-section" Text="Игра с другом" />
+        <TextBlock Classes="app-section" Text="Партия с другом" />
         <Border Classes="app-card">
           <Button x:Name="NetworkRow"
                   Classes="app-menu-row"
-                  AutomationProperties.Name="Игра с другом">
+                  AutomationProperties.Name="Партия с другом">
             <Grid ColumnDefinitions="Auto,*">
               <!-- Два телефона рядом: значок сетевой игры без значкового шрифта. -->
               <Path Width="22" Height="22" Stretch="Uniform" VerticalAlignment="Center"
                     Data="M3,4 h6 v8 h-6 z M4.5,6 h3 v1 h-3 z M4.5,8 h3 v1 h-3 z M15,12 h6 v8 h-6 z M16.5,14 h3 v1 h-3 z M16.5,16 h3 v1 h-3 z M9,7.5 h6 v2 h-6 z M12,9.5 h2 v2.5 h-2 z" />
               <TextBlock Grid.Column="1"
                          Margin="14,0,8,0"
-                         Text="Игра с другом"
+                         Text="Партия с другом"
                          VerticalAlignment="Center" />
             </Grid>
           </Button>

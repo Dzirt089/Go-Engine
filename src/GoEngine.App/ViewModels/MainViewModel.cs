@@ -2085,6 +2085,8 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             nameof(NetworkStatusText),
             nameof(NetworkTurnText),
             nameof(NetworkOpponentAvatarId),
+            nameof(NetworkPlayerColorText),
+            nameof(NetworkOpponentColorText),
             nameof(CanLeaveNetwork)
         })
         {

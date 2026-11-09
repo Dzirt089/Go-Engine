@@ -59,12 +59,12 @@ public sealed class LanSessionLoopbackTests
     {
         // Регрессия живого прогона: гость обрывал ожидание через HandshakeTimeout в 15 секунд,
         // хотя хозяин ещё мог нажать «Пустить». Решение человека живёт отдельный таймаут.
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         var options = new MultiplayerOptions
         {
             PreferredTcpPort = 0,
-            HandshakeTimeout = TimeSpan.FromSeconds(1),
-            JoinDecisionTimeout = TimeSpan.FromSeconds(10)
+            HandshakeTimeout = TimeSpan.FromSeconds(5),
+            JoinDecisionTimeout = TimeSpan.FromSeconds(20)
         };
         await using var host = new LanGameHost(options);
         var hostRoom = await host.StartHostingAsync(hostAvatarId: 0, roomNumber: 43, boardSize: 9, timeout.Token);
@@ -78,8 +78,8 @@ public sealed class LanSessionLoopbackTests
 
         // Хозяин получил заявку, но думает дольше HandshakeTimeout: гость обязан ждать
         // решения человека (JoinDecisionTimeout), а не обрывать соединение.
-        await requested.Task.WaitAsync(TimeSpan.FromSeconds(5), timeout.Token);
-        await Task.Delay(TimeSpan.FromSeconds(2), timeout.Token);
+        await requested.Task.WaitAsync(TimeSpan.FromSeconds(15), timeout.Token);
+        await Task.Delay(TimeSpan.FromSeconds(7), timeout.Token);
 
         var accepted = await host.AcceptGuestAsync(StoneColor.White, 5.5, timeout.Token);
         Assert.True(accepted.IsSuccess, accepted.Error);

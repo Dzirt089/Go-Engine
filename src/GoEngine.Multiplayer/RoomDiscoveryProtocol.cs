@@ -42,7 +42,7 @@ internal static class RoomDiscoveryProtocol
             if (packet is null
                 || !string.Equals(packet.Magic, Magic, StringComparison.Ordinal)
                 || packet.ProtocolVersion != ProtocolVersion
-                || !Guid.TryParseExact(packet.GameId, "N", out _)
+                || !IsValidGameId(packet.GameId)
                 || packet.HostAvatarId is < 0 or > 7
                 || packet.RoomNumber is < 1 or > 999
                 || packet.BoardSize is not (9 or 13 or 19)
@@ -65,6 +65,12 @@ internal static class RoomDiscoveryProtocol
             return false;
         }
     }
+
+    /// <summary>Код комнаты: 6 цифр у новых версий или GUID у старых объявлений.</summary>
+    private static bool IsValidGameId(string? gameId) =>
+        gameId is not null
+        && (gameId.Length == 6 && gameId.All(char.IsAsciiDigit)
+            || Guid.TryParseExact(gameId, "N", out _));
 
     private sealed record RoomPacket
     {

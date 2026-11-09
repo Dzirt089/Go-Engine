@@ -927,6 +927,11 @@ public sealed partial class ShellView : UserControl
             _networkModeButton.IsChecked = networkOpen;
         }
 
+        if (this.FindControl<Button>("NavNetworkButton") is { } navNetwork)
+        {
+            navNetwork.Classes.Set("active", networkOpen);
+        }
+
         var lobbyOpen = _networkOverlay?.IsVisible == true;
         if (this.FindControl<TextBlock>("ModeHintText") is { } hint)
         {
