@@ -322,14 +322,16 @@
                   Data="F1 M12,4 A8,8 0 1 1 12,20 A8,8 0 1 1 12,4 Z M12,8.4 A3.6,3.6 0 1 0 12,15.6 A3.6,3.6 0 1 0 12,8.4 Z M10.6,1.6 h2.8 v4.4 h-2.8 z M10.6,18 h2.8 v4.4 h-2.8 z M1.6,10.6 h4.4 v2.8 h-4.4 z M18,10.6 h4.4 v2.8 h-4.4 z M17.2,3.4 L20.6,6.8 L17.2,10.2 L13.8,6.8 Z M6.8,3.4 L10.2,6.8 L6.8,10.2 L3.4,6.8 Z M6.8,13.8 L10.2,17.2 L6.8,20.6 L3.4,17.2 Z M17.2,13.8 L20.6,17.2 L17.2,20.6 L13.8,17.2 Z" />
           </Button>
 
-          <StackPanel Grid.Column="2"
-                      Orientation="Horizontal"
-                      Spacing="6"
-                      Margin="4,0,6,0"
-                      VerticalAlignment="Center">
+          <!-- Сетка, а не StackPanel: StackPanel даёт тексту бесконечную ширину, и подпись
+               «Игра с ИИ · Ход: Чёрные» наезжала на часы. Звёздная колонка обрезает текст
+               многоточием, часы остаются справа без наложения. -->
+          <Grid Grid.Column="2"
+                ColumnDefinitions="Auto,*"
+                Margin="4,0,6,0"
+                VerticalAlignment="Center">
             <!-- Камень того, кто ходит: чёрный залит, белый — с обводкой, иначе он пропадал бы
                  на светлой строке состояния. -->
-            <Panel VerticalAlignment="Center">
+            <Panel Grid.Column="0" VerticalAlignment="Center">
               <Ellipse x:Name="MobileTurnBlack"
                        Width="14"
                        Height="14"
@@ -343,10 +345,12 @@
                        StrokeThickness="1" />
             </Panel>
             <TextBlock x:Name="MobileTurnText"
+                       Grid.Column="1"
+                       Margin="6,0,0,0"
                        VerticalAlignment="Center"
                        FontWeight="SemiBold"
                        TextTrimming="CharacterEllipsis" />
-          </StackPanel>
+          </Grid>
 
           <TextBlock x:Name="MobileClockText"
                      Grid.Column="3"
@@ -417,7 +421,7 @@
               Padding="8"
               Margin="8,8,8,8"
               HorizontalAlignment="Stretch">
-            <Grid x:Name="MobileActionRow" ColumnDefinitions="*,*,*,*" Classes="app-touch-row touch">
+            <Grid x:Name="MobileActionRow" ColumnDefinitions="*,*,*,1.25*" Classes="app-touch-row touch">
               <Button x:Name="MobilePassButton"
                       Grid.Column="0"
                       Content="Пас"

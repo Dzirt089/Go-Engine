@@ -1288,7 +1288,7 @@ public sealed partial class BoardView : UserControl
 
         if (this.FindControl<Grid>("MobileActionRow") is { } mobileRow)
         {
-            mobileRow.ColumnDefinitions = network ? new ColumnDefinitions("*,*") : new ColumnDefinitions("*,*,*,*");
+            mobileRow.ColumnDefinitions = network ? new ColumnDefinitions("*,*") : new ColumnDefinitions("*,*,*,1.25*");
         }
 
         if (this.FindControl<Control>("MobilePassButton") is { } mobilePass)
