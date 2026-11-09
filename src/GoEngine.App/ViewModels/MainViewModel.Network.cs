@@ -270,6 +270,13 @@ public sealed partial class MainViewModel : IDisposable
         _networkTimerPaused = false;
         _networkError = null;
         _networkOpponentAvatarId = -1;
+
+        // После выхода из сети доска не должна оставаться доской сетевой партии с идущими
+        // часами: это выглядело как «ИИ · Ход» посреди чужого поля. Начинаем чистую партию
+        // с ИИ, но не запускаем часы — первый ход игрока сделает это сам.
+        BeginGame(_settings);
+        _gameStarted = false;
+        _clock.Reset();
         NotifyAll();
     }
 

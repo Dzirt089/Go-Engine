@@ -33,7 +33,7 @@ App.Tests → App
 | `GoEngine.App.Desktop` | точка входа настольных ОС | App, AI.Onnx | Avalonia.Desktop |
 | `GoEngine.App.Android` | точка входа Android | App, AI.Onnx | Avalonia.Android |
 | `GoEngine.Tests` | доменные тесты (~1261) | Core, AI, AI.Onnx, Problems, Multiplayer | xUnit |
-| `GoEngine.App.Tests` | тесты вида и модели (~966) | App | xUnit, SkiaSharp |
+| `GoEngine.App.Tests` | тесты вида и модели (~967) | App | xUnit, SkiaSharp |
 | `GoEngine.Tools.TestRunner` | запасной прогон тестов без vstest | — | — |
 
 Правило: **слой не ссылается на слой выше себя**. Нарушение — критический дефект архитектуры.

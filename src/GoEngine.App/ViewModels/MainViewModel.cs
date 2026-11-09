@@ -424,6 +424,20 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>Победитель, которого называет способ завершения, а не счёт доски.</summary>
+    /// <remarks>Сдача и лимит ходов решают партию независимо от того, что стоит на доске.</remarks>
+    private StoneColor? DecisiveWinner()
+    {
+        if (_game.Status != GameStatus.FinishedByResign
+            && _game.Status != GameStatus.FinishedByMoveLimit)
+        {
+            return null;
+        }
+
+        var finished = _game.Finish();
+        return finished.IsSuccess ? finished.Value.Winner : null;
+    }
+
     /// <summary>Итог завершённой партии или пустая строка, пока партия идёт.</summary>
     /// <remarks>
     /// У явно недоигранной позиции итог — «Счёт не принят»: победитель не называется,
@@ -448,14 +462,9 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             // а не счёт доски: сдавшийся проигрывает независимо от того, что стоит на доске.
             // Раньше победитель брался только из счёта, и игрок, сдавшийся при перевесе,
             // объявлялся победителем (найдено разведкой 2026-10-02).
-            if (_game.Status == GameStatus.FinishedByResign || _game.Status == GameStatus.FinishedByMoveLimit)
+            if (DecisiveWinner() is { } taken)
             {
-                var finished = _game.Finish();
-
-                if (finished.IsSuccess && finished.Value.Winner is { } taken)
-                {
-                    return $"Победили {(taken == StoneColor.Black ? "чёрные" : "белые")}";
-                }
+                return $"Победили {(taken == StoneColor.Black ? "чёрные" : "белые")}";
             }
 
             // Два паса: победителя называет та же величина, что стоит в строке счёта, иначе панель
@@ -481,7 +490,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
         : Views.GameStatusLines.ResultHeadline(
             HasOutcome,
             Outcome,
-            Margin.ToString(CultureInfo.InvariantCulture),
+            _game.Status == GameStatus.FinishedByResign ? string.Empty : Margin.ToString(CultureInfo.InvariantCulture),
             ResultTone);
 
     /// <summary>Строка под заголовком баннера: только исход словами, без счёта.</summary>
@@ -518,7 +527,9 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
                 return GameTone.None;
             }
 
-            var winner = CurrentScore.Winner;
+            // Сдача/лимит: победителя называет партия, а не счёт доски. Иначе проигравший
+            // по сдаче мог увидеть «Вы победили» только потому, что вёл по очкам.
+            var winner = DecisiveWinner() ?? CurrentScore.Winner;
 
             if (winner == StoneColor.Empty)
             {

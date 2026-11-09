@@ -99,11 +99,14 @@ public static class GameStatusLines
             return string.Empty;
         }
 
+        // Сдача не имеет перевеса по доске: цифра из счёта только путала бы игрока.
+        var suffix = string.IsNullOrEmpty(margin) ? string.Empty : $" · {(tone == GameTone.Win ? "+" : "−")}{margin}";
+
         return tone switch
         {
             GameTone.Draw => "Ничья",
-            GameTone.Win => $"Вы победили · +{margin}",
-            GameTone.Loss => $"Вы проиграли · −{margin}",
+            GameTone.Win => $"Вы победили{suffix}",
+            GameTone.Loss => $"Вы проиграли{suffix}",
             _ => string.Empty
         };
     }
