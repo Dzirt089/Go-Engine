@@ -74,21 +74,12 @@
                        FontWeight="SemiBold"
                        TextWrapping="Wrap" />
 
-            <!-- Чем партия окончена: «Завершена двумя пасами», «Завершена сдачей». Признак конца
-                 и победителя называет строка выше, а способ завершения — эта. Нужна после конца
-                 партии: раньше способ стоял вместо признака, и итог было не понять (дефект 2 QA
-                 2026-10-17). Пока партия идёт, строки нет. -->
-            <TextBlock x:Name="DesktopStatusReasonText"
-                       Classes="app-label"
-                       IsVisible="False"
-                       TextWrapping="Wrap" />
-
             <TextBlock x:Name="DesktopScoreText"
                        FontSize="14"
                        FontWeight="SemiBold"
                        TextWrapping="Wrap" />
 
-            <!-- Явно называет тип партии: «Игра с ИИ» или «Игра с другом». -->
+            <!-- Соперник и цвета в сетевой партии: имя названо один раз, здесь же его цвет. -->
             <TextBlock x:Name="NetworkOpponentText"
                        FontSize="14"
                        FontWeight="SemiBold"
@@ -133,27 +124,6 @@
                             IsChecked="{Binding ShowTerritory}" />
             </Grid>
 
-            <!-- Числа подсчёта стоят сразу под действиями: игрок нажимает «Территорию» и обязан
-                 видеть рядом, что именно посчитано — камни, территория, пленные. Пустые строки
-                 места не занимают: их скрывает вид по признаку «есть что сказать». -->
-            <TextBlock x:Name="DesktopPrisonersText"
-                       Classes="app-value"
-                       TextWrapping="Wrap"
-                       IsVisible="False" />
-
-            <!-- Расшифровка двух слов, которые новичок встречает первыми: «пленные» и «коми».
-                 Оба стоят в счёте без объяснения, и догадаться о их смысле неоткуда
-                 (находки QA L3 и L4 отчёта 2026-10-17). Строка короткая и стоит рядом с числами. -->
-            <TextBlock x:Name="DesktopTermsHint"
-                       Classes="app-label"
-                       TextWrapping="Wrap"
-                       Text="Пленные — снятые с доски камни. Коми — компенсация белым за первый ход чёрных." />
-
-            <TextBlock x:Name="DesktopBreakdownText"
-                       Classes="app-label"
-                       TextWrapping="Wrap"
-                       IsVisible="False" />
-
             <!-- Списки доски и уровня: ими игрок выбирает, с чем играть, поэтому они видны
                  всегда. Списки заполняет код вида (BoardView.axaml.cs), а не привязка: список
                  выбора сбрасывает индекс при подмене ItemsSource и вернул бы его в модель
@@ -195,6 +165,13 @@
                           HorizontalContentAlignment="Center" />
 
             <StackPanel x:Name="DesktopDetailsPanel" Spacing="6" IsVisible="False">
+              <!-- Способ завершения партии: «Завершена сдачей». На главном экране он повторял
+                   строку состояния, поэтому живёт в подробностях: кому нужно — развернёт. -->
+              <TextBlock x:Name="DesktopStatusReasonText"
+                         Classes="app-label"
+                         TextWrapping="Wrap"
+                         IsVisible="False" />
+
               <!-- Сведения о партии одной строкой: соперник, номер хода и коми. -->
               <TextBlock x:Name="DesktopStatsText"
                          Classes="app-label"
@@ -224,16 +201,45 @@
                          Classes="app-label"
                          TextWrapping="Wrap" />
 
+              <!-- Технические строки счёта — только здесь: на главном экране они превращались
+                   в стену текста после каждой партии (жалоба пользователя 2026-11-09). -->
+              <TextBlock x:Name="DesktopPrisonersText"
+                         Classes="app-value"
+                         TextWrapping="Wrap"
+                         IsVisible="False" />
+              <TextBlock x:Name="DesktopBreakdownText"
+                         Classes="app-label"
+                         TextWrapping="Wrap"
+                         IsVisible="False" />
+
+              <!-- Расшифровка двух слов, которые новичок встречает первыми: «пленные» и «коми».
+                   Строка стоит рядом с числами, где эти слова действительно видны, и только
+                   в подробностях — в конце каждой партии на главном экране она была лишней. -->
+              <TextBlock x:Name="DesktopTermsHint"
+                         Classes="app-label"
+                         TextWrapping="Wrap"
+                         Text="Пленные — камни, снятые с доски. Коми — бонус белым за то, что чёрные ходят первыми." />
+
               <!-- Подсказка о том, почему уровней с сетью нет: строка нужна, но показывается
                    только когда есть что сказать. -->
               <TextBlock x:Name="DesktopLevelHintText"
                          Classes="app-label"
                          TextWrapping="Wrap" />
+
+              <!-- После партии разметка территории уходит с главного экрана вместе с рядом
+                   действий: кнопка без хода — мёртвая. Кому нужен предпросмотр владения,
+                   найдёт его здесь. -->
+              <ToggleButton x:Name="DesktopDetailsTerritoryButton"
+                            Content="Показать территорию"
+                            Classes="app-toggle"
+                            IsVisible="False"
+                            IsChecked="{Binding ShowTerritory}"
+                            IsEnabled="{Binding CanToggleTerritory}" />
             </StackPanel>
 
-            <!-- Кнопка «Начать партию» скрыта: игра начинается с первого хода по доске,
-                 а после конца — из итоговой карточки. Она не решала ничего, но занимала
-                 главное место панели (замечание пользователя 2026-11-09). -->
+            <!-- «Начать партию» до партии не нужна: игра начинается с первого хода по доске.
+                 После итога кнопка становится «Новой партией» — единственным осмысленным
+                 действием на панели, когда ряд хода убран (замечание пользователя 2026-11-09). -->
             <Button x:Name="NewGameButton"
                     IsEnabled="{Binding CanStartNewGame}"
                     Content="Начать партию"
@@ -341,10 +347,11 @@
 
           <TextBlock x:Name="MobileClockText"
                      Grid.Column="2"
+                     MinWidth="52"
                      Margin="0,0,4,0"
                      VerticalAlignment="Center"
                      Classes="app-clock"
-                     TextTrimming="CharacterEllipsis" />
+                     TextTrimming="None" />
         </Grid>
       </Border>
 
@@ -390,6 +397,10 @@
            файлы и настройки переехали в меню (кнопка «Меню» в нижней навигации): в 360 точках
            пять кнопок в ряд не помещались (жалоба пользователя 2026-10-02), а теперь ряд стал
            ровным и компактным.
+           После конца партии ряд хода убирается целиком: пас в законченной партии ничего
+           не делает, а разметка территории переезжает в «Подробности». Остаётся одно осмысленное
+           действие — «Новая партия» или выход из сетевой игры (жалоба пользователя 2026-11-09:
+           две серые кнопки после итога читались как поломка).
            Панель идёт во всю ширину доски, а не «плавающей» карточкой по центру: раньше её ширина
            зависела от подписей, она была уже доски и заезжала за нижний край (жалоба 2026-10-02
            «наезжает на доску и сделан не аккуратно»). Ширину ограничивает код вида
@@ -401,36 +412,51 @@
               Padding="8"
               Margin="8,8,8,8"
               HorizontalAlignment="Stretch">
-            <Grid x:Name="MobileActionRow" ColumnDefinitions="*,*,*,1.25*" Classes="app-touch-row touch">
-              <Button x:Name="MobilePassButton"
-                      Grid.Column="0"
-                      Content="Пас"
-                      Classes="app-touch primary"
-                      ToolTip.Tip="Передать ход: вы отказываетесь ставить камень. Партия заканчивается, когда спасуют обе стороны."
-                      IsEnabled="{Binding CanPass}" />
-              <Button x:Name="MobileUndoButton"
-                      Grid.Column="1"
-                      Content="Отменить"
-                      Classes="app-touch"
-                      ToolTip.Tip="Отменить ваш последний ход вместе с ответом соперника"
-                      IsEnabled="{Binding CanUndo}" />
-              <Button x:Name="MobileRedoButton"
-                      Grid.Column="2"
-                      Content="Вернуть"
-                      Classes="app-touch"
-                      IsEnabled="{Binding CanRedo}" />
-              <!-- Переключатель остаётся в ряду и тогда, когда недоступен: скрытая кнопка
-                   оставляла четвёртую колонку пустой, и ряд выглядел сломанным (жалоба
-                   пользователя 2026-10-02; после конца партии «Территория» доступна —
-                   признак CanToggleTerritory у модели). -->
-              <ToggleButton x:Name="MobileTerritoryButton"
-                            Grid.Column="3"
-                            Content="Территория"
-                            Classes="app-touch-toggle"
-                            ToolTip.Tip="Предпросмотр: показать, кому принадлежат пустые точки. Правила и счёт не меняются."
-                            IsEnabled="{Binding CanToggleTerritory}"
-                            IsChecked="{Binding ShowTerritory}" />
-            </Grid>
+        <Grid>
+          <Grid x:Name="MobileActionRow" ColumnDefinitions="*,*,*,1.25*" Classes="app-touch-row touch">
+            <Button x:Name="MobilePassButton"
+                    Grid.Column="0"
+                    Content="Пас"
+                    Classes="app-touch primary"
+                    ToolTip.Tip="Передать ход: вы отказываетесь ставить камень. Партия заканчивается, когда спасуют обе стороны."
+                    IsEnabled="{Binding CanPass}" />
+            <Button x:Name="MobileUndoButton"
+                    Grid.Column="1"
+                    Content="Отменить"
+                    Classes="app-touch"
+                    ToolTip.Tip="Отменить ваш последний ход вместе с ответом соперника"
+                    IsEnabled="{Binding CanUndo}" />
+            <Button x:Name="MobileRedoButton"
+                    Grid.Column="2"
+                    Content="Вернуть"
+                    Classes="app-touch"
+                    IsEnabled="{Binding CanRedo}" />
+            <!-- Переключатель остаётся в ряду и тогда, когда недоступен: скрытая кнопка
+                 оставляла четвёртую колонку пустой, и ряд выглядел сломанным (жалоба
+                 пользователя 2026-10-02). После конца партии ряду хода здесь не место —
+                 его заменяет одно действие ниже. -->
+            <ToggleButton x:Name="MobileTerritoryButton"
+                          Grid.Column="3"
+                          Content="Территория"
+                          Classes="app-touch-toggle"
+                          ToolTip.Tip="Предпросмотр: показать, кому принадлежат пустые точки. Правила и счёт не меняются."
+                          IsEnabled="{Binding CanToggleTerritory}"
+                          IsChecked="{Binding ShowTerritory}" />
+          </Grid>
+
+          <!-- Действие после итога: одно, крупное и понятное. В сети им нельзя начать
+               новую партию, пока не вышел из сетевой, поэтому там кнопка выхода. -->
+          <Grid x:Name="MobilePostGameRow" ColumnDefinitions="*" Classes="app-touch-row touch" IsVisible="False">
+            <Button x:Name="MobilePostGameNewGameButton"
+                    Content="Новая партия"
+                    Classes="app-touch primary"
+                    IsVisible="False" />
+            <Button x:Name="MobilePostGameLeaveButton"
+                    Content="Выйти из сетевой игры"
+                    Classes="app-touch primary"
+                    IsVisible="False" />
+          </Grid>
+        </Grid>
       </Border>
       </Grid>
 
@@ -459,32 +485,32 @@
                       HorizontalAlignment="Center"
                       Background="{DynamicResource AppBorderBrush}" />
               <!-- Строки краткого состояния: на низком экране (телефон в ландшафте) они
-                   убираются, чтобы доска не стала полоской. -->
+                   убираются, чтобы доска не стала полоской.
+                   Свёрнутая шторка — три коротких строки: итог одной фразой, счёт и соперник.
+                   Технические строки и толкование терминов живут только в «Подробностях»:
+                   после каждой партии они превращались в стену текста (жалоба 2026-11-09). -->
               <StackPanel x:Name="SheetSummaryPanel" Spacing="6">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock x:Name="SheetSummary"
-                           FontWeight="SemiBold"
-                           TextTrimming="CharacterEllipsis"
-                           VerticalAlignment="Center" />
-                <TextBlock x:Name="SheetChevron"
-                           Grid.Column="1"
-                           Margin="8,0,0,0"
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock x:Name="SheetSummary"
+                             FontWeight="SemiBold"
+                             TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center" />
+                  <TextBlock x:Name="SheetChevron"
+                             Grid.Column="1"
+                             Margin="8,0,0,0"
+                             Classes="app-label"
+                             VerticalAlignment="Center" />
+                </Grid>
+                <!-- Счёт одной строкой: после итога он уходит из первой строки сюда. -->
+                <TextBlock x:Name="SheetSummaryDetails"
                            Classes="app-label"
-                           VerticalAlignment="Center" />
-              </Grid>
-              <TextBlock x:Name="MobileOpponentSummary"
-                         Classes="app-label"
-                         TextWrapping="Wrap"
-                         IsVisible="False" />
-              <TextBlock x:Name="SheetSummaryDetails"
-                         Classes="app-label"
-                         TextWrapping="Wrap" />
-              <!-- Толкование слов «пленные» и «коми»: они стоят в этой же свёрнутой шторке,
-                   и без расшифровки новичок их пропускает (находки QA L3 и L4). -->
-              <TextBlock x:Name="MobileTermsHint"
-                         Classes="app-label"
-                         TextWrapping="Wrap"
-                         Text="Пленные — снятые камни. Коми — компенсация белым за первый ход." />
+                           TextWrapping="Wrap"
+                           IsVisible="False" />
+                <!-- Соперник и цвета — один раз и коротко, без повторения в подробностях. -->
+                <TextBlock x:Name="MobileOpponentSummary"
+                           Classes="app-label"
+                           TextWrapping="Wrap"
+                           IsVisible="False" />
               </StackPanel>
             </StackPanel>
           </Button>
@@ -497,12 +523,6 @@
 
               <TextBlock Classes="app-subtitle" Text="Подробности" />
 
-              <TextBlock x:Name="MobileStatusText" Classes="app-value" />
-
-              <!-- Здесь остаётся только объяснение счёта и статус: строка счёта (SheetSummary)
-                   и пленные (SheetSummaryDetails) уже стоят в свёрнутой шторке, и повторять их
-                   в подробностях нельзя — игрок видел одну и ту же величину дважды (жалоба
-                   пользователя 2026-10-02 «дублирование счетов»). -->
               <!-- Итог объявляется карточкой: цвет говорит «выиграл / проиграл / ничья»,
                    и она видна всегда, пока партия окончена. Игрок просил вернуть это объявление
                    (жалоба 2026-10-11): раньше итог был только в закрываемом баннере. -->
@@ -523,14 +543,24 @@
               <TextBlock x:Name="MobileScoreChineseText" Classes="app-label" TextWrapping="Wrap" />
               <TextBlock x:Name="MobileScoreDeadText" Classes="app-label" TextWrapping="Wrap" />
 
-              <!-- Числа разметки видны всегда: переключатель «Территория» показывает и прячет
-                   картинку на доске, а не счёт (D-071, замечание пользователя 2026-10-03).
-                   Видимость строки ставит код вида по признаку «есть что сказать» — так же,
-                   как у настольной строки разбора. -->
+              <!-- Технические строки счёта — только здесь. На главном экране они превращались
+                   в стену текста после каждой партии (жалоба пользователя 2026-11-09). -->
               <TextBlock x:Name="MobileBreakdownText"
                          Classes="app-label"
                          TextWrapping="Wrap"
                          IsVisible="False" />
+              <TextBlock x:Name="MobilePrisonersText"
+                         Classes="app-value"
+                         TextWrapping="Wrap"
+                         IsVisible="False" />
+
+              <!-- Толкование слов «пленные» и «коми»: строка стоит рядом с числами, где эти
+                   слова действительно видны, и только в подробностях. В свёрнутой шторке
+                   она повторялась после каждой партии (находки QA L3 и L4; жалоба 2026-11-09). -->
+              <TextBlock x:Name="MobileTermsHint"
+                         Classes="app-label"
+                         TextWrapping="Wrap"
+                         Text="Пленные — камни, снятые с доски. Коми — бонус белым за то, что чёрные ходят первыми." />
 
               <TextBlock x:Name="MobileStatsText" Classes="app-label" TextWrapping="Wrap" />
 
@@ -539,11 +569,14 @@
                          Text="{Binding LevelHint}"
                          FontStyle="Italic" />
 
-              <TextBlock x:Name="MobileNetworkOpponentText"
-                         FontSize="14"
-                         FontWeight="SemiBold"
-                         TextWrapping="Wrap"
-                         IsVisible="False" />
+              <!-- После итога разметка территории уходит с главного экрана: там остаётся одно
+                   действие. Кому нужен предпросмотр владения — переключатель здесь. -->
+              <ToggleButton x:Name="MobileDetailsTerritoryButton"
+                            Content="Показать территорию"
+                            Classes="app-toggle"
+                            IsVisible="False"
+                            IsChecked="{Binding ShowTerritory}"
+                            IsEnabled="{Binding CanToggleTerritory}" />
 
               <WrapPanel x:Name="MobileFilesPanel">
                 <Button x:Name="MobileSaveButton"

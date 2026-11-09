@@ -10,8 +10,8 @@
 
        Ориентир — главные экраны популярных Го-приложений (BadukPop, Go Quest, OGS): один
        явный главный ход «Партия с ИИ», рядом два понятных продолжения, ничего лишнего сверху.
-       Поэтому карточки три, а не четыре, и только у главной акцентный фон. «Меню» — отдельная
-       строка ниже: это не игровой режим, а настройки и выход.
+       Поэтому карточки три, а не четыре, и только у главной акцентный фон. «Меню» — вторичная
+       карточка ниже: это не игровой режим, а настройки, оформление и выход.
 
        Карточки ничего не решают сами: они поднимают события, а показывает экран оболочка
        (ShellView) — так переход проверяется тестом без окна. -->
@@ -142,26 +142,87 @@
       <Setter Property="FontSize" Value="18" />
     </Style>
 
-    <!-- «Меню» — не игровой режим, а строка ниже карточек: настройки, «О программе» и выход. -->
+    <!-- «Меню» — не игровой режим, а вторичная карточка под режимами: настройки, оформление
+         и выход. Та же ширина, рамка, скругление и отступ, что у карточек режимов, но ниже
+         и без акцента: это продолжение страницы, а не ещё один режим (замечание по скриншоту
+         2026-11-09 — прежняя ссылка по центру выглядела случайной). -->
     <Style Selector="Button.home-menu">
-      <Setter Property="MinHeight" Value="48" />
-      <Setter Property="Padding" Value="18,0" />
-      <Setter Property="HorizontalAlignment" Value="Stretch" />
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="MinHeight" Value="76" />
+      <Setter Property="Padding" Value="18,12" />
+      <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusMedium}" />
-      <Setter Property="Foreground" Value="{DynamicResource AppTextMutedBrush}" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     </Style>
 
-    <Style Selector="Button.home-menu Path">
+    <!-- Наведение и нажатие — как у карточек режимов: поверхность светлеет, рамка становится
+         акцентной. Без этого Fluent подставил бы свой серый фон и карточка выпадала бы из ряда. -->
+    <Style Selector="Button.home-menu:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.home-menu:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+    </Style>
+
+    <!-- Значок «Меню»: та же мягкая подложка, что у карточек режимов, но меньше —
+         вторичная карточка не должна спорить с главным выбором. -->
+    <Style Selector="Border.home-menu-icon">
+      <Setter Property="Width" Value="40" />
+      <Setter Property="Height" Value="40" />
+      <Setter Property="CornerRadius" Value="20" />
+      <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Border.home-menu-icon Path">
       <Setter Property="Fill" Value="{DynamicResource AppTextMutedBrush}" />
+      <Setter Property="Width" Value="20" />
+      <Setter Property="Height" Value="20" />
+      <Setter Property="Stretch" Value="Uniform" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
-    <Style Selector="Button.home-menu TextBlock">
+    <Style Selector="TextBlock.home-menu-title">
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.home-menu-caption">
+      <Setter Property="FontSize" Value="13" />
       <Setter Property="Foreground" Value="{DynamicResource AppTextMutedBrush}" />
-      <Setter Property="FontSize" Value="{DynamicResource AppFontBody}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- Телефон: вторичная карточка ниже карточек режимов — на 360 точках страница должна
+         помещаться без прокрутки, поэтому отступы и значок меньше. -->
+    <Style Selector="Button.home-menu.compact">
+      <Setter Property="MinHeight" Value="64" />
+      <Setter Property="Padding" Value="16,10" />
+    </Style>
+
+    <Style Selector="Button.home-menu.compact Border.home-menu-icon">
+      <Setter Property="Width" Value="36" />
+      <Setter Property="Height" Value="36" />
+      <Setter Property="CornerRadius" Value="18" />
+    </Style>
+
+    <Style Selector="Button.home-menu.compact Border.home-menu-icon Path">
+      <Setter Property="Width" Value="18" />
+      <Setter Property="Height" Value="18" />
+    </Style>
+
+    <Style Selector="Button.home-menu.compact TextBlock.home-menu-title">
+      <Setter Property="FontSize" Value="16" />
     </Style>
 
   </UserControl.Styles>
@@ -249,19 +310,28 @@
 
       </Grid>
 
-      <!-- Общее меню — отдельной строкой, вне карточек режимов: это настройки, справка и выход. -->
+      <!-- Общее меню — вторичная карточка в одном ряду с режимами: та же ширина и отступ,
+           но ниже и без акцента. Настройки принадлежат приложению, а не игре, поэтому это
+           не четвёртый режим (замечание по скриншоту 2026-11-09). -->
       <Button x:Name="MenuButton"
               Classes="home-menu"
-              Margin="0,16,0,0"
+              Margin="0,12,0,0"
               AutomationProperties.Name="Меню">
-        <StackPanel Orientation="Horizontal" Spacing="10">
-          <Path Width="22"
-                Height="22"
-                Stretch="Uniform"
-                VerticalAlignment="Center"
-                Data="M4,6.5 h16 v2 h-16 z M4,11 h16 v2 h-16 z M4,15.5 h16 v2 h-16 z" />
-          <TextBlock Text="Меню" VerticalAlignment="Center" />
-        </StackPanel>
+        <Grid ColumnDefinitions="Auto,*">
+          <Border x:Name="MenuIcon" Classes="home-menu-icon">
+            <!-- Три полосы: значок меню, как в нижней навигации. -->
+            <Path Data="M4,6.5 h16 v2 h-16 z M4,11 h16 v2 h-16 z M4,15.5 h16 v2 h-16 z" />
+          </Border>
+          <StackPanel Grid.Column="1"
+                      Margin="14,0,0,0"
+                      Spacing="2"
+                      VerticalAlignment="Center">
+            <TextBlock Classes="home-menu-title" Text="Меню" />
+            <TextBlock x:Name="MenuCaption"
+                       Classes="home-menu-caption"
+                       Text="Настройки, оформление и выход" />
+          </StackPanel>
+        </Grid>
       </Button>
 
     </StackPanel>

@@ -10,10 +10,10 @@
   <ScrollViewer VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="16" Spacing="12">
 
-      <TextBlock Classes="app-title" Text="Игра с другом" />
+      <TextBlock Classes="app-title" Text="Партия с другом" />
       <TextBlock Classes="app-label"
                  TextWrapping="Wrap"
-                 Text="Выбери зверя — по нему тебя увидят друзья. Потом создай комнату или присоединись к комнате друга." />
+                 Text="Выбери зверя. Потом создай комнату или подключись к другу." />
 
       <TextBlock Text="Твой зверь" FontWeight="SemiBold" />
       <ComboBox x:Name="AvatarBox"
@@ -62,7 +62,7 @@
                  TextWrapping="Wrap" />
       <TextBlock x:Name="ErrorText"
                  Classes="app-label"
-                 Foreground="#C62828"
+                 Foreground="{DynamicResource AppDangerBrush}"
                  IsVisible="False"
                  TextWrapping="Wrap" />
 
@@ -117,12 +117,12 @@
       <TextBlock x:Name="EmptyRoomsText"
                  Classes="app-label"
                  TextWrapping="Wrap"
-                 Text="Пока никого нет. Создай комнату — друг увидит её сам." />
+                 Text="Создай комнату — друг увидит её сам." />
 
       <!-- Аварийный путь для взрослых: если автоматическое обнаружение заблокировано,
            адрес и код можно ввести руками. Детям этот блок не нужен и по умолчанию скрыт. -->
       <Button x:Name="ManualToggleButton"
-              Content="Для взрослых: подключиться по адресу"
+              Content="Для взрослых: адрес и код"
               MinHeight="44"
               HorizontalAlignment="Stretch" />
       <StackPanel x:Name="ManualPanel" Spacing="6" IsVisible="False">
@@ -136,7 +136,7 @@
                  Watermark="6-значный код комнаты"
                  MinHeight="44" />
         <Button x:Name="ManualJoinButton"
-                Content="Подключиться по адресу"
+                Content="Подключиться"
                 MinHeight="48"
                 Classes="app-row-action primary"
                 HorizontalAlignment="Stretch" />

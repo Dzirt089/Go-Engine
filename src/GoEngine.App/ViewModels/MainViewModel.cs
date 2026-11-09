@@ -136,7 +136,10 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
 
         RefreshLabels();
         LogNewGame();
-        ShowAiMoveIfNeeded();
+
+        // AI не начинает партию из конструктора: приложение открывается на Home, и если
+        // сохранён цвет «белые», ход соперника появлялся бы ещё до выбора режима.
+        // Первый ход/старт партии запускает AI явно (PlayAiTurnAsync/StartGameAsync).
     }
 
     /// <inheritdoc />

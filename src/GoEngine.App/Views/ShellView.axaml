@@ -193,7 +193,7 @@
               <Path Width="22" Height="22" Stretch="Uniform"
                     Data="M14.6,5.2 L7.8,12 L14.6,18.8 L16.7,16.7 L12,12 L16.7,7.3 Z" />
             </Button>
-            <TextBlock Text="Игра с другом"
+            <TextBlock Text="Партия с другом"
                        Classes="app-subtitle"
                        VerticalAlignment="Center" />
           </StackPanel>

@@ -98,6 +98,28 @@ public sealed partial class App : Application
     /// </remarks>
     public static Action? ExitRequested { get; set; }
 
+    /// <summary>Не гасить экран, пока идёт партия (Android).</summary>
+    /// <remarks>Событие, а не прямая ссылка на окно: App не знает про Android-активити.</remarks>
+    public static event EventHandler<bool>? KeepScreenOnChanged;
+
+    private static bool _keepScreenOn;
+
+    /// <summary>Запрошен режим «экран не гаснет»: включается на время партии.</summary>
+    public static bool KeepScreenOn
+    {
+        get => _keepScreenOn;
+        set
+        {
+            if (_keepScreenOn == value)
+            {
+                return;
+            }
+
+            _keepScreenOn = value;
+            KeepScreenOnChanged?.Invoke(null, value);
+        }
+    }
+
     /// <summary>Проигрыватель звука ходов.</summary>
     /// <remarks>
     /// Задаёт голова: библиотека интерфейса не знает, чем играть WAV — <c>winmm</c> на Windows,

@@ -45,9 +45,45 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
         global::GoEngine.App.App.Prepare = () => AndroidModelStartup.Prepare(activity);
         global::GoEngine.App.App.Sound = new AndroidSoundPlayer(this);
         global::GoEngine.App.App.ExitRequested = ExitGame;
+        global::GoEngine.App.App.KeepScreenOnChanged += OnKeepScreenOnChanged;
         ConfigureUpdates();
 
         base.OnCreate(savedInstanceState);
+    }
+
+    /// <summary>Включает/выключает «экран не гаснет» из модели партии.</summary>
+    private void OnKeepScreenOnChanged(object? sender, bool keepOn) => ApplyKeepScreenOn(keepOn);
+
+    /// <summary>Применяет флаг окна: на Android он живёт только у активити.</summary>
+    private void ApplyKeepScreenOn(bool keepOn)
+    {
+        if (Window is null)
+        {
+            return;
+        }
+
+        if (keepOn)
+        {
+            Window.AddFlags(global::Android.Views.WindowManagerFlags.KeepScreenOn);
+        }
+        else
+        {
+            Window.ClearFlags(global::Android.Views.WindowManagerFlags.KeepScreenOn);
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void OnResume()
+    {
+        base.OnResume();
+        ApplyKeepScreenOn(global::GoEngine.App.App.KeepScreenOn);
+    }
+
+    /// <inheritdoc />
+    protected override void OnDestroy()
+    {
+        global::GoEngine.App.App.KeepScreenOnChanged -= OnKeepScreenOnChanged;
+        base.OnDestroy();
     }
 
     /// <summary>Закрывает приложение: выход из общего меню.</summary>

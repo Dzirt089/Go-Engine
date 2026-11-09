@@ -39,6 +39,7 @@ public sealed partial class HomeView : UserControl
     private readonly Button? _gameCard;
     private readonly Button? _networkCard;
     private readonly Button? _lessonCard;
+    private readonly Button? _menuButton;
     private readonly UniformGrid? _secondaryCards;
     private readonly TextBlock? _title;
 
@@ -59,6 +60,7 @@ public sealed partial class HomeView : UserControl
         _gameCard = this.FindControl<Button>("GameCard");
         _networkCard = this.FindControl<Button>("NetworkCard");
         _lessonCard = this.FindControl<Button>("LessonCard");
+        _menuButton = this.FindControl<Button>("MenuButton");
 
         WireButton("GameCard", OnGameClick);
         WireButton("NetworkCard", OnNetworkClick);
@@ -121,7 +123,7 @@ public sealed partial class HomeView : UserControl
             _title.FontSize = compact ? 24 : 28;
         }
 
-        foreach (var card in new[] { _gameCard, _networkCard, _lessonCard })
+        foreach (var card in new[] { _gameCard, _networkCard, _lessonCard, _menuButton })
         {
             card?.Classes.Set("compact", compact);
         }

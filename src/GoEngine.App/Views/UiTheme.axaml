@@ -1,7 +1,7 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-  <!-- Единый визуальный язык приложения: палитра, типографика, радиусы, отступы и размеры
+  <!-- Единый визуальный язык приложения: палитра, типографика, радиусы, отступы, тени и размеры
        элементов. Палитра одна на настольную и мобильную версии: различается раскладка,
        а не цвета — иначе мобильный вид выглядел бы чужим для приложения.
 
@@ -9,42 +9,60 @@
        («Меню» → «Оформление»), а по умолчанию берётся системная. Кисти берут виды через
        DynamicResource, поэтому смена набора меняет вид сразу везде, без перезапуска.
 
-       Тёмный набор подобран по контрасту, а не «на глаз»: основной текст на поверхности не ниже
-       12:1, приглушённый — 7:1, акцент и опасность — не ниже 6:1 (WCAG AA требует 4.5:1
-       для обычного текста). Проверяется живой приёмкой: снимок окна в тёмной теме обязан быть
-       тёмным, в светлой — светлым, а строки интерфейса остаются читаемыми в обеих. -->
+       Тёмный набор — это язык главного экрана (Home): глубокий фон #0B0F19, поверхности #151B26,
+       тонкая рамка #2A3444 и один акцент #6CB6FF. Светлый набор — та же система ролей,
+       но на светлых основаниях: акцент глубже (на белом светлый #6CB6FF не даёт контраста
+       WCAG), поэтому роль «акцент» сохраняется, а значение подбирается под подложку.
+
+       Контраст подобран расчётом, а не «на глаз»: основной текст на поверхности не ниже 12:1,
+       приглушённая подпись — 7:1, акцент и опасность — не ниже 6:1 (WCAG AA требует 4.5:1
+       для обычного текста). Пары проверяются тестом палитры (UiThemeContrastTests). -->
   <ResourceDictionary.ThemeDictionaries>
 
     <ResourceDictionary x:Key="Light">
 
-      <!-- Поверхности -->
-      <Color x:Key="AppBackgroundColor">#F2F4F7</Color>
+      <!-- Поверхности: фон окна, карточки, приподнятые состояния, поля ввода и подложка доски. -->
+      <Color x:Key="AppBackgroundColor">#F3F5F9</Color>
       <Color x:Key="AppSurfaceColor">#FFFFFF</Color>
-      <Color x:Key="AppSurfaceAltColor">#F7F9FC</Color>
-      <Color x:Key="AppBorderColor">#DCE1E8</Color>
+      <Color x:Key="AppSurfaceAltColor">#F6F8FB</Color>
+      <Color x:Key="AppBorderColor">#DDE3EC</Color>
+      <Color x:Key="AppBorderStrongColor">#BCC8D8</Color>
+      <Color x:Key="AppDividerColor">#E8EDF4</Color>
       <Color x:Key="AppBoardBackdropColor">#E9EDF3</Color>
+      <Color x:Key="AppFieldColor">#F7F9FC</Color>
+      <Color x:Key="AppHoverColor">#EDF1F7</Color>
       <SolidColorBrush x:Key="AppBackgroundBrush" Color="{StaticResource AppBackgroundColor}" />
       <SolidColorBrush x:Key="AppSurfaceBrush" Color="{StaticResource AppSurfaceColor}" />
       <SolidColorBrush x:Key="AppSurfaceAltBrush" Color="{StaticResource AppSurfaceAltColor}" />
       <SolidColorBrush x:Key="AppBorderBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="AppBorderStrongBrush" Color="{StaticResource AppBorderStrongColor}" />
+      <SolidColorBrush x:Key="AppDividerBrush" Color="{StaticResource AppDividerColor}" />
       <SolidColorBrush x:Key="AppBoardBackdropBrush" Color="{StaticResource AppBoardBackdropColor}" />
+      <SolidColorBrush x:Key="AppFieldBrush" Color="{StaticResource AppFieldColor}" />
+      <SolidColorBrush x:Key="AppHoverBrush" Color="{StaticResource AppHoverColor}" />
 
-      <!-- Текст -->
-      <Color x:Key="AppTextColor">#16202A</Color>
-      <Color x:Key="AppTextMutedColor">#5B6B7C</Color>
+      <!-- Текст: основной и приглушённый. Подписи не соревнуются с содержимым, но остаются
+           читаемыми на любой поверхности (не ниже 4.5:1). -->
+      <Color x:Key="AppTextColor">#131A24</Color>
+      <Color x:Key="AppTextMutedColor">#566578</Color>
       <SolidColorBrush x:Key="AppTextBrush" Color="{StaticResource AppTextColor}" />
       <SolidColorBrush x:Key="AppTextMutedBrush" Color="{StaticResource AppTextMutedColor}" />
 
-      <!-- Акцент: главное действие и выбранный раздел. Цвет глубже «фирменного» синего:
-           на фоне приложения (#F2F4F7) прежний #1B6FE0 давал 4.33:1 — ниже нормы WCAG AA
-           для обычного текста; этот даёт 5.1:1 (проверяется тестом палитры). -->
-      <Color x:Key="AppAccentColor">#1A63C8</Color>
-      <Color x:Key="AppAccentSoftColor">#E4EFFC</Color>
+      <!-- Акцент: главное действие, выбранный раздел и фокус. На светлом фоне нужен глубже
+           «фирменного» синего: #6CB6FF дал бы 1.9:1 на белом — ниже любой нормы WCAG.
+           Поэтому роль та же, значение — под подложку. -->
+      <Color x:Key="AppAccentColor">#1F62C4</Color>
+      <Color x:Key="AppAccentSoftColor">#E7F0FF</Color>
+      <Color x:Key="AppAccentHoverColor">#1A56B0</Color>
+      <Color x:Key="AppAccentPressedColor">#154A96</Color>
       <SolidColorBrush x:Key="AppAccentBrush" Color="{StaticResource AppAccentColor}" />
       <SolidColorBrush x:Key="AppAccentSoftBrush" Color="{StaticResource AppAccentSoftColor}" />
+      <SolidColorBrush x:Key="AppAccentHoverBrush" Color="{StaticResource AppAccentHoverColor}" />
+      <SolidColorBrush x:Key="AppAccentPressedBrush" Color="{StaticResource AppAccentPressedColor}" />
       <SolidColorBrush x:Key="AppOnAccentBrush" Color="#FFFFFF" />
 
-      <!-- Состояния: завершённая партия и предупреждение -->
+      <!-- Состояния: завершённая партия и предупреждение. Опасность — глубокий красный:
+           на белой карточке он читается и как цвет, и как текст. -->
       <SolidColorBrush x:Key="AppDangerBrush" Color="#B3261E" />
       <SolidColorBrush x:Key="AppOverlayBrush" Color="#66000000" />
 
@@ -73,49 +91,117 @@
       <SolidColorBrush x:Key="AppDrawBorderBrush" Color="{StaticResource AppDrawBorderColor}" />
       <SolidColorBrush x:Key="AppDrawTextBrush" Color="{StaticResource AppDrawTextColor}" />
 
-      <!-- Разделители: тонкие линии между полосами интерфейса. Светлее рамки (AppBorderColor):
-           линия только разделяет, а не очерчивает. -->
-      <Color x:Key="AppDividerColor">#E3E7ED</Color>
-      <SolidColorBrush x:Key="AppDividerBrush" Color="{StaticResource AppDividerColor}" />
+      <!-- Тени: в светлой теме именно они отделяют карточку от фона, в тёмной — работают
+           как лёгкая глубина, а основную работу делают рамка и уровни поверхности. -->
+      <BoxShadows x:Key="AppShadowCard">0 4 16 0 #12000000</BoxShadows>
+      <BoxShadows x:Key="AppShadowOverlay">0 18 48 0 #2E000000</BoxShadows>
+
+      <!-- Кисти Fluent, которые используют виды (панели, шапки, подсказки). В Avalonia имена
+           SystemControl* пришли из WinUI; их значения — серые по умолчанию, поэтому виды
+           перекрашиваются здесь, в одном месте, а не правкой разметки каждого экрана. -->
+      <SolidColorBrush x:Key="SystemControlBackgroundAltHighBrush" Color="{StaticResource AppSurfaceColor}" />
+      <SolidColorBrush x:Key="SystemControlBackgroundBaseLowBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="SystemControlForegroundBaseMediumBrush" Color="{StaticResource AppTextMutedColor}" />
+
+      <!-- Поля ввода и всплывающие списки: фон, рамка и подсказка подобраны под поверхности,
+           чтобы стандартные ComboBox/TextBox не выглядели чужими на карточке. -->
+      <SolidColorBrush x:Key="TextControlBackground" Color="{StaticResource AppFieldColor}" />
+      <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{StaticResource AppHoverColor}" />
+      <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{StaticResource AppFieldColor}" />
+      <SolidColorBrush x:Key="TextControlBorderBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="{StaticResource AppBorderStrongColor}" />
+      <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="{StaticResource AppAccentColor}" />
+      <SolidColorBrush x:Key="TextControlForeground" Color="{StaticResource AppTextColor}" />
+      <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="{StaticResource AppTextMutedColor}" />
+      <SolidColorBrush x:Key="ComboBoxBackground" Color="{StaticResource AppFieldColor}" />
+      <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="{StaticResource AppHoverColor}" />
+      <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="{StaticResource AppSurfaceAltColor}" />
+      <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="{StaticResource AppBorderStrongColor}" />
+      <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="{StaticResource AppAccentColor}" />
+      <SolidColorBrush x:Key="ComboBoxForeground" Color="{StaticResource AppTextColor}" />
+      <SolidColorBrush x:Key="ComboBoxDropDownGlyphForeground" Color="{StaticResource AppTextMutedColor}" />
+      <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{StaticResource AppSurfaceColor}" />
+      <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver" Color="{StaticResource AppHoverColor}" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="{StaticResource AppAccentSoftColor}" />
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{StaticResource AppSurfaceColor}" />
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="{StaticResource AppHoverColor}" />
+      <SolidColorBrush x:Key="ToolTipBackground" Color="{StaticResource AppSurfaceColor}" />
+      <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="ToolTipForeground" Color="{StaticResource AppTextColor}" />
+
+      <!-- Флажок: подложка отмеченного — акцент, галочка — цвет «на акценте». Без этого
+           Fluent рисует белую галочку на светлом акценте тёмной темы — не видно вовсе. -->
+      <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{StaticResource AppAccentColor}" />
+      <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver" Color="{StaticResource AppAccentHoverColor}" />
+      <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPressed" Color="{StaticResource AppAccentPressedColor}" />
+      <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUnchecked" Color="{StaticResource AppBorderStrongColor}" />
+      <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedPointerOver" Color="{StaticResource AppAccentColor}" />
+
+      <!-- Кнопки-стрелки числового поля (ButtonSpinner) и прочие RepeatButton: серый Fluent
+           на фоне поля выглядел бы вставкой из другой программы. -->
+      <SolidColorBrush x:Key="RepeatButtonBackground" Color="{StaticResource AppSurfaceAltColor}" />
+      <SolidColorBrush x:Key="RepeatButtonBackgroundPointerOver" Color="{StaticResource AppHoverColor}" />
+      <SolidColorBrush x:Key="RepeatButtonBackgroundPressed" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="RepeatButtonForeground" Color="{StaticResource AppTextMutedColor}" />
+      <SolidColorBrush x:Key="RepeatButtonForegroundPointerOver" Color="{StaticResource AppTextColor}" />
 
     </ResourceDictionary>
 
     <ResourceDictionary x:Key="Dark">
 
-      <!-- Поверхности: не чистый чёрный, а тональные уровни — на них мягче читается текст
-           и не «звенит» контраст с деревом доски. -->
-      <Color x:Key="AppBackgroundColor">#12161B</Color>
-      <Color x:Key="AppSurfaceColor">#1B2129</Color>
-      <Color x:Key="AppSurfaceAltColor">#222A33</Color>
-      <Color x:Key="AppBorderColor">#333C47</Color>
-      <Color x:Key="AppBoardBackdropColor">#0E1216</Color>
+      <!-- Поверхности: не чистый чёрный, а тональные уровни, как на главном экране.
+           Фон #0B0F19 глубже поверхности #151B26: карточки читаются как слои, а не как пятна. -->
+      <Color x:Key="AppBackgroundColor">#0B0F19</Color>
+      <Color x:Key="AppSurfaceColor">#151B26</Color>
+      <Color x:Key="AppSurfaceAltColor">#1C2533</Color>
+      <Color x:Key="AppBorderColor">#2A3444</Color>
+      <Color x:Key="AppBorderStrongColor">#3B4A60</Color>
+      <Color x:Key="AppDividerColor">#212A38</Color>
+      <Color x:Key="AppBoardBackdropColor">#070A12</Color>
+      <Color x:Key="AppFieldColor">#101725</Color>
+      <Color x:Key="AppHoverColor">#1F2A3A</Color>
       <SolidColorBrush x:Key="AppBackgroundBrush" Color="{StaticResource AppBackgroundColor}" />
       <SolidColorBrush x:Key="AppSurfaceBrush" Color="{StaticResource AppSurfaceColor}" />
       <SolidColorBrush x:Key="AppSurfaceAltBrush" Color="{StaticResource AppSurfaceAltColor}" />
       <SolidColorBrush x:Key="AppBorderBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="AppBorderStrongBrush" Color="{StaticResource AppBorderStrongColor}" />
+      <SolidColorBrush x:Key="AppDividerBrush" Color="{StaticResource AppDividerColor}" />
       <SolidColorBrush x:Key="AppBoardBackdropBrush" Color="{StaticResource AppBoardBackdropColor}" />
+      <SolidColorBrush x:Key="AppFieldBrush" Color="{StaticResource AppFieldColor}" />
+      <SolidColorBrush x:Key="AppHoverBrush" Color="{StaticResource AppHoverColor}" />
 
-      <!-- Текст: 13:1 на поверхности и 7:1 у приглушённого — читается и на телефоне на солнце,
+      <!-- Текст: 14:1 на поверхности и 7:1 у приглушённого — читается и на телефоне на солнце,
            и на большом экране ночью. -->
-      <Color x:Key="AppTextColor">#E9EDF2</Color>
-      <Color x:Key="AppTextMutedColor">#A7B3C0</Color>
+      <Color x:Key="AppTextColor">#E8EDF5</Color>
+      <Color x:Key="AppTextMutedColor">#9FAEC0</Color>
       <SolidColorBrush x:Key="AppTextBrush" Color="{StaticResource AppTextColor}" />
       <SolidColorBrush x:Key="AppTextMutedBrush" Color="{StaticResource AppTextMutedColor}" />
 
-      <!-- Акцент светлее светлого: на тёмной поверхности тёмно-синий терял бы контраст. -->
-      <Color x:Key="AppAccentColor">#6FB2FF</Color>
-      <Color x:Key="AppAccentSoftColor">#23384F</Color>
+      <!-- Акцент — тот самый #6CB6FF с главного экрана. Текст и значки на нём тёмные
+           (#0B0F19): светлый акцент требует тёмного «на акценте», иначе 2:1. -->
+      <Color x:Key="AppAccentColor">#6CB6FF</Color>
+      <Color x:Key="AppAccentSoftColor">#1D3049</Color>
+      <Color x:Key="AppAccentHoverColor">#8CC7FF</Color>
+      <Color x:Key="AppAccentPressedColor">#54A6F7</Color>
       <SolidColorBrush x:Key="AppAccentBrush" Color="{StaticResource AppAccentColor}" />
       <SolidColorBrush x:Key="AppAccentSoftBrush" Color="{StaticResource AppAccentSoftColor}" />
-      <SolidColorBrush x:Key="AppOnAccentBrush" Color="#0B0F14" />
+      <SolidColorBrush x:Key="AppAccentHoverBrush" Color="{StaticResource AppAccentHoverColor}" />
+      <SolidColorBrush x:Key="AppAccentPressedBrush" Color="{StaticResource AppAccentPressedColor}" />
+      <SolidColorBrush x:Key="AppOnAccentBrush" Color="#0B0F19" />
 
       <!-- Состояния -->
       <SolidColorBrush x:Key="AppDangerBrush" Color="#FF8A80" />
-      <SolidColorBrush x:Key="AppOverlayBrush" Color="#99000000" />
+      <SolidColorBrush x:Key="AppOverlayBrush" Color="#99070C14" />
 
       <!-- Итог партии: те же роли, что и в светлой теме, но подложки тёмные, а текст светлый —
            карточка итога читается на тёмном фоне и не спорит с доской. -->
-      <Color x:Key="AppWinSoftColor">#17301F</Color>
+      <Color x:Key="AppWinSoftColor">#16301F</Color>
       <Color x:Key="AppWinBorderColor">#2F6B45</Color>
       <Color x:Key="AppWinTextColor">#8BD9A6</Color>
       <SolidColorBrush x:Key="AppWinSoftBrush" Color="{StaticResource AppWinSoftColor}" />
@@ -129,44 +215,120 @@
       <SolidColorBrush x:Key="AppLoseBorderBrush" Color="{StaticResource AppLoseBorderColor}" />
       <SolidColorBrush x:Key="AppLoseTextBrush" Color="{StaticResource AppLoseTextColor}" />
 
-      <Color x:Key="AppDrawSoftColor">#222A33</Color>
+      <Color x:Key="AppDrawSoftColor">#1F2836</Color>
       <Color x:Key="AppDrawBorderColor">#46525F</Color>
       <Color x:Key="AppDrawTextColor">#C9D3DE</Color>
       <SolidColorBrush x:Key="AppDrawSoftBrush" Color="{StaticResource AppDrawSoftColor}" />
       <SolidColorBrush x:Key="AppDrawBorderBrush" Color="{StaticResource AppDrawBorderColor}" />
       <SolidColorBrush x:Key="AppDrawTextBrush" Color="{StaticResource AppDrawTextColor}" />
 
-      <Color x:Key="AppDividerColor">#2A323C</Color>
-      <SolidColorBrush x:Key="AppDividerBrush" Color="{StaticResource AppDividerColor}" />
+      <!-- Тени в тёмной теме почти не видны — глубину дают уровни поверхности и рамка.
+           Это намеренно: чёрная тень на почти чёрном фоне выглядела бы грязным пятном. -->
+      <BoxShadows x:Key="AppShadowCard">0 6 20 0 #59000000</BoxShadows>
+      <BoxShadows x:Key="AppShadowOverlay">0 18 48 0 #B3000000</BoxShadows>
+
+      <!-- Кисти Fluent, которые используют виды (панели, шапки, подсказки): см. комментарий
+           в светлой теме. -->
+      <SolidColorBrush x:Key="SystemControlBackgroundAltHighBrush" Color="{StaticResource AppSurfaceColor}" />
+      <SolidColorBrush x:Key="SystemControlBackgroundBaseLowBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="SystemControlForegroundBaseMediumBrush" Color="{StaticResource AppTextMutedColor}" />
+
+      <!-- Поля ввода и всплывающие списки -->
+      <SolidColorBrush x:Key="TextControlBackground" Color="{StaticResource AppFieldColor}" />
+      <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{StaticResource AppHoverColor}" />
+      <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{StaticResource AppFieldColor}" />
+      <SolidColorBrush x:Key="TextControlBorderBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="{StaticResource AppBorderStrongColor}" />
+      <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="{StaticResource AppAccentColor}" />
+      <SolidColorBrush x:Key="TextControlForeground" Color="{StaticResource AppTextColor}" />
+      <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="{StaticResource AppTextMutedColor}" />
+      <SolidColorBrush x:Key="ComboBoxBackground" Color="{StaticResource AppFieldColor}" />
+      <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="{StaticResource AppHoverColor}" />
+      <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="{StaticResource AppSurfaceAltColor}" />
+      <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="{StaticResource AppBorderStrongColor}" />
+      <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="{StaticResource AppAccentColor}" />
+      <SolidColorBrush x:Key="ComboBoxForeground" Color="{StaticResource AppTextColor}" />
+      <SolidColorBrush x:Key="ComboBoxDropDownGlyphForeground" Color="{StaticResource AppTextMutedColor}" />
+      <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{StaticResource AppSurfaceColor}" />
+      <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver" Color="{StaticResource AppHoverColor}" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="{StaticResource AppAccentSoftColor}" />
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{StaticResource AppSurfaceColor}" />
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="{StaticResource AppHoverColor}" />
+      <SolidColorBrush x:Key="ToolTipBackground" Color="{StaticResource AppSurfaceColor}" />
+      <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="ToolTipForeground" Color="{StaticResource AppTextColor}" />
+
+      <!-- Флажок: на светлом акценте тёмной темы галочка обязана быть тёмной, а не белой. -->
+      <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{StaticResource AppAccentColor}" />
+      <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver" Color="{StaticResource AppAccentHoverColor}" />
+      <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPressed" Color="{StaticResource AppAccentPressedColor}" />
+      <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="#0B0F19" />
+      <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver" Color="#0B0F19" />
+      <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed" Color="#0B0F19" />
+      <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUnchecked" Color="{StaticResource AppBorderStrongColor}" />
+      <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedPointerOver" Color="{StaticResource AppAccentColor}" />
+
+      <!-- Кнопки-стрелки числового поля (ButtonSpinner) и прочие RepeatButton: серый Fluent
+           на фоне поля выглядел бы вставкой из другой программы. -->
+      <SolidColorBrush x:Key="RepeatButtonBackground" Color="{StaticResource AppSurfaceAltColor}" />
+      <SolidColorBrush x:Key="RepeatButtonBackgroundPointerOver" Color="{StaticResource AppHoverColor}" />
+      <SolidColorBrush x:Key="RepeatButtonBackgroundPressed" Color="{StaticResource AppBorderColor}" />
+      <SolidColorBrush x:Key="RepeatButtonForeground" Color="{StaticResource AppTextMutedColor}" />
+      <SolidColorBrush x:Key="RepeatButtonForegroundPointerOver" Color="{StaticResource AppTextColor}" />
 
     </ResourceDictionary>
 
   </ResourceDictionary.ThemeDictionaries>
 
-  <!-- Типографика: четыре ступени, больше не нужно. От темы не зависит. -->
+  <!-- Радиусы Fluent: ими живут кнопки, поля, всплывающие списки и вкладки. Переопределение
+       в теме — единственный способ дать им один ритм со своими карточками, не переписывая
+       шаблоны элементов управления. -->
+  <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
+  <CornerRadius x:Key="OverlayCornerRadius">14</CornerRadius>
+  <x:Double x:Key="TextControlThemeMinHeight">44</x:Double>
+  <Thickness x:Key="TextControlThemePadding">12,10</Thickness>
+
+  <!-- Типографика: семь ступеней, больше не нужно. От темы не зависит.
+       Display (28) — заголовок экрана, Heading (20) — заголовок карточки и секции,
+       Title (22) — ступень метрик платформы (AppFontTitle), Subtitle (16) — подзаголовок,
+       Body (14) — текст, Action (13) — подписи компактных кнопок, Caption (12) — подписи,
+       Nav (11) — подпись раздела нижней навигации. -->
+  <x:Double x:Key="AppFontDisplay">28</x:Double>
+  <x:Double x:Key="AppFontHeading">20</x:Double>
   <x:Double x:Key="AppFontTitle">22</x:Double>
   <x:Double x:Key="AppFontSubtitle">16</x:Double>
   <x:Double x:Key="AppFontBody">14</x:Double>
+  <x:Double x:Key="AppFontAction">13</x:Double>
   <x:Double x:Key="AppFontCaption">12</x:Double>
   <x:Double x:Key="AppFontNav">11</x:Double>
 
-  <!-- Радиусы -->
+  <!-- Радиусы: один ритм на всё приложение. Small — кнопки и поля, Medium — карточки,
+       Large — шторки и крупные поверхности, Pill — круглые подложки значков. -->
   <CornerRadius x:Key="AppRadiusSmall">8</CornerRadius>
   <CornerRadius x:Key="AppRadiusMedium">14</CornerRadius>
   <CornerRadius x:Key="AppRadiusLarge">20</CornerRadius>
+  <CornerRadius x:Key="AppRadiusPill">999</CornerRadius>
 
   <!-- Отступы -->
   <Thickness x:Key="AppPaddingPage">12</Thickness>
   <Thickness x:Key="AppPaddingCard">12,10</Thickness>
   <Thickness x:Key="AppPaddingCompact">8,4</Thickness>
+  <Thickness x:Key="AppPaddingButton">16,0</Thickness>
+  <Thickness x:Key="AppPaddingField">12,0</Thickness>
   <x:Double x:Key="AppGapSmall">6</x:Double>
   <x:Double x:Key="AppGapMedium">10</x:Double>
+  <x:Double x:Key="AppGapLarge">16</x:Double>
+  <x:Double x:Key="AppGapXLarge">24</x:Double>
 
   <!-- Размеры элементов: 48 точек — наименьшая цель, по которой попадает палец -->
   <x:Double x:Key="AppTouchTarget">48</x:Double>
   <x:Double x:Key="AppNavHeight">64</x:Double>
   <x:Double x:Key="AppStatusHeight">44</x:Double>
   <x:Double x:Key="AppSheetHandleHeight">28</x:Double>
+  <x:Double x:Key="AppIconTarget">44</x:Double>
 
   <!-- Метрики телефона: те же числа, что в ветке mobile функции PlatformMetrics.For
        (Services/PlatformMetrics.cs). XAML не умеет вызывать C#-функцию, поэтому значения

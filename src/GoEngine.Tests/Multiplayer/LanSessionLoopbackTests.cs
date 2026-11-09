@@ -3,6 +3,8 @@ using GoEngine.Multiplayer;
 
 namespace GoEngine.Tests;
 
+[Collection("TLS-loopback")]
+
 /// <summary>Loopback-тест сетевой партии: хозяин и гость обмениваются ходом.</summary>
 public sealed class LanSessionLoopbackTests
 {

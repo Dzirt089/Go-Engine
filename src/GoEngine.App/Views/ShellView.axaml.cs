@@ -22,8 +22,9 @@ namespace GoEngine.App.Views;
 /// </para>
 /// <para>
 /// При запуске оболочка открывается на главном экране — выборе режима крупными карточками
-/// (<see cref="HomeView"/>). Партия с ИИ сама не начинается: ребёнок сначала выбирает, во что
-/// играть (замечание пользователя 2026-11-09). Настройки и меню партии в навигации не стоят:
+/// (<see cref="HomeView"/>); полоса режимов сверху на нём скрыта, чтобы не дублировать выбор
+/// (замечание пользователя по скриншоту 2026-11-09). Партия с ИИ сама не начинается: ребёнок
+/// сначала выбирает, во что играть. Настройки и меню партии в навигации не стоят:
 /// они принадлежат партии и открываются из её шапки (<see cref="BoardView"/>). Общее меню —
 /// раздел приложения (<see cref="AppMenuView"/>): выбор экрана, оформление, «О программе» и выход.
 /// </para>
@@ -447,6 +448,7 @@ public sealed partial class ShellView : UserControl
         GameArea?.HideAbortConfirm();
         GameArea?.CloseSettingsScreen();
         GameArea?.CloseMenu();
+        global::GoEngine.App.App.KeepScreenOn = false;
         Shell.ShowHome();
     }
 
@@ -551,7 +553,8 @@ public sealed partial class ShellView : UserControl
     /// Содержимое у раскладок общее: меняется только обрамление — строка режимов сверху
     /// или нижняя навигация. Поэтому переключение раскладки не пересоздаёт виды разделов
     /// и не сбрасывает партию. Раскладку главного экрана выбирает та же ширина:
-    /// у экрана нет своего измерения, чтобы пороги не разошлись.
+    /// у экрана нет своего измерения, чтобы пороги не разошлись. Обрамление показывает
+    /// <see cref="UpdateChrome"/>: на главном экране полоса режимов скрыта.
     /// </remarks>
     private void ApplyLayout(double width, double height)
     {
@@ -569,15 +572,7 @@ public sealed partial class ShellView : UserControl
 
         _layout = layout;
 
-        if (_desktopBar is not null)
-        {
-            _desktopBar.IsVisible = layout == LayoutMode.Desktop;
-        }
-
-        if (_mobileNav is not null)
-        {
-            _mobileNav.IsVisible = layout == LayoutMode.Mobile;
-        }
+        UpdateChrome();
 
         if (_updateBanner is not null)
         {
@@ -641,7 +636,28 @@ public sealed partial class ShellView : UserControl
             MenuArea.IsVisible = Shell.IsMenuSection;
         }
 
+        UpdateChrome();
         SyncModeButtons();
+    }
+
+    /// <summary>Показывает обрамление раскладки с учётом текущего экрана.</summary>
+    /// <remarks>
+    /// На главном экране полоса режимов не нужна: выбор режима уже сделан крупными карточками,
+    /// и вторая строка того же выбора над ними только спорила бы с ними (замечание пользователя
+    /// по скриншоту 2026-11-09). На остальных экранах раскладка прежняя: строка режимов сверху
+    /// на широком окне, нижняя навигация на телефоне.
+    /// </remarks>
+    private void UpdateChrome()
+    {
+        if (_desktopBar is not null)
+        {
+            _desktopBar.IsVisible = _layout == LayoutMode.Desktop && !Shell.IsHomeMode;
+        }
+
+        if (_mobileNav is not null)
+        {
+            _mobileNav.IsVisible = _layout == LayoutMode.Mobile;
+        }
     }
 
     /// <summary>Подписывается на системную кнопку «Назад», пока вид показан.</summary>
@@ -963,6 +979,11 @@ public sealed partial class ShellView : UserControl
             navNetwork.Classes.Set("active", networkOpen);
         }
 
+        if (this.FindControl<Button>("NavGameButton") is { } navGame)
+        {
+            navGame.Classes.Set("active", !networkOpen && Shell.IsGameSection);
+        }
+
         var lobbyOpen = _networkOverlay?.IsVisible == true;
         if (this.FindControl<TextBlock>("ModeHintText") is { } hint)
         {
@@ -985,11 +1006,18 @@ public sealed partial class ShellView : UserControl
 
         if (_networkArea is not null)
         {
-            _ = _networkArea.CancelAsync();
+            // Отписываемся до CancelAsync: иначе поздний Closed вернёт прежний раздел
+            // и перекроет тот, куда игрок уже переключился.
+            var area = _networkArea;
+            _networkArea = null;
+            area.Closed -= OnNetworkClosed;
+            _networkHostPanel?.Children.Remove(area);
+            _ = area.CancelAsync();
         }
-        else
-        {
-            HideNetwork();
-        }
+
+        HideNetwork();
     }
+
+    /// <summary>Возвращает на главный экран из настольного меню окна.</summary>
+    public void NavigateHome() => OnHomeRequested(null, EventArgs.Empty);
 }

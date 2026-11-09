@@ -166,4 +166,101 @@ public sealed class GameStatusLinesTests
 
         Assert.Equal("Соперник: 20 кю · перебор · вы: чёрные · ход №12 · коми 5.5", stats);
     }
+
+    [Fact]
+    public void Способ_Завершения_Сдачи_Называется_Одним_Словом()
+    {
+        Assert.Equal("сдача", GameStatusLines.FinishReason("Завершена сдачей"));
+    }
+
+    [Fact]
+    public void Способ_Завершения_Пасов_Называется_Коротко()
+    {
+        Assert.Equal("два паса", GameStatusLines.FinishReason("Завершена двумя пасами"));
+    }
+
+    [Fact]
+    public void Способ_Завершения_По_Лимиту_Ходов_Называется_Коротко()
+    {
+        Assert.Equal("лимит ходов", GameStatusLines.FinishReason("Завершена по лимиту ходов"));
+    }
+
+    [Fact]
+    public void Способ_Завершения_По_Согласию_Называется_Коротко()
+    {
+        Assert.Equal("по согласию", GameStatusLines.FinishReason("Завершена по согласию сторон"));
+    }
+
+    [Fact]
+    public void Способ_Завершения_Не_Называется_Пока_Партия_Идёт()
+    {
+        Assert.Empty(GameStatusLines.FinishReason("Идёт"));
+    }
+
+    [Fact]
+    public void Короткий_Итог_Сдачи_Называет_Победителя_И_Способ()
+    {
+        // Жалоба пользователя 2026-11-09: после сдачи на экране стояли «Партия окончена»,
+        // «Завершена сдачей», счёт и ещё три строки. Ребёнку нужна одна фраза.
+        var line = GameStatusLines.FinalLine(
+            hasOutcome: true,
+            needsScoreConfirmation: false,
+            "Победили белые",
+            "Завершена сдачей");
+
+        Assert.Equal("Победили белые · сдача", line);
+        Assert.True(line.Length < 40, "итог не помещается в короткую строку телефона");
+        Assert.DoesNotContain("\n", line, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Короткий_Итог_Пуст_Пока_Партия_Идёт()
+    {
+        Assert.Empty(GameStatusLines.FinalLine(false, false, "Победили белые", "Идёт"));
+    }
+
+    [Fact]
+    public void Короткий_Итог_Недоигранной_Партии_Не_Называет_Победителя()
+    {
+        var line = GameStatusLines.FinalLine(
+            hasOutcome: true,
+            needsScoreConfirmation: true,
+            "Счёт не принят",
+            "Завершена двумя пасами");
+
+        Assert.Equal("Счёт не принят", line);
+    }
+
+    [Fact]
+    public void Шапка_Телефона_После_Итога_Короткая()
+    {
+        // Итог одной фразой стоит в свёрнутой шторке; шапка не повторяет его и не обрезается.
+        var headline = GameStatusLines.MobileHeadline(
+            hasOutcome: true,
+            needsScoreConfirmation: false,
+            network: true,
+            "Партия окончена");
+
+        Assert.Equal(GameStatusLines.FinishedMark, headline);
+        Assert.DoesNotContain("Победили", headline);
+    }
+
+    [Fact]
+    public void Шапка_Телефона_В_Идущей_Партии_Называет_Тип_И_Ход()
+    {
+        Assert.Equal(
+            "С другом · Ход Лиса",
+            GameStatusLines.MobileHeadline(false, false, network: true, "Ход Лиса"));
+        Assert.Equal(
+            "С ИИ · Ход: Чёрные",
+            GameStatusLines.MobileHeadline(false, false, network: false, "Ход: Чёрные"));
+    }
+
+    [Fact]
+    public void Шапка_Телефона_Недоигранной_Партии_Не_Говорит_О_Победителе()
+    {
+        Assert.Equal(
+            GameStatusLines.UnfinishedMark,
+            GameStatusLines.MobileHeadline(true, needsScoreConfirmation: true, network: false, "Идёт"));
+    }
 }

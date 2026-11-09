@@ -164,7 +164,6 @@ public sealed partial class BoardView : UserControl
     private readonly TextBlock? _desktopScore;
     private readonly TextBlock? _desktopStatus;
     private readonly TextBlock? _desktopStatusReason;
-    private readonly TextBlock? _mobileStatusText;
     private readonly TextBlock? _mobileScoreJapanese;
     private readonly TextBlock? _mobileScoreChinese;
     private readonly TextBlock? _mobileScoreDead;
@@ -177,6 +176,13 @@ public sealed partial class BoardView : UserControl
     private readonly TextBlock? _mobileBreakdown;
     private readonly TextBlock? _desktopStats;
     private readonly TextBlock? _mobileStats;
+    private readonly TextBlock? _mobilePrisoners;
+    private readonly Grid? _mobileActionRow;
+    private readonly Grid? _mobilePostGameRow;
+    private readonly Button? _mobilePostGameNewGame;
+    private readonly Button? _mobilePostGameLeave;
+    private readonly ToggleButton? _mobileDetailsTerritory;
+    private readonly ToggleButton? _desktopDetailsTerritory;
     private readonly TextBlock? _desktopLevelHint;
     private readonly StackPanel? _desktopDetails;
     private readonly ToggleButton? _desktopDetailsButton;
@@ -293,7 +299,6 @@ public sealed partial class BoardView : UserControl
         _desktopScore = this.FindControl<TextBlock>("DesktopScoreText");
         _desktopStatus = this.FindControl<TextBlock>("DesktopStatusText");
         _desktopStatusReason = this.FindControl<TextBlock>("DesktopStatusReasonText");
-        _mobileStatusText = this.FindControl<TextBlock>("MobileStatusText");
         _desktopScoreJapanese = this.FindControl<TextBlock>("DesktopScoreJapaneseText");
         _desktopScoreChinese = this.FindControl<TextBlock>("DesktopScoreChineseText");
         _desktopScoreDead = this.FindControl<TextBlock>("DesktopScoreDeadText");
@@ -306,6 +311,13 @@ public sealed partial class BoardView : UserControl
         _mobileBreakdown = this.FindControl<TextBlock>("MobileBreakdownText");
         _desktopStats = this.FindControl<TextBlock>("DesktopStatsText");
         _mobileStats = this.FindControl<TextBlock>("MobileStatsText");
+        _mobilePrisoners = this.FindControl<TextBlock>("MobilePrisonersText");
+        _mobileActionRow = this.FindControl<Grid>("MobileActionRow");
+        _mobilePostGameRow = this.FindControl<Grid>("MobilePostGameRow");
+        _mobilePostGameNewGame = this.FindControl<Button>("MobilePostGameNewGameButton");
+        _mobilePostGameLeave = this.FindControl<Button>("MobilePostGameLeaveButton");
+        _mobileDetailsTerritory = this.FindControl<ToggleButton>("MobileDetailsTerritoryButton");
+        _desktopDetailsTerritory = this.FindControl<ToggleButton>("DesktopDetailsTerritoryButton");
         _desktopLevelHint = this.FindControl<TextBlock>("DesktopLevelHintText");
         _desktopDetails = this.FindControl<StackPanel>("DesktopDetailsPanel");
         _desktopDetailsButton = this.FindControl<ToggleButton>("DesktopDetailsButton");
@@ -371,6 +383,8 @@ public sealed partial class BoardView : UserControl
         WireButton("MobileSaveButton", OnSaveClick);
         WireButton("MobileLoadButton", OnLoadClick);
         WireButton("SheetToggleButton", OnSheetToggleClick);
+        WireButton("MobilePostGameNewGameButton", OnNewGameClick);
+        WireButton("MobilePostGameLeaveButton", OnMenuLeaveNetworkClick);
 
         // Шапка партии: меню партии (☰) и «Настройка партии» (шестерёнка). Обе кнопки —
         // мобильные: на настольной раскладке те же действия даёт меню-бар окна.
@@ -1262,12 +1276,13 @@ public sealed partial class BoardView : UserControl
 
         foreach (var name in new[]
         {
-            "SizePanel", "LevelPanel", "DesktopDetailsButton",
+            "SizePanel", "LevelPanel",
             "AiFilesRow", "DesktopPauseButton", "DesktopAbortButton",
             "MobileSaveButton", "MobileLoadButton", "MobileStatsText",
             "MobileFilesPanel",
             "MenuPauseButton", "MenuFinishButton", "MenuAbortButton",
-            "MenuSaveButton", "MenuLoadButton", "MenuSettingsButton"
+            "MenuSaveButton", "MenuLoadButton", "MenuSettingsButton",
+            "DesktopStatsText", "DesktopLevelHintText"
         })
         {
             if (this.FindControl<Control>(name) is { } control)
@@ -1314,15 +1329,15 @@ public sealed partial class BoardView : UserControl
             }
         }
 
-        // «Подробности» — не AI-элемент: в игре с ИИ панелью управляет только переключатель.
-        // В сети её скрываем, в ИИ-режиме восстанавливаем по фактическому состоянию кнопки.
+        // «Подробности» — не AI-элемент: там разбор счёта, пленные и способ завершения.
+        // Поэтому панель есть и в сети; скрываются только строки про уровень ИИ (списком выше).
         if (_desktopDetails is not null)
         {
-            _desktopDetails.IsVisible = !network && _desktopDetailsButton?.IsChecked == true;
+            _desktopDetails.IsVisible = _desktopDetailsButton?.IsChecked == true;
         }
 
         var opponentName = NetworkAvatars.NameOf(ViewModel.NetworkOpponentAvatarId);
-        var opponent = $"Соперник: {NetworkAvatars.GlyphOf(ViewModel.NetworkOpponentAvatarId)} {opponentName} · ты: {ViewModel.NetworkPlayerColorText} ({ViewModel.NetworkOpponentColorText})";
+        var opponent = $"Соперник: {NetworkAvatars.GlyphOf(ViewModel.NetworkOpponentAvatarId)} {opponentName} ({ViewModel.NetworkOpponentColorText}) · ты: {ViewModel.NetworkPlayerColorText}";
         if (_networkOpponentText is not null)
         {
             _networkOpponentText.IsVisible = network;
@@ -1332,21 +1347,12 @@ public sealed partial class BoardView : UserControl
             }
         }
 
-        if (this.FindControl<TextBlock>("MobileNetworkOpponentText") is { } mobileOpponent)
-        {
-            mobileOpponent.IsVisible = network;
-            if (network)
-            {
-                mobileOpponent.Text = opponent;
-            }
-        }
-
         if (this.FindControl<TextBlock>("MobileOpponentSummary") is { } mobileSummary)
         {
             mobileSummary.IsVisible = network;
             if (network)
             {
-                mobileSummary.Text = $"Ты: {ViewModel.NetworkPlayerColorText} · Соперник: {ViewModel.NetworkOpponentColorText}";
+                mobileSummary.Text = $"Ты: {ViewModel.NetworkPlayerColorText} · Соперник: {NetworkAvatars.GlyphOf(ViewModel.NetworkOpponentAvatarId)} {NetworkAvatars.NameOf(ViewModel.NetworkOpponentAvatarId)} ({ViewModel.NetworkOpponentColorText})";
             }
         }
 
@@ -1359,13 +1365,14 @@ public sealed partial class BoardView : UserControl
 
     /// <summary>Обновляет короткое состояние вида: строку состояния, шторку и строки партии.</summary>
     /// <remarks>
-    /// Строка состояния несёт одно главное сообщение — кто ходит; счёт, пленные и коми стоят
-    /// в свёрнутой шторке, где для них есть место. Подробности — в развёрнутой шторке.
+    /// Свёрнутая шторка телефона короткая: пока партия идёт — предварительный счёт, после итога —
+    /// одна фраза итога и строка счёта. Пленные, разбор счёта, технические строки территории
+    /// и камней и толкование терминов живут в развёрнутой шторке: на главном экране они
+    /// превращались в стену текста после каждой партии (жалоба пользователя 2026-11-09).
     /// Пленные называются явно и отдельной строкой: под японской системой это очки, и путать
     /// их со «снято» нельзя. Мёртвые камни заключительной позиции называются отдельно:
     /// они тоже идут в пленные (правила вида спорта «го», пп. 1.10 и 1.12), но счётчик партии
-    /// их не знает — их снимает подсчёт, а не ход. Без этой строки панель показывала «пленные 0»,
-    /// а счёт уже включал снятые мёртвые камни, и числа выглядели противоречиво (жалоба 2026-09-30).
+    /// их не знает — их снимает подсчёт, а не ход.
     /// </remarks>
     private void RefreshSummary()
     {
@@ -1375,23 +1382,20 @@ public sealed partial class BoardView : UserControl
         // и пометки мёртвых камней, которые тоже идут в пленные (правила, пп. 1.10 и 1.12).
         var prisoners = ViewModel.PrisonersLine;
 
-        if (_desktopPrisoners is not null)
-        {
-            _desktopPrisoners.Text = prisoners;
-        }
-
         // Правило «что показывать» живёт в чистых функциях GameStatusLines, чтобы его проверяли
         // тесты: пока итога нет, приговор не называется. Шага согласования подсчёта больше нет —
         // мёртвые группы помечает перебор, а игрок правит пометки нажатием по доске (D-070).
         var verdict = ViewModel.HasOutcome;
+        var unfinished = ViewModel.NeedsScoreConfirmation;
         var paused = ViewModel.IsGamePaused;
+        var network = ViewModel.IsNetworkGame;
 
         // На паузе слова «кто ходит» ничего не объясняют: ход не принимается, и игрок обязан
         // видеть, что партия остановлена, а не думать, что интерфейс завис. После конца партии
         // шапка называет не способ завершения, а сам факт и победителя: иначе после закрытия
         // диалога итог было негде посмотреть (дефект 2 QA 2026-10-17).
-        var gameType = ViewModel.IsNetworkGame ? "Партия с другом" : "Партия с ИИ";
-        var plainStatus = (ViewModel.IsNetworkGame
+        var gameType = network ? "Партия с другом" : "Партия с ИИ";
+        var plainStatus = network
             ? (string.IsNullOrEmpty(ViewModel.NetworkTurnText)
                 ? ViewModel.NetworkStatusText
                 : $"{ViewModel.NetworkStatusText} · {ViewModel.NetworkTurnText}")
@@ -1399,12 +1403,22 @@ public sealed partial class BoardView : UserControl
                 ? PausedHeadline
                 : verdict
                     ? GameStatusLines.FinishedLine(verdict, ViewModel.Outcome)
-                    : GameStatusLines.Headline(verdict, ViewModel.Status, ViewModel.ToMove));
-        var status = $"{gameType} · {plainStatus}";
-        // На телефоне полная подпись «Игра с ИИ · Ход: Чёрные» не влезает в строку;
-        // короткий тип сохраняет различие и не обрезается.
-        var mobileStatus = $"{gameType} · {plainStatus}";
-        var second = ViewModel.IsNetworkGame
+                    : GameStatusLines.Headline(verdict, ViewModel.Status, ViewModel.ToMove);
+
+        // После итога настольная строка состояния называет конец и победителя, а тип партии
+        // не повторяет: соперник назван отдельной строкой. Пока партия идёт — наоборот.
+        var status = verdict
+            ? GameStatusLines.FinishedLine(verdict, ViewModel.Outcome)
+            : $"{gameType} · {plainStatus}";
+
+        // Шапка телефона после итога короткая — «Партия окончена»: итог одной фразой стоит
+        // в свёрнутой шторке, и повторять его в обрезаемой строке незачем (жалоба 2026-11-09).
+        var mobileStatus = GameStatusLines.MobileHeadline(verdict, unfinished, network, plainStatus);
+
+        // Короткий итог для свёрнутой шторки: «Победили белые · сдача». Способ завершения
+        // называет та же строка — отдельной строки «Завершена сдачей» на экране больше нет.
+        var finalLine = GameStatusLines.FinalLine(verdict, unfinished, ViewModel.Outcome, ViewModel.Status);
+        var second = network
             ? ViewModel.NetworkTurnText
             : paused
                 ? PausedDetail
@@ -1413,7 +1427,7 @@ public sealed partial class BoardView : UserControl
         // её называть нельзя (жалоба 2026-10-02). Недоигранный счёт закрытой партии — тоже
         // не окончательный: победитель не назван, и игроку предложено доиграть
         // (N2 отчёта QA 2026-10-17).
-        var provisional = ViewModel.Status == "Идёт" || ViewModel.NeedsScoreConfirmation;
+        var provisional = ViewModel.Status == "Идёт" || unfinished;
         var score = GameStatusLines.ScoreLine(provisional, ViewModel.Score);
         var breakdown = ViewModel.ScoreBreakdown;
         var stats = GameStatusLines.StatsLine(
@@ -1425,11 +1439,15 @@ public sealed partial class BoardView : UserControl
 
         var finished = ViewModel.HasOutcome;
 
+        // Пока идёт партия, телефон не должен гаснуть; на Home/после итога — обычный режим.
+        global::GoEngine.App.App.KeepScreenOn = ViewModel.IsNetworkGame || (ViewModel.IsGameStarted && !finished);
+
         if (_mobileTurnText is not null)
         {
-            // После конца партии шапка не молчит: в ней остаётся «Партия окончена» и победитель.
-            // Длинная строка обрезается многоточием, а часы и «Пауза» уходят — места хватает,
-            // и прежняя жалоба «итог наезжает на часы» не возвращается (дефект 2 QA 2026-10-17).
+            // После конца партии шапка коротко сообщает, что партия окончена: победитель
+            // назван одной фразой в свёрнутой шторке, а часы уходят. Длинная строка
+            // обрезалась бы многоточием, и прежняя жалоба «итог наезжает на часы» вернулась бы
+            // (дефект 2 QA 2026-10-17).
             _mobileTurnText.Text = mobileStatus;
             _mobileTurnText.IsVisible = true;
         }
@@ -1462,12 +1480,11 @@ public sealed partial class BoardView : UserControl
         SetText(_desktopStatus, status);
 
         // «Партия окончена · Победили белые» отвечает на вопрос «что случилось», а способ
-        // завершения — на «почему». Вторая строка приглушена и есть только у оконченной партии:
-        // раньше способ стоял вместо признака конца, и итог было не понять (дефект 2).
+        // завершения — на «почему». Вторая строка живёт в «Подробностях»: на главном экране
+        // она повторяла «Партия окончена» третьим куском (жалоба пользователя 2026-11-09).
         SetText(_desktopStatusReason, ViewModel.Status);
         SetVisible(_desktopStatusReason, verdict);
 
-        SetText(_mobileStatusText, $"Статус: {ViewModel.Status}");
         SetText(_desktopScore, score);
         // Карточка итога в подробностях: объявление исхода словами и цветом. Игрок просил
         // вернуть его (жалоба 2026-10-11) — раньше итог жил только в закрываемом баннере.
@@ -1506,27 +1523,100 @@ public sealed partial class BoardView : UserControl
         SetText(_mobileScoreDead, ViewModel.ScoreDeadGroups);
         SetText(_desktopBreakdown, breakdown);
         SetText(_mobileBreakdown, breakdown);
+        SetText(_desktopPrisoners, prisoners);
+        SetText(_mobilePrisoners, prisoners);
         SetText(_desktopStats, stats);
         SetText(_mobileStats, stats);
-        SetText(_sheetSummary, score);
-        SetText(_sheetSummaryDetails, prisoners);
 
-        // Числа подсчёта видит тот, кто их запросил: строки стоят рядом с «Территорией»
-        // и появляются, только когда разметка на доске включена (жалоба 2026-10-02).
-        // Исключение — пленные: пока партия идёт, это накопительная величина партии,
-        // и она нужна в панели независимо от разметки; после конца партии её сменяет итог.
+        // Свёрнутая шторка телефона: после итога — одна короткая фраза и строка счёта,
+        // пока партия идёт — строка предварительного счёта. Пленные, разбор и толкование
+        // терминов стоят только в «Подробностях» (жалоба пользователя 2026-11-09).
+        SetText(_sheetSummary, verdict ? finalLine : score);
+        SetText(_sheetSummaryDetails, verdict ? score : string.Empty);
+        SetVisible(_sheetSummaryDetails, verdict);
+
+        // Технические строки — только в «Подробностях»: на главном экране они превращались
+        // в стену текста после партии. Признак тот же — «есть что сказать».
         SetVisible(_desktopBreakdown, breakdown.Length > 0);
         SetVisible(_mobileBreakdown, breakdown.Length > 0);
-        SetVisible(_desktopPrisoners, prisoners.Length > 0 && ViewModel.Status == "Идёт");
+        SetVisible(_desktopPrisoners, prisoners.Length > 0);
+        SetVisible(_mobilePrisoners, prisoners.Length > 0);
+
+        // После итога на главном экране не остаётся мёртвых кнопок хода: пас и разметка
+        // уходят, вместо них — одно действие (новая партия или выход из сети). В сети
+        // «Отменить»/«Вернуть» скрыты всегда: ходы подтверждает хозяин комнаты.
+        if (_desktopPause is not null)
+        {
+            _desktopPause.IsVisible = !network && !finished;
+        }
+
+        if (this.FindControl<Button>("DesktopAbortButton") is { } desktopAbort)
+        {
+            desktopAbort.IsVisible = !network && !finished;
+        }
+
+        foreach (var (name, networkOnlyTurn) in new[]
+        {
+            ("PassButton", false),
+            ("UndoButton", true),
+            ("RedoButton", true),
+            ("TerritoryButton", false),
+            ("MobilePassButton", false),
+            ("MobileUndoButton", true),
+            ("MobileRedoButton", true),
+            ("MobileTerritoryButton", false)
+        })
+        {
+            if (this.FindControl<Control>(name) is { } control)
+            {
+                control.IsVisible = !finished && !(networkOnlyTurn && network);
+            }
+        }
+
+        if (_mobileActionRow is not null)
+        {
+            _mobileActionRow.IsVisible = !finished;
+        }
+
+        if (_mobilePostGameRow is not null)
+        {
+            _mobilePostGameRow.IsVisible = finished;
+        }
+
+        if (_mobilePostGameNewGame is not null)
+        {
+            _mobilePostGameNewGame.IsVisible = finished && !network;
+        }
+
+        if (_mobilePostGameLeave is not null)
+        {
+            _mobilePostGameLeave.IsVisible = finished && network;
+        }
+
+        // Разметка территории после итога доступна из «Подробностей»: с главного экрана
+        // переключатель ушёл вместе с рядом действий.
+        if (_mobileDetailsTerritory is not null)
+        {
+            _mobileDetailsTerritory.IsVisible = finished;
+        }
+
+        if (_desktopDetailsTerritory is not null)
+        {
+            _desktopDetailsTerritory.IsVisible = finished;
+        }
 
         // До первого хода кнопка называется «Начать партию»: партия ждёт игрока, а не идёт.
-        // Кнопки «Начать партию» больше нет: партия начинается первым ходом. Видимая
-        // «Новая партия» нужна только после итога — как путь после закрытой карточки.
+        // Видимая «Новая партия» нужна после итога — как путь, когда карточка итога закрыта.
         SetText(_desktopNewGame, NewGameLabel);
         SetText(_menuNewGameText, NewGameLabel);
+        if (_desktopNewGame is not null)
+        {
+            _desktopNewGame.IsVisible = finished && !network;
+        }
+
         if (this.FindControl<Button>("MenuNewGameButton") is { } menuNewGame)
         {
-            menuNewGame.IsVisible = !ViewModel.IsNetworkGame && ViewModel.IsGameStarted;
+            menuNewGame.IsVisible = !network && ViewModel.IsGameStarted;
         }
 
         SetText(_desktopLevelHint, ViewModel.LevelHint);
@@ -1586,14 +1676,14 @@ public sealed partial class BoardView : UserControl
         }
     }
 
-    /// <summary>Показывает или прячет строку панели.</summary>
-    /// <param name="target">Строка или <c>null</c>, если её нет в этой раскладке.</param>
-    /// <param name="visible">Показывать ли строку.</param>
+    /// <summary>Показывает или прячет элемент панели.</summary>
+    /// <param name="target">Элемент или <c>null</c>, если его нет в этой раскладке.</param>
+    /// <param name="visible">Показывать ли элемент.</param>
     /// <remarks>
     /// Отдельный помощник, а не привязка: строки заполняет код вида, и признак видимости
     /// у них тот же, что у текста, — «есть что сказать».
     /// </remarks>
-    private static void SetVisible(TextBlock? target, bool visible)
+    private static void SetVisible(Control? target, bool visible)
     {
         if (target is not null)
         {

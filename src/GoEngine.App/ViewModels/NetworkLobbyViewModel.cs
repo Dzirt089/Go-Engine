@@ -424,10 +424,11 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
     {
         if (!int.TryParse(portText, out var port) || port is < 1 or > 65535)
         {
-            SetError("Порт должен быть числом от 1 до 65535.");
+            SetError("Порт — число от 1 до 65535.");
             return;
         }
 
+        SetError(null);
         if (string.IsNullOrWhiteSpace(hostAddress) || string.IsNullOrWhiteSpace(gameId))
         {
             SetError("Нужны адрес и код комнаты.");
@@ -513,7 +514,7 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
         _watcher = started.Value!;
         _watcher.RoomsChanged += OnRoomsChanged;
         RefreshRooms();
-        SetStatus(_roomsView.Count > 0 ? "Выбери комнату друга." : "Пока никого нет. Создай комнату — друг увидит её сам.");
+        SetStatus(_roomsView.Count > 0 ? "Выбери комнату друга." : "Пока никого нет.");
     }
 
     private void StopWatcher()
@@ -535,7 +536,8 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
             RefreshRooms();
             if (!_hosting)
             {
-                SetStatus(_roomsView.Count > 0 ? "Выбери комнату друга." : "Пока никого нет. Создай комнату — друг увидит её сам.");
+                // Пустой список объясняет строка под ним; повторять её же в статусе — дубль.
+                SetStatus(_roomsView.Count > 0 ? "Выбери комнату друга." : "Пока никого нет.");
             }
         });
 
@@ -577,7 +579,7 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
             var hostIsBlack = RandomNumberGenerator.GetInt32(2) == 0;
             _hostColor = hostIsBlack ? StoneColor.Black : StoneColor.White;
             _guestColor = hostIsBlack ? StoneColor.White : StoneColor.Black;
-            _colorDrawText = $"Ты — {ColorName(_hostColor)}, {AvatarOf(e.GuestAvatarId).Name} — {ColorName(_guestColor)}.";
+            _colorDrawText = $"Ты — {ColorName(_hostColor)}, {AvatarOf(e.GuestAvatarId).Name} — {ColorName(_guestColor)}";
             _guestRequestText = $"{AvatarOf(e.GuestAvatarId).Name} хочет играть!";
             _joinRequestVisible = true;
             SetStatus($"{_guestRequestText} Пустить?");

@@ -22,6 +22,11 @@ namespace GoEngine.App.Views;
 /// следующий завершённый итог показывает её снова.
 /// </para>
 /// <para>
+/// После сетевой партии «Новая партия» невозможна, пока не вышел из сети: карточка показывает
+/// «Выйти из сетевой игры» вместо неё. Нерабочая серая кнопка в самом заметном месте экрана
+/// сбивала ребёнка (жалоба пользователя 2026-11-09).
+/// </para>
+/// <para>
 /// Вид не знает про партию: он получает модель представления и показывает готовые строки.
 /// Разметка создаёт баннер конструктором без параметров — передать ей модель нечем, поэтому
 /// модель подключает владелец вида методом <see cref="Attach"/>. Без подключения баннер молчит,
@@ -43,7 +48,7 @@ public sealed partial class GameResultBanner : UserControl
     private const string TouchClass = "touch";
 
     /// <summary>Кнопки карточки: на телефоне всем им нужен размер пальца.</summary>
-    private static readonly string[] ActionButtons = ["ResumeButton", "NewGameButton", "CloseButton"];
+    private static readonly string[] ActionButtons = ["ResumeButton", "NewGameButton", "LeaveNetworkButton", "CloseButton"];
 
     /// <summary>Подключённая модель представления; <c>null</c>, пока владелец вида не подключил баннер.</summary>
     private MainViewModel? _viewModel;
@@ -103,6 +108,7 @@ public sealed partial class GameResultBanner : UserControl
 
         Wire("ResumeButton", OnResumeClick);
         Wire("NewGameButton", OnNewGameClick);
+        Wire("LeaveNetworkButton", OnLeaveNetworkClick);
         Wire("CloseButton", OnCloseClick);
 
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -179,11 +185,18 @@ public sealed partial class GameResultBanner : UserControl
             close.IsVisible = !unfinished;
         }
 
-        // В сетевой партии новая партия начинается только после выхода из сетевого режима:
-        // иначе кнопка молча ничего не делала бы.
+        // В сетевой партии новая партия начинается только после выхода из сетевого режима.
+        // Поэтому «Новая партия» там не показывается вовсе: нерабочая кнопка в карточке
+        // итога сбивала ребёнка (жалоба пользователя 2026-11-09), а на её месте — выход.
         if (this.FindControl<Button>("NewGameButton") is { } newGame)
         {
+            newGame.IsVisible = !_viewModel.IsNetworkGame;
             newGame.IsEnabled = !_viewModel.IsNetworkGame;
+        }
+
+        if (this.FindControl<Button>("LeaveNetworkButton") is { } leaveNetwork)
+        {
+            leaveNetwork.IsVisible = _viewModel.IsNetworkGame;
         }
 
         if (this.FindControl<Border>("BannerCard") is { } card)
@@ -207,6 +220,7 @@ public sealed partial class GameResultBanner : UserControl
         // снять подписку, и после повторного Attach одно нажатие начинало бы две партии.
         Unwire("ResumeButton", OnResumeClick);
         Unwire("NewGameButton", OnNewGameClick);
+        Unwire("LeaveNetworkButton", OnLeaveNetworkClick);
         Unwire("CloseButton", OnCloseClick);
 
         _viewModel = null;
@@ -301,5 +315,20 @@ public sealed partial class GameResultBanner : UserControl
         }
 
         _ = _viewModel?.StartNewGameAsync();
+    }
+
+    /// <summary>Выходит из сетевой партии прямо из карточки итога.</summary>
+    /// <param name="sender">Кнопка «Выйти из сетевой игры».</param>
+    /// <param name="e">Событие нажатия.</param>
+    /// <remarks>
+    /// В сетевой партии новая партия невозможна, пока не вышел из сети: выход и есть
+    /// осмысленное действие после итога. Доску и часы сбрасывает модель.
+    /// </remarks>
+    private void OnLeaveNetworkClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+
+        _ = _viewModel?.LeaveNetworkGameAsync();
     }
 }

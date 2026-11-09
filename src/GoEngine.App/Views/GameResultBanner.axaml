@@ -49,6 +49,13 @@
             <Button x:Name="NewGameButton"
                     Classes="app-banner-action primary"
                     Content="Новая партия" />
+            <!-- В сетевой партии новую начать нельзя, пока не вышел из сети: вместо
+                 нерабочей «Новой партии» карточка предлагает осмысленный выход
+                 (жалоба пользователя 2026-11-09: на телефоне кнопка была серой). -->
+            <Button x:Name="LeaveNetworkButton"
+                    Classes="app-banner-action primary"
+                    Content="Выйти из сетевой игры"
+                    IsVisible="False" />
             <Button x:Name="CloseButton"
                     Classes="app-banner-action"
                     Content="Закрыть" />

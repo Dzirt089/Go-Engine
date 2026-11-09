@@ -44,6 +44,75 @@ public static class GameStatusLines
     public static string FinishedLine(bool hasOutcome, string outcome) =>
         hasOutcome ? $"{FinishedMark} · {outcome}" : string.Empty;
 
+    /// <summary>Признак закрытой, но недоигранной партии: счёт не принят.</summary>
+    /// <remarks>
+    /// Победитель в этом состоянии не называется: на почти пустой доске подсчёт отдал бы всю
+    /// доску одному цвету, и итог был бы неправдой (N2 отчёта QA 2026-10-17). Игроку при этом
+    /// важно видеть, что партия закрыта, а не идёт: иначе он ищет, чей ход.
+    /// </remarks>
+    public const string UnfinishedMark = "Партия недоиграна";
+
+    /// <summary>Способ завершения партии одним коротким словом.</summary>
+    /// <param name="status">Состояние партии словами: «Завершена сдачей» и т. п.</param>
+    /// <returns>«сдача», «два паса», «лимит ходов», «по согласию» или пустую строку, пока партия идёт.</returns>
+    /// <remarks>
+    /// Слова состояния приходят из <see cref="MainViewModel.Status"/>. Совпадения проверяются
+    /// тестом на настоящих состояниях партии: если подпись там изменится, тест укажет на это,
+    /// и разбор итога не разойдётся с состоянием.
+    /// </remarks>
+    public static string FinishReason(string status) => status switch
+    {
+        "Завершена сдачей" => "сдача",
+        "Завершена двумя пасами" => "два паса",
+        "Завершена по лимиту ходов" => "лимит ходов",
+        "Завершена по согласию сторон" => "по согласию",
+        _ => string.Empty
+    };
+
+    /// <summary>Короткий итог одной фразой для свёрнутой шторки телефона.</summary>
+    /// <param name="hasOutcome">У партии есть итог.</param>
+    /// <param name="needsScoreConfirmation">Счёт не принят: позиция явно недоиграна.</param>
+    /// <param name="outcome">Итог партии словами: «Победили белые», «Ничья».</param>
+    /// <param name="status">Состояние партии словами: «Завершена сдачей» и т. п.</param>
+    /// <returns>Строку «Победили белые · сдача»; пустую, пока итога нет.</returns>
+    /// <remarks>
+    /// Одна строка вместо трёх (состояние, способ завершения, победитель): ребёнку нужно понять
+    /// исход, а не разобрать протокол. Пока счёт не принят, называть победителя нельзя — строка
+    /// так и говорит: «Счёт не принят».
+    /// </remarks>
+    public static string FinalLine(bool hasOutcome, bool needsScoreConfirmation, string outcome, string status)
+    {
+        if (!hasOutcome)
+        {
+            return string.Empty;
+        }
+
+        if (needsScoreConfirmation)
+        {
+            return outcome;
+        }
+
+        var reason = FinishReason(status);
+
+        return reason.Length == 0 ? outcome : $"{outcome} · {reason}";
+    }
+
+    /// <summary>Короткая шапка телефона: кто ходит или что партия закончена.</summary>
+    /// <param name="hasOutcome">У партии есть итог.</param>
+    /// <param name="needsScoreConfirmation">Счёт не принят: позиция явно недоиграна.</param>
+    /// <param name="network">Партия сетевая.</param>
+    /// <param name="plainStatus">Состояние словами: «Твой ход», «Ход Лиса», «Пауза».</param>
+    /// <returns>Строку шапки телефона.</returns>
+    /// <remarks>
+    /// После финала шапка не повторяет итог из шторки: она говорит только «Партия окончена».
+    /// Иначе «Партия окончена» и «Победили белые» стояли бы рядом дважды, и строка обрезалась бы
+    /// многоточием на 360 точках (жалоба пользователя 2026-11-09: стена текста после партии).
+    /// </remarks>
+    public static string MobileHeadline(bool hasOutcome, bool needsScoreConfirmation, bool network, string plainStatus) =>
+        hasOutcome
+            ? (needsScoreConfirmation ? UnfinishedMark : FinishedMark)
+            : $"{(network ? "С другом" : "С ИИ")} · {plainStatus}";
+
     /// <summary>Вторая строка состояния: номер хода или итог.</summary>
     /// <param name="hasOutcome">У партии есть итог.</param>
     /// <param name="outcome">Итог партии словами: «Победили белые» и т. п.</param>

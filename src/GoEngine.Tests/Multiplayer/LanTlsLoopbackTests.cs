@@ -4,6 +4,8 @@ using GoEngine.Multiplayer;
 
 namespace GoEngine.Tests;
 
+[Collection("TLS-loopback")]
+
 /// <summary>Loopback-тест TLS: обе стороны предъявляют эфемерные сертификаты и меняются сообщением.</summary>
 public sealed class LanTlsLoopbackTests
 {

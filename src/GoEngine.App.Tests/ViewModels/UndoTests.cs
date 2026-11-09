@@ -23,6 +23,7 @@ public sealed class UndoTests
         // Игрок белый: первый ход делает соперник. Отменять ход игрока ещё нечего, и отмена
         // не имеет права оставить партию в состоянии «ходит соперник, но он не ходит».
         var model = Create(StoneColor.White);
+        model.StartGame();
 
         Assert.Equal("Белые", model.ToMove);
         Assert.Equal("1", model.MoveNumber);

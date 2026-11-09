@@ -156,7 +156,7 @@ public sealed partial class MainWindow : Window
     /// В настольной строке режимов пункта «Главная» нет: пять кнопок в строке спорили бы
     /// за место на узком окне 760 точек. Меню окна решает то же, не трогая раскладку режимов.
     /// </remarks>
-    private void OnHomeClick(object? sender, RoutedEventArgs e) => Shell.Shell.ShowHome();
+    private void OnHomeClick(object? sender, RoutedEventArgs e) => Shell.NavigateHome();
 
     /// <summary>Открывает сетевое лобби из меню настольного окна.</summary>
     /// <param name="sender">Пункт «Игра с другом…».</param>

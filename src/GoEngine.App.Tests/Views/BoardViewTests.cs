@@ -111,27 +111,32 @@ public sealed class BoardViewTests
     }
 
     [Fact]
-    public void После_Конца_Партии_Шапка_Телефона_Показывает_Окончание_И_Итог()
+    public void После_Конца_Партии_Шапка_Телефона_Показывает_Окончание()
     {
         // Дефект 2 QA 2026-10-17: после диалога итога шапка пустела, и результат было
-        // не посмотреть. Признак конца и победитель остаются в шапке, а часы и «Пауза»,
-        // которые раньше перекрывались длинным итогом, уходят с экрана.
+        // не посмотреть. После 2026-11-09 шапка короткая: «Партия окончена», а победитель
+        // назван одной фразой в свёрнутой шторке — иначе строка обрезалась и дублировала итог.
         var (view, model) = Create();
         Finish(model);
 
         var text = view.FindControl<TextBlock>("MobileTurnText")!;
 
         Assert.True(text.IsVisible, "шапка молчит после конца партии");
-        Assert.Contains(GameStatusLines.FinishedMark, text.Text, StringComparison.Ordinal);
-        Assert.Contains(model.Outcome, text.Text, StringComparison.Ordinal);
+        Assert.Equal(GameStatusLines.FinishedMark, text.Text);
         Assert.False(view.FindControl<TextBlock>("MobileClockText")!.IsVisible, "часы остались в шапке");
         Assert.Null(view.FindControl<Button>("MobilePauseButton"));
 
-        // Счёт остаётся в свёрнутой шторке: итог — это и победитель, и счёт.
-        Assert.Contains(
-            model.Score,
-            view.FindControl<TextBlock>("SheetSummary")!.Text ?? string.Empty,
-            StringComparison.Ordinal);
+        // Итог одной фразой и счёт отдельной строкой — в свёрнутой шторке.
+        var summary = view.FindControl<TextBlock>("SheetSummary")!.Text ?? string.Empty;
+
+        Assert.Equal(
+            GameStatusLines.FinalLine(true, model.NeedsScoreConfirmation, model.Outcome, model.Status),
+            summary);
+        Assert.Contains(model.Outcome, summary, StringComparison.Ordinal);
+        Assert.DoesNotContain(GameStatusLines.FinishedMark, summary, StringComparison.Ordinal);
+        Assert.Equal(
+            GameStatusLines.ScoreLine(false, model.Score),
+            view.FindControl<TextBlock>("SheetSummaryDetails")!.Text);
     }
 
     [Fact]
@@ -191,18 +196,24 @@ public sealed class BoardViewTests
         Assert.Equal(1, Grid.GetColumn(view.FindControl<Control>("MobileTerritoryButton")!));
 
         var opponent = view.FindControl<TextBlock>("NetworkOpponentText")!;
-        var mobileOpponent = view.FindControl<TextBlock>("MobileNetworkOpponentText")!;
 
         Assert.True(opponent.IsVisible);
         Assert.Contains("Соперник", opponent.Text, StringComparison.Ordinal);
-        Assert.True(mobileOpponent.IsVisible);
-        Assert.Contains("Соперник", mobileOpponent.Text, StringComparison.Ordinal);
+        Assert.Contains("ты: белые", opponent.Text, StringComparison.Ordinal);
+
+        // Соперник на телефоне назван один раз — в свёрнутой шторке; в подробностях
+        // повторной строки нет (жалоба 2026-11-09: имя и цвета дублировались).
+        Assert.Null(view.FindControl<TextBlock>("MobileNetworkOpponentText"));
 
         var mobileSummary = view.FindControl<TextBlock>("MobileOpponentSummary")!;
 
         Assert.True(mobileSummary.IsVisible);
         Assert.Contains("Ты: белые", mobileSummary.Text, StringComparison.Ordinal);
-        Assert.Contains("Соперник: чёрные", mobileSummary.Text, StringComparison.Ordinal);
+        Assert.Contains("(чёрные)", mobileSummary.Text, StringComparison.Ordinal);
+
+        // «Подробности» в сети не пропадают: в них разбор счёта и пленные, а не уровень ИИ.
+        Assert.True(view.FindControl<ToggleButton>("DesktopDetailsButton")!.IsVisible);
+        Assert.False(view.FindControl<TextBlock>("DesktopStatsText")!.IsVisible);
     }
 
     [Fact]
@@ -227,10 +238,14 @@ public sealed class BoardViewTests
             view.FindControl<TextBlock>("DesktopScoreText")!.Text ?? string.Empty,
             StringComparison.Ordinal);
 
+        // Способ завершения остаётся на экране, но в «Подробностях»: на главной панели
+        // он дублировал «Партия окончена» третьей строкой (жалоба пользователя 2026-11-09).
         var reason = view.FindControl<TextBlock>("DesktopStatusReasonText")!;
+        var details = view.FindControl<StackPanel>("DesktopDetailsPanel")!;
 
-        Assert.True(reason.IsVisible, "способ завершения пропал");
+        Assert.Contains(reason, details.GetLogicalDescendants().OfType<TextBlock>());
         Assert.Equal(model.Status, reason.Text);
+        Assert.False(details.IsVisible, "подробности раскрылись сами после итога");
     }
 
     [Fact]
@@ -358,21 +373,21 @@ public sealed class BoardViewTests
     }
 
     [Fact]
-    public void Пленные_Показаны_Один_Раз_На_Телефоне()
+    public void Пленные_Стоят_Только_В_Подробностях_Шторки()
     {
         // Жалоба 2026-10-02 №3: одна и та же величина стояла и в свёрнутой шторке, и в подробностях.
+        // С 2026-11-09 пленные — техническая строка: им место только в подробностях.
         var (view, model) = Create();
         Finish(model);
 
-        Assert.Equal(1, CountTexts(view.FindControl<Grid>("MobileLayout")!, model.PrisonersLine));
-    }
+        var layout = view.FindControl<Grid>("MobileLayout")!;
+        var prisoners = view.FindControl<TextBlock>("MobilePrisonersText")!;
+        var summary = view.FindControl<StackPanel>("SheetSummaryPanel")!;
+        var details = view.FindControl<ScrollViewer>("SheetDetails")!;
 
-    [Fact]
-    public void Пленные_Убраны_Из_Подробностей_Шторки()
-    {
-        var (view, _) = Create();
-
-        Assert.Null(view.FindControl<TextBlock>("MobilePrisonersText"));
+        Assert.Equal(1, CountTexts(layout, model.PrisonersLine));
+        Assert.Contains(prisoners, details.GetLogicalDescendants().OfType<TextBlock>());
+        Assert.DoesNotContain(prisoners, summary.GetLogicalDescendants().OfType<TextBlock>());
     }
 
     [Fact]
@@ -462,12 +477,36 @@ public sealed class BoardViewTests
     }
 
     [Fact]
-    public void Числа_Разметки_Видны_Даже_При_Выключенной_Разметке()
+    public void Технические_Строки_Счёта_Стоят_Только_В_Подробностях_Шторки()
     {
-        // Переключатель прячет картинку на доске, а не счёт: числа посчитанного видны всегда.
+        // Жалоба пользователя 2026-11-09: «Территория — …» и «Камни — …» стояли на главном
+        // экране после каждой партии. Техническая разбивка — только в раскрываемых подробностях.
         var (view, _) = Create();
 
-        Assert.True(view.FindControl<TextBlock>("MobileBreakdownText")!.IsVisible);
+        var summary = view.FindControl<StackPanel>("SheetSummaryPanel")!;
+        var details = view.FindControl<ScrollViewer>("SheetDetails")!;
+        var breakdown = view.FindControl<TextBlock>("MobileBreakdownText")!;
+        var terms = view.FindControl<TextBlock>("MobileTermsHint")!;
+
+        Assert.True(breakdown.IsVisible);
+        Assert.Contains(breakdown, details.GetLogicalDescendants().OfType<TextBlock>());
+        Assert.DoesNotContain(breakdown, summary.GetLogicalDescendants().OfType<TextBlock>());
+        Assert.DoesNotContain(terms, summary.GetLogicalDescendants().OfType<TextBlock>());
+        Assert.False(view.FindControl<ScrollViewer>("SheetDetails")!.IsVisible);
+    }
+
+    [Fact]
+    public void Технические_Строки_Счёта_Стоят_Только_В_Подробностях_Панели()
+    {
+        var (view, _) = Create();
+
+        var details = view.FindControl<StackPanel>("DesktopDetailsPanel")!;
+        var breakdown = view.FindControl<TextBlock>("DesktopBreakdownText")!;
+        var prisoners = view.FindControl<TextBlock>("DesktopPrisonersText")!;
+
+        Assert.Contains(breakdown, details.GetLogicalDescendants().OfType<TextBlock>());
+        Assert.Contains(prisoners, details.GetLogicalDescendants().OfType<TextBlock>());
+        Assert.False(details.IsVisible, "подробности раскрыты по умолчанию");
     }
 
     [Fact]
@@ -921,21 +960,163 @@ public sealed class BoardViewTests
     }
 
     [Fact]
-    public void Переключатель_Территории_Остаётся_В_Ряду_Телефона_После_Конца_Партии()
+    public void После_Конца_Партии_На_Телефоне_Скрыты_Кнопки_Хода()
     {
+        // Жалоба пользователя 2026-11-09: после итога на телефоне оставались две серые
+        // кнопки «Пас» и «Территория». После финала ряд хода убирается целиком.
         var (view, model) = Create();
         Finish(model);
 
-        Assert.True(view.FindControl<ToggleButton>("MobileTerritoryButton")!.IsVisible);
+        Assert.False(view.FindControl<Button>("MobilePassButton")!.IsVisible);
+        Assert.False(view.FindControl<ToggleButton>("MobileTerritoryButton")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("MobileActionRow")!.IsVisible);
     }
 
     [Fact]
-    public void Переключатель_Территории_Остаётся_В_Ряду_Панели_После_Конца_Партии()
+    public void После_Конца_Партии_На_Панели_Скрыты_Кнопки_Хода()
     {
         var (view, model) = Create();
         Finish(model);
 
-        Assert.True(view.FindControl<ToggleButton>("TerritoryButton")!.IsVisible);
+        Assert.False(view.FindControl<Button>("PassButton")!.IsVisible);
+        Assert.False(view.FindControl<ToggleButton>("TerritoryButton")!.IsVisible);
+        Assert.False(view.FindControl<Button>("UndoButton")!.IsVisible);
+        Assert.False(view.FindControl<Button>("RedoButton")!.IsVisible);
+    }
+
+    [Fact]
+    public void После_Итога_В_Партии_С_ИИ_Остаётся_Одна_Понятная_Кнопка_Новой_Партии()
+    {
+        // «Или оставить только осмысленное «Новая партия»»: после итога на телефоне —
+        // одно крупное действие вместо ряда мёртвых кнопок.
+        var (view, model) = Create();
+        Finish(model);
+
+        var postGame = view.FindControl<Grid>("MobilePostGameRow")!;
+
+        Assert.True(postGame.IsVisible);
+        Assert.True(view.FindControl<Button>("MobilePostGameNewGameButton")!.IsVisible);
+        Assert.False(view.FindControl<Button>("MobilePostGameLeaveButton")!.IsVisible);
+        Assert.True(view.FindControl<Button>("NewGameButton")!.IsVisible);
+    }
+
+    [Fact]
+    public void После_Итога_В_Сетевой_Партии_Телефон_Предлагает_Выйти_Из_Сети()
+    {
+        // В сети новую партию начать нельзя, пока не вышел: осмысленное действие — выход.
+        var (view, model) = Create();
+        var client = StartNetworkGuest(model, StoneColor.Black);
+        FinishNetworkGameByResign(client);
+
+        var postGame = view.FindControl<Grid>("MobilePostGameRow")!;
+
+        Assert.True(model.HasOutcome);
+        Assert.True(postGame.IsVisible);
+        Assert.True(view.FindControl<Button>("MobilePostGameLeaveButton")!.IsVisible);
+        Assert.False(view.FindControl<Button>("MobilePostGameNewGameButton")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("MobileActionRow")!.IsVisible);
+    }
+
+    [Fact]
+    public void После_Итога_Территория_Доступна_В_Подробностях()
+    {
+        // Разметка территории после итога не пропала: она переехала из ряда действий
+        // в «Подробности», чтобы на главном экране не оставалось мёртвой кнопки.
+        var (view, model) = Create();
+        Finish(model);
+
+        Assert.True(view.FindControl<ToggleButton>("MobileDetailsTerritoryButton")!.IsVisible);
+        Assert.Contains(
+            view.FindControl<ToggleButton>("MobileDetailsTerritoryButton")!,
+            view.FindControl<ScrollViewer>("SheetDetails")!.GetLogicalDescendants().OfType<ToggleButton>());
+    }
+
+    [Fact]
+    public void После_Итога_Статус_И_Счёт_Не_Дублируются_На_Телефоне()
+    {
+        // Жалоба пользователя 2026-11-09: на телефоне почти одновременно стояли
+        // «Партия с другом · Партия окончена», «Завершена сдачей» и счёт. Осталось:
+        // короткое «Партия окончена» в шапке и одна фраза итога со счётом в шторке.
+        var (view, model) = Create();
+        Finish(model);
+
+        var layout = view.FindControl<Grid>("MobileLayout")!;
+
+        Assert.Equal(0, CountTexts(layout, "Завершена"));
+        Assert.Equal(0, CountTexts(layout, "Партия с другом · Партия окончена"));
+    }
+
+    [Fact]
+    public void После_Итога_Счёт_Стоит_Одной_Строкой_В_Шторке()
+    {
+        var (view, model) = Create();
+        Finish(model);
+
+        var scoreLine = view.FindControl<TextBlock>("SheetSummaryDetails")!;
+
+        Assert.True(scoreLine.IsVisible);
+        Assert.Equal(GameStatusLines.ScoreLine(false, model.Score), scoreLine.Text);
+        Assert.DoesNotContain("\n", scoreLine.Text ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void После_Итога_Соперник_Назван_Один_Раз_На_Телефоне()
+    {
+        var (view, model) = Create();
+        var client = StartNetworkGuest(model, StoneColor.Black);
+        FinishNetworkGameByResign(client);
+
+        var layout = view.FindControl<Grid>("MobileLayout")!;
+        var visible = layout.GetLogicalDescendants().OfType<TextBlock>()
+            .Where(block => block.IsVisible
+                && block.Text?.Contains("Соперник", StringComparison.Ordinal) == true)
+            .ToList();
+
+        Assert.Single(visible);
+        Assert.Same(view.FindControl<TextBlock>("MobileOpponentSummary"), visible[0]);
+    }
+
+    [Fact]
+    public void Сдача_Соперника_Даёт_Короткий_Итог_О_Победе()
+    {
+        // Исходный случай со скриншота: сетевая партия закончена сдачей. Ребёнок должен
+        // увидеть «Победили чёрные · сдача», а не три строки протокола подряд.
+        var (view, model) = Create();
+        var client = StartNetworkGuest(model, StoneColor.Black);
+        FinishNetworkGameByResign(client);
+
+        Assert.Equal("Победили чёрные · сдача", view.FindControl<TextBlock>("SheetSummary")!.Text);
+        Assert.Equal(GameStatusLines.FinishedMark, view.FindControl<TextBlock>("MobileTurnText")!.Text);
+    }
+
+    [Fact]
+    public void Итог_Называет_Способ_Завершения_Из_Состояния_Партии()
+    {
+        // Страховка от расхождения: слова состояния собирает модель представления,
+        // а короткий способ завершения — чистая функция. Тест сверяет их на живой партии.
+        var (view, model) = Create();
+        Finish(model);
+
+        Assert.Equal("два паса", GameStatusLines.FinishReason(model.Status));
+        Assert.Contains(
+            "· два паса",
+            view.FindControl<TextBlock>("SheetSummary")!.Text ?? string.Empty,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Толкование_Терминов_Не_Показано_В_Свёрнутой_Шторке()
+    {
+        // Толкование нужно там, где видны сами термины, и один раз: в подробностях, а не
+        // в конце каждой партии на главном экране (жалоба пользователя 2026-11-09).
+        var (view, model) = Create();
+        Finish(model);
+
+        var summary = view.FindControl<StackPanel>("SheetSummaryPanel")!;
+        var terms = view.FindControl<TextBlock>("MobileTermsHint")!;
+
+        Assert.DoesNotContain(terms, summary.GetLogicalDescendants().OfType<TextBlock>());
+        Assert.Equal(1, CountTexts(view.FindControl<Grid>("MobileLayout")!, "Пленные — камни"));
     }
 
     [Fact]
@@ -1068,19 +1249,21 @@ public sealed class BoardViewTests
     }
 
     [Fact]
-    public void Подсказка_Терминов_Объясняет_Пленных_И_Коми()
+    public void Подсказка_Терминов_Объясняет_Пленных_И_Коми_Один_Раз()
     {
-        // Находки QA L3 и L4: «пленные» и «коми» стоят в счёте без расшифровки. Строка стоит
-        // и в настольной панели, и в свёрнутой шторке телефона — там, где числа.
+        // Находки QA L3 и L4: «пленные» и «коми» стоят в счёте без расшифровки. Строка живёт
+        // только в подробностях (там же, где числа) и звучит одинаково на обеих раскладках.
         var (view, _) = Create();
-        var desktop = view.FindControl<TextBlock>("DesktopTermsHint")!.Text ?? string.Empty;
-        var mobile = view.FindControl<TextBlock>("MobileTermsHint")!.Text ?? string.Empty;
+        var desktop = view.FindControl<TextBlock>("DesktopTermsHint")!;
+        var mobile = view.FindControl<TextBlock>("MobileTermsHint")!;
+        var text = desktop.Text ?? string.Empty;
 
-        Assert.Contains("Пленные", desktop, StringComparison.Ordinal);
-        Assert.Contains("Коми", desktop, StringComparison.Ordinal);
-        Assert.Contains("первый ход", desktop, StringComparison.Ordinal);
-        Assert.Contains("Пленные", mobile, StringComparison.Ordinal);
-        Assert.Contains("Коми", mobile, StringComparison.Ordinal);
+        Assert.Contains("Пленные", text, StringComparison.Ordinal);
+        Assert.Contains("Коми", text, StringComparison.Ordinal);
+        Assert.Contains("чёрные ходят первыми", text, StringComparison.Ordinal);
+        Assert.Equal(text, mobile.Text);
+        Assert.Contains(desktop, view.FindControl<StackPanel>("DesktopDetailsPanel")!.GetLogicalDescendants().OfType<TextBlock>());
+        Assert.Contains(mobile, view.FindControl<ScrollViewer>("SheetDetails")!.GetLogicalDescendants().OfType<TextBlock>());
     }
 
     [Fact]
@@ -1109,6 +1292,38 @@ public sealed class BoardViewTests
     /// <summary>Доводит партию до итога: два паса завершают её, подтверждать нечего.</summary>
     /// <param name="model">Модель представления партии.</param>
     private static void Finish(MainViewModel model) => _ = model.LoadGame(DeadCornerGame());
+
+    /// <summary>Подключает партию к сетевому сопернику на стороне гостя.</summary>
+    /// <param name="model">Модель представления партии.</param>
+    /// <param name="playerColor">Цвет гостя в сетевой партии.</param>
+    /// <returns>Подставной клиент: через него приходят подтверждённые ходы хозяина.</returns>
+    private static FakeNetworkClient StartNetworkGuest(MainViewModel model, StoneColor playerColor)
+    {
+        // События сети модель перекладывает в захваченный SynchronizationContext. В тесте
+        // цикла сообщений нет: без этого подтверждённые ходы оставались бы в очереди,
+        // и партия не завершалась бы (как в MainViewModelNetworkTests.CreateModel).
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        var client = new FakeNetworkClient();
+        var started = model.StartNetworkGuest(
+            client,
+            new GoEngine.Multiplayer.GuestSessionStarted(
+                "0123456789abcdef0123456789abcdef", 9, 5.5, playerColor, 1, 90_000));
+
+        Assert.True(started.IsSuccess, started.Error);
+
+        return client;
+    }
+
+    /// <summary>Завершает сетевую партию сдачей соперника: чёрные сыграли, белые сдались.</summary>
+    /// <param name="client">Подставной клиент, подключённый к партии.</param>
+    private static void FinishNetworkGameByResign(FakeNetworkClient client)
+    {
+        client.RaiseMoveApplied(new GoEngine.Multiplayer.MoveAppliedEventArgs(
+            1, Move.Play(new Point(4, 4), StoneColor.Black), autoPass: false, remainingMs: 90_000));
+        client.RaiseMoveApplied(new GoEngine.Multiplayer.MoveAppliedEventArgs(
+            2, Move.Resign(StoneColor.White), autoPass: false, remainingMs: 90_000));
+    }
 
     /// <summary>Считает строки разметки, в которых встречается текст.</summary>
     /// <param name="root">Корень части разметки: раскладка или шторка.</param>

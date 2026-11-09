@@ -116,6 +116,41 @@ public sealed class GameResultBannerTests
     }
 
     [Fact]
+    public void В_Сетевой_Партии_Баннер_Не_Показывает_Новую_Партию_А_Предлагает_Выход()
+    {
+        // Жалоба пользователя 2026-11-09: после сетевой партии в карточке итога стояла
+        // серая «Новая партия». В сети она невозможна, пока не вышел, — вместо неё выход.
+        var banner = new GameResultBanner(FinishedNetworkModel());
+
+        Assert.True(banner.IsVisible);
+        Assert.False(NewGameButton(banner).IsVisible);
+        Assert.True(LeaveNetworkButton(banner).IsVisible);
+    }
+
+    [Fact]
+    public void В_Обычной_Партии_Баннер_Показывает_Новую_Партию_А_Не_Выход_Из_Сети()
+    {
+        var banner = new GameResultBanner(FinishedModel());
+
+        Assert.True(NewGameButton(banner).IsVisible);
+        Assert.False(LeaveNetworkButton(banner).IsVisible);
+    }
+
+    [Fact]
+    public void Выход_Из_Сети_С_Баннера_Возвращает_В_Обычный_Режим()
+    {
+        // Кнопка выхода должна работать, а не просто закрывать карточку: модель
+        // выходит из сетевого режима, и баннер гаснет вместе с итогом.
+        var model = FinishedNetworkModel();
+        var banner = new GameResultBanner(model);
+
+        ClickLeaveNetwork(banner);
+
+        Assert.False(model.IsNetworkGame);
+        Assert.False(banner.IsVisible);
+    }
+
+    [Fact]
     public void Повторный_Attach_Не_Удваивает_Обработчики()
     {
         // Одно нажатие = одна новая партия: каждый лишний обработчик кнопки запускал бы
@@ -383,6 +418,57 @@ public sealed class GameResultBannerTests
     /// <returns>Кнопка разметки; отсутствие кнопки — сломанная разметка, а не сценарий теста.</returns>
     private static Button CloseButton(GameResultBanner banner) =>
         banner.FindControl<Button>("CloseButton")!;
+
+    /// <summary>Модель завершённой сетевой партии: гость чёрными, соперник сдался.</summary>
+    /// <returns>Модель в сетевом режиме, в которой итог уже назван.</returns>
+    /// <remarks>
+    /// Сдачу присылает хозяин комнаты подтверждённым ходом: так же сетевой итог приходит
+    /// и в жизни, а локальную партию заканчивает та же модель.
+    /// </remarks>
+    private static MainViewModel FinishedNetworkModel()
+    {
+        var model = Create();
+        var client = StartNetworkGuest(model);
+
+        client.RaiseMoveApplied(new GoEngine.Multiplayer.MoveAppliedEventArgs(
+            1, Move.Play(new Point(4, 4), StoneColor.Black), autoPass: false, remainingMs: 90_000));
+        client.RaiseMoveApplied(new GoEngine.Multiplayer.MoveAppliedEventArgs(
+            2, Move.Resign(StoneColor.White), autoPass: false, remainingMs: 90_000));
+
+        Assert.True(model.IsNetworkGame, "модель вышла из сети до проверки");
+        Assert.True(model.HasOutcome, "сетевая партия не завершилась");
+
+        return model;
+    }
+
+    /// <summary>Подключает модель к сетевому сопернику на стороне гостя.</summary>
+    /// <param name="model">Модель представления партии.</param>
+    /// <returns>Подставной клиент: через него приходят подтверждённые ходы хозяина.</returns>
+    private static FakeNetworkClient StartNetworkGuest(MainViewModel model)
+    {
+        // События сети модель перекладывает в захваченный SynchronizationContext, а в тесте
+        // цикла сообщений нет: без этого подтверждённые ходы оставались бы в очереди,
+        // и партия не завершалась бы (как в MainViewModelNetworkTests.CreateModel).
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        var client = new FakeNetworkClient();
+        var started = model.StartNetworkGuest(
+            client,
+            new GoEngine.Multiplayer.GuestSessionStarted(
+                "0123456789abcdef0123456789abcdef", 9, 5.5, StoneColor.Black, 1, 90_000));
+
+        Assert.True(started.IsSuccess, started.Error);
+
+        return client;
+    }
+
+    /// <summary>Нажимает кнопку карточки «Выйти из сетевой игры».</summary>
+    private static void ClickLeaveNetwork(GameResultBanner banner) =>
+        LeaveNetworkButton(banner).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+    /// <summary>Кнопка «Выйти из сетевой игры» внутри баннера.</summary>
+    private static Button LeaveNetworkButton(GameResultBanner banner) =>
+        banner.FindControl<Button>("LeaveNetworkButton")!;
 
     /// <summary>Затемнение под карточкой: слой, на котором стоит сообщение.</summary>
     /// <param name="banner">Баннер с разметкой.</param>

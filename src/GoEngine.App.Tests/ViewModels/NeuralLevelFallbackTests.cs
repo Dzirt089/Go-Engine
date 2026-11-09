@@ -15,12 +15,26 @@ namespace GoEngine.App.Tests;
 public sealed class NeuralLevelFallbackTests
 {
     [Fact]
+    public void Белый_Игрок_Не_Ходит_До_Явного_Старта()
+    {
+        // Главный экран Home не должен показывать уже начатую партию, даже если сохранён
+        // цвет «белые»: конструктор модели не имеет права запускать AI.
+        var settings = AppSettings.From(BoardSize.Size9, DifficultyLevel.Kyu30, StoneColor.White, Komi.For9x9);
+        var model = new MainViewModel(settings, new Random(Seed));
+
+        Assert.Equal("0", model.MoveNumber);
+        Assert.False(model.IsGameStarted);
+        Assert.True(model.IsFirstMove);
+    }
+
+    [Fact]
     public void Уровень_Дан_Без_Модели_Не_Срывает_Партию()
     {
         // Игрок белыми: первый ход за AI, и без оценщика он обязан откатиться на уровень кю.
         var settings = AppSettings.From(BoardSize.Size19, DifficultyLevel.Dan5, StoneColor.White, Komi.For19x19);
 
         var model = new MainViewModel(settings, new Random(Seed));
+        model.StartGame();
 
         Assert.Equal("1", model.MoveNumber);
     }
@@ -31,6 +45,7 @@ public sealed class NeuralLevelFallbackTests
         var settings = AppSettings.From(BoardSize.Size9, DifficultyLevel.Dan5, StoneColor.White, Komi.For9x9);
 
         var model = new MainViewModel(settings, new Random(Seed), new FakeEvaluator());
+        model.StartGame();
 
         Assert.Equal("1", model.MoveNumber);
     }
@@ -41,6 +56,7 @@ public sealed class NeuralLevelFallbackTests
         var settings = AppSettings.From(BoardSize.Size19, DifficultyLevel.Dan5, StoneColor.White, Komi.For19x19);
 
         var model = new MainViewModel(settings, new Random(Seed), new FakeEvaluator());
+        model.StartGame();
 
         Assert.Equal("1", model.MoveNumber);
     }

@@ -85,6 +85,61 @@ public sealed class ShellStartTests
     }
 
     [Fact]
+    public void В_Настольном_Окне_На_Главном_Экране_Полосы_Режимов_Нет()
+    {
+        // По скриншоту пользователя 2026-11-09: над карточками Home висела вторая строка того же
+        // выбора режимов. На главном экране она не нужна — выбор уже сделан крупными карточками.
+        var (view, _) = Start();
+        InWindow(view);
+
+        Assert.False(view.FindControl<Border>("DesktopBar")!.IsVisible);
+    }
+
+    [Fact]
+    public void В_Настольном_Окне_На_Доске_Полоса_Режимов_Видна()
+    {
+        var (view, _) = Start();
+        InWindow(view);
+
+        Click(view.HomeArea!.FindControl<Button>("GameCard")!);
+
+        Assert.True(view.FindControl<Border>("DesktopBar")!.IsVisible);
+    }
+
+    [Fact]
+    public void В_Настольном_Окне_В_Обучении_Полоса_Режимов_Видна()
+    {
+        var (view, _) = Start();
+        InWindow(view);
+
+        Click(view.HomeArea!.FindControl<Button>("LessonCard")!);
+
+        Assert.True(view.FindControl<Border>("DesktopBar")!.IsVisible);
+    }
+
+    [Fact]
+    public void Возврат_На_Главную_Скрывает_Полосу_Режимов()
+    {
+        var (view, _) = Start();
+        InWindow(view);
+        Click(view.HomeArea!.FindControl<Button>("GameCard")!);
+        Click(view.FindControl<Button>("NavMenuButton")!);
+
+        Click(view.MenuArea!.FindControl<Button>("HomeRow")!);
+
+        Assert.False(view.FindControl<Border>("DesktopBar")!.IsVisible);
+    }
+
+    [Fact]
+    public void На_Телефоне_На_Главном_Экране_Полосы_Режимов_Нет()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+
+        Assert.False(view.FindControl<Border>("DesktopBar")!.IsVisible);
+    }
+
+    [Fact]
     public void Главный_Экран_Показывает_Три_Карточки()
     {
         // Три режима, без отдельной карточки задач: они внутри обучения (уточнение 2026-11-09).
@@ -298,6 +353,7 @@ public sealed class ShellStartTests
     {
         var (view, shell) = Start();
         InWindow(view);
+        Click(view.HomeArea!.FindControl<Button>("GameCard")!);
 
         Click(view.FindControl<ToggleButton>("LessonModeButton")!);
 
