@@ -63,24 +63,28 @@ public sealed class LanSessionLoopbackTests
         var options = new MultiplayerOptions
         {
             PreferredTcpPort = 0,
-            HandshakeTimeout = TimeSpan.FromSeconds(3),
-            JoinDecisionTimeout = TimeSpan.FromSeconds(15)
+            HandshakeTimeout = TimeSpan.FromSeconds(1),
+            JoinDecisionTimeout = TimeSpan.FromSeconds(10)
         };
         await using var host = new LanGameHost(options);
         var hostRoom = await host.StartHostingAsync(hostAvatarId: 0, roomNumber: 43, boardSize: 9, timeout.Token);
         Assert.True(hostRoom.IsSuccess, hostRoom.Error);
 
-        host.GuestJoinRequested += (_, _) => _ = AcceptAfterDelayAsync(host, timeout.Token);
+        var requested = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.GuestJoinRequested += (_, _) => requested.TrySetResult(true);
 
         await using var guest = new LanGameClient(options);
-        var started = await guest.JoinAsync(hostRoom.Value!, avatarId: 1, timeout.Token);
+        var join = guest.JoinAsync(hostRoom.Value!, avatarId: 1, timeout.Token);
 
+        // Хозяин получил заявку, но думает дольше HandshakeTimeout: гость обязан ждать
+        // решения человека (JoinDecisionTimeout), а не обрывать соединение.
+        await requested.Task.WaitAsync(TimeSpan.FromSeconds(5), timeout.Token);
+        await Task.Delay(TimeSpan.FromSeconds(2), timeout.Token);
+
+        var accepted = await host.AcceptGuestAsync(StoneColor.White, 5.5, timeout.Token);
+        Assert.True(accepted.IsSuccess, accepted.Error);
+
+        var started = await join;
         Assert.True(started.IsSuccess, started.Error);
-    }
-
-    private static async Task AcceptAfterDelayAsync(LanGameHost host, CancellationToken cancellationToken)
-    {
-        await Task.Delay(TimeSpan.FromSeconds(4), cancellationToken);
-        await host.AcceptGuestAsync(StoneColor.White, 5.5, cancellationToken);
     }
 }
