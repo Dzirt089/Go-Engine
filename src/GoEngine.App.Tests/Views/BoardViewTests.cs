@@ -1271,7 +1271,7 @@ public sealed class BoardViewTests
     {
         // Находки QA L5 и B1: пас проходил молча, а конца партии не было. Сообщение называет
         // и сам пас, и строку меню, которая подводит итог.
-        Assert.Contains("спали", BoardView.PassHint, StringComparison.Ordinal);
+        Assert.Contains("пропустили", BoardView.PassHint, StringComparison.Ordinal);
         Assert.Contains("Закончить партию", BoardView.PassHint, StringComparison.Ordinal);
     }
 

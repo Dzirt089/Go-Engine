@@ -503,12 +503,13 @@
                 </Grid>
                 <!-- Счёт одной строкой: после итога он уходит из первой строки сюда. -->
                 <TextBlock x:Name="SheetSummaryDetails"
-                           Classes="app-label"
+                           FontSize="14"
                            TextWrapping="Wrap"
                            IsVisible="False" />
                 <!-- Соперник и цвета — один раз и коротко, без повторения в подробностях. -->
                 <TextBlock x:Name="MobileOpponentSummary"
-                           Classes="app-label"
+                           FontSize="17"
+                           FontWeight="SemiBold"
                            TextWrapping="Wrap"
                            IsVisible="False" />
               </StackPanel>

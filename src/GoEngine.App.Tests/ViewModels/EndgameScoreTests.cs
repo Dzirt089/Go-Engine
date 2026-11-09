@@ -150,7 +150,7 @@ public sealed class EndgameScoreTests
         var model = Create();
         _ = model.LoadGame(DeadCornerInProgressGame());
 
-        Assert.StartsWith("Предварительный счёт", model.ScoreDetail, StringComparison.Ordinal);
+        Assert.StartsWith("Счёт пока примерный", model.ScoreDetail, StringComparison.Ordinal);
     }
 
     [Fact]

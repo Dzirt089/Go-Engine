@@ -68,7 +68,7 @@ public sealed class GameStatusLinesTests
         // а панель называла счёт недоигранной позиции окончательным.
         var score = GameStatusLines.ScoreLine(provisional: true, "Чёрные 0 : 5.5 Белые");
 
-        Assert.Equal("Предварительный счёт: Чёрные 0 : 5.5 Белые", score);
+        Assert.Equal("Счёт пока примерный: Чёрные 0 : 5.5 Белые", score);
     }
 
     [Fact]

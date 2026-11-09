@@ -32,7 +32,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     private readonly ILogger _log = AppLog.For<MainViewModel>();
     /// <summary>Пометка предварительного счёта: партия идёт, позиция недоиграна.</summary>
     private const string ProvisionalInGame =
-        "Предварительный счёт: партия идёт, позиция недоиграна — числа изменятся.";
+        "Счёт пока примерный: партия идёт, числа изменятся.";
 
     /// <summary>Пометка непринятого счёта: партия закрыта, но позиция явно недоиграна.</summary>
     /// <remarks>

@@ -543,6 +543,10 @@ internal static class CheckModes
         // Игрок белыми: AI обязан открыть партию своим ходом.
         var asWhite = AppSettings.From(BoardSize.Size9, DifficultyLevel.Kyu20, StoneColor.White, Komi.For9x9);
         var whiteModel = new MainViewModel(asWhite, new Random(SeedForChecks));
+
+        // Главный экран Home не запускает партию: AI ходит только после явного старта.
+        failures += Expect(whiteModel.MoveNumber == "0", "партия не начата до выбора режима");
+        whiteModel.StartGame();
         failures += Expect(whiteModel.MoveNumber == "1", "AI открыл партию за чёрных");
 
         // Смена настроек начинает новую партию с другим размером доски.

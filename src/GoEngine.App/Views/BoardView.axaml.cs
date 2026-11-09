@@ -1440,7 +1440,7 @@ public sealed partial class BoardView : UserControl
         var finished = ViewModel.HasOutcome;
 
         // Пока идёт партия, телефон не должен гаснуть; на Home/после итога — обычный режим.
-        global::GoEngine.App.App.KeepScreenOn = ViewModel.IsNetworkGame || (ViewModel.IsGameStarted && !finished);
+        global::GoEngine.App.App.KeepScreenOn = ViewModel.IsGameStarted && !finished;
 
         if (_mobileTurnText is not null)
         {
@@ -2059,11 +2059,11 @@ public sealed partial class BoardView : UserControl
 
     /// <summary>Сообщение о пасе: что произошло и где закончить партию.</summary>
     internal const string PassHint =
-        "Вы спали: ход у соперника. Партия заканчивается двумя пасами; закончить её сейчас можно в меню — «Закончить партию».";
+        "Вы пропустили ход. Партия закончится, если оба пропустят; сейчас её можно закончить в меню — «Закончить партию».";
 
     /// <summary>Сообщение о пасе в сетевой партии: строки «Закончить партию» в сетевом меню нет.</summary>
     internal const string NetworkPassHint =
-        "Вы спали: ход у соперника. В сетевой партии закончить её можно сдачей или выходом в меню.";
+        "Вы пропустили ход. В сетевой партии сдаться или выйти можно из меню.";
 
     /// <summary>Отменяет последний ход игрока вместе с ответом AI.</summary>
     /// <param name="sender">Кнопка «Отменить».</param>

@@ -14,7 +14,7 @@ namespace GoEngine.App.Views;
 public static class GameStatusLines
 {
     /// <summary>Название предварительного счёта: счёт показан, но пометки ещё можно изменить.</summary>
-    private const string ProvisionalMark = "Предварительный счёт";
+    private const string ProvisionalMark = "Счёт пока примерный";
 
     /// <summary>Признак конца партии для шапки и панели.</summary>
     /// <remarks>
