@@ -2,6 +2,7 @@ using System.Reflection;
 using GoEngine.AI;
 using GoEngine.AI.Onnx;
 using GoEngine.Core;
+using GoEngine.Multiplayer;
 
 namespace GoEngine.Tests;
 
@@ -63,6 +64,24 @@ public sealed class LayerBoundaryTests
             .Where(static name => name is not ("GoEngine.Core" or "GoEngine.AI"));
 
         Assert.Empty(engine);
+    }
+
+    [Fact]
+    public void Multiplayer_Ссылается_Только_На_Core()
+    {
+        var engine = Referenced(typeof(MultiplayerOptions).Assembly)
+            .Where(static name => name.StartsWith("GoEngine.", StringComparison.Ordinal))
+            .Where(static name => name != "GoEngine.Core");
+
+        Assert.Empty(engine);
+    }
+
+    [Fact]
+    public void Multiplayer_Не_Ссылается_На_Библиотеки_Интерфейса()
+    {
+        var ui = Referenced(typeof(MultiplayerOptions).Assembly).Where(IsUiAssembly);
+
+        Assert.Empty(ui);
     }
 
     [Fact]

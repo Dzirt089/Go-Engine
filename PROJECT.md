@@ -13,18 +13,21 @@ MCTS с чистыми случайными playout'ами не даёт зая�
 ## Границы проекта
 
 - **Offline-first.** Игра работает без интернета. Внешние зависимости не загружаются.
-- **Один процесс.** Никаких серверов, никакой сети.
+- **Локальная сеть — можно.** Два человека могут играть по Wi-Fi в одной сети: одна партия — один хост,
+  без интернет-серверов и аккаунтов. Ручной ввод IP — только аварийный путь для взрослых,
+  основной — автоматический список комнат (D-118).
 - **AI — внутри процесса.** MCTS, без нейросети в первой версии.
 - **Кроссплатформенность.** Avalonia UI + SkiaSharp.
 
 ## Слои и зависимости
 
 ```
-GoEngine.Core       ← ничего, кроме System.*
-GoEngine.AI         ← только Core
-GoEngine.App        ← Core, AI, Avalonia, SkiaSharp
-GoEngine.AI.Onnx    ← Core, AI, ONNX Runtime (v2)
-GoEngine.Tests      ← Core, AI, AI.Onnx, xUnit
+GoEngine.Core        ← ничего, кроме System.*
+GoEngine.AI          ← только Core
+GoEngine.Multiplayer ← Core (транспорт, обнаружение комнат, протокол, таймер хода)
+GoEngine.App         ← Core, AI, Problems, Multiplayer, Avalonia, SkiaSharp
+GoEngine.AI.Onnx     ← Core, AI, ONNX Runtime (v2)
+GoEngine.Tests       ← Core, AI, AI.Onnx, Multiplayer, xUnit
 ```
 
 Строгое правило: **слой не может ссылаться на слой выше себя**.
@@ -38,7 +41,8 @@ GoEngine.Tests      ← Core, AI, AI.Onnx, xUnit
 |---|---|---|
 | `Core` | `System.*` | Avalonia, AI, IO, БД |
 | `AI` | `Core`, `System.*` | Avalonia, IO, БД |
-| `App` | `Core`, `AI`, `Problems`, Avalonia, SkiaSharp | — |
+| `App` | `Core`, `AI`, `Problems`, `Multiplayer`, Avalonia, SkiaSharp | — |
+| `Multiplayer` | `Core`, `System.*` (сеть/криптография BCL) | Avalonia, SkiaSharp, логи |
 | `AI.Onnx` | `Core`, `AI`, ONNX Runtime | Avalonia, IO, БД |
 | `Problems` | `Core`, `AI`, `System.Text.Json` | Avalonia, БД |
 | `Tests` | `Core`, `AI`, `AI.Onnx`, xUnit | `App` |
@@ -70,6 +74,7 @@ GoEngine.Tests      ← Core, AI, AI.Onnx, xUnit
 - MediatR, AutoMapper, FluentValidation
 - Entity Framework, Dapper, любые ORM
 - ASP.NET Core, ASP.NET MVC
+- Интернет-серверы, аккаунты, облачная синхронизация (локальная сеть — не интернет)
 - Newtonsoft.Json (только `System.Text.Json`)
 - Любые пакеты для Go — всё пишем сами
 
@@ -95,6 +100,8 @@ src/
 │   ├── Mcts/                  дерево MCTS и селектор (UCB1 без сети, PUCT с сетью)
 │   ├── Patterns/              окрестности 3×3 и их веса
 │   └── SelfPlay/              партия AI против AI
+├── GoEngine.Multiplayer/     локальная сеть: TLS-транспорт, UDP-обнаружение комнат,
+│                              протокол ходов, таймер 90 секунд и reconnect (D-118)
 ├── GoEngine.Problems/         задачи и обучение: позиции, проверка ходов, уроки
 │   ├── Problems/              встроенные задачи (SGF с деревом решения)
 │   ├── Lessons/               уроки (JSON), их разбор и прохождение (LessonSession)

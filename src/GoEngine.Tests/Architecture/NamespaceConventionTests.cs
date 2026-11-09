@@ -1,6 +1,7 @@
 using GoEngine.AI;
 using GoEngine.AI.Onnx;
 using GoEngine.Core;
+using GoEngine.Multiplayer;
 
 namespace GoEngine.Tests;
 
@@ -27,6 +28,14 @@ public sealed class NamespaceConventionTests
         var spaces = Namespaces(typeof(MctsMoveSelector).Assembly);
 
         Assert.Equal(["GoEngine.AI"], spaces);
+    }
+
+    [Fact]
+    public void Multiplayer_Использует_Одно_Пространство_Имён()
+    {
+        var spaces = Namespaces(typeof(MultiplayerOptions).Assembly);
+
+        Assert.Equal(["GoEngine.Multiplayer"], spaces);
     }
 
     [Fact]

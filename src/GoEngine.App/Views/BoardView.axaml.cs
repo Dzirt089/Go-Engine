@@ -383,6 +383,8 @@ public sealed partial class BoardView : UserControl
         // обработчиков у пунктов меню нет, они лишь закрывают шторку перед действием.
         WireButton("MenuNewGameButton", OnMenuNewGameClick);
         WireButton("MenuAbortButton", OnMenuAbortClick);
+        WireButton("MenuLeaveNetworkButton", OnMenuLeaveNetworkClick);
+        WireButton("MenuResignNetworkButton", OnMenuResignNetworkClick);
         WireButton("MenuSaveButton", OnMenuSaveClick);
         WireButton("MenuLoadButton", OnMenuLoadClick);
         WireButton("MenuSettingsButton", OnMenuSettingsClick);
@@ -982,7 +984,7 @@ public sealed partial class BoardView : UserControl
     /// <remarks>Таймер идёт только у идущей партии: у стоящих часов обновлять нечего.</remarks>
     private void SyncClockTimer()
     {
-        if (!ViewModel.IsGameRunning)
+        if (!ViewModel.IsGameRunning && !ViewModel.IsNetworkGame)
         {
             _clockTimer?.Stop();
 
@@ -1273,14 +1275,20 @@ public sealed partial class BoardView : UserControl
         // видеть, что партия остановлена, а не думать, что интерфейс завис. После конца партии
         // шапка называет не способ завершения, а сам факт и победителя: иначе после закрытия
         // диалога итог было негде посмотреть (дефект 2 QA 2026-10-17).
-        var status = paused
-            ? PausedHeadline
-            : verdict
-                ? GameStatusLines.FinishedLine(verdict, ViewModel.Outcome)
-                : GameStatusLines.Headline(verdict, ViewModel.Status, ViewModel.ToMove);
-        var second = paused
-            ? PausedDetail
-            : GameStatusLines.Detail(verdict, ViewModel.Outcome, ViewModel.MoveNumber);
+        var status = ViewModel.IsNetworkGame
+            ? (string.IsNullOrEmpty(ViewModel.NetworkTurnText)
+                ? ViewModel.NetworkStatusText
+                : $"{ViewModel.NetworkStatusText} · {ViewModel.NetworkTurnText}")
+            : paused
+                ? PausedHeadline
+                : verdict
+                    ? GameStatusLines.FinishedLine(verdict, ViewModel.Outcome)
+                    : GameStatusLines.Headline(verdict, ViewModel.Status, ViewModel.ToMove);
+        var second = ViewModel.IsNetworkGame
+            ? ViewModel.NetworkTurnText
+            : paused
+                ? PausedDetail
+                : GameStatusLines.Detail(verdict, ViewModel.Outcome, ViewModel.MoveNumber);
         // Счёт предварительный, пока партия идёт: позиция недоиграна, и окончательным счётом
         // её называть нельзя (жалоба 2026-10-02). Недоигранный счёт закрытой партии — тоже
         // не окончательный: победитель не назван, и игроку предложено доиграть
@@ -1321,7 +1329,9 @@ public sealed partial class BoardView : UserControl
             // Время партии идёт рядом с ходом: строка состояния — то место, куда игрок смотрит
             // за партией, и времени там самое место (на узком экране строка обрезается редко:
             // она последняя и без переноса).
-            _mobileMoveText.Text = ViewModel.IsGameStarted ? $"{second} · {ViewModel.ClockShortDisplay}" : second;
+            _mobileMoveText.Text = ViewModel.IsNetworkGame
+                ? (string.IsNullOrEmpty(second) ? "Сетевая партия" : $"{second} на ход")
+                : ViewModel.IsGameStarted ? $"{second} · {ViewModel.ClockShortDisplay}" : second;
         }
 
         if (_mobileTurnBlack is not null)
@@ -1639,7 +1649,11 @@ public sealed partial class BoardView : UserControl
         nameof(MainViewModel.Outcome), nameof(MainViewModel.MoveNumber), nameof(MainViewModel.CapturedBlack),
         nameof(MainViewModel.CapturedWhite), nameof(MainViewModel.Komi), nameof(MainViewModel.Board),
         nameof(MainViewModel.IsGameStarted), nameof(MainViewModel.IsGameRunning), nameof(MainViewModel.IsGamePaused),
-        nameof(MainViewModel.IsFirstMove)
+        nameof(MainViewModel.IsFirstMove), nameof(MainViewModel.IsNetworkGame), nameof(MainViewModel.IsNetworkHost),
+        nameof(MainViewModel.IsNetworkMyTurn), nameof(MainViewModel.IsNetworkConnected), nameof(MainViewModel.CanLeaveNetwork),
+        nameof(MainViewModel.NetworkStatusText), nameof(MainViewModel.NetworkTurnText),
+        nameof(MainViewModel.NetworkOpponentAvatarId), nameof(MainViewModel.CanStartNewGame),
+        nameof(MainViewModel.CanChangeGameSettings)
     ];
 
     /// <summary>Свойства, после которых панель пересобирается и списки выбора синхронизируются.</summary>
@@ -1988,6 +2002,28 @@ public sealed partial class BoardView : UserControl
     {
         CloseMenu();
         OnAbortGameClick(sender, e);
+    }
+
+    /// <summary>Меню: выходит из сетевой партии, закрывая соединение.</summary>
+    /// <param name="sender">Кнопка «Выйти из сетевой игры» в меню.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnMenuLeaveNetworkClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        CloseMenu();
+        _ = ViewModel.LeaveNetworkGameAsync();
+    }
+
+    /// <summary>Меню: сдаться в сетевой партии.</summary>
+    /// <param name="sender">Кнопка «Сдаться» в меню.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnMenuResignNetworkClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        CloseMenu();
+        _ = ViewModel.ResignNetworkAsync();
     }
 
     /// <summary>Меню: сохраняет партию тем же путём, что кнопка панели.</summary>

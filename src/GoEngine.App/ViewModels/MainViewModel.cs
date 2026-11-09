@@ -5,6 +5,7 @@ using GoEngine.AI;
 using GoEngine.App.Services;
 using GoEngine.App.Services.Logging;
 using GoEngine.Core;
+using GoEngine.Multiplayer;
 using Microsoft.Extensions.Logging;
 
 namespace GoEngine.App.ViewModels;
@@ -21,7 +22,7 @@ namespace GoEngine.App.ViewModels;
 /// на доске одновременно с ответом соперника, а анимация успевала закончиться до первой отрисовки.
 /// Отмена не прерывает уже начатый поиск, но его результат не применяется (см. <see cref="CancelThinking"/>).
 /// </remarks>
-public sealed class MainViewModel : INotifyPropertyChanged
+public sealed partial class MainViewModel : INotifyPropertyChanged
 {
     private readonly Random _random;
     private readonly IPositionEvaluator? _evaluator;
@@ -99,18 +100,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <param name="evaluator">Оценка позиции нейросетью для уровней Дан; <c>null</c> — игра без сети.</param>
     /// <param name="modelSizes">Стороны доски, для которых есть модель; <c>null</c> — взять у приложения.</param>
     /// <param name="time">Источник времени для часов партии; <c>null</c> — часы приложения.</param>
+    /// <param name="networkOptions">Настройки сетевой партии; <c>null</c> — значения по умолчанию.</param>
     public MainViewModel(
         AppSettings settings,
         Random random,
         IPositionEvaluator? evaluator = null,
         IReadOnlySet<int>? modelSizes = null,
-        TimeProvider? time = null)
+        TimeProvider? time = null,
+        MultiplayerOptions? networkOptions = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(random);
 
         _settings = settings;
         _random = random;
+        _timeProvider = time ?? AppLog.Time;
+        _networkOptions = networkOptions ?? new MultiplayerOptions { TimeProvider = _timeProvider };
         _evaluator = evaluator;
         _modelSizes = modelSizes ?? global::GoEngine.App.App.ModelSizes;
         _game = CreateGame(settings);
@@ -622,7 +627,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => BoardSizes.IndexOf(_settings.ToBoardSize());
         set
         {
-            if (value < 0 || value >= BoardSizes.All.Count || value == SelectedSizeIndex)
+            if (_networkMode || value < 0 || value >= BoardSizes.All.Count || value == SelectedSizeIndex)
             {
                 return;
             }
@@ -686,6 +691,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         set
         {
+            if (_networkMode)
+            {
+                return;
+            }
+
             var options = LevelOptions;
 
             if (value < 0 || value >= options.Count)
@@ -761,6 +771,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <remarks>На паузе ход отклоняется, а доска не меняется: пауза останавливает и время, и игру.</remarks>
     public bool PlayMove(Point point)
     {
+        if (_networkMode)
+        {
+            // Сетевой ход отправляется асинхронно и применяется только после ответа хозяина.
+            return false;
+        }
+
         if (!CanPlayMove || _isThinking || !TryPlay(Move.Play(point, _game.ToMove)))
         {
             return false;
@@ -783,6 +799,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     public async Task<bool> PlayMoveAsync(Point point)
     {
+        if (_networkMode)
+        {
+            return await PlayNetworkMoveAsync(Move.Play(point, _game.ToMove)).ConfigureAwait(true);
+        }
+
         if (!CanPlayMove || _isThinking || !TryPlay(Move.Play(point, _game.ToMove)))
         {
             return false;
@@ -803,6 +824,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     public bool Pass()
     {
+        if (_networkMode)
+        {
+            return false;
+        }
+
         if (!CanPlayMove || _isThinking || !TryPlay(Move.Pass(_game.ToMove)))
         {
             return false;
@@ -818,6 +844,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <returns><c>true</c>, если пас игрока принят.</returns>
     public async Task<bool> PassAsync()
     {
+        if (_networkMode)
+        {
+            return await PlayNetworkMoveAsync(Move.Pass(_game.ToMove)).ConfigureAwait(true);
+        }
+
         if (!CanPlayMove || _isThinking || !TryPlay(Move.Pass(_game.ToMove)))
         {
             return false;
@@ -832,10 +863,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     /// <summary>Можно ли отменить ход игрока: отмена обязана вернуть очередь игроку.</summary>
     /// <remarks>Кнопка «Отменить» недоступна, когда отменять ход игрока нечего.</remarks>
-    public bool CanUndo => _game.CanUndoTo(_settings.ToPlayerColor());
+    public bool CanUndo => !_networkMode && _game.CanUndoTo(_settings.ToPlayerColor());
 
     /// <summary>Можно ли вернуть отменённый ход игрока.</summary>
-    public bool CanRedo => _game.CanRedoTo(_settings.ToPlayerColor());
+    public bool CanRedo => !_networkMode && _game.CanRedoTo(_settings.ToPlayerColor());
 
     /// <summary>Партия начата: время идёт или стоит на паузе.</summary>
     /// <remarks>
@@ -870,20 +901,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public TimeSpan GameTime => _clock.Elapsed;
 
     /// <summary>Часы можно остановить: партия идёт прямо сейчас.</summary>
-    public bool CanPauseClock => IsGameRunning;
+    public bool CanPauseClock => !_networkMode && IsGameRunning;
 
     /// <summary>Часы можно продолжить: партия стоит на паузе.</summary>
-    public bool CanResumeClock => _gameStarted && _clock.IsPaused;
+    public bool CanResumeClock => !_networkMode && _gameStarted && _clock.IsPaused;
 
     /// <summary>Кнопка часов доступна: есть что останавливать или продолжать.</summary>
-    public bool CanTogglePause => CanPauseClock || CanResumeClock;
+    public bool CanTogglePause => !_networkMode && (CanPauseClock || CanResumeClock);
 
     /// <summary>Партию можно отменить: она начата.</summary>
     /// <remarks>
     /// До старта отменять нечего — партия и так в исходном состоянии. После «Отменить партию»
     /// кнопка снова недоступна, пока игрок не начнёт партию.
     /// </remarks>
-    public bool CanAbortGame => _gameStarted;
+    public bool CanAbortGame => !_networkMode && _gameStarted;
 
     /// <summary>Партию можно закончить: она начата и ещё идёт.</summary>
     /// <remarks>
@@ -892,11 +923,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// (блокер B1 отчёта QA 2026-10-17). До первого хода заканчивать нечего — партия ещё
     /// не начата, и итог по пустой доске был бы не итогом партии.
     /// </remarks>
-    public bool CanFinishGame => _gameStarted && _game.Status == GameStatus.InProgress;
+    public bool CanFinishGame => !_networkMode && _gameStarted && _game.Status == GameStatus.InProgress;
 
     /// <summary>Ход разрешён: партия не на паузе.</summary>
     /// <remarks>Пауза — не украшение: на ней ходы отклоняются по-настоящему, а не только на вид.</remarks>
-    public bool CanPlayMove => !_clock.IsPaused;
+    public bool CanPlayMove => !_clock.IsPaused && (!_networkMode || IsNetworkMyTurn);
 
     /// <summary>Пас доступен: партия идёт и ещё не окончена.</summary>
     /// <remarks>
@@ -976,11 +1007,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// (когда игрок играет белыми) считается на месте; интерфейс пользуется
     /// <see cref="StartGameAsync"/>, чтобы окно не замирало на время поиска.
     /// </remarks>
-    public void StartGame() => ApplySettings(_settings);
+    public void StartGame()
+    {
+        if (_networkMode)
+        {
+            return;
+        }
+
+        ApplySettings(_settings);
+    }
 
     /// <summary>Начинает партию и считает первый ход соперника в фоне.</summary>
     /// <returns>Задача, завершающаяся после ответа соперника.</returns>
-    public Task StartGameAsync() => ApplySettingsAsync(_settings);
+    public Task StartGameAsync() => _networkMode ? Task.CompletedTask : ApplySettingsAsync(_settings);
 
     /// <summary>Ставит партию на паузу: время стоит, ходы не принимаются, соперник не думает.</summary>
     /// <remarks>
@@ -989,7 +1028,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     public void PauseGame()
     {
-        if (!IsGameRunning)
+        if (_networkMode || !IsGameRunning)
         {
             return;
         }
@@ -1007,7 +1046,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     public void ResumeGame()
     {
-        if (!CanResumeClock)
+        if (_networkMode || !CanResumeClock)
         {
             return;
         }
@@ -1133,7 +1172,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// Время считается по запросу, поэтому пересчитывать нечего: тик лишь сообщает панели,
     /// что строку пора показать заново. У стоящих часов тика нет — панель не будится зря.
     /// </remarks>
-    public void TickClock() => _clock.Tick();
+    public void TickClock()
+    {
+        _clock.Tick();
+        TickNetworkTimer();
+    }
 
     /// <summary>Отменяет партию без хода соперника — общая часть синхронного и фонового путей.</summary>
     /// <remarks>
@@ -1354,6 +1397,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public void ApplySettings(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        if (_networkMode)
+        {
+            return;
+        }
 
         LogSettings(settings);
         BeginGame(settings);
@@ -1374,6 +1421,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public async Task ApplySettingsAsync(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        if (_networkMode)
+        {
+            return;
+        }
 
         LogSettings(settings);
         BeginGame(settings);
@@ -1597,6 +1648,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Играет ход AI, пока очередь за ним.</summary>
     private void ShowAiMoveIfNeeded()
     {
+        if (_networkMode)
+        {
+            return;
+        }
+
         var playerColor = _settings.ToPlayerColor();
 
         while (_game.Status == GameStatus.InProgress && _game.ToMove != playerColor)
@@ -1629,6 +1685,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// </remarks>
     public async Task PlayAiTurnAsync()
     {
+        if (_networkMode)
+        {
+            return;
+        }
+
         var playerColor = _settings.ToPlayerColor();
 
         // На паузе соперник не думает: его ход не должен прийти в остановленную партию.
@@ -1741,11 +1802,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Играет ход в партии и учитывает снятые камни.</summary>
     /// <param name="move">Ход.</param>
     /// <param name="aiMilliseconds">Время поиска хода соперника; 0 — ход игрока или пас.</param>
+    /// <param name="autoPass">Вынужденный пас по таймеру: партию не завершает.</param>
     /// <returns><c>true</c>, если правила его приняли.</returns>
     /// <remarks>Снятые камни всегда принадлежат сопернику ходившего: пас ничего не снимает.</remarks>
-    private bool TryPlay(Move move, double aiMilliseconds = 0)
+    private bool TryPlay(Move move, double aiMilliseconds = 0, bool autoPass = false)
     {
-        var played = _game.Play(move);
+        var played = autoPass ? _game.PlayAutoPass(move) : _game.Play(move);
 
         if (!played.IsSuccess)
         {
@@ -1993,7 +2055,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
             nameof(SelectedLevelIndex),
             nameof(SelectedSizeIndex),
             nameof(LevelHint),
-            nameof(HasLevelHint)
+            nameof(HasLevelHint),
+            nameof(IsNetworkGame),
+            nameof(IsNetworkHost),
+            nameof(CanStartNewGame),
+            nameof(CanChangeGameSettings),
+            nameof(IsNetworkMyTurn),
+            nameof(NetworkStatusText),
+            nameof(NetworkTurnText),
+            nameof(NetworkOpponentAvatarId),
+            nameof(CanLeaveNetwork)
         })
         {
             OnPropertyChanged(name);

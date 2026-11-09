@@ -49,6 +49,9 @@ public sealed partial class ShellView : UserControl
     private readonly Border? _mobileNav;
     private readonly Border? _aboutOverlay;
     private readonly Border? _glossaryOverlay;
+    private readonly Border? _networkOverlay;
+    private NetworkLobbyView? _networkArea;
+    private readonly Panel? _networkHostPanel;
     private readonly Border? _exitOverlay;
     private readonly AboutView? _aboutArea;
     private readonly UpdateBanner? _updateBanner;
@@ -97,6 +100,8 @@ public sealed partial class ShellView : UserControl
         _mobileNav = this.FindControl<Border>("MobileNav");
         _aboutOverlay = this.FindControl<Border>("AboutOverlay");
         _glossaryOverlay = this.FindControl<Border>("GlossaryOverlay");
+        _networkOverlay = this.FindControl<Border>("NetworkOverlay");
+        _networkHostPanel = this.FindControl<Panel>("NetworkHost");
         _exitOverlay = this.FindControl<Border>("ExitOverlay");
         _aboutArea = this.FindControl<AboutView>("AboutArea");
 
@@ -146,6 +151,7 @@ public sealed partial class ShellView : UserControl
         WireButton("NavMenuButton", OnNavMenuClick);
         WireButton("AboutBackButton", OnAboutBackClick);
         WireButton("GlossaryBackButton", OnGlossaryBackClick);
+        WireButton("NetworkBackButton", OnNetworkBackClick);
         WireButton("ExitCancelButton", OnExitCancelClick);
         WireButton("ExitConfirmButton", OnExitConfirmClick);
 
@@ -154,6 +160,7 @@ public sealed partial class ShellView : UserControl
             // «О программе» и выход — действия раздела «Меню»: показывает их оболочка, потому что
             // оба перекрывают её целиком, а не только содержимое раздела.
             MenuArea.AboutRequested += OnAboutRequested;
+            MenuArea.NetworkRequested += OnNetworkRequested;
             MenuArea.ExitRequested += OnExitRequested;
         }
 
@@ -725,4 +732,83 @@ public sealed partial class ShellView : UserControl
             button.Click += handler;
         }
     }
+
+    /// <summary>Открывает сетевое лобби поверх содержимого оболочки.</summary>
+    /// <param name="sender">Строка меню.</param>
+    /// <param name="e">Событие запроса.</param>
+    private void OnNetworkRequested(object? sender, EventArgs e) => ShowNetworkLobby();
+
+    /// <summary>Открывает сетевое лобби: используется меню «Игра с другом» настольного окна.</summary>
+    public void ShowNetworkLobby()
+    {
+        if (_networkOverlay is null)
+        {
+            return;
+        }
+
+        if (_aboutOverlay is not null)
+        {
+            _aboutOverlay.IsVisible = false;
+        }
+
+        if (_glossaryOverlay is not null)
+        {
+            _glossaryOverlay.IsVisible = false;
+        }
+
+        if (_networkArea is not null)
+        {
+            _networkArea.Closed -= OnNetworkClosed;
+            _networkHostPanel?.Children.Remove(_networkArea);
+        }
+
+        if (_networkHostPanel is not null)
+        {
+            _networkArea = new NetworkLobbyView(new NetworkLobbyViewModel(Shell.Game));
+            _networkArea.Closed += OnNetworkClosed;
+            _networkHostPanel.Children.Add(_networkArea);
+        }
+
+        _networkOverlay.IsVisible = true;
+        _ = _networkArea?.ActivateAsync();
+    }
+
+    /// <summary>Закрывает лобби кнопкой «Назад».</summary>
+    /// <param name="sender">Кнопка «Назад».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnNetworkBackClick(object? sender, RoutedEventArgs e)
+    {
+        if (_networkArea is null)
+        {
+            HideNetwork();
+            return;
+        }
+
+        _ = _networkArea.CancelAsync();
+    }
+
+    /// <summary>Лобби закрылось: партия началась или игрок вышел.</summary>
+    /// <param name="sender">Лобби.</param>
+    /// <param name="e">Событие закрытия.</param>
+    private void OnNetworkClosed(object? sender, EventArgs e)
+    {
+        if (_networkArea is not null)
+        {
+            _networkArea.Closed -= OnNetworkClosed;
+            _networkHostPanel?.Children.Remove(_networkArea);
+            _networkArea = null;
+        }
+
+        HideNetwork();
+        Shell.ShowGame();
+    }
+
+    private void HideNetwork()
+    {
+        if (_networkOverlay is not null)
+        {
+            _networkOverlay.IsVisible = false;
+        }
+    }
+
 }

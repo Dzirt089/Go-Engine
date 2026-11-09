@@ -33,6 +33,7 @@ public sealed partial class MainWindow : Window
 
         Wire("NewGameItem", OnNewGameClick);
         Wire("SettingsItem", OnSettingsClick);
+        Wire("NetworkItem", OnNetworkClick);
         Wire("FinishGameItem", OnFinishGameClick);
         Wire("SaveGameItem", OnSaveGameClick);
         Wire("LoadGameItem", OnLoadGameClick);
@@ -110,6 +111,11 @@ public sealed partial class MainWindow : Window
     /// <c>async void</c> в проекте запрещён (<c>AGENTS.md</c>, п. 11), а блокировать поток UI нельзя.
     /// </remarks>
     private void OnSettingsClick(object? sender, RoutedEventArgs e) => _ = OpenSettingsAsync();
+
+    /// <summary>Открывает сетевое лобби из меню настольного окна.</summary>
+    /// <param name="sender">Пункт «Игра с другом…».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnNetworkClick(object? sender, RoutedEventArgs e) => Shell.ShowNetworkLobby();
 
     /// <summary>Спрашивает подтверждение конца партии — тем же вопросом, что и телефон.</summary>
     /// <param name="sender">Пункт меню «Закончить партию…».</param>

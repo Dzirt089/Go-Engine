@@ -179,6 +179,13 @@ public sealed partial class GameResultBanner : UserControl
             close.IsVisible = !unfinished;
         }
 
+        // В сетевой партии новая партия начинается только после выхода из сетевого режима:
+        // иначе кнопка молча ничего не делала бы.
+        if (this.FindControl<Button>("NewGameButton") is { } newGame)
+        {
+            newGame.IsEnabled = !_viewModel.IsNetworkGame;
+        }
+
         if (this.FindControl<Border>("BannerCard") is { } card)
         {
             foreach (var (tone, name) in ToneClasses)
@@ -288,6 +295,11 @@ public sealed partial class GameResultBanner : UserControl
         // что и кнопка панели: без разницы, откуда игрок её нажал. Задача не ожидается
         // осознанно: обработчик нажатия синхронный (async void запрещён, AGENTS.md п. 11),
         // а интерфейс ждать поиск хода соперника не должен.
+        if (_viewModel?.IsNetworkGame == true)
+        {
+            return;
+        }
+
         _ = _viewModel?.StartNewGameAsync();
     }
 }

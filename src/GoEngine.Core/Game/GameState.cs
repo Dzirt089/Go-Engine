@@ -3,9 +3,10 @@ namespace GoEngine.Core;
 /// <summary>Партия: доска, очередь хода, коми, счётчик ходов и состояние.</summary>
 /// <remarks>
 /// Состояние меняется ходами: <see cref="Play"/> проверяет ход, применяет его и обновляет партию.
-/// Партия завершается двумя пасами, сдачей, лимитом ходов (<c>GO_RULES.md</c>, п. 7–8)
+/// Партия завершается двумя ручными пасами, сдачей, лимитом ходов (<c>GO_RULES.md</c>, п. 7–8)
 /// или согласием сторон — <see cref="FinishByAgreement"/>: доигранную партию надо уметь
 /// закончить, даже если соперник не пасует.
+/// Авто-пас по таймеру ход передаёт, но партию не завершает: он сбрасывает цепочку ручных пасов.
 /// История позиций ведётся с самого начала: начальная позиция тоже входит в партию.
 /// Партия же ведёт счёт пленных: сколько камней снял каждый цвет за всю партию
 /// (<see cref="BlackPrisoners"/>, <see cref="WhitePrisoners"/>). Отмена и возврат хода
@@ -13,7 +14,7 @@ namespace GoEngine.Core;
 /// </remarks>
 public sealed class GameState
 {
-    /// <summary>Сколько пасов подряд завершают партию.</summary>
+    /// <summary>Сколько ручных пасов подряд завершают партию.</summary>
     private const int PassesToFinish = 2;
 
     /// <summary>Причина завершения партии сдачей.</summary>
@@ -22,7 +23,7 @@ public sealed class GameState
     private readonly List<Move> _moves = [];
     private readonly Stack<Snapshot> _undo = [];
     private readonly Stack<Snapshot> _redo = [];
-    private int _consecutivePasses;
+    private int _consecutivePlayerPasses;
     private GameResult? _result;
 
     private GameState(Board board, StoneColor toMove, Komi komi, int moveLimit, PositionHistory history)
@@ -147,7 +148,43 @@ public sealed class GameState
     /// Нелегальный ход партию не меняет: ни доска, ни номер хода, ни очередь хода не обновляются.
     /// Отказ возвращается значением, а не исключением (<c>AGENTS.md</c>, п. 4).
     /// </remarks>
-    public Result<MoveResult> Play(Move move)
+    public Result<MoveResult> Play(Move move) => PlayCore(move, countsAsPlayerPass: true);
+
+    /// <summary>Делает вынужденный пас по таймеру: ход переходит, но партия не завершается.</summary>
+    /// <param name="move">Пас того цвета, который ходит.</param>
+    /// <returns>Итог хода или причина отказа.</returns>
+    /// <remarks>
+    /// <para>
+    /// Авто-пас — не согласие игрока закончить партию: он не увеличивает счётчик ручных пасов,
+    /// а сбрасывает его. Поэтому два авто-паса подряд партию не завершают; завершить её могут только
+    /// два ручных паса подряд (а также сдача, лимит ходов или согласие сторон).
+    /// </para>
+    /// <para>
+    /// Пауза и прерывание зависшей партии — политика сетевого слоя, а не правило пасов: домен
+    /// только честно фиксирует, что ход был вынужденным. Ход всё равно попадает в историю,
+    /// чтобы воспроизведение и отмена не разошлись с очередью хода.
+    /// </para>
+    /// </remarks>
+    public Result<MoveResult> PlayAutoPass(Move move)
+    {
+        if (move.IsNone)
+        {
+            return Result<MoveResult>.Fail("Ход не задан.");
+        }
+
+        if (move.Type != MoveType.Pass)
+        {
+            return Result<MoveResult>.Fail("Авто-пас должен быть пасом: точку или сдачу он не заменяет.");
+        }
+
+        return PlayCore(move, countsAsPlayerPass: false);
+    }
+
+    /// <summary>Общая часть ручного и вынужденного хода: проверка, применение и учёт пасов.</summary>
+    /// <param name="move">Проверяемый ход.</param>
+    /// <param name="countsAsPlayerPass">Пас сделан игроком вручную; только такие пасы завершают партию.</param>
+    /// <returns>Итог хода или причина отказа.</returns>
+    private Result<MoveResult> PlayCore(Move move, bool countsAsPlayerPass)
     {
         if (Status.IsFinished)
         {
@@ -184,7 +221,7 @@ public sealed class GameState
         // уже не лежат, и отличить их от не поставленных было бы нечем.
         AddPrisoners(move.Color, Board.CapturedStones.Count);
 
-        ApplyOutcome(move);
+        ApplyOutcome(move, countsAsPlayerPass);
 
         return Result<MoveResult>.Ok(new MoveResult(true, move, Board.CapturedStones, null));
     }
@@ -259,7 +296,7 @@ public sealed class GameState
 
         Status = GameStatus.InProgress;
         _result = null;
-        _consecutivePasses = 0;
+        _consecutivePlayerPasses = 0;
 
         return Result.Ok();
     }
@@ -344,7 +381,7 @@ public sealed class GameState
         ToMove,
         MoveNumber,
         Status,
-        _consecutivePasses,
+        _consecutivePlayerPasses,
         _result,
         _moves.Count,
         BlackPrisoners,
@@ -359,7 +396,7 @@ public sealed class GameState
         ToMove = snapshot.ToMove;
         MoveNumber = snapshot.MoveNumber;
         Status = snapshot.Status;
-        _consecutivePasses = snapshot.ConsecutivePasses;
+        _consecutivePlayerPasses = snapshot.ConsecutivePlayerPasses;
         _result = snapshot.Result;
         BlackPrisoners = snapshot.BlackPrisoners;
         WhitePrisoners = snapshot.WhitePrisoners;
@@ -375,7 +412,7 @@ public sealed class GameState
     /// <param name="ToMove">Чей был ход.</param>
     /// <param name="MoveNumber">Номер последнего хода.</param>
     /// <param name="Status">Состояние партии.</param>
-    /// <param name="ConsecutivePasses">Сколько пасов подряд было сделано.</param>
+    /// <param name="ConsecutivePlayerPasses">Сколько ручных пасов подряд было сделано.</param>
     /// <param name="Result">Итог партии, если она была завершена.</param>
     /// <param name="MoveCount">Сколько ходов было в списке.</param>
     /// <param name="BlackPrisoners">Сколько камней сняли чёрные к моменту снимка.</param>
@@ -385,7 +422,7 @@ public sealed class GameState
         StoneColor ToMove,
         int MoveNumber,
         GameStatus Status,
-        int ConsecutivePasses,
+        int ConsecutivePlayerPasses,
         GameResult? Result,
         int MoveCount,
         int BlackPrisoners,
@@ -393,7 +430,8 @@ public sealed class GameState
 
     /// <summary>Обновляет партию после успешного хода.</summary>
     /// <param name="move">Сделанный ход.</param>
-    private void ApplyOutcome(Move move)
+    /// <param name="countsAsPlayerPass">Пас сделан игроком вручную; авто-пас завершить партию не может.</param>
+    private void ApplyOutcome(Move move, bool countsAsPlayerPass)
     {
         if (move.Type == MoveType.Resign)
         {
@@ -404,10 +442,12 @@ public sealed class GameState
             return;
         }
 
-        _consecutivePasses = move.Type == MoveType.Pass ? _consecutivePasses + 1 : 0;
+        _consecutivePlayerPasses = move.Type == MoveType.Pass
+            ? (countsAsPlayerPass ? _consecutivePlayerPasses + 1 : 0)
+            : 0;
         ToMove = ToMove.Opponent();
 
-        if (_consecutivePasses >= PassesToFinish)
+        if (_consecutivePlayerPasses >= PassesToFinish)
         {
             FinishByScore(GameStatus.FinishedByTwoPasses);
             return;

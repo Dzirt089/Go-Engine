@@ -101,6 +101,27 @@
         </Border>
       </StackPanel>
 
+      <!-- Сетевая игра с другом: отдельная карточка в разделе «Меню», потому что это действие
+           приложения, а не настройка партии. Открывает лобби с автоматическим поиском комнат. -->
+      <StackPanel Spacing="6">
+        <TextBlock Classes="app-section" Text="Игра с другом" />
+        <Border Classes="app-card">
+          <Button x:Name="NetworkRow"
+                  Classes="app-menu-row"
+                  AutomationProperties.Name="Игра с другом">
+            <Grid ColumnDefinitions="Auto,*">
+              <!-- Два телефона рядом: значок сетевой игры без значкового шрифта. -->
+              <Path Width="22" Height="22" Stretch="Uniform" VerticalAlignment="Center"
+                    Data="M3,5 h7 v14 h-7 z M14,5 h7 v14 h-7 z M6.5,8 h1 v1 h-1 z M17.5,8 h1 v1 h-1 z" />
+              <TextBlock Grid.Column="1"
+                         Margin="14,0,8,0"
+                         Text="Игра с другом"
+                         VerticalAlignment="Center" />
+            </Grid>
+          </Button>
+        </Border>
+      </StackPanel>
+
       <!-- Приложение: справка и выход. Строки одной группы разделены, а выход стоит отдельной
            карточкой: он закрывает программу, и путать его с «О программе» нельзя. -->
       <StackPanel Spacing="6">

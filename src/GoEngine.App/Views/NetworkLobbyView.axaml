@@ -1,0 +1,144 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:GoEngine.App.ViewModels"
+             x:Class="GoEngine.App.Views.NetworkLobbyView"
+             x:DataType="vm:NetworkLobbyViewModel">
+
+  <!-- Лобби сетевой игры: ребёнок выбирает зверя, создаёт комнату или тапает карточку друга.
+       Ввод адресов и кодов в детском сценарии не нужен: комнаты находит UDP-обнаружение,
+       а подключение подтверждает хозяин одной кнопкой. -->
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="16" Spacing="12">
+
+      <TextBlock Classes="app-title" Text="Игра с другом" />
+      <TextBlock Classes="app-label"
+                 TextWrapping="Wrap"
+                 Text="Выбери зверя — по нему тебя увидят друзья. Потом создай комнату или присоединись к комнате друга." />
+
+      <TextBlock Text="Твой зверь" FontWeight="SemiBold" />
+      <ComboBox x:Name="AvatarBox"
+                MinHeight="48"
+                HorizontalAlignment="Stretch" />
+
+      <TextBlock Text="Размер доски" FontWeight="SemiBold" />
+      <ComboBox x:Name="BoardBox"
+                MinHeight="48"
+                HorizontalAlignment="Stretch">
+        <ComboBoxItem Content="9×9 — быстрая партия" />
+        <ComboBoxItem Content="13×13" />
+        <ComboBoxItem Content="19×19 — большая" />
+      </ComboBox>
+
+      <Button x:Name="CreateButton"
+              Content="Создать комнату"
+              MinHeight="56"
+              Classes="app-row-action primary"
+              HorizontalAlignment="Stretch" />
+
+      <Border x:Name="HostingPanel"
+              Classes="app-card"
+              IsVisible="False">
+        <StackPanel Spacing="8">
+          <TextBlock x:Name="HostingText"
+                     FontSize="16"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+          <TextBlock Classes="app-label"
+                     TextWrapping="Wrap"
+                     Text="Друг увидит комнату сам. Когда он постучится, нажми «Пустить»." />
+          <TextBlock x:Name="ManualHostText"
+                     Classes="app-label"
+                     TextWrapping="Wrap"
+                     IsVisible="False" />
+          <Button x:Name="CancelHostButton"
+                  Content="Отменить комнату"
+                  MinHeight="48"
+                  HorizontalAlignment="Stretch" />
+        </StackPanel>
+      </Border>
+
+      <TextBlock x:Name="StatusText"
+                 FontWeight="SemiBold"
+                 TextWrapping="Wrap" />
+      <TextBlock x:Name="ErrorText"
+                 Classes="app-label"
+                 Foreground="#C62828"
+                 IsVisible="False"
+                 TextWrapping="Wrap" />
+
+      <Border x:Name="JoinRequestPanel"
+              Classes="app-card"
+              IsVisible="False">
+        <StackPanel Spacing="8">
+          <TextBlock x:Name="GuestRequestText"
+                     FontSize="19"
+                     FontWeight="Bold"
+                     TextWrapping="Wrap" />
+          <Grid ColumnDefinitions="*,*">
+            <Button x:Name="AcceptGuestButton"
+                    Grid.Column="0"
+                    Content="Пустить"
+                    MinHeight="64"
+                    Margin="0,0,4,0"
+                    Classes="app-row-action primary" />
+            <Button x:Name="RejectGuestButton"
+                    Grid.Column="1"
+                    Content="Не сейчас"
+                    MinHeight="64"
+                    Margin="4,0,0,0"
+                    Classes="app-row-action" />
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <TextBlock Classes="app-section" Text="Комнаты рядом" />
+      <ItemsControl x:Name="RoomsList">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:RoomCard">
+            <Border Classes="app-card" Margin="0,0,0,8">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding Title}"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap" />
+                <Button Grid.Column="1"
+                        Content="Присоединиться"
+                        MinHeight="48"
+                        Classes="app-row-action primary"
+                        Click="OnJoinRoomClick" />
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <TextBlock x:Name="EmptyRoomsText"
+                 Classes="app-label"
+                 TextWrapping="Wrap"
+                 Text="Пока никого нет. Создай комнату — друг увидит её сам." />
+
+      <!-- Аварийный путь для взрослых: если автоматическое обнаружение заблокировано,
+           адрес и код можно ввести руками. Детям этот блок не нужен и по умолчанию скрыт. -->
+      <Button x:Name="ManualToggleButton"
+              Content="Для взрослых: подключиться по адресу"
+              MinHeight="44"
+              HorizontalAlignment="Stretch" />
+      <StackPanel x:Name="ManualPanel" Spacing="6" IsVisible="False">
+        <TextBox x:Name="ManualAddressBox"
+                 Watermark="Адрес, например 192.168.1.10"
+                 MinHeight="44" />
+        <TextBox x:Name="ManualPortBox"
+                 Watermark="Порт, например 47810"
+                 MinHeight="44" />
+        <TextBox x:Name="ManualCodeBox"
+                 Watermark="Код комнаты от хозяина"
+                 MinHeight="44" />
+        <Button x:Name="ManualJoinButton"
+                Content="Подключиться по адресу"
+                MinHeight="48"
+                Classes="app-row-action primary"
+                HorizontalAlignment="Stretch" />
+      </StackPanel>
+
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

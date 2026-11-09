@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoEngine.App.Tests", "GoEng
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoEngine.Problems", "GoEngine.Problems\GoEngine.Problems.csproj", "{F423FE8C-5EB2-4591-A80B-05EBC329B875}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoEngine.Multiplayer", "GoEngine.Multiplayer\GoEngine.Multiplayer.csproj", "{87B185A0-02B8-40AF-AF18-10DDC15242D8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -129,6 +131,18 @@ Global
 		{F423FE8C-5EB2-4591-A80B-05EBC329B875}.Release|x64.Build.0 = Release|Any CPU
 		{F423FE8C-5EB2-4591-A80B-05EBC329B875}.Release|x86.ActiveCfg = Release|Any CPU
 		{F423FE8C-5EB2-4591-A80B-05EBC329B875}.Release|x86.Build.0 = Release|Any CPU
+		{87B185A0-02B8-40AF-AF18-10DDC15242D8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{87B185A0-02B8-40AF-AF18-10DDC15242D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{87B185A0-02B8-40AF-AF18-10DDC15242D8}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{87B185A0-02B8-40AF-AF18-10DDC15242D8}.Debug|x64.Build.0 = Debug|Any CPU
+		{87B185A0-02B8-40AF-AF18-10DDC15242D8}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{87B185A0-02B8-40AF-AF18-10DDC15242D8}.Debug|x86.Build.0 = Debug|Any CPU
+		{87B185A0-02B8-40AF-AF18-10DDC15242D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{87B185A0-02B8-40AF-AF18-10DDC15242D8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{87B185A0-02B8-40AF-AF18-10DDC15242D8}.Release|x64.ActiveCfg = Release|Any CPU
+		{87B185A0-02B8-40AF-AF18-10DDC15242D8}.Release|x64.Build.0 = Release|Any CPU
+		{87B185A0-02B8-40AF-AF18-10DDC15242D8}.Release|x86.ActiveCfg = Release|Any CPU
+		{87B185A0-02B8-40AF-AF18-10DDC15242D8}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

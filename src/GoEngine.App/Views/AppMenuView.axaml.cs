@@ -54,9 +54,13 @@ public sealed partial class AppMenuView : UserControl
         WireButton("ThemeSystemRow", OnSystemThemeClick);
         WireButton("ThemeLightRow", OnLightThemeClick);
         WireButton("ThemeDarkRow", OnDarkThemeClick);
+        WireButton("NetworkRow", OnNetworkClick);
         WireButton("AboutRow", OnAboutClick);
         WireButton("ExitRow", OnExitClick);
     }
+
+    /// <summary>Запрошен экран сетевой игры.</summary>
+    public event EventHandler? NetworkRequested;
 
     /// <summary>Запрошен экран «О программе».</summary>
     public event EventHandler? AboutRequested;
@@ -96,6 +100,11 @@ public sealed partial class AppMenuView : UserControl
     /// <param name="sender">Строка «Тёмная».</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnDarkThemeClick(object? sender, RoutedEventArgs e) => Shell.SelectTheme(ThemeChoice.Dark);
+
+    /// <summary>Просит экран сетевой игры: его открывает оболочка, он перекрывает содержимое.</summary>
+    /// <param name="sender">Строка «Игра с другом».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnNetworkClick(object? sender, RoutedEventArgs e) => NetworkRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Показывает «О программе»: экран открывает оболочка, он перекрывает её целиком.</summary>
     /// <param name="sender">Строка «О программе».</param>

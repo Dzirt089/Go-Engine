@@ -2,8 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <uses-sdk />
 
-  <!-- Проверка обновлений ходит на GitHub за манифестом: без INTERNET в релизной сборке сети нет. -->
+  <!-- Проверка обновлений ходит на GitHub за манифестом: без INTERNET в релизной сборке сети нет.
+       Для локальной сетевой игры на Android 16+ (API 36) нужен ACCESS_LOCAL_NETWORK;
+       на более старых версиях разрешение не запрашивается. -->
   <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
   <!-- Установка скачанного APK: без этого разрешения система отклоняет установку обновления. -->
   <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />

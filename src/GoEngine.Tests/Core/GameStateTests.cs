@@ -194,6 +194,105 @@ public sealed class GameStateTests
     }
 
     [Fact]
+    public void AutoPass_Передаёт_Ход()
+    {
+        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+
+        _ = game.PlayAutoPass(Move.Pass(StoneColor.Black));
+
+        Assert.Equal(StoneColor.White, game.ToMove);
+    }
+
+    [Fact]
+    public void AutoPass_Не_Завершает_Партию()
+    {
+        // Два вынужденных паса подряд — не согласие игроков закончить: партия продолжается.
+        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+        _ = game.PlayAutoPass(Move.Pass(StoneColor.Black));
+
+        _ = game.PlayAutoPass(Move.Pass(StoneColor.White));
+
+        Assert.Equal(GameStatus.InProgress, game.Status);
+    }
+
+    [Fact]
+    public void AutoPass_Сбрасывает_Цепочку_Ручных_Пасов()
+    {
+        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+        _ = game.Play(Move.Pass(StoneColor.Black));
+        _ = game.PlayAutoPass(Move.Pass(StoneColor.White));
+
+        _ = game.Play(Move.Pass(StoneColor.Black));
+
+        Assert.Equal(GameStatus.InProgress, game.Status);
+    }
+
+    [Fact]
+    public void Два_Ручных_Паса_После_Авто_Завершают_Партию()
+    {
+        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+        _ = game.PlayAutoPass(Move.Pass(StoneColor.Black));
+        _ = game.Play(Move.Pass(StoneColor.White));
+
+        _ = game.Play(Move.Pass(StoneColor.Black));
+
+        Assert.Equal(GameStatus.FinishedByTwoPasses, game.Status);
+    }
+
+    [Fact]
+    public void AutoPass_Чужого_Цвета_Отклонён()
+    {
+        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+
+        var result = game.PlayAutoPass(Move.Pass(StoneColor.White));
+
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public void AutoPass_Точкой_Отклонён()
+    {
+        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+
+        var result = game.PlayAutoPass(Move.Play(new Point(4, 4), StoneColor.Black));
+
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public void AutoPass_После_Завершения_Отклонён()
+    {
+        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+        _ = game.Play(Move.Pass(StoneColor.Black));
+        _ = game.Play(Move.Pass(StoneColor.White));
+
+        Assert.False(game.PlayAutoPass(Move.Pass(StoneColor.Black)).IsSuccess);
+    }
+
+    [Fact]
+    public void AutoPass_Попадает_В_Историю_Ходов()
+    {
+        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+
+        _ = game.PlayAutoPass(Move.Pass(StoneColor.Black));
+
+        Assert.Single(game.Moves);
+    }
+
+    [Fact]
+    public void Undo_После_Авто_Паса_Возвращает_Цепочку_Ручных_Пасов()
+    {
+        var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);
+        _ = game.Play(Move.Pass(StoneColor.Black));
+        _ = game.PlayAutoPass(Move.Pass(StoneColor.White));
+
+        _ = game.Undo();
+        _ = game.Play(Move.Pass(StoneColor.White));
+
+        Assert.Equal(GameStatus.FinishedByTwoPasses, game.Status);
+    }
+
+    [Fact]
     public void Resign_Завершает_Победой_Соперника()
     {
         var game = GameState.NewGame(BoardSize.Size9, Komi.For9x9);

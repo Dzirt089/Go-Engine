@@ -228,6 +228,7 @@
                  В ряду действий подпись «Начать партию» не помещалась: пять кнопок на 320 точек
                  панели обрезали её (проверено живым прогоном 2026-09-30). -->
             <Button x:Name="NewGameButton"
+                    IsEnabled="{Binding CanStartNewGame}"
                     Content="Начать партию"
                     Classes="app-primary"
                     Margin="0,2,0,0"
@@ -235,6 +236,7 @@
 
             <Grid ColumnDefinitions="*,*,*">
               <Button x:Name="SettingsButton"
+                    IsEnabled="{Binding CanChangeGameSettings}"
                       Content="Настройки…"
                       MinHeight="40"
                       Margin="0,0,3,0"
@@ -301,6 +303,7 @@
           </Button>
 
           <Button x:Name="MobileSettingsButton"
+                IsEnabled="{Binding CanChangeGameSettings}"
                   Grid.Column="1"
                   Classes="app-icon"
                   AutomationProperties.Name="Настройка партии"
@@ -608,7 +611,8 @@
                  после — «Новая партия» (та же логика, что и в настольной панели). -->
             <Button x:Name="MenuNewGameButton"
                     Classes="app-menu-row primary"
-                    AutomationProperties.Name="Начать партию">
+                    AutomationProperties.Name="Начать партию"
+                    IsEnabled="{Binding CanStartNewGame}">
               <Grid ColumnDefinitions="Auto,*">
                 <!-- Камень: игра начинается с хода чёрных. -->
                 <Path Width="22" Height="22" Stretch="Uniform" VerticalAlignment="Center"
@@ -636,6 +640,36 @@
                 <TextBlock Grid.Column="1"
                            Margin="14,0,0,0"
                            Text="Закончить партию"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </Button>
+
+            <Button x:Name="MenuLeaveNetworkButton"
+                    Classes="app-menu-row"
+                    AutomationProperties.Name="Выйти из сетевой игры"
+                    IsVisible="{Binding IsNetworkGame}"
+                    IsEnabled="{Binding CanLeaveNetwork}">
+              <Grid ColumnDefinitions="Auto,*">
+                <Path Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center"
+                      Data="M4,4 h7 v2 h-5 v12 h5 v2 h-7 z M14.2,7.5 L19,12 L14.2,16.5 v-3 h-4.2 v-3 h4.2 z" />
+                <TextBlock Grid.Column="1"
+                           Margin="14,0,0,0"
+                           Text="Выйти из сетевой игры"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </Button>
+
+            <Button x:Name="MenuResignNetworkButton"
+                    Classes="app-menu-row"
+                    AutomationProperties.Name="Сдаться"
+                    IsVisible="{Binding IsNetworkGame}"
+                    IsEnabled="{Binding IsNetworkMyTurn}">
+              <Grid ColumnDefinitions="Auto,*">
+                <Path Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center"
+                      Data="M6,3 h2 v18 h-2 z M8,4 h10 v2 h-10 z" />
+                <TextBlock Grid.Column="1"
+                           Margin="14,0,0,0"
+                           Text="Сдаться"
                            VerticalAlignment="Center" />
               </Grid>
             </Button>
@@ -687,7 +721,8 @@
 
             <Button x:Name="MenuSettingsButton"
                     Classes="app-menu-row"
-                    AutomationProperties.Name="Настройка партии">
+                    AutomationProperties.Name="Настройка партии"
+                    IsEnabled="{Binding CanChangeGameSettings}">
               <Grid ColumnDefinitions="Auto,*">
                 <!-- Та же шестерёнка, что и в шапке: «Настройка партии» — один и тот же экран. -->
                 <Path Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center"

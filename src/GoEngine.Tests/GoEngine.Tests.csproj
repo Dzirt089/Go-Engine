@@ -17,6 +17,7 @@
     <ProjectReference Include="..\GoEngine.AI\GoEngine.AI.csproj" />
     <ProjectReference Include="..\GoEngine.AI.Onnx\GoEngine.AI.Onnx.csproj" />
     <ProjectReference Include="..\GoEngine.Problems\GoEngine.Problems.csproj" />
+    <ProjectReference Include="..\GoEngine.Multiplayer\GoEngine.Multiplayer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

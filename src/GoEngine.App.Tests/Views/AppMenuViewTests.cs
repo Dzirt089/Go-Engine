@@ -225,6 +225,18 @@ public sealed class AppMenuViewTests
         Assert.Equal($"Go Engine {about["Версия: ".Length..]}", menu);
     }
 
+    [Fact]
+    public void Строка_Игра_С_Другом_Поднимает_Событие()
+    {
+        var (view, _) = Create();
+        var requested = false;
+        view.NetworkRequested += (_, _) => requested = true;
+
+        Click(view.FindControl<Button>("NetworkRow")!);
+
+        Assert.True(requested);
+    }
+
     /// <summary>Собирает вид общего меню с моделью оболочки на пустой партии.</summary>
     /// <returns>Вид меню и его модель.</returns>
     private static (AppMenuView View, ShellViewModel Shell) Create()

@@ -126,6 +126,34 @@
       </Grid>
     </Border>
 
+    <!-- Сетевая игра: вложенный экран раздела «Меню», как «О программе». Открывается из меню,
+         закрывается «Назад» или началом партии; нижняя навигация остаётся видимой. -->
+    <Border x:Name="NetworkOverlay"
+            Grid.Row="1"
+            IsVisible="False"
+            Background="{DynamicResource AppBackgroundBrush}">
+      <Grid RowDefinitions="Auto,*">
+        <Border Grid.Row="0"
+                Background="{DynamicResource AppSurfaceBrush}"
+                BorderBrush="{DynamicResource AppBorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="6,6">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button x:Name="NetworkBackButton"
+                    Classes="app-icon"
+                    AutomationProperties.Name="Назад">
+              <Path Width="22" Height="22" Stretch="Uniform"
+                    Data="M14.6,5.2 L7.8,12 L14.6,18.8 L16.7,16.7 L12,12 L16.7,7.3 Z" />
+            </Button>
+            <TextBlock Text="Игра с другом"
+                       Classes="app-subtitle"
+                       VerticalAlignment="Center" />
+          </StackPanel>
+        </Border>
+        <Panel x:Name="NetworkHost" Grid.Row="1" />
+      </Grid>
+    </Border>
+
     <!-- Нижняя навигация телефона: значок и подпись, выбранный раздел выделен акцентом.
          Высота кнопки — 64 точки, цель нажатия заметно больше 48. -->
     <Border x:Name="MobileNav"

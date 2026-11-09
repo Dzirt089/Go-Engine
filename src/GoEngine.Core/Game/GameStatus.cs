@@ -18,7 +18,8 @@ public sealed class GameStatus : Enumeration
     /// <summary>Партия идёт.</summary>
     public static GameStatus InProgress { get; } = new(InProgressId, nameof(InProgress));
 
-    /// <summary>Партия завершена двумя последовательными пасами (<c>GO_RULES.md</c>, п. 7–8).</summary>
+    /// <summary>Партия завершена двумя последовательными ручными пасами (<c>GO_RULES.md</c>, п. 7–8).</summary>
+    /// <remarks>Вынужденный пас по таймеру (<see cref="GameState.PlayAutoPass"/>) сюда не считается.</remarks>
     public static GameStatus FinishedByTwoPasses { get; } = new(TwoPassesId, nameof(FinishedByTwoPasses));
 
     /// <summary>Партия завершена сдачей одного из игроков (<c>GO_RULES.md</c>, п. 3).</summary>

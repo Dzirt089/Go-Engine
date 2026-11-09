@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Общие свойства — в Directory.Build.props. Сетевой слой: транспорт, обнаружение комнат,
+       протокол и таймер хода. Ссылается только на Core, без Avalonia и без логов. -->
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../GoEngine.Core/GoEngine.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="GoEngine.Tests" />
+    <InternalsVisibleTo Include="GoEngine.App.Tests" />
+  </ItemGroup>
+
+</Project>
