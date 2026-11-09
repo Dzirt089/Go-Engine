@@ -81,7 +81,6 @@ public sealed partial class BoardView : UserControl
     private const double CompactHeight = 460;
 
     /// <summary>Подпись кнопки до первого хода: партия ещё не начата.</summary>
-    private const string StartGameLabel = "Начать партию";
 
     /// <summary>Подпись кнопки после первого хода: партия идёт, кнопка начинает новую.</summary>
     private const string NewGameLabel = "Новая партия";
@@ -186,7 +185,6 @@ public sealed partial class BoardView : UserControl
     private readonly TextBlock? _desktopClock;
     private readonly TextBlock? _mobileClock;
     private readonly Button? _desktopPause;
-    private readonly Button? _mobilePause;
 
     /// <summary>Баннер итога партии: один на обе раскладки.</summary>
     /// <remarks>
@@ -316,7 +314,6 @@ public sealed partial class BoardView : UserControl
         _desktopClock = this.FindControl<TextBlock>("DesktopClockText");
         _mobileClock = this.FindControl<TextBlock>("MobileClockText");
         _desktopPause = this.FindControl<Button>("DesktopPauseButton");
-        _mobilePause = this.FindControl<Button>("MobilePauseButton");
         _resultBanner = this.FindControl<GameResultBanner>("ResultBanner");
 
         // Баннер создаёт разметка без модели: подключаем его к партии здесь, иначе итог партии
@@ -354,7 +351,6 @@ public sealed partial class BoardView : UserControl
         // Часы партии: «Пауза» / «Дальше» — одна кнопка на два состояния в каждой раскладке,
         // а «Отменить партию» прекращает партию целиком.
         WireButton("DesktopPauseButton", OnPauseResumeClick);
-        WireButton("MobilePauseButton", OnPauseResumeClick);
         WireButton("DesktopAbortButton", OnAbortGameClick);
 
         // Подтверждение отмены партии — тот же вопрос, что у «Выхода» в оболочке:
@@ -978,7 +974,6 @@ public sealed partial class BoardView : UserControl
         var label = ViewModel.CanResumeClock ? ResumeLabel : PauseLabel;
 
         SetText(_desktopPause, label);
-        SetText(_mobilePause, label);
 
         // На телефоне пауза теперь в меню партии, а не в перегруженной шапке.
         if (this.FindControl<Button>("MenuPauseButton") is { } menuPause)
@@ -1434,11 +1429,6 @@ public sealed partial class BoardView : UserControl
             _mobileClock.IsVisible = !finished;
         }
 
-        if (_mobilePause is not null)
-        {
-            _mobilePause.IsVisible = !finished && !ViewModel.IsNetworkGame;
-        }
-
         if (_mobileMoveText is not null)
         {
             // Время партии идёт рядом с ходом: строка состояния — то место, куда игрок смотрит
@@ -1526,7 +1516,7 @@ public sealed partial class BoardView : UserControl
         SetText(_menuNewGameText, NewGameLabel);
         if (this.FindControl<Button>("MenuNewGameButton") is { } menuNewGame)
         {
-            menuNewGame.IsVisible = !ViewModel.IsNetworkGame && finished;
+            menuNewGame.IsVisible = !ViewModel.IsNetworkGame && ViewModel.IsGameStarted;
         }
 
         SetText(_desktopLevelHint, ViewModel.LevelHint);

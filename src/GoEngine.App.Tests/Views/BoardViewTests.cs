@@ -341,6 +341,17 @@ public sealed class BoardViewTests
     }
 
     [Fact]
+    public void После_Итога_Новая_Партия_Видна_В_Меню()
+    {
+        // Путь после закрытой итоговой карточки: кнопки «Начать партию» в шапке нет,
+        // поэтому «Новая партия» должна появиться в меню партии.
+        var (view, model) = Create();
+        Finish(model);
+
+        Assert.True(view.FindControl<Button>("MenuNewGameButton")!.IsVisible);
+    }
+
+    [Fact]
     public void Пленные_Показаны_Один_Раз_На_Телефоне()
     {
         // Жалоба 2026-10-02 №3: одна и та же величина стояла и в свёрнутой шторке, и в подробностях.

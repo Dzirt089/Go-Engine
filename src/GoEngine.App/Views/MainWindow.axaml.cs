@@ -98,27 +98,23 @@ public sealed partial class MainWindow : Window
         }
 
         var network = ViewModel.IsNetworkGame;
+        // Ищем как Control: тип пункта в разметке может быть MenuItem, Separator или иным.
+        // FindControl<MenuItem> на Separator бросал InvalidOperationException и ронял конструктор
+        // окна (v0.2.112 Desktop не запускалась).
         foreach (var name in new[] { "NewGameItem", "SettingsItem", "FinishGameItem", "SaveGameItem", "LoadGameItem", "NetworkItem" })
         {
-            if (this.FindControl<MenuItem>(name) is { } item)
+            if (this.FindControl<Control>(name) is { } item)
             {
                 item.IsVisible = !network;
             }
         }
 
-        foreach (var name in new[] { "LeaveNetworkItem", "ResignNetworkItem" })
+        foreach (var name in new[] { "LeaveNetworkItem", "ResignNetworkItem", "NetworkSeparator" })
         {
-            if (this.FindControl<MenuItem>(name) is { } item)
+            if (this.FindControl<Control>(name) is { } item)
             {
                 item.IsVisible = network;
             }
-        }
-
-        // Separator — не MenuItem: FindControl<MenuItem> на нём бросает InvalidOperationException
-        // и роняет конструктор окна. Тип обязан совпадать с разметкой.
-        if (this.FindControl<Separator>("NetworkSeparator") is { } separator)
-        {
-            separator.IsVisible = network;
         }
 
         if (this.FindControl<MenuItem>("ResignNetworkItem") is { } resign)

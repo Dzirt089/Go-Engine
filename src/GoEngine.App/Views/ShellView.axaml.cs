@@ -927,14 +927,15 @@ public sealed partial class ShellView : UserControl
             _networkModeButton.IsChecked = networkOpen;
         }
 
+        var lobbyOpen = _networkOverlay?.IsVisible == true;
         if (this.FindControl<TextBlock>("ModeHintText") is { } hint)
         {
-            hint.IsVisible = !networkOpen;
+            hint.IsVisible = !lobbyOpen;
         }
 
         if (this.FindControl<TextBlock>("NetworkModeHintText") is { } networkHint)
         {
-            networkHint.IsVisible = networkOpen;
+            networkHint.IsVisible = lobbyOpen;
         }
     }
 

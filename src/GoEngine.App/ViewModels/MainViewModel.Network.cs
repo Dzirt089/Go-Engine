@@ -764,6 +764,9 @@ public sealed partial class MainViewModel : IDisposable
         _networkFinished = true;
         _networkAwaitingConfirmation = false;
         _networkError = message;
+        _networkTimerPaused = true;
+        _clock.Stop();
+        AppLogMessages.NetworkError(_log, LanErrorCodes.Stalled, message);
         NotifyAll();
     }
 
