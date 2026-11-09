@@ -1439,8 +1439,6 @@ public sealed partial class BoardView : UserControl
 
         var finished = ViewModel.HasOutcome;
 
-        // Пока идёт партия, телефон не должен гаснуть; на Home/после итога — обычный режим.
-        global::GoEngine.App.App.KeepScreenOn = ViewModel.IsGameStarted && !finished;
 
         if (_mobileTurnText is not null)
         {

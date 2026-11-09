@@ -631,6 +631,8 @@ public sealed partial class ShellView : UserControl
             _studyProblemsButton.IsChecked = Shell.IsProblemsStudy;
         }
 
+        SyncKeepScreen();
+
         if (MenuArea is not null)
         {
             MenuArea.IsVisible = Shell.IsMenuSection;
@@ -951,7 +953,23 @@ public sealed partial class ShellView : UserControl
         {
             SyncModeButtons();
         }
+
+        if (e.PropertyName is nameof(MainViewModel.IsGameStarted)
+            or nameof(MainViewModel.HasOutcome)
+            or nameof(MainViewModel.IsNetworkGame))
+        {
+            SyncKeepScreen();
+        }
     }
+
+    /// <summary>Держит экран включённым на экране партии, пока она не окончена.</summary>
+    /// <remarks>
+    /// Владелец флага — оболочка, а не скрытая доска: Home, меню и обучение экран не держат;
+    /// после итога и при уходе с экрана партии флаг снимается. Так экран не гаснет и до первого
+    /// хода, когда ребёнок только обдумывает ход.
+    /// </remarks>
+    private void SyncKeepScreen() =>
+        global::GoEngine.App.App.KeepScreenOn = Shell.IsGameSection && !Shell.Game.HasOutcome;
 
     private void SyncModeButtons()
     {
