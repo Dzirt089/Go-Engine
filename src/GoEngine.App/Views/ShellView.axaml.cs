@@ -11,41 +11,37 @@ using GoEngine.App.ViewModels;
 
 namespace GoEngine.App.Views;
 
-/// <summary>Оболочка приложения: разделы «Партия», «Задачи» и общее меню.</summary>
+/// <summary>Оболочка приложения: главный экран, партия с ИИ и обучение.</summary>
 /// <remarks>
 /// <para>
-/// Все три раздела живут одновременно: виды не пересоздаются, меняется только видимость. Поэтому
+/// Все разделы живут одновременно: виды не пересоздаются, меняется только видимость. Поэтому
 /// переключение раздела не сбрасывает партию — вернувшись в «Партию», игрок видит ту же позицию.
 /// Тот же вид используется настольным окном и мобильной головой (<c>GoEngine.App.Android</c>).
 /// Раскладка выбирается по ширине вида (<see cref="BoardLayoutRules.DecideLayout"/>): на широком
-/// экране — прежняя строка режимов сверху, на телефоне — нижняя навигация с тремя разделами.
+/// экране — строка режимов сверху, на телефоне — нижняя навигация с четырьмя разделами.
 /// </para>
 /// <para>
-/// Настройки и меню партии в навигации не стоят: они принадлежат партии и открываются из её шапки
-/// (<see cref="BoardView"/>). Общее меню — раздел приложения (<see cref="AppMenuView"/>): выбор
-/// режима, «О программе» и выход. «О программе» показывается вложенным экраном поверх содержимого,
-/// а не отдельным разделом: так у раздела «Меню» есть своя глубина, а нижняя навигация остаётся
-/// видимой (замечание пользователя 2026-10-06; <c>DECISIONS.md</c>, D-075).
+/// При запуске оболочка открывается на главном экране — выборе режима крупными карточками
+/// (<see cref="HomeView"/>). Партия с ИИ сама не начинается: ребёнок сначала выбирает, во что
+/// играть (замечание пользователя 2026-11-09). Настройки и меню партии в навигации не стоят:
+/// они принадлежат партии и открываются из её шапки (<see cref="BoardView"/>). Общее меню —
+/// раздел приложения (<see cref="AppMenuView"/>): выбор экрана, оформление, «О программе» и выход.
 /// </para>
 /// <para>
-/// При запуске оболочка открывается на разделе «Партия» — экрана настроек вместо доски нет
-/// (замечание 2026-10-03). На телефоне над доской сразу показана шторка меню партии
-/// (<see cref="BoardView.ShowMenu"/>): там это единственный вход к действиям партии, а настольное
-/// окно стартует без неё — у него есть меню-бар и мышь, и шторка поверх доски только мешала бы.
-/// Раскладку выбирает <see cref="BoardLayoutRules.DecideLayout"/> по ширине вида, решение о меню
-/// принимается там же, где применяется раскладка (<see cref="ApplyLayout"/>).
+/// Сетевая игра — не режим оболочки, а полноэкранный слой (<see cref="ShowNetworkLobby"/>).
+/// Закрыв лобби, игрок возвращается туда, откуда пришёл: на главный экран, в обучение или в меню.
 /// </para>
 /// </remarks>
 public sealed partial class ShellView : UserControl
 {
     private readonly Panel? _content;
     private readonly ToggleButton? _gameButton;
-    private readonly ToggleButton? _problemButton;
     private readonly ToggleButton? _lessonButton;
     private readonly ToggleButton? _networkModeButton;
     private readonly Border? _studySwitch;
     private readonly ToggleButton? _studyLessonsButton;
     private readonly ToggleButton? _studyReviewsButton;
+    private readonly ToggleButton? _studyProblemsButton;
     private readonly Border? _desktopBar;
     private readonly Border? _mobileNav;
     private readonly Border? _aboutOverlay;
@@ -53,8 +49,8 @@ public sealed partial class ShellView : UserControl
     private readonly Border? _networkOverlay;
     private NetworkLobbyView? _networkArea;
     private bool _networkReturnMenu;
-    private bool _networkReturnProblems;
-    private bool _networkReturnLessons;
+    private bool _networkReturnHome;
+    private StudyPart? _networkReturnStudy;
     private readonly Panel? _networkHostPanel;
     private readonly Border? _exitOverlay;
     private readonly AboutView? _aboutArea;
@@ -63,14 +59,11 @@ public sealed partial class ShellView : UserControl
     /// <summary>Применённая раскладка: <c>null</c> — ещё не выбрана.</summary>
     private LayoutMode? _layout;
 
-    /// <summary>Стартовое меню партии ещё не решено: до первого измерения размер вида неизвестен.</summary>
-    private bool _startMenuPending = true;
-
     /// <summary>Создаёт оболочку с настройками из файла и оценкой сети, заданной головой.</summary>
     /// <remarks>
-    /// Стартовое состояние у обеих голов одно: приложение открывается на разделе «Партия», экрана
-    /// настроек нет. Шторку меню партии при запуске получает только мобильная раскладка — её
-    /// выбирает размер вида, а не платформа (<see cref="ApplyLayout"/>).
+    /// Стартовое состояние у обеих голов одно: приложение открывается на главном экране выбора
+    /// режима. Шторка меню партии автоматически не открывается — экран выбора сам объясняет,
+    /// с чего начать; действия партии остаются за кнопкой ☰ в её шапке.
     /// </remarks>
     public ShellView()
         : this(ShellViewModel.Create(
@@ -95,12 +88,12 @@ public sealed partial class ShellView : UserControl
 
         _content = this.FindControl<Panel>("ModeContent");
         _gameButton = this.FindControl<ToggleButton>("GameModeButton");
-        _problemButton = this.FindControl<ToggleButton>("ProblemModeButton");
         _lessonButton = this.FindControl<ToggleButton>("LessonModeButton");
         _networkModeButton = this.FindControl<ToggleButton>("NetworkModeButton");
         _studySwitch = this.FindControl<Border>("StudySwitch");
         _studyLessonsButton = this.FindControl<ToggleButton>("StudyLessonsButton");
         _studyReviewsButton = this.FindControl<ToggleButton>("StudyReviewsButton");
+        _studyProblemsButton = this.FindControl<ToggleButton>("StudyProblemsButton");
         _desktopBar = this.FindControl<Border>("DesktopBar");
         _mobileNav = this.FindControl<Border>("MobileNav");
         _aboutOverlay = this.FindControl<Border>("AboutOverlay");
@@ -110,9 +103,17 @@ public sealed partial class ShellView : UserControl
         _exitOverlay = this.FindControl<Border>("ExitOverlay");
         _aboutArea = this.FindControl<AboutView>("AboutArea");
 
+        if (this.FindControl<Panel>("HomeHost") is { } homeHost)
+        {
+            // Главный экран не зависит от моделей: он только поднимает события выбора.
+            HomeArea = new HomeView();
+            homeHost.Children.Add(HomeArea);
+        }
+
         if (_content is not null)
         {
-            // Модели берутся у оболочки: у видов партии, задач и меню они те же, что в модели оболочки.
+            // Модели берутся у оболочки: у видов партии, задач, обучения и меню они те же,
+            // что в модели оболочки.
             GameArea = new BoardView(shell.Settings, global::GoEngine.App.App.Evaluator, shell.Game);
             ProblemArea = new ProblemView(shell.Problems);
             LessonArea = new LessonView(shell.Lessons);
@@ -140,11 +141,6 @@ public sealed partial class ShellView : UserControl
             _gameButton.Click += OnGameClick;
         }
 
-        if (_problemButton is not null)
-        {
-            _problemButton.Click += OnProblemClick;
-        }
-
         if (_lessonButton is not null)
         {
             _lessonButton.Click += OnLessonClick;
@@ -156,7 +152,6 @@ public sealed partial class ShellView : UserControl
         }
 
         WireButton("NavGameButton", OnNavGameClick);
-        WireButton("NavProblemButton", OnNavProblemClick);
         WireButton("NavLessonButton", OnNavLessonClick);
         WireButton("NavMenuButton", OnNavMenuClick);
         WireButton("AboutBackButton", OnAboutBackClick);
@@ -165,10 +160,21 @@ public sealed partial class ShellView : UserControl
         WireButton("ExitCancelButton", OnExitCancelClick);
         WireButton("ExitConfirmButton", OnExitConfirmClick);
 
+        if (HomeArea is not null)
+        {
+            // Главный экран только сообщает о выборе: раздел показывает оболочка, у неё же
+            // сетевое лобби и общее меню — вторых путей к ним быть не должно.
+            HomeArea.GameRequested += OnHomeGameRequested;
+            HomeArea.NetworkRequested += OnHomeNetworkRequested;
+            HomeArea.LessonsRequested += OnHomeLessonsRequested;
+            HomeArea.MenuRequested += OnHomeMenuRequested;
+        }
+
         if (MenuArea is not null)
         {
-            // «О программе» и выход — действия раздела «Меню»: показывает их оболочка, потому что
-            // оба перекрывают её целиком, а не только содержимое раздела.
+            // «Главная», «О программе», сетевая игра и выход — действия раздела «Меню»: показывает
+            // их оболочка, потому что все они перекрывают её целиком, а не только содержимое.
+            MenuArea.HomeRequested += OnHomeRequested;
             MenuArea.AboutRequested += OnAboutRequested;
             MenuArea.NetworkRequested += OnNetworkRequested;
             MenuArea.ExitRequested += OnExitRequested;
@@ -188,6 +194,7 @@ public sealed partial class ShellView : UserControl
 
         WireButton("StudyLessonsButton", OnStudyLessonsClick);
         WireButton("StudyReviewsButton", OnStudyReviewsClick);
+        WireButton("StudyProblemsButton", OnStudyProblemsClick);
 
         // Смену оформления применяет приложение: оболочка только сообщает о выборе игрока.
         shell.ThemeChanged += OnThemeChanged;
@@ -199,8 +206,8 @@ public sealed partial class ShellView : UserControl
         shell.Game.PropertyChanged += OnGamePropertyChanged;
         SizeChanged += OnViewSizeChanged;
 
-        // Раскладка применяется здесь, а стартовое меню партии открывается в ApplyLayout: до первого
-        // измерения Bounds пуст, и решать по нулю нельзя (см. комментарий там).
+        // Раскладка применяется здесь: до первого измерения Bounds пуст, и решать по нулю нельзя
+        // (см. комментарий в ApplyLayout).
         UpdateMode();
         ApplyLayout(Bounds.Width, Bounds.Height);
 
@@ -212,10 +219,13 @@ public sealed partial class ShellView : UserControl
     /// <summary>Модель оболочки.</summary>
     public ShellViewModel Shell { get; }
 
+    /// <summary>Главный экран: выбор режима крупными карточками.</summary>
+    public HomeView? HomeArea { get; }
+
     /// <summary>Вид партии: его же использует меню окна.</summary>
     public BoardView? GameArea { get; }
 
-    /// <summary>Вид задач.</summary>
+    /// <summary>Вид задач: третий подраздел обучения.</summary>
     public ProblemView? ProblemArea { get; }
 
     /// <summary>Вид обучения: уроки шаг за шагом.</summary>
@@ -224,7 +234,7 @@ public sealed partial class ShellView : UserControl
     /// <summary>Вид разбора партий: практика раздела «Обучение».</summary>
     public ReviewView? ReviewArea { get; }
 
-    /// <summary>Раздел общего меню: режим, «О программе» и выход.</summary>
+    /// <summary>Раздел общего меню: выбор экрана, оформление, «О программе» и выход.</summary>
     public AppMenuView? MenuArea { get; }
 
     /// <summary>Показан ли сейчас экран «О программе».</summary>
@@ -314,22 +324,13 @@ public sealed partial class ShellView : UserControl
         }
     }
 
-    /// <summary>Показывает режим партии.</summary>
+    /// <summary>Показывает режим партии с ИИ.</summary>
     /// <param name="sender">Кнопка режима.</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnGameClick(object? sender, RoutedEventArgs e)
     {
         CloseNetworkLobby();
         Shell.ShowGame();
-    }
-
-    /// <summary>Показывает режим задач.</summary>
-    /// <param name="sender">Кнопка режима.</param>
-    /// <param name="e">Событие нажатия.</param>
-    private void OnProblemClick(object? sender, RoutedEventArgs e)
-    {
-        CloseNetworkLobby();
-        Shell.ShowProblems();
     }
 
     /// <summary>Показывает режим обучения.</summary>
@@ -344,20 +345,17 @@ public sealed partial class ShellView : UserControl
     /// <summary>Открывает в обучении уроки.</summary>
     /// <param name="sender">Кнопка «Уроки».</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnStudyLessonsClick(object? sender, RoutedEventArgs e)
-    {
-        Shell.ShowLessons();
-        Shell.SelectStudy(reviews: false);
-    }
+    private void OnStudyLessonsClick(object? sender, RoutedEventArgs e) => Shell.ShowStudy(StudyPart.Lessons);
 
     /// <summary>Открывает в обучении разбор партий: практику после уроков.</summary>
     /// <param name="sender">Кнопка «Партии».</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnStudyReviewsClick(object? sender, RoutedEventArgs e)
-    {
-        Shell.ShowLessons();
-        Shell.SelectStudy(reviews: true);
-    }
+    private void OnStudyReviewsClick(object? sender, RoutedEventArgs e) => Shell.ShowStudy(StudyPart.Reviews);
+
+    /// <summary>Открывает в обучении задачи: третий подраздел, после уроков и партий.</summary>
+    /// <param name="sender">Кнопка «Задачи».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnStudyProblemsClick(object? sender, RoutedEventArgs e) => Shell.ShowStudy(StudyPart.Problems);
 
     /// <summary>Открывает раздел партии из нижней навигации.</summary>
     /// <param name="sender">Кнопка раздела.</param>
@@ -373,20 +371,6 @@ public sealed partial class ShellView : UserControl
         GameArea?.HideAbortConfirm();
         GameArea?.CloseMenu();
         Shell.ShowGame();
-    }
-
-    /// <summary>Открывает раздел задач из нижней навигации.</summary>
-    /// <param name="sender">Кнопка раздела.</param>
-    /// <param name="e">Событие нажатия.</param>
-    private void OnNavProblemClick(object? sender, RoutedEventArgs e)
-    {
-        CloseNetworkLobby();
-        HideAbout();
-        HideGlossary();
-        GameArea?.HideAbortConfirm();
-        GameArea?.CloseSettingsScreen();
-        GameArea?.CloseMenu();
-        Shell.ShowProblems();
     }
 
     /// <summary>Открывает раздел обучения из нижней навигации.</summary>
@@ -407,7 +391,7 @@ public sealed partial class ShellView : UserControl
     /// <param name="sender">Кнопка «Меню».</param>
     /// <param name="e">Событие нажатия.</param>
     /// <remarks>
-    /// Раздел занимает место содержимого: партия и задачи остаются в памяти и не сбрасываются,
+    /// Раздел занимает место содержимого: партия и обучение остаются в памяти и не сбрасываются,
     /// а «О программе» и подтверждение выхода закрываются, чтобы раздел открывался с начала.
     /// </remarks>
     private void OnNavMenuClick(object? sender, RoutedEventArgs e)
@@ -419,6 +403,51 @@ public sealed partial class ShellView : UserControl
         GameArea?.HideAbortConfirm();
         GameArea?.CloseMenu();
         Shell.ShowMenu();
+    }
+
+    /// <summary>Игрок выбрал партию с ИИ на главном экране.</summary>
+    /// <param name="sender">Главный экран.</param>
+    /// <param name="e">Признак выбора.</param>
+    private void OnHomeGameRequested(object? sender, EventArgs e) => Shell.ShowGame();
+
+    /// <summary>Игрок выбрал партию с другом на главном экране.</summary>
+    /// <param name="sender">Главный экран.</param>
+    /// <param name="e">Признак выбора.</param>
+    private void OnHomeNetworkRequested(object? sender, EventArgs e) => ShowNetworkLobby();
+
+    /// <summary>Игрок выбрал обучение на главном экране.</summary>
+    /// <param name="sender">Главный экран.</param>
+    /// <param name="e">Признак выбора.</param>
+    private void OnHomeLessonsRequested(object? sender, EventArgs e) => Shell.ShowLessons();
+
+    /// <summary>Игрок открыл общее меню на главном экране.</summary>
+    /// <param name="sender">Главный экран.</param>
+    /// <param name="e">Признак выбора.</param>
+    private void OnHomeMenuRequested(object? sender, EventArgs e)
+    {
+        HideAbout();
+        HideGlossary();
+        HideExitConfirm();
+        Shell.ShowMenu();
+    }
+
+    /// <summary>Возвращает игрока на главный экран из общего меню.</summary>
+    /// <param name="sender">Вид общего меню.</param>
+    /// <param name="e">Признак запроса.</param>
+    /// <remarks>
+    /// Перед показом главного экрана закрывается всё, что могло быть открыто поверх: лобби,
+    /// «О программе», словарь и шторка меню партии. Так главный экран всегда открывается чистым.
+    /// </remarks>
+    private void OnHomeRequested(object? sender, EventArgs e)
+    {
+        CloseNetworkLobby();
+        HideAbout();
+        HideGlossary();
+        HideExitConfirm();
+        GameArea?.HideAbortConfirm();
+        GameArea?.CloseSettingsScreen();
+        GameArea?.CloseMenu();
+        Shell.ShowHome();
     }
 
     /// <summary>Открывает «О программе» из раздела «Меню».</summary>
@@ -497,10 +526,13 @@ public sealed partial class ShellView : UserControl
     /// <param name="e">Имя изменившегося свойства.</param>
     private void OnShellPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(ShellViewModel.IsGameSection)
-            or nameof(ShellViewModel.IsProblemSection)
+        if (e.PropertyName is nameof(ShellViewModel.IsHomeSection)
+            or nameof(ShellViewModel.IsGameSection)
             or nameof(ShellViewModel.IsLessonSection)
-            or nameof(ShellViewModel.IsMenuSection))
+            or nameof(ShellViewModel.IsMenuSection)
+            or nameof(ShellViewModel.IsLessonsStudy)
+            or nameof(ShellViewModel.IsReviewsStudy)
+            or nameof(ShellViewModel.IsProblemsStudy))
         {
             UpdateMode();
         }
@@ -517,29 +549,18 @@ public sealed partial class ShellView : UserControl
     /// <param name="height">Высота вида.</param>
     /// <remarks>
     /// Содержимое у раскладок общее: меняется только обрамление — строка режимов сверху
-    /// или нижняя навигация. Поэтому переключение раскладки не пересоздаёт виды режимов
-    /// и не сбрасывает партию.
+    /// или нижняя навигация. Поэтому переключение раскладки не пересоздаёт виды разделов
+    /// и не сбрасывает партию. Раскладку главного экрана выбирает та же ширина:
+    /// у экрана нет своего измерения, чтобы пороги не разошлись.
     /// </remarks>
     private void ApplyLayout(double width, double height)
     {
+        // Карточки главного экрана раскладываются по настоящей ширине вида. Делается до
+        // проверки раскладки: при изменении ширины в пределах одной раскладки она та же,
+        // а столбцы карточек обязаны перестроиться.
+        HomeArea?.ApplyLayout(width);
+
         var layout = BoardLayoutRules.DecideLayoutFor(width, height, OperatingSystem.IsAndroid());
-
-        // Стартовое меню партии открывается только в мобильной раскладке: на телефоне это
-        // единственный вход к действиям партии, а настольному окну шторка поверх доски мешала бы —
-        // у него есть меню-бар и мышь (замечание пользователя 2026-10-03: «окно меню должно быть
-        // первым активным окном над партией» — речь про Android). Решаем по настоящему размеру:
-        // до первого измерения Bounds пуст, а DecideLayout(0, 0) отвечает «настольная» — по нулю
-        // решение было бы неверным. Показываем после UpdateMode: раздел «Партия» уже выбран,
-        // и вид партии видим.
-        if (_startMenuPending && width > 0 && height > 0)
-        {
-            _startMenuPending = false;
-
-            if (layout == LayoutMode.Mobile)
-            {
-                GameArea?.ShowMenu();
-            }
-        }
 
         if (_layout == layout)
         {
@@ -568,25 +589,31 @@ public sealed partial class ShellView : UserControl
     /// <summary>Показывает выбранный раздел и приводит кнопки в согласованное состояние.</summary>
     private void UpdateMode()
     {
+        if (HomeArea is not null)
+        {
+            HomeArea.IsVisible = Shell.IsHomeSection;
+        }
+
         if (GameArea is not null)
         {
             GameArea.IsVisible = Shell.IsGameSection;
         }
 
-        if (ProblemArea is not null)
-        {
-            ProblemArea.IsVisible = Shell.IsProblemSection;
-        }
-
-        // В обучении показывается то, что выбрано переключателем: уроки или разбор партий.
+        // В обучении показывается тот подраздел, который выбран переключателем:
+        // уроки, разбор партий или задачи.
         if (LessonArea is not null)
         {
-            LessonArea.IsVisible = Shell.IsLessonSection && !Shell.IsReviewMode;
+            LessonArea.IsVisible = Shell.IsLessonSection && Shell.IsLessonsStudy;
         }
 
         if (ReviewArea is not null)
         {
-            ReviewArea.IsVisible = Shell.IsLessonSection && Shell.IsReviewMode;
+            ReviewArea.IsVisible = Shell.IsLessonSection && Shell.IsReviewsStudy;
+        }
+
+        if (ProblemArea is not null)
+        {
+            ProblemArea.IsVisible = Shell.IsLessonSection && Shell.IsProblemsStudy;
         }
 
         if (_studySwitch is not null)
@@ -596,12 +623,17 @@ public sealed partial class ShellView : UserControl
 
         if (_studyLessonsButton is not null)
         {
-            _studyLessonsButton.IsChecked = Shell.IsLessonSection && !Shell.IsReviewMode;
+            _studyLessonsButton.IsChecked = Shell.IsLessonsStudy;
         }
 
         if (_studyReviewsButton is not null)
         {
-            _studyReviewsButton.IsChecked = Shell.IsLessonSection && Shell.IsReviewMode;
+            _studyReviewsButton.IsChecked = Shell.IsReviewsStudy;
+        }
+
+        if (_studyProblemsButton is not null)
+        {
+            _studyProblemsButton.IsChecked = Shell.IsProblemsStudy;
         }
 
         if (MenuArea is not null)
@@ -651,10 +683,10 @@ public sealed partial class ShellView : UserControl
     /// <returns><c>true</c> — «Назад» обработан видом; <c>false</c> — закрывать нечего.</returns>
     /// <remarks>
     /// <para>
-    /// Порядок обратный открытию: подтверждение выхода, «О программе», подтверждение отмены партии,
-    /// шторка меню партии, экран «Настройка партии» и только потом раздел «Меню» уступает партии.
-    /// Если закрывать нечего, событие остаётся необработанным — им распоряжается система
-    /// (выход из приложения).
+    /// Порядок обратный открытию: сетевое лобби, подтверждение выхода, словарь, «О программе»,
+    /// подтверждение отмены партии, шторка меню партии, «Настройка партии», выпадающий список
+    /// и только потом раздел «Меню» уступает текущему экрану. На главном экране закрывать нечего:
+    /// событие остаётся системе, и она решает, выходить ли из приложения.
     /// </para>
     /// <para>
     /// Отдельным методом, а не телом обработчика: оконной платформы в тестах нет, верхнего уровня
@@ -743,8 +775,8 @@ public sealed partial class ShellView : UserControl
 
         if (Shell.IsMenuSection)
         {
-            // «Меню» — не партия и не задачи: возвращаем игрока в партию.
-            Shell.ShowGame();
+            // «Меню» — не экран приложения: закрываем его и возвращаем игрока туда, где он был.
+            Shell.CloseMenu();
 
             return true;
         }
@@ -768,7 +800,7 @@ public sealed partial class ShellView : UserControl
     /// <param name="e">Событие запроса.</param>
     private void OnNetworkRequested(object? sender, EventArgs e) => ShowNetworkLobby();
 
-    /// <summary>Режим «Играть с другом» в верхней строке: открывает то же лобби, что и меню.</summary>
+    /// <summary>Режим «Партия с другом» в верхней строке: открывает лобби.</summary>
     /// <param name="sender">Кнопка режима.</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnNetworkModeClick(object? sender, RoutedEventArgs e)
@@ -783,7 +815,11 @@ public sealed partial class ShellView : UserControl
         ShowNetworkLobby();
     }
 
-    /// <summary>Открывает сетевое лобби: используется меню «Игра с другом» настольного окна.</summary>
+    /// <summary>Открывает сетевое лобби: используется карточкой главного экрана и меню окна.</summary>
+    /// <remarks>
+    /// Лобби — не режим оболочки, а слой поверх содержимого: игрок может открыть его с любого
+    /// экрана, а закрыв — вернуться туда, откуда пришёл (<see cref="OnNetworkClosed"/>).
+    /// </remarks>
     public void ShowNetworkLobby()
     {
         if (_networkOverlay is null || _networkOverlay.IsVisible)
@@ -815,8 +851,8 @@ public sealed partial class ShellView : UserControl
         }
 
         _networkReturnMenu = Shell.IsMenuSection;
-        _networkReturnProblems = Shell.IsProblemMode;
-        _networkReturnLessons = Shell.IsLessonMode;
+        _networkReturnHome = Shell.IsHomeSection;
+        _networkReturnStudy = Shell.IsLessonMode ? Shell.SelectedStudy : null;
         _networkOverlay.IsVisible = true;
         SyncModeButtons();
         _ = _networkArea?.ActivateAsync();
@@ -850,16 +886,16 @@ public sealed partial class ShellView : UserControl
 
         var started = Shell.Game.IsNetworkGame;
         var returnMenu = _networkReturnMenu;
-        var returnProblems = _networkReturnProblems;
-        var returnLessons = _networkReturnLessons;
+        var returnHome = _networkReturnHome;
+        var returnStudy = _networkReturnStudy;
         _networkReturnMenu = false;
-        _networkReturnProblems = false;
-        _networkReturnLessons = false;
+        _networkReturnHome = false;
+        _networkReturnStudy = null;
 
         HideNetwork();
 
-        // Началась партия — показываем доску. Игрок отменил лобби — возвращаем его
-        // в тот раздел, откуда он пришёл, а не всегда в «Партию» (D-075).
+        // Началась партия — показываем доску. Игрок отменил лобби — возвращаем его туда,
+        // откуда он пришёл, а не всегда в «Партию» (D-075).
         if (started)
         {
             Shell.ShowGame();
@@ -868,13 +904,13 @@ public sealed partial class ShellView : UserControl
         {
             Shell.ShowMenu();
         }
-        else if (returnProblems)
+        else if (returnHome)
         {
-            Shell.ShowProblems();
+            Shell.ShowHome();
         }
-        else if (returnLessons)
+        else if (returnStudy is { } study)
         {
-            Shell.ShowLessons();
+            Shell.ShowStudy(study);
         }
         else
         {
@@ -903,18 +939,13 @@ public sealed partial class ShellView : UserControl
 
     private void SyncModeButtons()
     {
-        // Пока идёт сетевая партия, режим «Играть с другом» остаётся выбранным, даже когда
+        // Пока идёт сетевая партия, режим «Партия с другом» остаётся выбранным, даже когда
         // лобби уже закрылось: иначе строка режимов врёт, что идёт партия с ИИ.
         var networkOpen = _networkOverlay?.IsVisible == true || Shell.Game.IsNetworkGame;
 
         if (_gameButton is not null)
         {
             _gameButton.IsChecked = !networkOpen && Shell.IsGameMode;
-        }
-
-        if (_problemButton is not null)
-        {
-            _problemButton.IsChecked = !networkOpen && Shell.IsProblemMode;
         }
 
         if (_lessonButton is not null)
@@ -944,7 +975,7 @@ public sealed partial class ShellView : UserControl
         }
     }
 
-    /// <summary>Уходит из лобби перед переключением на другой режим.</summary>
+    /// <summary>Уходит из лобби перед переключением на другой раздел.</summary>
     private void CloseNetworkLobby()
     {
         if (_networkOverlay?.IsVisible != true)
@@ -961,5 +992,4 @@ public sealed partial class ShellView : UserControl
             HideNetwork();
         }
     }
-
 }

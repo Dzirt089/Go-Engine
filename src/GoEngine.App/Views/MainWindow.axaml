@@ -35,6 +35,13 @@
         <MenuItem x:Name="ExitItem" Header="Выход" />
       </MenuItem>
 
+      <!-- Переходы между экранами приложения. «Главная» — выбор режима: из игры на неё
+           возвращаются через меню, в настольной строке режимов её нет. Отдельный пункт меню
+           не занимает места в строке режимов и не ломает окно на 760/936 точек. -->
+      <MenuItem Header="Вид">
+        <MenuItem x:Name="HomeItem" Header="Главная" />
+      </MenuItem>
+
       <MenuItem Header="Справка">
         <MenuItem x:Name="AboutItem" Header="О программе…" />
       </MenuItem>

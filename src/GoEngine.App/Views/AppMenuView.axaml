@@ -18,16 +18,43 @@
 
       <TextBlock Classes="app-title" Text="Меню" />
 
-      <!-- Режим: тот же выбор, что и в нижней навигации, но словами и с пометкой текущего.
-           Отсюда видно, где игрок находится, и отсюда же можно перейти в другой режим. -->
+      <!-- Экран: тот же выбор, что и на главном экране и в нижней навигации, но словами
+           и с пометкой текущего. «Задачи» здесь не отдельный режим: это третий подраздел
+           обучения (уточнение интерфейса 2026-11-09). -->
       <StackPanel Spacing="6">
-        <TextBlock Classes="app-section" Text="Режим" />
+        <TextBlock Classes="app-section" Text="Экран" />
         <Border Classes="app-card">
           <StackPanel>
 
+            <!-- Главная: возврат к выбору режима из любого экрана. -->
+            <Button x:Name="HomeRow"
+                    Classes="app-menu-row"
+                    AutomationProperties.Name="Главная">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <!-- Дом: крыша и стены. -->
+                <Path Width="22" Height="22" Stretch="Uniform" VerticalAlignment="Center"
+                      Data="M12,3 L22,12 L20.4,13.9 L12,6.9 L3.6,13.9 L2,12 Z M5,14.5 H19 V22 H5 Z" />
+                <TextBlock Grid.Column="1"
+                           Margin="14,0,8,0"
+                           Text="Главная"
+                           VerticalAlignment="Center" />
+                <Path x:Name="HomeModeCheck"
+                      Grid.Column="2"
+                      Classes="app-check"
+                      Width="20"
+                      Height="20"
+                      Stretch="Uniform"
+                      VerticalAlignment="Center"
+                      IsVisible="{Binding IsHomeMode}"
+                      Data="M9.6,16.2 L5.4,12 L4,13.4 L9.6,19 L20,8.6 L18.6,7.2 Z" />
+              </Grid>
+            </Button>
+
+            <Border Classes="app-divider" />
+
             <Button x:Name="GameModeRow"
                     Classes="app-menu-row"
-                    AutomationProperties.Name="Партия">
+                    AutomationProperties.Name="Партия с ИИ">
               <Grid ColumnDefinitions="Auto,*,Auto">
                 <Path Width="22" Height="22" Stretch="Uniform" VerticalAlignment="Center"
                       Data="M4,12 A8,8 0 1 1 20,12 A8,8 0 1 1 4,12 Z" />
@@ -35,7 +62,7 @@
                            Margin="14,0,8,0"
                            Text="Партия с ИИ"
                            VerticalAlignment="Center" />
-                <!-- Пометка текущего режима: галочка стоит у выбранного. -->
+                <!-- Пометка текущего экрана: галочка стоит у выбранного. -->
                 <Path x:Name="GameModeCheck"
                       Grid.Column="2"
                       Classes="app-check"
@@ -44,30 +71,6 @@
                       Stretch="Uniform"
                       VerticalAlignment="Center"
                       IsVisible="{Binding IsGameMode}"
-                      Data="M9.6,16.2 L5.4,12 L4,13.4 L9.6,19 L20,8.6 L18.6,7.2 Z" />
-              </Grid>
-            </Button>
-
-            <Border Classes="app-divider" />
-
-            <Button x:Name="ProblemModeRow"
-                    Classes="app-menu-row"
-                    AutomationProperties.Name="Задачи">
-              <Grid ColumnDefinitions="Auto,*,Auto">
-                <Path Width="22" Height="22" Stretch="Uniform" VerticalAlignment="Center"
-                      Data="M12,3 L21,12 L12,21 L3,12 Z" />
-                <TextBlock Grid.Column="1"
-                           Margin="14,0,8,0"
-                           Text="Задачи"
-                           VerticalAlignment="Center" />
-                <Path x:Name="ProblemModeCheck"
-                      Grid.Column="2"
-                      Classes="app-check"
-                      Width="20"
-                      Height="20"
-                      Stretch="Uniform"
-                      VerticalAlignment="Center"
-                      IsVisible="{Binding IsProblemMode}"
                       Data="M9.6,16.2 L5.4,12 L4,13.4 L9.6,19 L20,8.6 L18.6,7.2 Z" />
               </Grid>
             </Button>

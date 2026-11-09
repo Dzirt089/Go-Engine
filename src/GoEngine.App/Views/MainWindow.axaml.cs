@@ -40,6 +40,7 @@ public sealed partial class MainWindow : Window
         Wire("SaveGameItem", OnSaveGameClick);
         Wire("LoadGameItem", OnLoadGameClick);
         Wire("ExitItem", OnExitClick);
+        Wire("HomeItem", OnHomeClick);
         Wire("AboutItem", OnAboutClick);
 
         // Кнопка «Настройки» в панели открывает окно: у мобильного вида подписчика нет,
@@ -147,6 +148,15 @@ public sealed partial class MainWindow : Window
     /// <c>async void</c> в проекте запрещён (<c>AGENTS.md</c>, п. 11), а блокировать поток UI нельзя.
     /// </remarks>
     private void OnSettingsClick(object? sender, RoutedEventArgs e) => _ = OpenSettingsAsync();
+
+    /// <summary>Возвращает на главный экран — выбор режима.</summary>
+    /// <param name="sender">Пункт «Вид → Главная».</param>
+    /// <param name="e">Событие нажатия.</param>
+    /// <remarks>
+    /// В настольной строке режимов пункта «Главная» нет: пять кнопок в строке спорили бы
+    /// за место на узком окне 760 точек. Меню окна решает то же, не трогая раскладку режимов.
+    /// </remarks>
+    private void OnHomeClick(object? sender, RoutedEventArgs e) => Shell.Shell.ShowHome();
 
     /// <summary>Открывает сетевое лобби из меню настольного окна.</summary>
     /// <param name="sender">Пункт «Игра с другом…».</param>

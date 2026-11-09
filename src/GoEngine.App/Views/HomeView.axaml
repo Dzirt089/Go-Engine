@@ -1,0 +1,269 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:primitives="clr-namespace:Avalonia.Controls.Primitives;assembly=Avalonia.Controls"
+             x:Class="GoEngine.App.Views.HomeView"
+             Background="{DynamicResource AppBackgroundBrush}">
+
+  <!-- Главный экран приложения: первый экран вместо доски. Ребёнок видит выбор режима
+       крупными карточками и понимает, с чего начать (замечание пользователя 2026-11-09:
+       приложение запускалось прямо в партию, и было непонятно, что игра с ИИ уже идёт).
+
+       Ориентир — главные экраны популярных Го-приложений (BadukPop, Go Quest, OGS): один
+       явный главный ход «Партия с ИИ», рядом два понятных продолжения, ничего лишнего сверху.
+       Поэтому карточки три, а не четыре, и только у главной акцентный фон. «Меню» — отдельная
+       строка ниже: это не игровой режим, а настройки и выход.
+
+       Карточки ничего не решают сами: они поднимают события, а показывает экран оболочка
+       (ShellView) — так переход проверяется тестом без окна. -->
+  <UserControl.Styles>
+
+    <Style Selector="TextBlock.home-title">
+      <Setter Property="FontSize" Value="28" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.home-subtitle">
+      <Setter Property="FontSize" Value="{DynamicResource AppFontSubtitle}" />
+      <Setter Property="Foreground" Value="{DynamicResource AppTextMutedBrush}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- Карточка режима: крупная цель нажатия во всю ширину, высота от 120 точек.
+         Фон и рамка — из темы, чтобы светлая и тёмная темы работали без отдельных правил. -->
+    <Style Selector="Button.home-card">
+      <Setter Property="MinHeight" Value="120" />
+      <Setter Property="Padding" Value="18,14" />
+      <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusMedium}" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+    </Style>
+
+    <!-- Наведение и нажатие: обычный Fluent-фон кнопки перебил бы акцент главной карточки,
+         поэтому фон задан здесь же, как у выбранных переключателей (UiStyles.Controls.axaml). -->
+    <Style Selector="Button.home-card:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.home-card:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AppSurfaceAltBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+    </Style>
+
+    <!-- Главное действие: акцентная карточка «Партия с ИИ». Единственная на экране —
+         так у ребёнка есть один очевидный главный ход (BadukPop: Play / Training). -->
+    <Style Selector="Button.home-card.primary">
+      <Setter Property="MinHeight" Value="148" />
+      <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.home-card.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppOnAccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.home-card.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppOnAccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.home-card.primary TextBlock.home-card-title">
+      <Setter Property="Foreground" Value="{DynamicResource AppOnAccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.home-card.primary TextBlock.home-card-caption">
+      <Setter Property="Foreground" Value="{DynamicResource AppOnAccentBrush}" />
+      <Setter Property="Opacity" Value="0.85" />
+    </Style>
+
+    <!-- Значок режима: мягкая подложка акцента. Значки нарисованы векторами —
+         значкового шрифта в проекте нет. -->
+    <Style Selector="Border.home-card-icon">
+      <Setter Property="Width" Value="52" />
+      <Setter Property="Height" Value="52" />
+      <Setter Property="CornerRadius" Value="26" />
+      <Setter Property="Background" Value="{DynamicResource AppAccentSoftBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Border.home-card-icon Path">
+      <Setter Property="Fill" Value="{DynamicResource AppAccentBrush}" />
+      <Setter Property="Width" Value="26" />
+      <Setter Property="Height" Value="26" />
+      <Setter Property="Stretch" Value="Uniform" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="TextBlock.home-card-title">
+      <Setter Property="FontSize" Value="19" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.home-card-caption">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Foreground" Value="{DynamicResource AppTextMutedBrush}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- Телефон: те же карточки, но ниже и с меньшими отступами — три режима и строка меню
+         обязаны помещаться на экране 360 точек без прокрутки. -->
+    <Style Selector="Button.home-card.compact">
+      <Setter Property="MinHeight" Value="92" />
+      <Setter Property="Padding" Value="16,12" />
+    </Style>
+
+    <Style Selector="Button.home-card.compact.primary">
+      <Setter Property="MinHeight" Value="120" />
+    </Style>
+
+    <Style Selector="Button.home-card.compact Border.home-card-icon">
+      <Setter Property="Width" Value="46" />
+      <Setter Property="Height" Value="46" />
+      <Setter Property="CornerRadius" Value="23" />
+    </Style>
+
+    <Style Selector="Button.home-card.compact Border.home-card-icon Path">
+      <Setter Property="Width" Value="24" />
+      <Setter Property="Height" Value="24" />
+    </Style>
+
+    <Style Selector="Button.home-card.compact TextBlock.home-card-title">
+      <Setter Property="FontSize" Value="18" />
+    </Style>
+
+    <!-- «Меню» — не игровой режим, а строка ниже карточек: настройки, «О программе» и выход. -->
+    <Style Selector="Button.home-menu">
+      <Setter Property="MinHeight" Value="48" />
+      <Setter Property="Padding" Value="18,0" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource AppRadiusMedium}" />
+      <Setter Property="Foreground" Value="{DynamicResource AppTextMutedBrush}" />
+    </Style>
+
+    <Style Selector="Button.home-menu Path">
+      <Setter Property="Fill" Value="{DynamicResource AppTextMutedBrush}" />
+    </Style>
+
+    <Style Selector="Button.home-menu TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource AppTextMutedBrush}" />
+      <Setter Property="FontSize" Value="{DynamicResource AppFontBody}" />
+    </Style>
+
+  </UserControl.Styles>
+
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel x:Name="HomeContent"
+                MaxWidth="640"
+                Margin="20"
+                HorizontalAlignment="Center">
+
+      <TextBlock x:Name="TitleText"
+                 Classes="home-title"
+                 Text="Во что будем играть?" />
+
+      <TextBlock Classes="home-subtitle"
+                 Margin="0,6,0,18"
+                 Text="Выберите, чем хотите заняться." />
+
+      <Grid RowDefinitions="Auto,Auto">
+
+        <!-- Главный ход: игра с компьютером. -->
+        <Button x:Name="GameCard"
+                Grid.Row="0"
+                Classes="home-card primary"
+                AutomationProperties.Name="Партия с ИИ">
+          <Grid ColumnDefinitions="Auto,*">
+            <Border Classes="home-card-icon">
+              <Path Data="M4,12 A8,8 0 1 1 20,12 A8,8 0 1 1 4,12 Z" />
+            </Border>
+            <StackPanel Grid.Column="1"
+                        Margin="16,0,0,0"
+                        Spacing="3"
+                        VerticalAlignment="Center">
+              <TextBlock Classes="home-card-title" Text="Партия с ИИ" />
+              <TextBlock Classes="home-card-caption" Text="Сыграйте с компьютером" />
+            </StackPanel>
+          </Grid>
+        </Button>
+
+        <!-- Два продолжения рядом: игра с другом по сети и обучение. На телефоне они
+             встают друг под другом (раскладка — HomeView.ApplyLayout). -->
+        <primitives:UniformGrid x:Name="SecondaryCards"
+                                Grid.Row="1"
+                                Margin="0,12,0,0"
+                                Columns="2"
+                                Rows="1">
+
+          <Button x:Name="NetworkCard"
+                  Classes="home-card"
+                  AutomationProperties.Name="Партия с другом">
+            <Grid ColumnDefinitions="Auto,*">
+              <Border Classes="home-card-icon">
+                <!-- Два устройства рядом: значок сетевой игры, как в нижней навигации. -->
+                <Path Data="M3,4 h6 v8 h-6 z M4.5,6 h3 v1 h-3 z M4.5,8 h3 v1 h-3 z M15,12 h6 v8 h-6 z M16.5,14 h3 v1 h-3 z M16.5,16 h3 v1 h-3 z M9,7.5 h6 v2 h-6 z M12,9.5 h2 v2.5 h-2 z" />
+              </Border>
+              <StackPanel Grid.Column="1"
+                          Margin="16,0,0,0"
+                          Spacing="3"
+                          VerticalAlignment="Center">
+                <TextBlock Classes="home-card-title" Text="Партия с другом" />
+                <TextBlock Classes="home-card-caption" Text="Играйте вдвоём по сети" />
+              </StackPanel>
+            </Grid>
+          </Button>
+
+          <Button x:Name="LessonCard"
+                  Classes="home-card"
+                  AutomationProperties.Name="Обучение">
+            <Grid ColumnDefinitions="Auto,*">
+              <Border Classes="home-card-icon">
+                <!-- Раскрытая книга: уроки, разбор партий и задачи. -->
+                <Path Data="M4,4 h6.6 v15 h-6.6 z M13.4,4 h6.6 v15 h-6.6 z" />
+              </Border>
+              <StackPanel Grid.Column="1"
+                          Margin="16,0,0,0"
+                          Spacing="3"
+                          VerticalAlignment="Center">
+                <TextBlock Classes="home-card-title" Text="Обучение" />
+                <TextBlock Classes="home-card-caption" Text="Уроки, партии и задачи" />
+              </StackPanel>
+            </Grid>
+          </Button>
+
+        </primitives:UniformGrid>
+
+      </Grid>
+
+      <!-- Общее меню — отдельной строкой, вне карточек режимов: это настройки, справка и выход. -->
+      <Button x:Name="MenuButton"
+              Classes="home-menu"
+              Margin="0,16,0,0"
+              AutomationProperties.Name="Меню">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <Path Width="22"
+                Height="22"
+                Stretch="Uniform"
+                VerticalAlignment="Center"
+                Data="M4,6.5 h16 v2 h-16 z M4,11 h16 v2 h-16 z M4,15.5 h16 v2 h-16 z" />
+          <TextBlock Text="Меню" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

@@ -9,62 +9,49 @@ using GoEngine.Core;
 
 namespace GoEngine.App.Tests;
 
-/// <summary>Тесты общего меню приложения: выбор режима, «О программе» и выход.</summary>
+/// <summary>Тесты общего меню приложения: выбор экрана, «О программе» и выход.</summary>
 /// <remarks>
 /// <para>
 /// Общее меню — раздел «Меню» нижней навигации телефона. В нём то, что принадлежит приложению,
-/// а не партии: выбор режима, сведения о сборке и выход. Меню партии и «Настройка партии» живут
-/// в разделе «Партия» — они действуют на партию (замечание пользователя 2026-10-06,
-/// <c>DECISIONS.md</c>, D-075).
+/// а не партии: главный экран, партия с ИИ, обучение, оформление, сведения о сборке и выход.
+/// Задачи — подраздел обучения, поэтому отдельной строки режима в меню нет (уточнение интерфейса
+/// 2026-11-09). Меню партии и «Настройка партии» живут в разделе «Партия» (D-075).
 /// </para>
 /// <para>
-/// «О программе» и подтверждение выхода перекрывают оболочку целиком, поэтому вид только сообщает
-/// о нажатии событием, а показывает их <see cref="ShellView"/>. Это и проверяется: событие есть,
-/// а своего экрана вид не открывает.
+/// «Главная», «О программе» и подтверждение выхода перекрывают оболочку целиком, поэтому вид
+/// только сообщает о нажатии событием, а показывает их <see cref="ShellView"/>.
 /// </para>
 /// </remarks>
 public sealed class AppMenuViewTests
 {
     [Fact]
-    public void Меню_Показывает_Обе_Строки_Режима()
+    public void Меню_Показывает_Экраны_Приложения()
     {
         var (view, _) = Create();
 
+        Assert.NotNull(view.FindControl<Button>("HomeRow"));
         Assert.NotNull(view.FindControl<Button>("GameModeRow"));
-        Assert.NotNull(view.FindControl<Button>("ProblemModeRow"));
+        Assert.NotNull(view.FindControl<Button>("LessonModeRow"));
+    }
+
+    [Fact]
+    public void Меню_Не_Показывает_Задач_Отдельным_Экраном()
+    {
+        // Задачи — третий подраздел обучения, а не отдельный режим.
+        var (view, _) = Create();
+
+        Assert.Null(view.FindControl<Button>("ProblemModeRow"));
     }
 
     [Fact]
     public void Строка_Партия_Выбирает_Режим_Партии()
     {
         var (view, shell) = Create();
-        shell.ShowProblems();
+        shell.ShowStudy(StudyPart.Problems);
 
         Click(view.FindControl<Button>("GameModeRow")!);
 
         Assert.True(shell.IsGameMode);
-    }
-
-    [Fact]
-    public void Строка_Задачи_Выбирает_Режим_Задач()
-    {
-        var (view, shell) = Create();
-
-        Click(view.FindControl<Button>("ProblemModeRow")!);
-
-        Assert.True(shell.IsProblemMode);
-    }
-
-    [Fact]
-    public void Выбор_Режима_В_Меню_Уводит_Из_Раздела_Меню()
-    {
-        // Выбор режима — обычный переход: раздел «Меню» уступает место выбранному режиму.
-        var (view, shell) = Create();
-        shell.ShowMenu();
-
-        Click(view.FindControl<Button>("ProblemModeRow")!);
-
-        Assert.True(shell.IsProblemSection);
     }
 
     [Fact]
@@ -78,6 +65,52 @@ public sealed class AppMenuViewTests
     }
 
     [Fact]
+    public void Выбор_Экрана_В_Меню_Уводит_Из_Раздела_Меню()
+    {
+        // Выбор экрана — обычный переход: раздел «Меню» уступает место выбранному экрану.
+        var (view, shell) = Create();
+        shell.ShowMenu();
+
+        Click(view.FindControl<Button>("LessonModeRow")!);
+
+        Assert.True(shell.IsLessonSection);
+    }
+
+    [Fact]
+    public void Строка_Главная_Поднимает_Событие()
+    {
+        // Главный экран показывает оболочка: вид только сообщает о нажатии.
+        var (view, _) = Create();
+        var requested = false;
+        view.HomeRequested += (_, _) => requested = true;
+
+        Click(view.FindControl<Button>("HomeRow")!);
+
+        Assert.True(requested);
+    }
+
+    [Fact]
+    public void Пометка_Стоит_У_Главного_Экрана()
+    {
+        var (view, _) = Create();
+
+        Assert.True(view.FindControl<ShapePath>("HomeModeCheck")!.IsVisible);
+        Assert.False(view.FindControl<ShapePath>("GameModeCheck")!.IsVisible);
+        Assert.False(view.FindControl<ShapePath>("LessonModeCheck")!.IsVisible);
+    }
+
+    [Fact]
+    public void Пометка_Снимается_С_Главной_При_Переходе_В_Партию()
+    {
+        var (view, shell) = Create();
+
+        shell.ShowGame();
+
+        Assert.False(view.FindControl<ShapePath>("HomeModeCheck")!.IsVisible);
+        Assert.True(view.FindControl<ShapePath>("GameModeCheck")!.IsVisible);
+    }
+
+    [Fact]
     public void Пометка_Переходит_На_Обучение()
     {
         var (view, shell) = Create();
@@ -86,26 +119,7 @@ public sealed class AppMenuViewTests
 
         Assert.True(view.FindControl<ShapePath>("LessonModeCheck")!.IsVisible);
         Assert.False(view.FindControl<ShapePath>("GameModeCheck")!.IsVisible);
-    }
-
-    [Fact]
-    public void Пометка_Стоит_У_Текущего_Режима()
-    {
-        var (view, _) = Create();
-
-        Assert.True(view.FindControl<ShapePath>("GameModeCheck")!.IsVisible);
-        Assert.False(view.FindControl<ShapePath>("ProblemModeCheck")!.IsVisible);
-    }
-
-    [Fact]
-    public void Пометка_Переходит_На_Задачи()
-    {
-        var (view, shell) = Create();
-
-        shell.ShowProblems();
-
-        Assert.False(view.FindControl<ShapePath>("GameModeCheck")!.IsVisible);
-        Assert.True(view.FindControl<ShapePath>("ProblemModeCheck")!.IsVisible);
+        Assert.False(view.FindControl<ShapePath>("HomeModeCheck")!.IsVisible);
     }
 
     [Fact]

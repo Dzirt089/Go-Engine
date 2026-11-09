@@ -6,15 +6,17 @@
              x:DataType="vm:ShellViewModel"
              Background="{DynamicResource AppBackgroundBrush}">
 
-  <!-- Оболочка приложения: три раздела — партия, задачи и общее меню. Режимы не смешиваются,
-       оболочка только показывает один из них; содержимое создаётся кодом вида (ShellView.axaml.cs),
-       чтобы виды получали свои модели из одного места и не пересоздавались при переключении.
+  <!-- Оболочка приложения: главный экран, партия и обучение; общее меню — не игровой режим.
+       Режимы не смешиваются, оболочка только показывает один из них; содержимое создаётся кодом
+       вида (ShellView.axaml.cs), чтобы виды получали свои модели из одного места и не
+       пересоздавались при переключении.
 
        Раскладок две. На широком экране (760 точек и больше) остаётся прежняя настольная:
        строка режимов сверху, содержимое под ней, а «О программе» — пункт меню окна. На телефоне
-       строка режимов заменяется нижней навигацией с тремя разделами — «Партия», «Задачи», «Меню»;
-       она ближе к большому пальцу, а разделы не спорят за верх экрана с доской. Выбор раскладки —
-       чистая функция (BoardLayoutRules.DecideLayout), здесь только применяется её ответ.
+       строка режимов заменяется нижней навигацией с четырьмя разделами — «Партия с ИИ»,
+       «Партия с другом», «Обучение», «Меню»; она ближе к большому пальцу, а разделы не спорят
+       за верх экрана с доской. Выбор раскладки — чистая функция (BoardLayoutRules.DecideLayout),
+       здесь только применяется её ответ.
 
        Настройки и меню партии в нижней навигации не стоят: они принадлежат партии и живут
        в её разделе — «Настройка партии» открывается из меню партии и шестерёнкой в шапке
@@ -42,7 +44,9 @@
                         MinHeight="44"
                         MinWidth="170"
                         AutomationProperties.Name="Партия с другом" />
-          <ToggleButton x:Name="ProblemModeButton" Content="Задачи" MinHeight="44" MinWidth="110" />
+          <!-- «Задачи» больше не отдельный режим: это третий подраздел обучения
+               (уточнение интерфейса 2026-11-09). В строке остаются три режима,
+               освободившееся место занимает «Партия с другом». -->
           <ToggleButton x:Name="LessonModeButton" Content="Обучение" MinHeight="44" MinWidth="110" />
         </StackPanel>
         <TextBlock x:Name="ModeHintText"
@@ -63,9 +67,9 @@
       </Grid>
     </Border>
 
-    <!-- Содержимое общее для обеих раскладок: виды режимов и раздел «Меню» живут здесь
-         и не пересоздаются. В разделе «Обучение» сверху стоит переключатель: уроки и разбор
-         партий — два вида одного обучения (замечание пользователя 2026-10-09 о практике). -->
+    <!-- Содержимое общее для обеих раскладок: виды разделов и общее меню живут здесь
+         и не пересоздаются. В разделе «Обучение» сверху стоит переключатель трёх подразделов:
+         уроки, разбор партий и задачи (задачи добавлены уточнением интерфейса 2026-11-09). -->
     <Grid Grid.Row="1" RowDefinitions="Auto,*">
 
       <Border x:Name="StudySwitch"
@@ -75,13 +79,37 @@
               BorderBrush="{DynamicResource AppDividerBrush}"
               BorderThickness="0,0,0,1"
               Padding="8,6">
-        <StackPanel Orientation="Horizontal" Spacing="6">
-          <ToggleButton x:Name="StudyLessonsButton" Content="Уроки" MinHeight="44" MinWidth="110" />
-          <ToggleButton x:Name="StudyReviewsButton" Content="Партии" MinHeight="44" MinWidth="110" />
-        </StackPanel>
+        <!-- Три подраздела обучения: уроки, разбор партий и задачи. Задачи переехали
+             сюда из отдельного режима (уточнение интерфейса 2026-11-09). Столбцы делят
+             ширину поровну: на телефоне 360 точек три подписи помещаются целиком. -->
+        <Grid ColumnDefinitions="*,*,*">
+          <ToggleButton x:Name="StudyLessonsButton"
+                        Grid.Column="0"
+                        Content="Уроки"
+                        MinHeight="44"
+                        MinWidth="0"
+                        Margin="0,0,6,0"
+                        HorizontalAlignment="Stretch" />
+          <ToggleButton x:Name="StudyReviewsButton"
+                        Grid.Column="1"
+                        Content="Партии"
+                        MinHeight="44"
+                        MinWidth="0"
+                        Margin="0,0,6,0"
+                        HorizontalAlignment="Stretch" />
+          <ToggleButton x:Name="StudyProblemsButton"
+                        Grid.Column="2"
+                        Content="Задачи"
+                        MinHeight="44"
+                        MinWidth="0"
+                        HorizontalAlignment="Stretch" />
+        </Grid>
       </Border>
 
-      <Panel x:Name="ModeContent" Grid.Row="1" />
+      <Panel x:Name="ModeContent" Grid.Row="1">
+        <!-- Главный экран — выбор режима: создаётся кодом вида, как и остальные разделы. -->
+        <Panel x:Name="HomeHost" />
+      </Panel>
     </Grid>
 
     <!-- «О программе»: вложенный экран раздела «Меню», а не отдельный раздел навигации.
@@ -144,8 +172,10 @@
       </Grid>
     </Border>
 
-    <!-- Сетевая игра: вложенный экран раздела «Меню», как «О программе». Открывается из меню,
-         закрывается «Назад» или началом партии; нижняя навигация остаётся видимой. -->
+    <!-- Сетевая игра: полноэкранный слой поверх содержимого, как «О программе». Открывается
+         карточкой главного экрана, разделом «Меню» и строкой режимов, закрывается «Назад» или
+         началом партии; нижняя навигация остаётся видимой, а вернувшись, игрок попадает туда,
+         откуда пришёл. -->
     <Border x:Name="NetworkOverlay"
             Grid.Row="1"
             IsVisible="False"
@@ -180,13 +210,16 @@
             Background="{DynamicResource AppSurfaceBrush}"
             BorderBrush="{DynamicResource AppBorderBrush}"
             BorderThickness="0,1,0,0">
-      <Grid ColumnDefinitions="*,*,*,*,*" Height="{DynamicResource AppNavHeight}">
+      <!-- Четыре раздела: «Партия с ИИ», «Партия с другом», «Обучение» и «Меню».
+           «Задачи» — подраздел обучения, а не пятый раздел; главный экран в навигацию
+           не входит: на него возвращает строка «Главная» общего меню. -->
+      <Grid ColumnDefinitions="*,*,*,*" Height="{DynamicResource AppNavHeight}">
 
         <Button x:Name="NavGameButton"
                 Grid.Column="0"
                 Classes="app-nav"
                 Classes.active="{Binding IsGameSection}"
-                AutomationProperties.Name="Партия">
+                AutomationProperties.Name="Партия с ИИ">
           <StackPanel Spacing="2" VerticalAlignment="Center">
             <!-- Значок — вектор, а не шрифт: значкового шрифта в проекте нет. «Таблетка» вокруг
                  значка показывает выбранный раздел (Border.app-nav-icon). -->
@@ -214,26 +247,10 @@
           </StackPanel>
         </Button>
 
-        <Button x:Name="NavProblemButton"
-                Grid.Column="2"
-                Classes="app-nav"
-                Classes.active="{Binding IsProblemSection}"
-                AutomationProperties.Name="Задачи">
-          <StackPanel Spacing="2" VerticalAlignment="Center">
-            <Border Classes="app-nav-icon">
-              <Path Width="22" Height="22" Stretch="Uniform"
-                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Data="M12,3 L21,12 L12,21 L3,12 Z" />
-            </Border>
-            <TextBlock Text="Задачи" />
-          </StackPanel>
-        </Button>
-
-        <!-- «Обучение» — раздел уроков: те же шаги, что и в задачах, но с объяснениями
-             и заданиями на доске. Стоит третьим: после «Задач» игрок идёт учиться, а перед
-             «Меню», которое разделом режима не является (замечание пользователя 2026-10-07). -->
+        <!-- «Обучение» — раздел практики: уроки, разбор партий и задачи. Стоит третьим,
+             перед «Меню», которое разделом режима не является (замечание 2026-10-07). -->
         <Button x:Name="NavLessonButton"
-                Grid.Column="3"
+                Grid.Column="2"
                 Classes="app-nav"
                 Classes.active="{Binding IsLessonSection}"
                 AutomationProperties.Name="Обучение">
@@ -253,7 +270,7 @@
              открывается из шапки партии, а раздел занят общим меню приложения
              (замечание пользователя 2026-10-06). -->
         <Button x:Name="NavMenuButton"
-                Grid.Column="4"
+                Grid.Column="3"
                 Classes="app-nav"
                 Classes.active="{Binding IsMenuSection}"
                 AutomationProperties.Name="Меню">

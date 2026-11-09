@@ -4,35 +4,37 @@ using GoEngine.Core;
 
 namespace GoEngine.App.Tests;
 
-/// <summary>Тесты разделов нижней навигации телефона: партия, задачи и общее меню.</summary>
+/// <summary>Тесты экранов оболочки и подразделов обучения.</summary>
 /// <remarks>
 /// <para>
-/// Разделов три, и настройки среди них больше нет: «Настройка партии» — экран внутри партии,
-/// он открывается из меню партии и шестерёнкой в шапке (замечание пользователя 2026-10-06,
-/// <c>DECISIONS.md</c>, D-075). Общее меню — раздел приложения: в нём выбор режима, «О программе»
-/// и выход, и режим он не меняет, поэтому закрывается возвратом туда же, где игрок был.
+/// Экранов три: главный — выбор режима, партия с ИИ, обучение. «Партия с другом» — сетевое лобби
+/// поверх содержимого: режим оболочки оно не меняет. Задачи — третий подраздел обучения, а не
+/// отдельный режим (уточнение интерфейса 2026-11-09, ориентир — главные экраны BadukPop,
+/// Go Quest и OGS: один явный главный ход и понятные продолжения).
 /// </para>
 /// <para>
-/// Подсветку раздела показывает модель оболочки, а не вид: так поведение проверяется без интерфейса.
-/// Стартовое состояние — раздел «Партия», закрытая шторка меню партии и закрытое «О программе» —
-/// проверяет <c>ShellStartTests</c>: регрессия 2026-10-03 состояла в том, что приложение
-/// открывалось на разделе настроек.
+/// Подсветку экрана показывает модель оболочки, а не вид: так поведение проверяется без
+/// интерфейса. Стартовое состояние и карточки главного экрана проверяет <c>ShellStartTests</c>.
 /// </para>
 /// </remarks>
 public sealed class ShellSectionsTests
 {
-    private static ShellViewModel Shell() =>
-        ShellViewModel.Create(
-            AppSettings.From(BoardSize.Size9, GoEngine.AI.DifficultyLevel.Kyu20, StoneColor.Black, Komi.For9x9),
-            null,
-            null);
-
     [Fact]
-    public void Вначале_Выбран_Раздел_Партии()
+    public void Вначале_Выбран_Главный_Экран()
     {
         var shell = Shell();
 
-        Assert.True(shell.IsGameSection);
+        Assert.True(shell.IsHomeSection);
+    }
+
+    [Fact]
+    public void Вначале_Выбран_Режим_Главного_Экрана()
+    {
+        var shell = Shell();
+
+        Assert.True(shell.IsHomeMode);
+        Assert.False(shell.IsGameMode);
+        Assert.False(shell.IsLessonMode);
     }
 
     [Fact]
@@ -41,6 +43,20 @@ public sealed class ShellSectionsTests
         var shell = Shell();
 
         Assert.False(shell.IsMenuSection);
+    }
+
+    [Fact]
+    public void Вначале_Обучение_Не_Выбрано()
+    {
+        var shell = Shell();
+
+        Assert.False(shell.IsLessonSection);
+    }
+
+    [Fact]
+    public void Вначале_В_Обучении_Выбраны_Уроки()
+    {
+        Assert.True(Shell().IsLessonsStudy);
     }
 
     [Fact]
@@ -54,98 +70,24 @@ public sealed class ShellSectionsTests
     }
 
     [Fact]
-    public void Раздел_Меню_Снимает_Подсветку_Партии()
+    public void Раздел_Меню_Снимает_Подсветку_Главного_Экрана()
     {
         var shell = Shell();
 
         shell.ShowMenu();
 
-        Assert.False(shell.IsGameSection);
+        Assert.False(shell.IsHomeSection);
     }
 
     [Fact]
-    public void Раздел_Меню_Не_Меняет_Режим_Партии()
+    public void Раздел_Меню_Не_Меняет_Режим_Главного_Экрана()
     {
-        // Меню — раздел приложения, а не третий режим: партия за ним остаётся на месте.
+        // Меню — раздел приложения, а не третий режим: за ним остаётся выбранный экран.
         var shell = Shell();
 
         shell.ShowMenu();
 
-        Assert.True(shell.IsGameMode);
-    }
-
-    [Fact]
-    public void Раздел_Меню_Из_Задач_Не_Меняет_Режим_Задач()
-    {
-        var shell = Shell();
-
-        shell.ShowProblems();
-        shell.ShowMenu();
-
-        Assert.True(shell.IsProblemMode);
-    }
-
-    [Fact]
-    public void Раздел_Меню_Из_Задач_Снимает_Подсветку_Задач()
-    {
-        var shell = Shell();
-
-        shell.ShowProblems();
-        shell.ShowMenu();
-
-        Assert.False(shell.IsProblemSection);
-    }
-
-    [Fact]
-    public void Переход_В_Партию_Из_Меню_Возвращает_Раздел_Партии()
-    {
-        var shell = Shell();
-
-        shell.ShowMenu();
-        shell.ShowGame();
-
-        Assert.True(shell.IsGameSection);
-    }
-
-    [Fact]
-    public void Переход_В_Задачи_Из_Меню_Выделяет_Их_Раздел()
-    {
-        var shell = Shell();
-
-        shell.ShowMenu();
-        shell.ShowProblems();
-
-        Assert.True(shell.IsProblemSection);
-    }
-
-    [Fact]
-    public void Раздел_Обучения_Выделяет_Свой_Раздел()
-    {
-        var shell = Shell();
-
-        shell.ShowLessons();
-
-        Assert.True(shell.IsLessonSection);
-    }
-
-    [Fact]
-    public void Раздел_Обучения_Снимает_Подсветку_Партии()
-    {
-        var shell = Shell();
-
-        shell.ShowLessons();
-
-        Assert.False(shell.IsGameSection);
-    }
-
-    [Fact]
-    public void Раздел_Обучения_Выбирает_Свой_Режим()
-    {
-        var shell = Shell();
-
-        shell.ShowLessons();
-
-        Assert.True(shell.IsLessonMode);
+        Assert.True(shell.IsHomeMode);
     }
 
     [Fact]
@@ -161,14 +103,77 @@ public sealed class ShellSectionsTests
     }
 
     [Fact]
-    public void Переход_В_Задачи_Из_Обучения_Выделяет_Их_Раздел()
+    public void Переход_В_Партию_Из_Меню_Возвращает_Раздел_Партии()
+    {
+        var shell = Shell();
+
+        shell.ShowMenu();
+        shell.ShowGame();
+
+        Assert.True(shell.IsGameSection);
+    }
+
+    [Fact]
+    public void Переход_В_Обучение_Из_Меню_Выделяет_Его_Раздел()
+    {
+        var shell = Shell();
+
+        shell.ShowMenu();
+        shell.ShowLessons();
+
+        Assert.True(shell.IsLessonSection);
+    }
+
+    [Fact]
+    public void Переход_На_Главную_Из_Задач_Возвращает_Главный_Экран()
+    {
+        var shell = Shell();
+
+        shell.ShowStudy(StudyPart.Problems);
+        shell.ShowHome();
+
+        Assert.True(shell.IsHomeSection);
+    }
+
+    [Fact]
+    public void Переход_На_Главную_Снимает_Режим_Обучения()
+    {
+        var shell = Shell();
+
+        shell.ShowStudy(StudyPart.Problems);
+        shell.ShowHome();
+
+        Assert.False(shell.IsLessonMode);
+    }
+
+    [Fact]
+    public void Раздел_Обучения_Выделяет_Свой_Раздел()
     {
         var shell = Shell();
 
         shell.ShowLessons();
-        shell.ShowProblems();
 
-        Assert.True(shell.IsProblemSection);
+        Assert.True(shell.IsLessonSection);
+    }
+
+    [Fact]
+    public void Раздел_Обучения_Снимает_Подсветку_Главного_Экрана()
+    {
+        var shell = Shell();
+
+        shell.ShowLessons();
+
+        Assert.False(shell.IsHomeSection);
+    }
+
+    [Fact]
+    public void Раздел_Обучения_Выбирает_Свой_Режим()
+    {
+        var shell = Shell();
+
+        shell.ShowLessons();
+
+        Assert.True(shell.IsLessonMode);
     }
 
     [Fact]
@@ -182,35 +187,82 @@ public sealed class ShellSectionsTests
     }
 
     [Fact]
-    public void Переход_В_Задачи_Выделяет_Их_Раздел()
+    public void Обучение_Открывает_Разбор_Партий()
     {
         var shell = Shell();
 
-        shell.ShowProblems();
+        shell.ShowStudy(StudyPart.Reviews);
 
-        Assert.True(shell.IsProblemSection);
+        Assert.True(shell.IsReviewsStudy);
+        Assert.False(shell.IsLessonsStudy);
     }
 
     [Fact]
-    public void Переход_В_Партию_Из_Задач_Возвращает_Раздел_Партии()
+    public void Обучение_Открывает_Задачи()
+    {
+        // Задачи — третий подраздел обучения, а не отдельный экран (уточнение интерфейса
+        // 2026-11-09): порядок подразделов уроки → партии → задачи.
+        var shell = Shell();
+
+        shell.ShowStudy(StudyPart.Problems);
+
+        Assert.True(shell.IsProblemsStudy);
+        Assert.True(shell.IsLessonSection);
+    }
+
+    [Fact]
+    public void Задачи_Не_Меняют_Режим_Обучения()
     {
         var shell = Shell();
 
-        shell.ShowProblems();
+        shell.ShowStudy(StudyPart.Problems);
+
+        Assert.True(shell.IsLessonMode);
+        Assert.False(shell.IsGameMode);
+    }
+
+    [Fact]
+    public void Подсказка_Задач_Называет_Задачи()
+    {
+        var shell = Shell();
+
+        shell.ShowStudy(StudyPart.Problems);
+
+        Assert.Contains("Задачи", shell.ModeHint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Возврат_К_Урокам_Из_Задач()
+    {
+        var shell = Shell();
+
+        shell.ShowStudy(StudyPart.Problems);
+        shell.ShowStudy(StudyPart.Lessons);
+
+        Assert.True(shell.IsLessonsStudy);
+        Assert.False(shell.IsProblemsStudy);
+    }
+
+    [Fact]
+    public void Переход_В_Партию_Из_Обучения_Возвращает_Раздел_Партии()
+    {
+        var shell = Shell();
+
+        shell.ShowStudy(StudyPart.Problems);
         shell.ShowGame();
 
         Assert.True(shell.IsGameSection);
     }
 
     [Fact]
-    public void Переход_В_Партию_Из_Задач_Снимает_Раздел_Задач()
+    public void Переход_В_Партию_Из_Обучения_Снимает_Раздел_Обучения()
     {
         var shell = Shell();
 
-        shell.ShowProblems();
+        shell.ShowStudy(StudyPart.Problems);
         shell.ShowGame();
 
-        Assert.False(shell.IsProblemSection);
+        Assert.False(shell.IsLessonSection);
     }
 
     [Fact]
@@ -222,34 +274,70 @@ public sealed class ShellSectionsTests
 
         shell.ShowMenu();
 
+        Assert.Contains(nameof(ShellViewModel.IsHomeSection), changed);
         Assert.Contains(nameof(ShellViewModel.IsGameSection), changed);
-        Assert.Contains(nameof(ShellViewModel.IsProblemSection), changed);
+        Assert.Contains(nameof(ShellViewModel.IsLessonSection), changed);
         Assert.Contains(nameof(ShellViewModel.IsMenuSection), changed);
     }
 
     [Fact]
-    public void Смена_Режима_Сообщает_О_Подсказке()
+    public void Смена_Экрана_Сообщает_О_Подсказке()
     {
-        // Подсказка режима стоит строкой в настольной оболочке и меняется вместе с режимом.
+        // Подсказка экрана стоит строкой в настольной оболочке и меняется вместе с экраном.
         var shell = Shell();
         var changed = new List<string>();
         shell.PropertyChanged += (_, e) => changed.Add(e.PropertyName ?? string.Empty);
 
-        shell.ShowProblems();
+        shell.ShowStudy(StudyPart.Problems);
 
         Assert.Contains(nameof(ShellViewModel.ModeHint), changed);
     }
 
     [Fact]
-    public void Повторный_Выбор_Раздела_Ничего_Не_Сообщает()
+    public void Смена_Подраздела_Сообщает_О_Подразделах()
+    {
+        var shell = Shell();
+        var changed = new List<string>();
+        shell.PropertyChanged += (_, e) => changed.Add(e.PropertyName ?? string.Empty);
+
+        shell.ShowStudy(StudyPart.Reviews);
+
+        Assert.Contains(nameof(ShellViewModel.IsLessonsStudy), changed);
+        Assert.Contains(nameof(ShellViewModel.IsReviewsStudy), changed);
+        Assert.Contains(nameof(ShellViewModel.IsProblemsStudy), changed);
+    }
+
+    [Fact]
+    public void Повторный_Выбор_Главного_Экрана_Ничего_Не_Сообщает()
     {
         // Иначе вид перерисовывался бы на каждое нажатие уже выбранной кнопки.
         var shell = Shell();
         var changed = 0;
         shell.PropertyChanged += (_, _) => changed++;
 
-        shell.ShowGame();
+        shell.ShowHome();
 
         Assert.Equal(0, changed);
     }
+
+    [Fact]
+    public void Повторный_Выбор_Подраздела_Ничего_Не_Сообщает()
+    {
+        var shell = Shell();
+        shell.ShowStudy(StudyPart.Reviews);
+        var changed = 0;
+        shell.PropertyChanged += (_, _) => changed++;
+
+        shell.ShowStudy(StudyPart.Reviews);
+
+        Assert.Equal(0, changed);
+    }
+
+    /// <summary>Собирает оболочку с детерминированной партией и встроенными библиотеками.</summary>
+    /// <returns>Модель оболочки.</returns>
+    private static ShellViewModel Shell() =>
+        ShellViewModel.Create(
+            AppSettings.From(BoardSize.Size9, GoEngine.AI.DifficultyLevel.Kyu20, StoneColor.Black, Komi.For9x9),
+            null,
+            null);
 }

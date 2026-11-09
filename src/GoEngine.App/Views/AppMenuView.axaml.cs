@@ -8,18 +8,18 @@ using GoEngine.App.ViewModels;
 
 namespace GoEngine.App.Views;
 
-/// <summary>Общее меню приложения: выбор режима, «О программе» и выход из игры.</summary>
+/// <summary>Общее меню приложения: выбор экрана, «О программе» и выход из игры.</summary>
 /// <remarks>
 /// <para>
 /// Это раздел «Меню» нижней навигации телефона. Всё, что здесь есть, принадлежит приложению,
-/// а не партии: выбор режима (тот же, что в нижней навигации), справка и выход. Меню партии
-/// и «Настройка партии» живут в разделе «Партия» — они действуют на партию
+/// а не партии: выбор экрана (главная, партия с ИИ, обучение), оформление, справка и выход.
+/// Меню партии и «Настройка партии» живут в разделе «Партия» — они действуют на партию
 /// (замечание пользователя 2026-10-06; <c>DECISIONS.md</c>, D-075).
 /// </para>
 /// <para>
-/// Своих решений вид не принимает: переключение режима — вызов модели оболочки, а «О программе»
-/// и выход — события. «О программе» и подтверждение выхода перекрывают оболочку целиком, поэтому
-/// показывает их она (<see cref="ShellView"/>), а вид только сообщает о нажатии.
+/// Своих решений вид не принимает: переключение экрана — вызов модели оболочки или событие,
+/// а «Главная», «О программе» и выход — события. Эти экраны перекрывают оболочку целиком,
+/// поэтому показывает их она (<see cref="ShellView"/>), а вид только сообщает о нажатии.
 /// </para>
 /// </remarks>
 public sealed partial class AppMenuView : UserControl
@@ -48,8 +48,8 @@ public sealed partial class AppMenuView : UserControl
             versionText.Text = $"Go Engine {AppVersion.Display}";
         }
 
+        WireButton("HomeRow", OnHomeClick);
         WireButton("GameModeRow", OnGameModeClick);
-        WireButton("ProblemModeRow", OnProblemModeClick);
         WireButton("LessonModeRow", OnLessonModeClick);
         WireButton("ThemeSystemRow", OnSystemThemeClick);
         WireButton("ThemeLightRow", OnLightThemeClick);
@@ -58,6 +58,9 @@ public sealed partial class AppMenuView : UserControl
         WireButton("AboutRow", OnAboutClick);
         WireButton("ExitRow", OnExitClick);
     }
+
+    /// <summary>Запрошен главный экран: выбор режима.</summary>
+    public event EventHandler? HomeRequested;
 
     /// <summary>Запрошен экран сетевой игры.</summary>
     public event EventHandler? NetworkRequested;
@@ -71,15 +74,15 @@ public sealed partial class AppMenuView : UserControl
     /// <summary>Модель оболочки: её раздел показывает вид.</summary>
     public ShellViewModel Shell { get; }
 
+    /// <summary>Просит главный экран: его показывает оболочка, он заменяет содержимое раздела.</summary>
+    /// <param name="sender">Строка «Главная».</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnHomeClick(object? sender, RoutedEventArgs e) => HomeRequested?.Invoke(this, EventArgs.Empty);
+
     /// <summary>Переходит в режим партии: раздел меняет оболочка, а не вид.</summary>
-    /// <param name="sender">Строка «Партия».</param>
+    /// <param name="sender">Строка «Партия с ИИ».</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnGameModeClick(object? sender, RoutedEventArgs e) => Shell.ShowGame();
-
-    /// <summary>Переходит в режим задач.</summary>
-    /// <param name="sender">Строка «Задачи».</param>
-    /// <param name="e">Событие нажатия.</param>
-    private void OnProblemModeClick(object? sender, RoutedEventArgs e) => Shell.ShowProblems();
 
     /// <summary>Переходит в режим обучения.</summary>
     /// <param name="sender">Строка «Обучение».</param>

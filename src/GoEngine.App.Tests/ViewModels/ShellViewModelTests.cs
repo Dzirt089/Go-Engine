@@ -5,46 +5,59 @@ using GoEngine.Problems;
 
 namespace GoEngine.App.Tests;
 
-/// <summary>Тесты оболочки двух режимов: переключение не ломает партию.</summary>
+/// <summary>Тесты оболочки: главный экран, партия и обучение; переключение не ломает партию.</summary>
 /// <remarks>
-/// Главное свойство оболочки — режимы не пересоздаются: обе модели живут, пока открыто приложение,
-/// поэтому возврат в «Партию» показывает ту же позицию (D-061).
+/// Главное свойство оболочки — экраны не пересоздаются: модели живут, пока открыто приложение,
+/// поэтому возврат в «Партию» показывает ту же позицию (D-061). Задачи — подраздел обучения,
+/// а не отдельный режим (уточнение интерфейса 2026-11-09).
 /// </remarks>
 public sealed class ShellViewModelTests
 {
     [Fact]
-    public void Начинается_С_Режима_Партии()
+    public void Начинается_С_Главного_Экрана()
     {
         var shell = Create();
 
-        Assert.True(shell.IsGameMode);
-        Assert.False(shell.IsProblemMode);
+        Assert.True(shell.IsHomeMode);
+        Assert.False(shell.IsGameMode);
+        Assert.False(shell.IsLessonMode);
 
-        // Подсказка режима — одна короткая строка о том, что делать: развёрнутое описание
+        // Подсказка экрана — одна короткая строка о том, что делать: развёрнутое описание
         // занимало пол-экрана и повторяло видимое (жалоба 2026-09-30).
-        Assert.Contains("доске", shell.ModeHint, StringComparison.Ordinal);
+        Assert.Contains("играть", shell.ModeHint, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Переключение_Режимов_Меняет_Состояние_И_Сообщает_Об_Этом()
+    public void Сборка_Оболочки_Не_Начинает_Партию()
+    {
+        // Главный экран — только выбор режима: часы стоят на нуле, партия ждёт первого хода.
+        var shell = Create();
+
+        Assert.False(shell.Game.IsGameStarted);
+        Assert.Equal("00:00", shell.Game.ClockDisplay);
+    }
+
+    [Fact]
+    public void Переключение_Экранов_Меняет_Состояние_И_Сообщает_Об_Этом()
     {
         var shell = Create();
         List<string> changed = [];
 
         shell.PropertyChanged += (_, e) => changed.Add(e.PropertyName ?? string.Empty);
 
-        shell.ShowProblems();
+        shell.ShowStudy(StudyPart.Problems);
 
-        Assert.True(shell.IsProblemMode);
+        Assert.True(shell.IsLessonMode);
+        Assert.True(shell.IsProblemsStudy);
         Assert.False(shell.IsGameMode);
         Assert.Contains("Задачи", shell.ModeHint, StringComparison.Ordinal);
         Assert.Contains("подсказка", shell.ModeHint, StringComparison.Ordinal);
-        Assert.Contains(nameof(ShellViewModel.IsGameMode), changed);
-        Assert.Contains(nameof(ShellViewModel.IsProblemMode), changed);
+        Assert.Contains(nameof(ShellViewModel.IsLessonMode), changed);
+        Assert.Contains(nameof(ShellViewModel.IsProblemsStudy), changed);
         Assert.Contains(nameof(ShellViewModel.ModeHint), changed);
 
         changed.Clear();
-        shell.ShowProblems();
+        shell.ShowStudy(StudyPart.Problems);
 
         Assert.Empty(changed);
     }
@@ -59,7 +72,7 @@ public sealed class ShellViewModelTests
         var moves = shell.Game.MoveNumber;
         var board = Snapshot(shell.Game.Board);
 
-        shell.ShowProblems();
+        shell.ShowStudy(StudyPart.Problems);
 
         Assert.Equal(moves, shell.Game.MoveNumber);
 
@@ -80,7 +93,7 @@ public sealed class ShellViewModelTests
         var index = shell.Problems.SelectedIndex;
 
         shell.ShowGame();
-        shell.ShowProblems();
+        shell.ShowStudy(StudyPart.Problems);
 
         Assert.Equal(index, shell.Problems.SelectedIndex);
         Assert.Same(shell.Problems, shell.Problems);
