@@ -553,6 +553,12 @@ public sealed class LanGameClient : INetworkGameClient
                 {
                     return;
                 }
+                catch (OperationCanceledException)
+                {
+                    // Истёк HandshakeTimeout отдельной попытки: хозяин не ответил, но общий
+                    // дедлайн переподключения ещё не вышел. Продолжаем попытки, иначе гость
+                    // навсегда оставался в «Связь потеряна» без ReconnectTimeout.
+                }
                 catch (Exception exception) when (exception is IOException or SocketException or System.Security.Authentication.AuthenticationException or LanProtocolException or LanConnectionClosedException or ObjectDisposedException)
                 {
                     // Следующая попытка через интервал.

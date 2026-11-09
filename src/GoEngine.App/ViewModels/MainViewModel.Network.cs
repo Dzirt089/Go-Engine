@@ -440,6 +440,7 @@ public sealed partial class MainViewModel : IDisposable
         }
 
         _networkHistory.Add(new AppliedMove(_game.MoveNumber, request.Move, autoPass: false));
+        _networkError = null;
         _networkConsecutiveAutoPasses = 0;
         await PublishHostMoveAsync(request.Move, autoPass: false).ConfigureAwait(true);
     }
@@ -623,6 +624,7 @@ public sealed partial class MainViewModel : IDisposable
         }
 
         _networkHistory.Add(new AppliedMove(applied.MoveNumber, applied.Move, applied.AutoPass));
+        _networkError = null;
         _networkAwaitingConfirmation = false;
         _networkRemainingMs = Math.Max(0, applied.RemainingMs);
         _networkRemainingAt = _timeProvider.GetUtcNow();
@@ -647,6 +649,7 @@ public sealed partial class MainViewModel : IDisposable
             _networkRemainingMs = Math.Max(0, e.RemainingMs);
             _networkRemainingAt = _timeProvider.GetUtcNow();
             _networkTimerPaused = e.Paused;
+            _networkError = null;
             NotifyAll();
         });
 
@@ -680,6 +683,7 @@ public sealed partial class MainViewModel : IDisposable
         _networkRemainingMs = Math.Max(0, sync.RemainingMs);
         _networkRemainingAt = _timeProvider.GetUtcNow();
         _networkTimerPaused = sync.Paused;
+        _networkError = null;
         _networkAwaitingConfirmation = false;
         _networkFinished = _game.Status != GameStatus.InProgress;
         StopClockIfFinished();
@@ -726,6 +730,17 @@ public sealed partial class MainViewModel : IDisposable
         {
             // Отклонённый ход — не потеря связи: гость остаётся в партии и может сходить снова.
             _networkAwaitingConfirmation = false;
+            NotifyAll();
+            return;
+        }
+
+        if (error.Code is LanErrorCodes.HostLeft or LanErrorCodes.Stalled or LanErrorCodes.ReconnectTimeout)
+        {
+            // Партия прервана окончательно: иначе гость навсегда остаётся в «Связь потеряна»
+            // и не видит итога. Часы останавливаем, ходы закрываем.
+            _networkFinished = true;
+            _networkAwaitingConfirmation = false;
+            _networkTimerPaused = true;
             NotifyAll();
             return;
         }

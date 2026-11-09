@@ -125,7 +125,7 @@ public sealed class BoardViewTests
         Assert.Contains(GameStatusLines.FinishedMark, text.Text, StringComparison.Ordinal);
         Assert.Contains(model.Outcome, text.Text, StringComparison.Ordinal);
         Assert.False(view.FindControl<TextBlock>("MobileClockText")!.IsVisible, "часы остались в шапке");
-        Assert.False(view.FindControl<Button>("MobilePauseButton")!.IsVisible, "кнопка паузы осталась в шапке");
+        Assert.Null(view.FindControl<Button>("MobilePauseButton"));
 
         // Счёт остаётся в свёрнутой шторке: итог — это и победитель, и счёт.
         Assert.Contains(
@@ -144,7 +144,24 @@ public sealed class BoardViewTests
             view.FindControl<TextBlock>("DesktopStatusText")!.Text,
             StringComparison.Ordinal);
         Assert.True(view.FindControl<Grid>("LevelPanel")!.IsVisible);
-        Assert.True(view.FindControl<Button>("NewGameButton")!.IsVisible);
+        Assert.False(view.FindControl<Button>("NewGameButton")!.IsVisible);
+    }
+
+    [Fact]
+    public void В_Партии_С_ИИ_Подробности_Не_Раскрываются_Принудительно()
+    {
+        var (view, model) = Create();
+        var panel = view.FindControl<StackPanel>("DesktopDetailsPanel")!;
+
+        Assert.False(panel.IsVisible);
+
+        var toggle = view.FindControl<ToggleButton>("DesktopDetailsButton")!;
+        toggle.IsChecked = true;
+        Click(toggle);
+        Assert.True(panel.IsVisible);
+
+        model.StartGame();
+        Assert.True(panel.IsVisible);
     }
 
     [Fact]
@@ -166,11 +183,20 @@ public sealed class BoardViewTests
         Assert.False(view.FindControl<Button>("UndoButton")!.IsVisible);
         Assert.False(view.FindControl<Button>("RedoButton")!.IsVisible);
         Assert.Equal(2, view.FindControl<Grid>("DesktopActionRow")!.ColumnDefinitions.Count);
+        Assert.Null(view.FindControl<Button>("MobilePauseButton"));
+        Assert.False(view.FindControl<Control>("MobileFilesPanel")!.IsVisible);
+        Assert.False(view.FindControl<TextBlock>("MobileStatsText")!.IsVisible);
+        Assert.False(view.FindControl<TextBlock>("MobileLevelHintText")!.IsVisible);
+        Assert.Equal(2, view.FindControl<Grid>("MobileActionRow")!.ColumnDefinitions.Count);
+        Assert.Equal(1, Grid.GetColumn(view.FindControl<Control>("MobileTerritoryButton")!));
 
         var opponent = view.FindControl<TextBlock>("NetworkOpponentText")!;
+        var mobileOpponent = view.FindControl<TextBlock>("MobileNetworkOpponentText")!;
 
         Assert.True(opponent.IsVisible);
         Assert.Contains("Соперник", opponent.Text, StringComparison.Ordinal);
+        Assert.True(mobileOpponent.IsVisible);
+        Assert.Contains("Соперник", mobileOpponent.Text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -307,10 +333,10 @@ public sealed class BoardViewTests
         model.StartGame();
         model.PauseGame();
 
-        var button = view.FindControl<Button>("MobilePauseButton")!;
+        var label = view.FindControl<TextBlock>("MenuPauseText")!;
 
-        Assert.Equal("Дальше", button.Content);
-        Assert.Contains($"«{button.Content}»", BoardView.PausedHint, StringComparison.Ordinal);
+        Assert.Equal("Дальше", label.Text);
+        Assert.Contains($"«{label.Text}»", BoardView.PausedHint, StringComparison.Ordinal);
         Assert.DoesNotContain("Продолжить", BoardView.PausedHint, StringComparison.Ordinal);
     }
 
@@ -581,14 +607,16 @@ public sealed class BoardViewTests
     }
 
     [Fact]
-    public void Шапка_Телефона_Открывает_Настройку_Партии()
+    public void Шапка_Телефона_Не_Перегружена()
     {
-        // Шестерёнка в шапке: частая настройка (уровень, коми, подсчёт) — в одно касание.
+        // После замечания 2026-11-09 шестерёнка и «Пауза» ушли из шапки: в 360 точках
+        // они соседствовали с часами и статусом, и часть строки не читалась.
         var (view, _) = Create();
 
-        Click(view.FindControl<Button>("MobileSettingsButton")!);
-
-        Assert.True(view.FindControl<Border>("SettingsOverlay")!.IsVisible);
+        Assert.Null(view.FindControl<Button>("MobileSettingsButton"));
+        Assert.Null(view.FindControl<Button>("MobilePauseButton"));
+        Assert.NotNull(view.FindControl<TextBlock>("MobileTurnText"));
+        Assert.NotNull(view.FindControl<TextBlock>("MobileClockText"));
     }
 
     [Fact]

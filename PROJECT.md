@@ -45,7 +45,7 @@ GoEngine.Tests       ← Core, AI, AI.Onnx, Multiplayer, xUnit
 | `Multiplayer` | `Core`, `System.*` (сеть/криптография BCL) | Avalonia, SkiaSharp, логи |
 | `AI.Onnx` | `Core`, `AI`, ONNX Runtime | Avalonia, IO, БД |
 | `Problems` | `Core`, `AI`, `System.Text.Json` | Avalonia, БД |
-| `Tests` | `Core`, `AI`, `AI.Onnx`, xUnit | `App` |
+| `Tests` | `Core`, `AI`, `AI.Onnx`, `Problems`, `Multiplayer`, xUnit | `App` |
 
 ## Технологический стек
 
@@ -58,7 +58,7 @@ GoEngine.Tests       ← Core, AI, AI.Onnx, Multiplayer, xUnit
 - Microsoft.Extensions.Logging и Microsoft.Extensions.Logging.Abstractions — логирование;
   провайдер записи в файл свой (`GoEngine.App/Services/Logging`), внешние не добавляются
 - xUnit + Moq для тестов
-- Microsoft.Extensions.TimeProvider.Testing — `FakeTimeProvider` в тестах AI (только тесты)
+- Microsoft.Extensions.TimeProvider.Testing — `FakeTimeProvider` в тестах AI, App и Multiplayer (только тесты)
 - Microsoft.ML.OnnxRuntime — нейросетевая оценка v2 (проект `GoEngine.AI.Onnx`)
 - `System.CommandLine` — не используется
 - Внешние пакеты — минимальны, только необходимые

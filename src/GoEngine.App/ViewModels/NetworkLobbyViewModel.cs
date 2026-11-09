@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using GoEngine.App.Services.Logging;
 using GoEngine.Core;
 using GoEngine.Multiplayer;
 
@@ -63,6 +64,7 @@ public sealed class RoomCard
 /// </remarks>
 public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDisposable
 {
+    private static readonly Microsoft.Extensions.Logging.ILogger Log = AppLog.For<NetworkLobbyViewModel>();
     private readonly MainViewModel _game;
     private readonly MultiplayerOptions _options;
     private readonly Action<Action>? _dispatch;
@@ -231,6 +233,7 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
                 host.GuestConnected -= OnGuestConnected;
                 host.Failed -= OnHostFailed;
                 await host.DisposeAsync().ConfigureAwait(true);
+                AppLogMessages.NetworkRoomCreateFailed(Log, result.Error!);
                 SetError(result.Error);
                 StartWatcher();
                 return;
@@ -573,10 +576,18 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
         Dispatch(() => _ = RunAsync(StartHostGameAsync));
 
     private void OnHostFailed(object? sender, LanErrorEventArgs e) =>
-        Dispatch(() => SetError(e.Message));
+        Dispatch(() =>
+        {
+            AppLogMessages.NetworkError(Log, e.Code, e.Message);
+            SetError(e.Message);
+        });
 
     private void OnClientFailed(object? sender, LanErrorEventArgs e) =>
-        Dispatch(() => SetError(e.Message));
+        Dispatch(() =>
+        {
+            AppLogMessages.NetworkError(Log, e.Code, e.Message);
+            SetError(e.Message);
+        });
 
     private async Task StartHostGameAsync()
     {

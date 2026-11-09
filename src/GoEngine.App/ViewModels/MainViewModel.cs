@@ -1319,6 +1319,11 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     /// <returns>Успех или причина отказа, если ходы не проходят по правилам.</returns>
     public Result LoadGame(SgfGame game)
     {
+        if (IsNetworkGame)
+        {
+            return Result.Fail("Нельзя загрузить файл во время сетевой партии: выйдите из сети.");
+        }
+
         var prepared = PrepareLoaded(game);
 
         if (!prepared.IsSuccess)
@@ -1337,6 +1342,11 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
     /// <returns>Успех или причина отказа, если ходы не проходят по правилам.</returns>
     public async Task<Result> LoadGameAsync(SgfGame game)
     {
+        if (IsNetworkGame)
+        {
+            return Result.Fail("Нельзя загрузить файл во время сетевой партии: выйдите из сети.");
+        }
+
         var prepared = PrepareLoaded(game);
 
         if (!prepared.IsSuccess)

@@ -29,6 +29,9 @@
         <MenuItem x:Name="SaveGameItem" Header="Сохранить партию…" />
         <MenuItem x:Name="LoadGameItem" Header="Загрузить партию…" />
         <Separator />
+        <MenuItem x:Name="LeaveNetworkItem" Header="Выйти из сетевой игры" IsVisible="False" />
+        <MenuItem x:Name="ResignNetworkItem" Header="Сдаться" IsVisible="False" />
+        <Separator x:Name="NetworkSeparator" IsVisible="False" />
         <MenuItem x:Name="ExitItem" Header="Выход" />
       </MenuItem>
 

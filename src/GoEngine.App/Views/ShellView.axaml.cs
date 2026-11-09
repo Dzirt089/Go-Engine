@@ -52,6 +52,9 @@ public sealed partial class ShellView : UserControl
     private readonly Border? _glossaryOverlay;
     private readonly Border? _networkOverlay;
     private NetworkLobbyView? _networkArea;
+    private bool _networkReturnMenu;
+    private bool _networkReturnProblems;
+    private bool _networkReturnLessons;
     private readonly Panel? _networkHostPanel;
     private readonly Border? _exitOverlay;
     private readonly AboutView? _aboutArea;
@@ -661,6 +664,22 @@ public sealed partial class ShellView : UserControl
     /// </remarks>
     public bool HandleBack()
     {
+        if (_networkOverlay?.IsVisible == true)
+        {
+            // Системная «Назад» на телефоне должна закрывать лобби, а не «ничего не делать»:
+            // экранная стрелка для этого есть, но ребёнок жмёт системную.
+            if (_networkArea is not null)
+            {
+                _ = _networkArea.CancelAsync();
+            }
+            else
+            {
+                HideNetwork();
+            }
+
+            return true;
+        }
+
         if (IsExitConfirmShown)
         {
             HideExitConfirm();
@@ -756,6 +775,8 @@ public sealed partial class ShellView : UserControl
     {
         if (_networkOverlay?.IsVisible == true)
         {
+            // Кнопка ToggleButton уже сняла галочку кликом; возвращаем подсветку.
+            SyncModeButtons();
             return;
         }
 
@@ -765,7 +786,7 @@ public sealed partial class ShellView : UserControl
     /// <summary>Открывает сетевое лобби: используется меню «Игра с другом» настольного окна.</summary>
     public void ShowNetworkLobby()
     {
-        if (_networkOverlay is null)
+        if (_networkOverlay is null || _networkOverlay.IsVisible)
         {
             return;
         }
@@ -793,7 +814,15 @@ public sealed partial class ShellView : UserControl
             _networkHostPanel.Children.Add(_networkArea);
         }
 
+        _networkReturnMenu = Shell.IsMenuSection;
+        _networkReturnProblems = Shell.IsProblemMode;
+        _networkReturnLessons = Shell.IsLessonMode;
         _networkOverlay.IsVisible = true;
+        if (this.FindControl<TextBlock>("ModeHintText") is { } hint)
+        {
+            hint.Text = "Игра с другом: создайте комнату или присоединитесь.";
+        }
+
         SyncModeButtons();
         _ = _networkArea?.ActivateAsync();
     }
@@ -824,8 +853,38 @@ public sealed partial class ShellView : UserControl
             _networkArea = null;
         }
 
+        var started = Shell.Game.IsNetworkGame;
+        var returnMenu = _networkReturnMenu;
+        var returnProblems = _networkReturnProblems;
+        var returnLessons = _networkReturnLessons;
+        _networkReturnMenu = false;
+        _networkReturnProblems = false;
+        _networkReturnLessons = false;
+
         HideNetwork();
-        Shell.ShowGame();
+
+        // Началась партия — показываем доску. Игрок отменил лобби — возвращаем его
+        // в тот раздел, откуда он пришёл, а не всегда в «Партию» (D-075).
+        if (started)
+        {
+            Shell.ShowGame();
+        }
+        else if (returnMenu)
+        {
+            Shell.ShowMenu();
+        }
+        else if (returnProblems)
+        {
+            Shell.ShowProblems();
+        }
+        else if (returnLessons)
+        {
+            Shell.ShowLessons();
+        }
+        else
+        {
+            Shell.ShowGame();
+        }
     }
 
     private void HideNetwork()
@@ -871,6 +930,11 @@ public sealed partial class ShellView : UserControl
         if (_networkModeButton is not null)
         {
             _networkModeButton.IsChecked = networkOpen;
+        }
+
+        if (!networkOpen && this.FindControl<TextBlock>("ModeHintText") is { } hint)
+        {
+            hint.Text = Shell.ModeHint;
         }
     }
 

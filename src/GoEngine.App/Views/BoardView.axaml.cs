@@ -384,6 +384,7 @@ public sealed partial class BoardView : UserControl
         // Меню партии на телефоне: те же действия, что у кнопок настольной панели, — своих
         // обработчиков у пунктов меню нет, они лишь закрывают шторку перед действием.
         WireButton("MenuNewGameButton", OnMenuNewGameClick);
+        WireButton("MenuPauseButton", OnPauseResumeClick);
         WireButton("MenuAbortButton", OnMenuAbortClick);
         WireButton("MenuLeaveNetworkButton", OnMenuLeaveNetworkClick);
         WireButton("MenuResignNetworkButton", OnMenuResignNetworkClick);
@@ -979,6 +980,13 @@ public sealed partial class BoardView : UserControl
         SetText(_desktopPause, label);
         SetText(_mobilePause, label);
 
+        // На телефоне пауза теперь в меню партии, а не в перегруженной шапке.
+        if (this.FindControl<Button>("MenuPauseButton") is { } menuPause)
+        {
+            menuPause.IsVisible = !ViewModel.IsNetworkGame && ViewModel.CanTogglePause;
+            SetText(this.FindControl<TextBlock>("MenuPauseText"), label);
+        }
+
         SyncClockTimer();
     }
 
@@ -1259,9 +1267,11 @@ public sealed partial class BoardView : UserControl
 
         foreach (var name in new[]
         {
-            "SizePanel", "LevelPanel", "DesktopDetailsButton", "DesktopDetailsPanel", "NewGameButton",
-            "AiFilesRow", "DesktopPauseButton", "DesktopAbortButton", "MobilePauseButton",
-            "MobileSettingsButton", "MenuNewGameButton", "MenuFinishButton", "MenuAbortButton",
+            "SizePanel", "LevelPanel", "DesktopDetailsButton",
+            "AiFilesRow", "DesktopPauseButton", "DesktopAbortButton",
+            "MobileSaveButton", "MobileLoadButton", "MobileStatsText",
+            "MobileLevelHintText", "MobileFilesPanel",
+            "MenuPauseButton", "MenuFinishButton", "MenuAbortButton",
             "MenuSaveButton", "MenuLoadButton", "MenuSettingsButton"
         })
         {
@@ -1309,13 +1319,29 @@ public sealed partial class BoardView : UserControl
             }
         }
 
+        // «Подробности» — не AI-элемент: в игре с ИИ панелью управляет только переключатель.
+        // В сети её скрываем, в ИИ-режиме восстанавливаем по фактическому состоянию кнопки.
+        if (_desktopDetails is not null)
+        {
+            _desktopDetails.IsVisible = !network && _desktopDetailsButton?.IsChecked == true;
+        }
+
+        var opponent = $"Соперник: {NetworkAvatars.GlyphOf(ViewModel.NetworkOpponentAvatarId)} {NetworkAvatars.NameOf(ViewModel.NetworkOpponentAvatarId)}";
         if (_networkOpponentText is not null)
         {
             _networkOpponentText.IsVisible = network;
             if (network)
             {
-                var id = ViewModel.NetworkOpponentAvatarId;
-                _networkOpponentText.Text = $"Соперник: {NetworkAvatars.GlyphOf(id)} {NetworkAvatars.NameOf(id)}";
+                _networkOpponentText.Text = opponent;
+            }
+        }
+
+        if (this.FindControl<TextBlock>("MobileNetworkOpponentText") is { } mobileOpponent)
+        {
+            mobileOpponent.IsVisible = network;
+            if (network)
+            {
+                mobileOpponent.Text = opponent;
             }
         }
     }
@@ -1354,7 +1380,7 @@ public sealed partial class BoardView : UserControl
         // шапка называет не способ завершения, а сам факт и победителя: иначе после закрытия
         // диалога итог было негде посмотреть (дефект 2 QA 2026-10-17).
         var gameType = ViewModel.IsNetworkGame ? "Игра с другом" : "Игра с ИИ";
-        var status = $"{gameType} · " + (ViewModel.IsNetworkGame
+        var plainStatus = (ViewModel.IsNetworkGame
             ? (string.IsNullOrEmpty(ViewModel.NetworkTurnText)
                 ? ViewModel.NetworkStatusText
                 : $"{ViewModel.NetworkStatusText} · {ViewModel.NetworkTurnText}")
@@ -1363,6 +1389,10 @@ public sealed partial class BoardView : UserControl
                 : verdict
                     ? GameStatusLines.FinishedLine(verdict, ViewModel.Outcome)
                     : GameStatusLines.Headline(verdict, ViewModel.Status, ViewModel.ToMove));
+        var status = $"{gameType} · {plainStatus}";
+        // На телефоне полная подпись «Игра с ИИ · Ход: Чёрные» не влезает в строку;
+        // короткий тип сохраняет различие и не обрезается.
+        var mobileStatus = $"{(ViewModel.IsNetworkGame ? "Друг" : "ИИ")} · {plainStatus}";
         var second = ViewModel.IsNetworkGame
             ? ViewModel.NetworkTurnText
             : paused
@@ -1389,7 +1419,7 @@ public sealed partial class BoardView : UserControl
             // После конца партии шапка не молчит: в ней остаётся «Партия окончена» и победитель.
             // Длинная строка обрезается многоточием, а часы и «Пауза» уходят — места хватает,
             // и прежняя жалоба «итог наезжает на часы» не возвращается (дефект 2 QA 2026-10-17).
-            _mobileTurnText.Text = status;
+            _mobileTurnText.Text = mobileStatus;
             _mobileTurnText.IsVisible = true;
         }
 
@@ -1400,7 +1430,7 @@ public sealed partial class BoardView : UserControl
 
         if (_mobilePause is not null)
         {
-            _mobilePause.IsVisible = !finished;
+            _mobilePause.IsVisible = !finished && !ViewModel.IsNetworkGame;
         }
 
         if (_mobileMoveText is not null)
@@ -1878,7 +1908,25 @@ public sealed partial class BoardView : UserControl
             return;
         }
 
-        _ = ViewModel.PlayMoveAsync(e.Point);
+        _ = HandleMoveRequestedAsync(e);
+    }
+
+    /// <summary>Обрабатывает щелчок по доске: первый щелчок может начать партию.</summary>
+    /// <param name="e">Запрошенная точка.</param>
+    private async Task HandleMoveRequestedAsync(MoveRequestedEventArgs e)
+    {
+        if (!ViewModel.IsGameStarted)
+        {
+            // Кнопки «Начать партию» больше нет: первое касание доски начинает и партию
+            // (для белых это даёт ИИ сделать первый ход), и отсчёт времени.
+            await ViewModel.StartGameAsync().ConfigureAwait(true);
+            if (!ViewModel.CanPlayMove)
+            {
+                return;
+            }
+        }
+
+        _ = await ViewModel.PlayMoveAsync(e.Point).ConfigureAwait(true);
     }
 
     /// <summary>Передаёт ход и говорит, что пас произошёл.</summary>
@@ -1904,13 +1952,17 @@ public sealed partial class BoardView : UserControl
     {
         if (await ViewModel.PassAsync().ConfigureAwait(true))
         {
-            ShowHint(PassHint);
+            ShowHint(ViewModel.IsNetworkGame ? NetworkPassHint : PassHint);
         }
     }
 
     /// <summary>Сообщение о пасе: что произошло и где закончить партию.</summary>
     internal const string PassHint =
         "Вы спали: ход у соперника. Партия заканчивается двумя пасами; закончить её сейчас можно в меню — «Закончить партию».";
+
+    /// <summary>Сообщение о пасе в сетевой партии: строки «Закончить партию» в сетевом меню нет.</summary>
+    internal const string NetworkPassHint =
+        "Вы спали: ход у соперника. В сетевой партии закончить её можно сдачей или выходом в меню.";
 
     /// <summary>Отменяет последний ход игрока вместе с ответом AI.</summary>
     /// <param name="sender">Кнопка «Отменить».</param>

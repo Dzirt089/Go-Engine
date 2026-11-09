@@ -231,16 +231,16 @@
                          TextWrapping="Wrap" />
             </StackPanel>
 
-            <!-- Главное действие партии — отдельной крупной кнопкой во всю ширину панели.
-                 В ряду действий подпись «Начать партию» не помещалась: пять кнопок на 320 точек
-                 панели обрезали её (проверено живым прогоном 2026-09-30). -->
+            <!-- Кнопка «Начать партию» скрыта: игра начинается с первого хода по доске,
+                 а после конца — из итоговой карточки. Она не решала ничего, но занимала
+                 главное место панели (замечание пользователя 2026-11-09). -->
             <Button x:Name="NewGameButton"
                     IsEnabled="{Binding CanStartNewGame}"
                     Content="Начать партию"
                     Classes="app-primary"
                     Margin="0,2,0,0"
+                    IsVisible="False"
                     HorizontalAlignment="Stretch" />
-
             <Grid x:Name="AiFilesRow" ColumnDefinitions="*,*,*">
               <Button x:Name="SettingsButton"
                     IsEnabled="{Binding CanChangeGameSettings}"
@@ -297,7 +297,7 @@
               BorderThickness="0,0,0,1"
               Padding="6,2"
               MinHeight="{DynamicResource AppStatusHeight}">
-        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+        <Grid ColumnDefinitions="Auto,*,Auto">
           <Button x:Name="MobileMenuButton"
                   Classes="app-icon"
                   AutomationProperties.Name="Меню партии"
@@ -309,23 +309,10 @@
                   Data="M12,4.6 A2.3,2.3 0 1 1 12,9.2 A2.3,2.3 0 1 1 12,4.6 Z M12,9.7 A2.3,2.3 0 1 1 12,14.3 A2.3,2.3 0 1 1 12,9.7 Z M12,14.8 A2.3,2.3 0 1 1 12,19.4 A2.3,2.3 0 1 1 12,14.8 Z" />
           </Button>
 
-          <Button x:Name="MobileSettingsButton"
-                IsEnabled="{Binding CanChangeGameSettings}"
-                  Grid.Column="1"
-                  Classes="app-icon"
-                  AutomationProperties.Name="Настройка партии"
-                  ToolTip.Tip="Размер доски, уровень AI, цвет игрока, коми и подсчёт">
-            <!-- Шестерёнка: диск, восемь зубцов и вырез в середине. Все части нарисованы
-                 по часовой стрелке, вырез — против: правило заливки Nonzero (F1) вычитает
-                 только встречную фигуру, и отверстие получается дыркой, а не вторым диском. -->
-            <Path Width="22" Height="22" Stretch="Uniform"
-                  Data="F1 M12,4 A8,8 0 1 1 12,20 A8,8 0 1 1 12,4 Z M12,8.4 A3.6,3.6 0 1 0 12,15.6 A3.6,3.6 0 1 0 12,8.4 Z M10.6,1.6 h2.8 v4.4 h-2.8 z M10.6,18 h2.8 v4.4 h-2.8 z M1.6,10.6 h4.4 v2.8 h-4.4 z M18,10.6 h4.4 v2.8 h-4.4 z M17.2,3.4 L20.6,6.8 L17.2,10.2 L13.8,6.8 Z M6.8,3.4 L10.2,6.8 L6.8,10.2 L3.4,6.8 Z M6.8,13.8 L10.2,17.2 L6.8,20.6 L3.4,17.2 Z M17.2,13.8 L20.6,17.2 L17.2,20.6 L13.8,17.2 Z" />
-          </Button>
-
           <!-- Сетка, а не StackPanel: StackPanel даёт тексту бесконечную ширину, и подпись
                «Игра с ИИ · Ход: Чёрные» наезжала на часы. Звёздная колонка обрезает текст
                многоточием, часы остаются справа без наложения. -->
-          <Grid Grid.Column="2"
+          <Grid Grid.Column="1"
                 ColumnDefinitions="Auto,*"
                 Margin="4,0,6,0"
                 VerticalAlignment="Center">
@@ -353,18 +340,11 @@
           </Grid>
 
           <TextBlock x:Name="MobileClockText"
-                     Grid.Column="3"
-                     Margin="0,0,8,0"
+                     Grid.Column="2"
+                     Margin="0,0,4,0"
                      VerticalAlignment="Center"
                      Classes="app-clock"
                      TextTrimming="CharacterEllipsis" />
-          <Button x:Name="MobilePauseButton"
-                  Grid.Column="4"
-                  Content="Пауза"
-                  MinWidth="76"
-                  VerticalAlignment="Center"
-                  Classes="app-action"
-                  IsEnabled="{Binding CanTogglePause}" />
         </Grid>
       </Border>
 
@@ -550,12 +530,19 @@
 
               <TextBlock x:Name="MobileStatsText" Classes="app-label" TextWrapping="Wrap" />
 
-              <TextBlock Classes="app-label"
+              <TextBlock x:Name="MobileLevelHintText"
+                         Classes="app-label"
                          Text="{Binding LevelHint}"
                          IsVisible="{Binding HasLevelHint}"
                          FontStyle="Italic" />
 
-              <WrapPanel>
+              <TextBlock x:Name="MobileNetworkOpponentText"
+                         FontSize="14"
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap"
+                         IsVisible="False" />
+
+              <WrapPanel x:Name="MobileFilesPanel">
                 <Button x:Name="MobileSaveButton"
                         Content="Сохранить"
                         Classes="app-action"
@@ -618,14 +605,19 @@
                        HorizontalAlignment="Center"
                        Margin="12,2,12,8" />
 
-            <!-- Подпись главного действия меняет код вида: до первого хода — «Начать партию»,
-                 после — «Новая партия» (та же логика, что и в настольной панели). -->
+            <!-- Закончить партию — выход из положения «доиграл, а соперник не пасует»:
+                 правило двух пасов требует паса от обеих сторон, и без этой строки партия
+                 не заканчивалась вовсе (блокер B1 отчёта QA 2026-10-17). Счёт подводится
+                 по текущей позиции, поэтому строка стоит рядом с «Начать партию». -->
+            <!-- Скрытая строка «Начать партию»: новый ход начинает игру сам. Оставлена
+                 невидимой, чтобы «Новая партия» из меню оставалась доступной взрослым
+                 и в проверочных сценариях. -->
             <Button x:Name="MenuNewGameButton"
                     Classes="app-menu-row primary"
                     AutomationProperties.Name="Начать партию"
-                    IsEnabled="{Binding CanStartNewGame}">
+                    IsEnabled="{Binding CanStartNewGame}"
+                    IsVisible="False">
               <Grid ColumnDefinitions="Auto,*">
-                <!-- Камень: игра начинается с хода чёрных. -->
                 <Path Width="22" Height="22" Stretch="Uniform" VerticalAlignment="Center"
                       Data="M4,12 A8,8 0 1 1 20,12 A8,8 0 1 1 4,12 Z" />
                 <TextBlock x:Name="MenuNewGameText"
@@ -636,10 +628,21 @@
               </Grid>
             </Button>
 
-            <!-- Закончить партию — выход из положения «доиграл, а соперник не пасует»:
-                 правило двух пасов требует паса от обеих сторон, и без этой строки партия
-                 не заканчивалась вовсе (блокер B1 отчёта QA 2026-10-17). Счёт подводится
-                 по текущей позиции, поэтому строка стоит рядом с «Начать партию». -->
+            <Button x:Name="MenuPauseButton"
+                    Classes="app-menu-row"
+                    AutomationProperties.Name="Пауза"
+                    IsVisible="False">
+              <Grid ColumnDefinitions="Auto,*">
+                <Path Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center"
+                      Data="M8,4 h3 v16 h-3 z M13,4 h3 v16 h-3 z" />
+                <TextBlock x:Name="MenuPauseText"
+                           Grid.Column="1"
+                           Margin="14,0,0,0"
+                           Text="Пауза"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </Button>
+
             <Button x:Name="MenuFinishButton"
                     Classes="app-menu-row"
                     AutomationProperties.Name="Закончить партию"

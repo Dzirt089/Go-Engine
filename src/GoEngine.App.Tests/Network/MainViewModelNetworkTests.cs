@@ -176,6 +176,27 @@ public sealed class MainViewModelNetworkTests
     }
 
     [Fact]
+    public void Нельзя_Загрузить_SGF_Во_Время_Сетевой_Партии()
+    {
+        var time = new FakeTimeProvider();
+        using var model = CreateModel(time, Options(time));
+        var client = new FakeNetworkClient();
+        _ = model.StartNetworkGuest(
+            client,
+            new GuestSessionStarted("0123456789abcdef0123456789abcdef", 9, 5.5, StoneColor.Black, 1, 90_000));
+
+        var loaded = model.LoadGame(new SgfGame(
+            BoardSize.Size9,
+            Komi.For9x9,
+            [Move.Play(new Point(4, 4), StoneColor.Black)],
+            null));
+
+        Assert.False(loaded.IsSuccess);
+        Assert.Equal("0", model.MoveNumber);
+        Assert.True(model.IsNetworkGame);
+    }
+
+    [Fact]
     public void Гость_Восстанавливает_Состояние_После_Переподключения()
     {
         var time = new FakeTimeProvider();

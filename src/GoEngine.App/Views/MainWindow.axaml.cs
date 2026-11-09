@@ -34,6 +34,8 @@ public sealed partial class MainWindow : Window
         Wire("NewGameItem", OnNewGameClick);
         Wire("SettingsItem", OnSettingsClick);
         Wire("NetworkItem", OnNetworkClick);
+        Wire("LeaveNetworkItem", OnLeaveNetworkClick);
+        Wire("ResignNetworkItem", OnResignNetworkClick);
         Wire("FinishGameItem", OnFinishGameClick);
         Wire("SaveGameItem", OnSaveGameClick);
         Wire("LoadGameItem", OnLoadGameClick);
@@ -49,6 +51,7 @@ public sealed partial class MainWindow : Window
         // Меню действует на партию: в режиме задач его пункты недоступны, чтобы «Новая партия»
         // и «Сохранить» не срабатывали неожиданно.
         Shell.Shell.PropertyChanged += OnShellPropertyChanged;
+        ViewModel.PropertyChanged += OnGamePropertyChanged;
         UpdateMenu();
     }
 
@@ -79,11 +82,41 @@ public sealed partial class MainWindow : Window
     /// Выключается только меню партии: «Справка» с «О программе» доступна в любом режиме —
     /// сведения о программе к партии не относятся (замечание пользователя 2026-10-06).
     /// </remarks>
+    private void OnGamePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(MainViewModel.IsNetworkGame) or nameof(MainViewModel.IsNetworkMyTurn))
+        {
+            UpdateMenu();
+        }
+    }
+
     private void UpdateMenu()
     {
         if (this.FindControl<MenuItem>("GameMenuItem") is { } gameItem)
         {
             gameItem.IsEnabled = Shell.Shell.IsGameMode;
+        }
+
+        var network = ViewModel.IsNetworkGame;
+        foreach (var name in new[] { "NewGameItem", "SettingsItem", "FinishGameItem", "SaveGameItem", "LoadGameItem" })
+        {
+            if (this.FindControl<MenuItem>(name) is { } item)
+            {
+                item.IsVisible = !network;
+            }
+        }
+
+        foreach (var name in new[] { "LeaveNetworkItem", "ResignNetworkItem", "NetworkSeparator" })
+        {
+            if (this.FindControl<MenuItem>(name) is { } item)
+            {
+                item.IsVisible = network;
+            }
+        }
+
+        if (this.FindControl<MenuItem>("ResignNetworkItem") is { } resign)
+        {
+            resign.IsEnabled = ViewModel.IsNetworkMyTurn;
         }
     }
 
@@ -116,6 +149,10 @@ public sealed partial class MainWindow : Window
     /// <param name="sender">Пункт «Игра с другом…».</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnNetworkClick(object? sender, RoutedEventArgs e) => Shell.ShowNetworkLobby();
+
+    private void OnLeaveNetworkClick(object? sender, RoutedEventArgs e) => _ = ViewModel.LeaveNetworkGameAsync();
+
+    private void OnResignNetworkClick(object? sender, RoutedEventArgs e) => _ = ViewModel.ResignNetworkAsync();
 
     /// <summary>Спрашивает подтверждение конца партии — тем же вопросом, что и телефон.</summary>
     /// <param name="sender">Пункт меню «Закончить партию…».</param>

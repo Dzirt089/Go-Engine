@@ -63,8 +63,8 @@ public sealed class LanSessionLoopbackTests
         var options = new MultiplayerOptions
         {
             PreferredTcpPort = 0,
-            HandshakeTimeout = TimeSpan.FromSeconds(1),
-            JoinDecisionTimeout = TimeSpan.FromSeconds(10)
+            HandshakeTimeout = TimeSpan.FromSeconds(3),
+            JoinDecisionTimeout = TimeSpan.FromSeconds(15)
         };
         await using var host = new LanGameHost(options);
         var hostRoom = await host.StartHostingAsync(hostAvatarId: 0, roomNumber: 43, boardSize: 9, timeout.Token);
@@ -80,7 +80,7 @@ public sealed class LanSessionLoopbackTests
 
     private static async Task AcceptAfterDelayAsync(LanGameHost host, CancellationToken cancellationToken)
     {
-        await Task.Delay(TimeSpan.FromSeconds(1.5), cancellationToken);
+        await Task.Delay(TimeSpan.FromSeconds(4), cancellationToken);
         await host.AcceptGuestAsync(StoneColor.White, 5.5, cancellationToken);
     }
 }

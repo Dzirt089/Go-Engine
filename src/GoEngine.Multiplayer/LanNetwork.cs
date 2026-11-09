@@ -5,56 +5,64 @@ using System.Net.Sockets;
 namespace GoEngine.Multiplayer;
 
 /// <summary>Локальные IPv4-адреса и адреса для широковещательной рассылки.</summary>
+/// <remarks>
+/// На Android .NET 8 не поддерживает <see cref="NetworkInterface.GetAllNetworkInterfaces"/>
+/// (PlatformNotSupportedException): официальный APK не мог даже создать комнату. Поэтому на
+/// Android адрес определяется UDP-маршрутом, а broadcast берётся глобальный; на настольных
+/// системах остаётся прежний выбор по шлюзу/частной сети.
+/// </remarks>
 internal static class LanNetwork
 {
     /// <summary>Возвращает IPv4-адрес, который показываем как адрес хозяина.</summary>
-    /// <remarks>
-    /// У телефона и ПК бывает несколько сетей: Wi-Fi, виртуальные адаптеры и VPN. Первый
-    /// попавшийся адрес мог оказаться туннелем 26.26.26.1 или host-only сетью 192.168.56.1,
-    /// и гость видел комнату, но не мог подключиться. Поэтому сначала берём интерфейс
-    /// с шлюзом по умолчанию и частным адресом, затем Wi-Fi, затем Ethernet.
-    /// </remarks>
     internal static string? GetLocalIPv4Address()
     {
-        var candidates = NetworkInterface.GetAllNetworkInterfaces()
-            .Where(static network => network.OperationalStatus == OperationalStatus.Up)
-            .Where(static network => network.NetworkInterfaceType is not NetworkInterfaceType.Loopback and not NetworkInterfaceType.Tunnel)
-            .SelectMany(static network =>
-            {
-                var hasGateway = network.GetIPProperties().GatewayAddresses
-                    .Any(static gateway => !IPAddress.Any.Equals(gateway.Address));
-                return network.GetIPProperties().UnicastAddresses
-                    .Where(static address => address.Address.AddressFamily == AddressFamily.InterNetwork
-                        && !IPAddress.IsLoopback(address.Address))
-                    .Select(address => new
-                    {
-                        Address = address.Address,
-                        HasGateway = hasGateway,
-                        IsPrivate = IsPrivate(address.Address),
-                        TypeRank = network.NetworkInterfaceType switch
+        if (OperatingSystem.IsAndroid())
+        {
+            return GetRouteLocalAddress();
+        }
+
+        try
+        {
+            var candidates = NetworkInterface.GetAllNetworkInterfaces()
+                .Where(static network => network.OperationalStatus == OperationalStatus.Up)
+                .Where(static network => network.NetworkInterfaceType is not NetworkInterfaceType.Loopback and not NetworkInterfaceType.Tunnel)
+                .SelectMany(static network =>
+                {
+                    var hasGateway = network.GetIPProperties().GatewayAddresses
+                        .Any(static gateway => !IPAddress.Any.Equals(gateway.Address));
+                    return network.GetIPProperties().UnicastAddresses
+                        .Where(static address => address.Address.AddressFamily == AddressFamily.InterNetwork
+                            && !IPAddress.IsLoopback(address.Address))
+                        .Select(address => new
                         {
-                            NetworkInterfaceType.Wireless80211 => 0,
-                            NetworkInterfaceType.Ethernet or NetworkInterfaceType.GigabitEthernet => 1,
-                            _ => 2
-                        }
-                    });
-            })
-            .OrderByDescending(static candidate => candidate.HasGateway)
-            .ThenByDescending(static candidate => candidate.IsPrivate)
-            .ThenBy(static candidate => candidate.TypeRank)
-            .Select(static candidate => candidate.Address.ToString())
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+                            Address = address.Address,
+                            HasGateway = hasGateway,
+                            IsPrivate = IsPrivate(address.Address),
+                            TypeRank = network.NetworkInterfaceType switch
+                            {
+                                NetworkInterfaceType.Wireless80211 => 0,
+                                NetworkInterfaceType.Ethernet or NetworkInterfaceType.GigabitEthernet => 1,
+                                _ => 2
+                            }
+                        });
+                })
+                .OrderByDescending(static candidate => candidate.HasGateway)
+                .ThenByDescending(static candidate => candidate.IsPrivate)
+                .ThenBy(static candidate => candidate.TypeRank)
+                .Select(static candidate => candidate.Address.ToString())
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
 
-        return candidates.FirstOrDefault();
-    }
-
-    private static bool IsPrivate(IPAddress address)
-    {
-        var bytes = address.GetAddressBytes();
-        return bytes[0] == 10
-            || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
-            || (bytes[0] == 192 && bytes[1] == 168);
+            return candidates.FirstOrDefault() ?? GetRouteLocalAddress();
+        }
+        catch (PlatformNotSupportedException)
+        {
+            return GetRouteLocalAddress();
+        }
+        catch (NetworkInformationException)
+        {
+            return GetRouteLocalAddress();
+        }
     }
 
     /// <summary>Возвращает адреса для широковещательной рассылки объявлений комнаты.</summary>
@@ -63,36 +71,88 @@ internal static class LanNetwork
         var endpoints = new List<IPEndPoint>();
         Add(endpoints, new IPEndPoint(IPAddress.Broadcast, 0));
 
-        foreach (var network in NetworkInterface.GetAllNetworkInterfaces())
+        if (OperatingSystem.IsAndroid())
         {
-            if (network.OperationalStatus != OperationalStatus.Up
-                || network.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel)
-            {
-                continue;
-            }
+            // Глобальный broadcast работает через активную Wi-Fi-сеть; перечисление
+            // интерфейсов на Android недоступно.
+            return endpoints;
+        }
 
-            foreach (var unicast in network.GetIPProperties().UnicastAddresses)
+        try
+        {
+            foreach (var network in NetworkInterface.GetAllNetworkInterfaces())
             {
-                if (unicast.Address.AddressFamily != AddressFamily.InterNetwork
-                    || unicast.IPv4Mask is null
-                    || IPAddress.IsLoopback(unicast.Address))
+                if (network.OperationalStatus != OperationalStatus.Up
+                    || network.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel)
                 {
                     continue;
                 }
 
-                var address = unicast.Address.GetAddressBytes();
-                var mask = unicast.IPv4Mask.GetAddressBytes();
-                var broadcast = new byte[4];
-                for (var index = 0; index < 4; index++)
+                foreach (var unicast in network.GetIPProperties().UnicastAddresses)
                 {
-                    broadcast[index] = (byte)(address[index] | (byte)~mask[index]);
-                }
+                    if (unicast.Address.AddressFamily != AddressFamily.InterNetwork
+                        || unicast.IPv4Mask is null
+                        || IPAddress.IsLoopback(unicast.Address))
+                    {
+                        continue;
+                    }
 
-                Add(endpoints, new IPEndPoint(new IPAddress(broadcast), 0));
+                    var address = unicast.Address.GetAddressBytes();
+                    var mask = unicast.IPv4Mask.GetAddressBytes();
+                    var broadcast = new byte[4];
+                    for (var index = 0; index < 4; index++)
+                    {
+                        broadcast[index] = (byte)(address[index] | (byte)~mask[index]);
+                    }
+
+                    Add(endpoints, new IPEndPoint(new IPAddress(broadcast), 0));
+                }
             }
+        }
+        catch (PlatformNotSupportedException)
+        {
+            // Android и урезанные платформы: глобального broadcast достаточно.
+        }
+        catch (NetworkInformationException)
+        {
+            // Сеть могла измениться между вызовами: глобальный broadcast остаётся.
         }
 
         return endpoints;
+    }
+
+    /// <summary>Определяет локальный адрес по маршруту UDP, не отправляя пакет.</summary>
+    private static string? GetRouteLocalAddress()
+    {
+        try
+        {
+            using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            socket.Connect(new IPEndPoint(IPAddress.Parse("8.8.8.8"), 53));
+            if (socket.LocalEndPoint is IPEndPoint local
+                && !IPAddress.IsLoopback(local.Address)
+                && !IPAddress.Any.Equals(local.Address))
+            {
+                return local.Address.ToString();
+            }
+        }
+        catch (SocketException)
+        {
+            // Нет маршрута по умолчанию.
+        }
+        catch (ObjectDisposedException)
+        {
+            // Сокет закрылся — адрес неизвестен.
+        }
+
+        return null;
+    }
+
+    private static bool IsPrivate(IPAddress address)
+    {
+        var bytes = address.GetAddressBytes();
+        return bytes[0] == 10
+            || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
+            || (bytes[0] == 192 && bytes[1] == 168);
     }
 
     private static void Add(List<IPEndPoint> endpoints, IPEndPoint endpoint)
