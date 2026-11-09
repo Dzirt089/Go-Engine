@@ -22,12 +22,15 @@ public sealed class LanTlsLoopbackTests
             await using var connection = await LanTlsConnection.AcceptAsync(accepted, time, timeout.Token);
             var message = await connection.ReceiveAsync(timeout.Token);
             Assert.Equal(LanMessageTypes.Ping, message.Type);
+            await connection.SendAsync(new LanMessage { Type = LanMessageTypes.Pong }, timeout.Token);
         }, timeout.Token);
 
         var client = Task.Run(async () =>
         {
             await using var connection = await LanTlsConnection.ConnectAsync("127.0.0.1", port, time, timeout.Token);
             await connection.SendAsync(new LanMessage { Type = LanMessageTypes.Ping }, timeout.Token);
+            var answer = await connection.ReceiveAsync(timeout.Token);
+            Assert.Equal(LanMessageTypes.Pong, answer.Type);
         }, timeout.Token);
 
         try

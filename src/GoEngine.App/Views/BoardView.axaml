@@ -533,7 +533,6 @@
               <TextBlock x:Name="MobileLevelHintText"
                          Classes="app-label"
                          Text="{Binding LevelHint}"
-                         IsVisible="{Binding HasLevelHint}"
                          FontStyle="Italic" />
 
               <TextBlock x:Name="MobileNetworkOpponentText"

@@ -67,11 +67,11 @@ public static partial class AppLogMessages
     public static partial void SgfFailed(ILogger logger, string operation, string reason);
 
     /// <summary>Не удалось создать сетевую комнату: причина важна для разбора на устройстве.</summary>
-    [LoggerMessage(EventId = 1050, Level = LogLevel.Warning, Message = "Сетевая комната не создана: {Reason}")]
+    [LoggerMessage(EventId = 1054, Level = LogLevel.Warning, Message = "Сетевая комната не создана: {Reason}")]
     public static partial void NetworkRoomCreateFailed(ILogger logger, string reason);
 
     /// <summary>Сетевая ошибка во время партии или лобби.</summary>
-    [LoggerMessage(EventId = 1051, Level = LogLevel.Warning, Message = "Сетевая ошибка {Code}: {Message}")]
+    [LoggerMessage(EventId = 1055, Level = LogLevel.Warning, Message = "Сетевая ошибка {Code}: {Message}")]
     public static partial void NetworkError(ILogger logger, string code, string message);
 
     /// <summary>Переключение режима приложения.</summary>

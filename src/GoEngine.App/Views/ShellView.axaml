@@ -52,6 +52,14 @@
                    TextWrapping="Wrap"
                    Margin="8,0,0,0"
                    Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+        <TextBlock x:Name="NetworkModeHintText"
+                   Grid.Column="1"
+                   Text="Игра с другом: создайте комнату или присоединитесь."
+                   IsVisible="False"
+                   VerticalAlignment="Center"
+                   TextWrapping="Wrap"
+                   Margin="8,0,0,0"
+                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
       </Grid>
     </Border>
 

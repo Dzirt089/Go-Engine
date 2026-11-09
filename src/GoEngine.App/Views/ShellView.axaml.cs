@@ -818,11 +818,6 @@ public sealed partial class ShellView : UserControl
         _networkReturnProblems = Shell.IsProblemMode;
         _networkReturnLessons = Shell.IsLessonMode;
         _networkOverlay.IsVisible = true;
-        if (this.FindControl<TextBlock>("ModeHintText") is { } hint)
-        {
-            hint.Text = "Игра с другом: создайте комнату или присоединитесь.";
-        }
-
         SyncModeButtons();
         _ = _networkArea?.ActivateAsync();
     }
@@ -932,9 +927,14 @@ public sealed partial class ShellView : UserControl
             _networkModeButton.IsChecked = networkOpen;
         }
 
-        if (!networkOpen && this.FindControl<TextBlock>("ModeHintText") is { } hint)
+        if (this.FindControl<TextBlock>("ModeHintText") is { } hint)
         {
-            hint.Text = Shell.ModeHint;
+            hint.IsVisible = !networkOpen;
+        }
+
+        if (this.FindControl<TextBlock>("NetworkModeHintText") is { } networkHint)
+        {
+            networkHint.IsVisible = networkOpen;
         }
     }
 

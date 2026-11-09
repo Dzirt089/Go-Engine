@@ -1,5 +1,6 @@
 using System.Globalization;
 using GoEngine.App.Services;
+using GoEngine.App.Services.Logging;
 using GoEngine.Core;
 using GoEngine.Multiplayer;
 
@@ -725,6 +726,7 @@ public sealed partial class MainViewModel : IDisposable
             return;
         }
 
+        AppLogMessages.NetworkError(_log, error.Code, error.Message);
         _networkError = error.Message;
         if (error.Code == LanErrorCodes.MoveRejected)
         {
@@ -741,6 +743,7 @@ public sealed partial class MainViewModel : IDisposable
             _networkFinished = true;
             _networkAwaitingConfirmation = false;
             _networkTimerPaused = true;
+            _clock.Stop();
             NotifyAll();
             return;
         }

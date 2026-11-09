@@ -384,7 +384,7 @@ public sealed partial class BoardView : UserControl
         // Меню партии на телефоне: те же действия, что у кнопок настольной панели, — своих
         // обработчиков у пунктов меню нет, они лишь закрывают шторку перед действием.
         WireButton("MenuNewGameButton", OnMenuNewGameClick);
-        WireButton("MenuPauseButton", OnPauseResumeClick);
+        WireButton("MenuPauseButton", OnMenuPauseResumeClick);
         WireButton("MenuAbortButton", OnMenuAbortClick);
         WireButton("MenuLeaveNetworkButton", OnMenuLeaveNetworkClick);
         WireButton("MenuResignNetworkButton", OnMenuResignNetworkClick);
@@ -1270,7 +1270,7 @@ public sealed partial class BoardView : UserControl
             "SizePanel", "LevelPanel", "DesktopDetailsButton",
             "AiFilesRow", "DesktopPauseButton", "DesktopAbortButton",
             "MobileSaveButton", "MobileLoadButton", "MobileStatsText",
-            "MobileLevelHintText", "MobileFilesPanel",
+            "MobileFilesPanel",
             "MenuPauseButton", "MenuFinishButton", "MenuAbortButton",
             "MenuSaveButton", "MenuLoadButton", "MenuSettingsButton"
         })
@@ -1343,6 +1343,12 @@ public sealed partial class BoardView : UserControl
             {
                 mobileOpponent.Text = opponent;
             }
+        }
+
+        // Уровень/нейросеть — AI-элемент; в сети он скрыт, в ИИ видимость повторяет HasLevelHint.
+        if (this.FindControl<TextBlock>("MobileLevelHintText") is { } levelHint)
+        {
+            levelHint.IsVisible = !network && ViewModel.HasLevelHint;
         }
     }
 
@@ -1514,9 +1520,14 @@ public sealed partial class BoardView : UserControl
         SetVisible(_desktopPrisoners, prisoners.Length > 0 && ViewModel.Status == "Идёт");
 
         // До первого хода кнопка называется «Начать партию»: партия ждёт игрока, а не идёт.
-        var newGameLabel = ViewModel.IsFirstMove ? StartGameLabel : NewGameLabel;
-        SetText(_desktopNewGame, newGameLabel);
-        SetText(_menuNewGameText, newGameLabel);
+        // Кнопки «Начать партию» больше нет: партия начинается первым ходом. Видимая
+        // «Новая партия» нужна только после итога — как путь после закрытой карточки.
+        SetText(_desktopNewGame, NewGameLabel);
+        SetText(_menuNewGameText, NewGameLabel);
+        if (this.FindControl<Button>("MenuNewGameButton") is { } menuNewGame)
+        {
+            menuNewGame.IsVisible = !ViewModel.IsNetworkGame && finished;
+        }
 
         SetText(_desktopLevelHint, ViewModel.LevelHint);
 
@@ -2003,6 +2014,12 @@ public sealed partial class BoardView : UserControl
     /// Подпись кнопки ставит вид по состоянию партии, а действие выбирается здесь: пауза
     /// мгновенная, а продолжение может потребовать хода соперника — его считает фоновая версия.
     /// </remarks>
+    private void OnMenuPauseResumeClick(object? sender, RoutedEventArgs e)
+    {
+        OnPauseResumeClick(sender, e);
+        CloseMenu();
+    }
+
     private void OnPauseResumeClick(object? sender, RoutedEventArgs e)
     {
         if (ViewModel.CanResumeClock)

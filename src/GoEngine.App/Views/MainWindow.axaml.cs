@@ -98,7 +98,7 @@ public sealed partial class MainWindow : Window
         }
 
         var network = ViewModel.IsNetworkGame;
-        foreach (var name in new[] { "NewGameItem", "SettingsItem", "FinishGameItem", "SaveGameItem", "LoadGameItem" })
+        foreach (var name in new[] { "NewGameItem", "SettingsItem", "FinishGameItem", "SaveGameItem", "LoadGameItem", "NetworkItem" })
         {
             if (this.FindControl<MenuItem>(name) is { } item)
             {
@@ -106,12 +106,19 @@ public sealed partial class MainWindow : Window
             }
         }
 
-        foreach (var name in new[] { "LeaveNetworkItem", "ResignNetworkItem", "NetworkSeparator" })
+        foreach (var name in new[] { "LeaveNetworkItem", "ResignNetworkItem" })
         {
             if (this.FindControl<MenuItem>(name) is { } item)
             {
                 item.IsVisible = network;
             }
+        }
+
+        // Separator — не MenuItem: FindControl<MenuItem> на нём бросает InvalidOperationException
+        // и роняет конструктор окна. Тип обязан совпадать с разметкой.
+        if (this.FindControl<Separator>("NetworkSeparator") is { } separator)
+        {
+            separator.IsVisible = network;
         }
 
         if (this.FindControl<MenuItem>("ResignNetworkItem") is { } resign)
