@@ -42,6 +42,7 @@ public sealed partial class ShellView : UserControl
     private readonly ToggleButton? _gameButton;
     private readonly ToggleButton? _problemButton;
     private readonly ToggleButton? _lessonButton;
+    private readonly ToggleButton? _networkModeButton;
     private readonly Border? _studySwitch;
     private readonly ToggleButton? _studyLessonsButton;
     private readonly ToggleButton? _studyReviewsButton;
@@ -93,6 +94,7 @@ public sealed partial class ShellView : UserControl
         _gameButton = this.FindControl<ToggleButton>("GameModeButton");
         _problemButton = this.FindControl<ToggleButton>("ProblemModeButton");
         _lessonButton = this.FindControl<ToggleButton>("LessonModeButton");
+        _networkModeButton = this.FindControl<ToggleButton>("NetworkModeButton");
         _studySwitch = this.FindControl<Border>("StudySwitch");
         _studyLessonsButton = this.FindControl<ToggleButton>("StudyLessonsButton");
         _studyReviewsButton = this.FindControl<ToggleButton>("StudyReviewsButton");
@@ -145,6 +147,11 @@ public sealed partial class ShellView : UserControl
             _lessonButton.Click += OnLessonClick;
         }
 
+        if (_networkModeButton is not null)
+        {
+            _networkModeButton.Click += OnNetworkModeClick;
+        }
+
         WireButton("NavGameButton", OnNavGameClick);
         WireButton("NavProblemButton", OnNavProblemClick);
         WireButton("NavLessonButton", OnNavLessonClick);
@@ -186,6 +193,7 @@ public sealed partial class ShellView : UserControl
         shell.ProgressChanged += OnStudyProgressChanged;
 
         shell.PropertyChanged += OnShellPropertyChanged;
+        shell.Game.PropertyChanged += OnGamePropertyChanged;
         SizeChanged += OnViewSizeChanged;
 
         // Раскладка применяется здесь, а стартовое меню партии открывается в ApplyLayout: до первого
@@ -306,17 +314,29 @@ public sealed partial class ShellView : UserControl
     /// <summary>Показывает режим партии.</summary>
     /// <param name="sender">Кнопка режима.</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnGameClick(object? sender, RoutedEventArgs e) => Shell.ShowGame();
+    private void OnGameClick(object? sender, RoutedEventArgs e)
+    {
+        CloseNetworkLobby();
+        Shell.ShowGame();
+    }
 
     /// <summary>Показывает режим задач.</summary>
     /// <param name="sender">Кнопка режима.</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnProblemClick(object? sender, RoutedEventArgs e) => Shell.ShowProblems();
+    private void OnProblemClick(object? sender, RoutedEventArgs e)
+    {
+        CloseNetworkLobby();
+        Shell.ShowProblems();
+    }
 
     /// <summary>Показывает режим обучения.</summary>
     /// <param name="sender">Кнопка режима.</param>
     /// <param name="e">Событие нажатия.</param>
-    private void OnLessonClick(object? sender, RoutedEventArgs e) => Shell.ShowLessons();
+    private void OnLessonClick(object? sender, RoutedEventArgs e)
+    {
+        CloseNetworkLobby();
+        Shell.ShowLessons();
+    }
 
     /// <summary>Открывает в обучении уроки.</summary>
     /// <param name="sender">Кнопка «Уроки».</param>
@@ -344,6 +364,7 @@ public sealed partial class ShellView : UserControl
     /// </remarks>
     private void OnNavGameClick(object? sender, RoutedEventArgs e)
     {
+        CloseNetworkLobby();
         HideAbout();
         HideGlossary();
         GameArea?.HideAbortConfirm();
@@ -356,6 +377,7 @@ public sealed partial class ShellView : UserControl
     /// <param name="e">Событие нажатия.</param>
     private void OnNavProblemClick(object? sender, RoutedEventArgs e)
     {
+        CloseNetworkLobby();
         HideAbout();
         HideGlossary();
         GameArea?.HideAbortConfirm();
@@ -369,6 +391,7 @@ public sealed partial class ShellView : UserControl
     /// <param name="e">Событие нажатия.</param>
     private void OnNavLessonClick(object? sender, RoutedEventArgs e)
     {
+        CloseNetworkLobby();
         HideAbout();
         HideGlossary();
         GameArea?.HideAbortConfirm();
@@ -386,6 +409,7 @@ public sealed partial class ShellView : UserControl
     /// </remarks>
     private void OnNavMenuClick(object? sender, RoutedEventArgs e)
     {
+        CloseNetworkLobby();
         HideAbout();
         HideGlossary();
         HideExitConfirm();
@@ -582,20 +606,7 @@ public sealed partial class ShellView : UserControl
             MenuArea.IsVisible = Shell.IsMenuSection;
         }
 
-        if (_gameButton is not null)
-        {
-            _gameButton.IsChecked = Shell.IsGameMode;
-        }
-
-        if (_problemButton is not null)
-        {
-            _problemButton.IsChecked = Shell.IsProblemMode;
-        }
-
-        if (_lessonButton is not null)
-        {
-            _lessonButton.IsChecked = Shell.IsLessonMode;
-        }
+        SyncModeButtons();
     }
 
     /// <summary>Подписывается на системную кнопку «Назад», пока вид показан.</summary>
@@ -738,6 +749,19 @@ public sealed partial class ShellView : UserControl
     /// <param name="e">Событие запроса.</param>
     private void OnNetworkRequested(object? sender, EventArgs e) => ShowNetworkLobby();
 
+    /// <summary>Режим «Играть с другом» в верхней строке: открывает то же лобби, что и меню.</summary>
+    /// <param name="sender">Кнопка режима.</param>
+    /// <param name="e">Событие нажатия.</param>
+    private void OnNetworkModeClick(object? sender, RoutedEventArgs e)
+    {
+        if (_networkOverlay?.IsVisible == true)
+        {
+            return;
+        }
+
+        ShowNetworkLobby();
+    }
+
     /// <summary>Открывает сетевое лобби: используется меню «Игра с другом» настольного окна.</summary>
     public void ShowNetworkLobby()
     {
@@ -770,6 +794,7 @@ public sealed partial class ShellView : UserControl
         }
 
         _networkOverlay.IsVisible = true;
+        SyncModeButtons();
         _ = _networkArea?.ActivateAsync();
     }
 
@@ -808,6 +833,62 @@ public sealed partial class ShellView : UserControl
         if (_networkOverlay is not null)
         {
             _networkOverlay.IsVisible = false;
+        }
+
+        SyncModeButtons();
+    }
+
+    /// <summary>Согласует подсветку режимов: открытое лобби — отдельный режим, а не партия.</summary>
+    private void OnGamePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(MainViewModel.IsNetworkGame))
+        {
+            SyncModeButtons();
+        }
+    }
+
+    private void SyncModeButtons()
+    {
+        // Пока идёт сетевая партия, режим «Играть с другом» остаётся выбранным, даже когда
+        // лобби уже закрылось: иначе строка режимов врёт, что идёт партия с ИИ.
+        var networkOpen = _networkOverlay?.IsVisible == true || Shell.Game.IsNetworkGame;
+
+        if (_gameButton is not null)
+        {
+            _gameButton.IsChecked = !networkOpen && Shell.IsGameMode;
+        }
+
+        if (_problemButton is not null)
+        {
+            _problemButton.IsChecked = !networkOpen && Shell.IsProblemMode;
+        }
+
+        if (_lessonButton is not null)
+        {
+            _lessonButton.IsChecked = !networkOpen && Shell.IsLessonMode;
+        }
+
+        if (_networkModeButton is not null)
+        {
+            _networkModeButton.IsChecked = networkOpen;
+        }
+    }
+
+    /// <summary>Уходит из лобби перед переключением на другой режим.</summary>
+    private void CloseNetworkLobby()
+    {
+        if (_networkOverlay?.IsVisible != true)
+        {
+            return;
+        }
+
+        if (_networkArea is not null)
+        {
+            _ = _networkArea.CancelAsync();
+        }
+        else
+        {
+            HideNetwork();
         }
     }
 

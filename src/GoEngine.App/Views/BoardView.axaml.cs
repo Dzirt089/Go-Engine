@@ -182,6 +182,7 @@ public sealed partial class BoardView : UserControl
     private readonly StackPanel? _desktopDetails;
     private readonly ToggleButton? _desktopDetailsButton;
     private readonly Button? _desktopNewGame;
+    private readonly TextBlock? _networkOpponentText;
     private readonly TextBlock? _desktopClock;
     private readonly TextBlock? _mobileClock;
     private readonly Button? _desktopPause;
@@ -311,6 +312,7 @@ public sealed partial class BoardView : UserControl
         _desktopDetails = this.FindControl<StackPanel>("DesktopDetailsPanel");
         _desktopDetailsButton = this.FindControl<ToggleButton>("DesktopDetailsButton");
         _desktopNewGame = this.FindControl<Button>("NewGameButton");
+        _networkOpponentText = this.FindControl<TextBlock>("NetworkOpponentText");
         _desktopClock = this.FindControl<TextBlock>("DesktopClockText");
         _mobileClock = this.FindControl<TextBlock>("MobileClockText");
         _desktopPause = this.FindControl<Button>("DesktopPauseButton");
@@ -1244,6 +1246,80 @@ public sealed partial class BoardView : UserControl
         UpdateMobileBoardSize();
     }
 
+    /// <summary>Прячет элементы, которые принадлежат только партии с ИИ.</summary>
+    /// <remarks>
+    /// В сетевой партии уровень, нейросеть, настройки доски, отмена/возврат, файлы и «Начать
+    /// партию» не действуют. Оставлять их выключенными — плохой интерфейс для ребёнка:
+    /// непонятно, почему кнопка серая, а рядом написано «20 кю · нейросеть». Поэтому в сети
+    /// эти элементы просто не показываются, а на их месте стоит имя соперника.
+    /// </remarks>
+    private void ApplyNetworkLayout()
+    {
+        var network = ViewModel.IsNetworkGame;
+
+        foreach (var name in new[]
+        {
+            "SizePanel", "LevelPanel", "DesktopDetailsButton", "DesktopDetailsPanel", "NewGameButton",
+            "AiFilesRow", "DesktopPauseButton", "DesktopAbortButton", "MobilePauseButton",
+            "MobileSettingsButton", "MenuNewGameButton", "MenuFinishButton", "MenuAbortButton",
+            "MenuSaveButton", "MenuLoadButton", "MenuSettingsButton"
+        })
+        {
+            if (this.FindControl<Control>(name) is { } control)
+            {
+                control.IsVisible = !network;
+            }
+        }
+
+        if (this.FindControl<Grid>("DesktopActionRow") is { } desktopRow)
+        {
+            desktopRow.ColumnDefinitions = network ? new ColumnDefinitions("*,*") : new ColumnDefinitions("*,*,*,*");
+        }
+
+        if (this.FindControl<Control>("PassButton") is { } pass)
+        {
+            Grid.SetColumn(pass, 0);
+        }
+
+        if (this.FindControl<Control>("TerritoryButton") is { } territory)
+        {
+            Grid.SetColumn(territory, network ? 1 : 3);
+        }
+
+        if (this.FindControl<Grid>("MobileActionRow") is { } mobileRow)
+        {
+            mobileRow.ColumnDefinitions = network ? new ColumnDefinitions("*,*") : new ColumnDefinitions("*,*,*,*");
+        }
+
+        if (this.FindControl<Control>("MobilePassButton") is { } mobilePass)
+        {
+            Grid.SetColumn(mobilePass, 0);
+        }
+
+        if (this.FindControl<Control>("MobileTerritoryButton") is { } mobileTerritory)
+        {
+            Grid.SetColumn(mobileTerritory, network ? 1 : 3);
+        }
+
+        foreach (var name in new[] { "UndoButton", "RedoButton", "MobileUndoButton", "MobileRedoButton" })
+        {
+            if (this.FindControl<Control>(name) is { } control)
+            {
+                control.IsVisible = !network;
+            }
+        }
+
+        if (_networkOpponentText is not null)
+        {
+            _networkOpponentText.IsVisible = network;
+            if (network)
+            {
+                var id = ViewModel.NetworkOpponentAvatarId;
+                _networkOpponentText.Text = $"Соперник: {NetworkAvatars.GlyphOf(id)} {NetworkAvatars.NameOf(id)}";
+            }
+        }
+    }
+
     /// <summary>Обновляет короткое состояние вида: строку состояния, шторку и строки партии.</summary>
     /// <remarks>
     /// Строка состояния несёт одно главное сообщение — кто ходит; счёт, пленные и коми стоят
@@ -1256,6 +1332,8 @@ public sealed partial class BoardView : UserControl
     /// </remarks>
     private void RefreshSummary()
     {
+        ApplyNetworkLayout();
+
         // Строку о пленных собирает модель представления: она знает и счётчики партии,
         // и пометки мёртвых камней, которые тоже идут в пленные (правила, пп. 1.10 и 1.12).
         var prisoners = ViewModel.PrisonersLine;
@@ -1275,7 +1353,8 @@ public sealed partial class BoardView : UserControl
         // видеть, что партия остановлена, а не думать, что интерфейс завис. После конца партии
         // шапка называет не способ завершения, а сам факт и победителя: иначе после закрытия
         // диалога итог было негде посмотреть (дефект 2 QA 2026-10-17).
-        var status = ViewModel.IsNetworkGame
+        var gameType = ViewModel.IsNetworkGame ? "Игра с другом" : "Игра с ИИ";
+        var status = $"{gameType} · " + (ViewModel.IsNetworkGame
             ? (string.IsNullOrEmpty(ViewModel.NetworkTurnText)
                 ? ViewModel.NetworkStatusText
                 : $"{ViewModel.NetworkStatusText} · {ViewModel.NetworkTurnText}")
@@ -1283,7 +1362,7 @@ public sealed partial class BoardView : UserControl
                 ? PausedHeadline
                 : verdict
                     ? GameStatusLines.FinishedLine(verdict, ViewModel.Outcome)
-                    : GameStatusLines.Headline(verdict, ViewModel.Status, ViewModel.ToMove);
+                    : GameStatusLines.Headline(verdict, ViewModel.Status, ViewModel.ToMove));
         var second = ViewModel.IsNetworkGame
             ? ViewModel.NetworkTurnText
             : paused

@@ -76,6 +76,14 @@ internal sealed class FakeNetworkHost : INetworkGameHost
         return Task.FromResult(Result.Ok());
     }
 
+    public Task<Result> SendMoveRejectedAsync(string code, string message, CancellationToken cancellationToken)
+    {
+        LastMoveRejection = (code, message);
+        return Task.FromResult(Result.Ok());
+    }
+
+    public (string Code, string Message)? LastMoveRejection { get; private set; }
+
     public (string Code, string Message)? LastError { get; private set; }
 
     public Task StopAsync()

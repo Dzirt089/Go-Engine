@@ -326,6 +326,10 @@ public sealed class LanGameClient : INetworkGameClient
                         }, cancellationToken).ConfigureAwait(false);
                         break;
 
+                    case LanMessageTypes.MoveRejected:
+                        RaiseFailed(message.Code ?? LanErrorCodes.MoveRejected, message.Message ?? "Хозяин отклонил ход.");
+                        break;
+
                     case LanMessageTypes.Error:
                         RaiseFailed(message.Code ?? LanErrorCodes.ProtocolError, message.Message ?? "Сетевая ошибка.");
                         OnConnectionLost(connection);

@@ -426,7 +426,7 @@ public sealed partial class MainViewModel : IDisposable
         if (request.MoveNumber != _game.MoveNumber + 1 || request.Move.Color != _game.ToMove)
         {
             _networkError = "Соперник прислал ход вне очереди.";
-            _ = _networkHost?.SendErrorAsync(LanErrorCodes.ProtocolError, _networkError, CancellationToken.None);
+            _ = _networkHost?.SendMoveRejectedAsync(LanErrorCodes.ProtocolError, _networkError, CancellationToken.None);
             NotifyAll();
             return;
         }
@@ -434,6 +434,7 @@ public sealed partial class MainViewModel : IDisposable
         if (!TryPlay(request.Move))
         {
             _networkError = "Ход соперника не принят правилами.";
+            _ = _networkHost?.SendMoveRejectedAsync(LanErrorCodes.MoveRejected, _networkError, CancellationToken.None);
             NotifyAll();
             return;
         }
@@ -721,6 +722,14 @@ public sealed partial class MainViewModel : IDisposable
         }
 
         _networkError = error.Message;
+        if (error.Code == LanErrorCodes.MoveRejected)
+        {
+            // Отклонённый ход — не потеря связи: гость остаётся в партии и может сходить снова.
+            _networkAwaitingConfirmation = false;
+            NotifyAll();
+            return;
+        }
+
         _networkTimerPaused = true;
         NotifyAll();
     }

@@ -252,6 +252,18 @@ public sealed class ShellStartTests
     }
 
     [Fact]
+    public void В_Настольной_Строке_Есть_Кнопка_Игры_С_Другом()
+    {
+        var (view, _) = Start();
+        InWindow(view);
+
+        var button = view.FindControl<ToggleButton>("NetworkModeButton");
+
+        Assert.NotNull(button);
+        Assert.Equal("Играть с другом", button.Content);
+    }
+
+    [Fact]
     public void Кнопка_Меню_Открывает_Раздел_Общего_Меню()
     {
         var (view, shell) = Start();

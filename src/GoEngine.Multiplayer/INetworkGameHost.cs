@@ -59,6 +59,13 @@ public interface INetworkGameHost : IAsyncDisposable
     /// <summary>Сообщить об ошибке.</summary>
     Task<Result> SendErrorAsync(string code, string message, CancellationToken cancellationToken);
 
+    /// <summary>Сообщить гостю, что его ход отклонён, не закрывая соединение.</summary>
+    /// <param name="code">Код ошибки из <see cref="LanErrorCodes"/>.</param>
+    /// <param name="message">Понятное сообщение на русском.</param>
+    /// <param name="cancellationToken">Отмена отправки.</param>
+    /// <returns>Успех или причина отказа.</returns>
+    Task<Result> SendMoveRejectedAsync(string code, string message, CancellationToken cancellationToken);
+
     /// <summary>Остановить комнату.</summary>
     Task StopAsync();
 }

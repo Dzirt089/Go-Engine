@@ -175,6 +175,9 @@ public sealed partial class NetworkLobbyView : UserControl
     {
         if (_statusText is not null)
         {
+            // В режиме запроса гостя заголовок уже стоит в большой карточке с кнопками:
+            // дублировать его строкой статуса над ней — лишний шум для ребёнка.
+            _statusText.IsVisible = !_lobby.IsJoinRequestVisible;
             _statusText.Text = _lobby.StatusText;
         }
 

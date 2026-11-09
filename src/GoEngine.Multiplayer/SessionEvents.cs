@@ -29,6 +29,9 @@ public static class LanErrorCodes
     /// <summary>Сетевое сообщение повреждено или не поддерживается.</summary>
     public const string ProtocolError = "lan.protocol_error";
 
+    /// <summary>Хозяин отклонил ход гостя: ход не по правилам или не в свою очередь.</summary>
+    public const string MoveRejected = "lan.move_rejected";
+
     /// <summary>Партия прервана: оба игрока не делают ходы.</summary>
     public const string Stalled = "lan.stalled";
 }

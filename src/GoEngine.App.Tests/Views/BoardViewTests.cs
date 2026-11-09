@@ -135,6 +135,45 @@ public sealed class BoardViewTests
     }
 
     [Fact]
+    public void В_Партии_С_ИИ_Показан_Тип_Партии()
+    {
+        var (view, _) = Create();
+
+        Assert.Contains(
+            "Игра с ИИ",
+            view.FindControl<TextBlock>("DesktopStatusText")!.Text,
+            StringComparison.Ordinal);
+        Assert.True(view.FindControl<Grid>("LevelPanel")!.IsVisible);
+        Assert.True(view.FindControl<Button>("NewGameButton")!.IsVisible);
+    }
+
+    [Fact]
+    public void В_Сетевой_Партии_Скрыты_Элементы_ИИ_И_Показан_Соперник()
+    {
+        // Замечание пользователя 2026-11-09: в игре с другом не должно быть уровня,
+        // нейросети и прочих элементов, которые принадлежат только партии с ИИ.
+        var (view, model) = Create();
+        var client = new FakeNetworkClient();
+        var started = model.StartNetworkGuest(
+            client,
+            new GoEngine.Multiplayer.GuestSessionStarted(
+                "0123456789abcdef0123456789abcdef", 9, 5.5, StoneColor.White, 1, 90_000));
+
+        Assert.True(started.IsSuccess, started.Error);
+        Assert.Contains("Игра с другом", view.FindControl<TextBlock>("DesktopStatusText")!.Text, StringComparison.Ordinal);
+        Assert.False(view.FindControl<Button>("NewGameButton")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("LevelPanel")!.IsVisible);
+        Assert.False(view.FindControl<Button>("UndoButton")!.IsVisible);
+        Assert.False(view.FindControl<Button>("RedoButton")!.IsVisible);
+        Assert.Equal(2, view.FindControl<Grid>("DesktopActionRow")!.ColumnDefinitions.Count);
+
+        var opponent = view.FindControl<TextBlock>("NetworkOpponentText")!;
+
+        Assert.True(opponent.IsVisible);
+        Assert.Contains("Соперник", opponent.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void После_Закрытия_Карточки_Итог_Остаётся_В_Панели()
     {
         // Дефект 2 QA 2026-10-17: итог жил только в закрываемом диалоге. «Закрыть» прячет

@@ -31,18 +31,28 @@
             Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
             BorderBrush="{DynamicResource SystemControlBackgroundBaseLowBrush}"
             BorderThickness="0,0,0,1">
-      <StackPanel Orientation="Horizontal" Spacing="8" Margin="10,8">
-        <!-- Кнопки не меньше 44 точек по высоте: это размер, по которому попадает палец. -->
-        <ToggleButton x:Name="GameModeButton" Content="Партия" MinHeight="44" MinWidth="110" />
-        <ToggleButton x:Name="ProblemModeButton" Content="Задачи" MinHeight="44" MinWidth="110" />
-        <ToggleButton x:Name="LessonModeButton" Content="Обучение" MinHeight="44" MinWidth="110" />
+      <!-- Режимы и подсказка делят строку: подсказка занимает остаток ширины и переносится,
+           а не выталкивает новую кнопку за край (жалоба о наложении при добавлении режима). -->
+      <Grid Margin="10,8" ColumnDefinitions="Auto,*">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+          <!-- Кнопки не меньше 44 точек по высоте: это размер, по которому попадает палец. -->
+          <ToggleButton x:Name="GameModeButton" Content="Партия" MinHeight="44" MinWidth="110" />
+          <ToggleButton x:Name="ProblemModeButton" Content="Задачи" MinHeight="44" MinWidth="110" />
+          <ToggleButton x:Name="LessonModeButton" Content="Обучение" MinHeight="44" MinWidth="110" />
+          <ToggleButton x:Name="NetworkModeButton"
+                        Content="Играть с другом"
+                        MinHeight="44"
+                        MinWidth="160"
+                        AutomationProperties.Name="Играть с другом" />
+        </StackPanel>
         <TextBlock x:Name="ModeHintText"
+                   Grid.Column="1"
                    Text="{Binding ModeHint}"
                    VerticalAlignment="Center"
                    TextWrapping="Wrap"
                    Margin="8,0,0,0"
                    Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-      </StackPanel>
+      </Grid>
     </Border>
 
     <!-- Содержимое общее для обеих раскладок: виды режимов и раздел «Меню» живут здесь

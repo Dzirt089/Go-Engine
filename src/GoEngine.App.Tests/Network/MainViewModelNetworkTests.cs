@@ -155,6 +155,27 @@ public sealed class MainViewModelNetworkTests
     }
 
     [Fact]
+    public async Task Гость_Может_Сходить_После_Отклонённого_Хода()
+    {
+        // Регрессия живого прогона: на нелегальный ход хозяин молчал, и гость навсегда
+        // оставался с «Ждём подтверждения хода…».
+        var time = new FakeTimeProvider();
+        using var model = CreateModel(time, Options(time));
+        var client = new FakeNetworkClient();
+        _ = model.StartNetworkGuest(
+            client,
+            new GuestSessionStarted("0123456789abcdef0123456789abcdef", 9, 5.5, StoneColor.Black, 1, 90_000));
+
+        Assert.True(await model.PlayMoveAsync(new Point(4, 4)));
+        client.RaiseFailed(new LanErrorEventArgs(LanErrorCodes.MoveRejected, "Ход не по правилам."));
+
+        Assert.True(model.IsNetworkGame);
+        Assert.True(model.CanPlayMove);
+        Assert.True(await model.PlayMoveAsync(new Point(5, 5)));
+        Assert.Equal(2, client.Requests.Count);
+    }
+
+    [Fact]
     public void Гость_Восстанавливает_Состояние_После_Переподключения()
     {
         var time = new FakeTimeProvider();

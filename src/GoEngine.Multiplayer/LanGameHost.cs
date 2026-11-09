@@ -359,6 +359,26 @@ public sealed class LanGameHost : INetworkGameHost
         }, cancellationToken);
     }
 
+    /// <summary>Сообщить гостю, что его ход отклонён, не закрывая соединение.</summary>
+    /// <param name="code">Код ошибки из <see cref="LanErrorCodes"/>.</param>
+    /// <param name="message">Понятное сообщение на русском.</param>
+    /// <param name="cancellationToken">Отмена отправки.</param>
+    /// <returns>Успех или причина отказа.</returns>
+    public Task<Result> SendMoveRejectedAsync(string code, string message, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(code);
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+
+        return SendAsync(new LanMessage
+        {
+            Type = LanMessageTypes.MoveRejected,
+            ProtocolVersion = _options.ProtocolVersion,
+            GameId = _gameId,
+            Code = code,
+            Message = message
+        }, cancellationToken);
+    }
+
     /// <summary>Сообщить гостю об ошибке и завершить партию.</summary>
     /// <param name="code">Код ошибки из <see cref="LanErrorCodes"/>.</param>
     /// <param name="message">Понятное сообщение на русском.</param>
