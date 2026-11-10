@@ -1130,15 +1130,19 @@ public sealed partial class MainViewModel : IDisposable
                 chosen = choice ?? RandomColor();
             }
 
-            var guestColor = ColorDraw.Opposite(chosen);
-            var done = await host.SendColorDrawDoneAsync(chosen, guestColor, cancellationToken).ConfigureAwait(true);
+            // chosen — цвет того, кто выбирал: гостя в ветке «гость угадал», хозяина иначе.
+            // Дальше раскладываем его по сторонам; перепутать местами — значит отдать гостю
+            // цвет, противоположный его выбору (баг приёмки v0.2.130).
+            var guestColor = _colorDrawGuestWins ? chosen : ColorDraw.Opposite(chosen);
+            var hostColor = ColorDraw.Opposite(guestColor);
+            var done = await host.SendColorDrawDoneAsync(hostColor, guestColor, cancellationToken).ConfigureAwait(true);
             if (!done.IsSuccess)
             {
                 AbortColorDraw(done.Error);
                 return;
             }
 
-            CompleteColorDraw(chosen);
+            CompleteColorDraw(hostColor);
         }
         catch (OperationCanceledException)
         {

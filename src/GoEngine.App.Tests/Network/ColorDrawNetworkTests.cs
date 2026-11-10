@@ -76,9 +76,12 @@ public sealed class ColorDrawNetworkTests
 
         Assert.False(model.IsColorDrawActive);
         var (hostColor, guestColor) = Assert.Single(host.ColorDrawDones);
-        Assert.Equal(guestWon ? StoneColor.White : StoneColor.Black, hostColor);
-        Assert.Equal(guestWon ? StoneColor.Black : StoneColor.White, guestColor);
-        Assert.Equal(hostColor == StoneColor.Black ? "чёрные" : "белые", model.NetworkPlayerColorText);
+
+        // Оба сценария выбирают «свой» цвет так, чтобы ориентация была однозначной:
+        // гость выбрал белые, хозяин — чёрные. Ожидаемая раскладка всегда host=Black, guest=White.
+        Assert.Equal(StoneColor.Black, hostColor);
+        Assert.Equal(StoneColor.White, guestColor);
+        Assert.Equal("чёрные", model.NetworkPlayerColorText);
         Assert.True(model.IsGameStarted);
     }
 
