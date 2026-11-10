@@ -278,15 +278,27 @@ public sealed partial class App : Application
     /// <returns>Задача, завершающаяся после показа оболочки.</returns>
     private static async Task OpenShellViewAsync(ISingleViewApplicationLifetime mobile, LoadingView loading)
     {
+        // Продолжение не должно зависеть от SynchronizationContext: в Android-рантайме 8.0.34
+        // возобновление после await в захваченном UI-контексте перестало происходить, и экран
+        // загрузки оставался навсегда (регресс 0.2.124). Поэтому продолжение идёт на пуле,
+        // а оболочку создаём явной публикацией в UI-поток.
+        await PrepareAsync(loading).ConfigureAwait(false);
+
+        Dispatcher.UIThread.Post(() => OpenShellView(mobile, loading));
+    }
+
+    /// <summary>Создаёт и показывает оболочку в UI-потоке.</summary>
+    /// <param name="mobile">Жизненный цикл единственного вида.</param>
+    /// <param name="loading">Экран загрузки: его заменяет оболочка.</param>
+    private static void OpenShellView(ISingleViewApplicationLifetime mobile, LoadingView loading)
+    {
         try
         {
-            await PrepareAsync(loading).ConfigureAwait(true);
-
             loading.Show("Открываю игру…");
 
-            // Создание оболочки вынесено в try: задача запускается через `_ =`, и любое
-            // исключение здесь раньше терялось — игрок навсегда оставался на экране загрузки
-            // (регресс 0.2.124). Теперь причина попадает в лог, а экран говорит, что случилось.
+            // Исключение при создании оболочки раньше терялось: задача запускается через `_ =`,
+            // и игрок навсегда оставался на экране загрузки. Теперь причина попадает в лог,
+            // а экран говорит, что случилось.
             var shell = new ShellView();
 
             mobile.MainView = shell;
@@ -320,7 +332,9 @@ public sealed partial class App : Application
 
         try
         {
-            await Task.Run(prepare).ConfigureAwait(true);
+            // ConfigureAwait(false): продолжение не зависит от UI-контекста; UI обновляет
+            // вызывающий явной публикацией (см. OpenShellViewAsync/OpenDesktopWindowAsync).
+            await Task.Run(prepare).ConfigureAwait(false);
         }
         catch (Exception exception)
         {

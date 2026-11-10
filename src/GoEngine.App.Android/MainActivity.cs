@@ -27,6 +27,14 @@ namespace GoEngine.App.Android;
     ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.UiMode)]
 public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App>
 {
+    /// <summary>Активность уже успешно создавалась в этом процессе.</summary>
+    /// <remarks>
+    /// На холодном старте главного вида ещё нет, и трогать Avalonia до <c>base.OnCreate</c>
+    /// незачем. Флаг выставляется в конце первого успешного создания: следующее создание
+    /// активности в том же процессе — это уже пересоздание, где главный вид надо отвязать.
+    /// </remarks>
+    private static bool _activityCreated;
+
     /// <inheritdoc />
     protected override void OnCreate(Bundle? savedInstanceState)
     {
@@ -40,13 +48,14 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
         // ещё лежит в ContentPresenter старой, и повторное добавление в дерево падает
         // с «already has a visual parent». Отвязываем вид до base.OnCreate — там Avalonia
         // создаёт новый AvaloniaView и кладёт в него lifetime.MainView.
-        var released = global::GoEngine.App.Views.MainViewHost.Release();
-
-        if (released)
+        // На холодном старте не трогаем Avalonia до base.OnCreate: обращение к Application.Current
+        // до инициализации платформы — лишний риск, а отвязывать ещё нечего. На повторном создании
+        // активности в том же процессе (флаг выставлен в конце первого OnCreate) главный вид
+        // действительно уже привязан к старому ContentPresenter — его надо отвязать.
+        if (_activityCreated)
         {
-            // Отвязка сработала — значит, процесс уже жил и у главного вида был прежний родитель.
-            // На холодном старте MainView ещё нет, поэтому лишнего обращения к Avalonia до
-            // base.OnCreate не делаем (единственное — сам Release, без которого фикс невозможен).
+            var released = global::GoEngine.App.Views.MainViewHost.Release();
+
             global::GoEngine.App.Services.Logging.AppLogMessages.ActivityRecreated(
                 global::GoEngine.App.Services.Logging.AppLog.For<MainActivity>(),
                 savedInstanceState is not null,
@@ -70,6 +79,9 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
         // Подписка — после успешного создания активности: если base.OnCreate упадёт,
         // обработчик не останется висеть в статическом событии и не будет держать активность.
         global::GoEngine.App.App.KeepScreenOnChanged += OnKeepScreenOnChanged;
+
+        // Следующее создание активности в этом процессе уже должно отвязать главный вид.
+        _activityCreated = true;
     }
 
     /// <summary>Включает/выключает «экран не гаснет» из модели партии.</summary>
