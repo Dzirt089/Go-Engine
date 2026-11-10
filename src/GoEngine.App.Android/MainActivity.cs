@@ -137,8 +137,17 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
     {
         global::GoEngine.App.Services.Logging.AppLog.Shutdown(0);
 
-        FinishAffinity();
-        Process.KillProcess(Process.MyPid());
+        // FinishAndRemoveTask снимает задачу из Recents: FinishAffinity завершал активности,
+        // но пустая карточка приложения оставалась в списке недавних (находка приёмки v0.2.127).
+        FinishAndRemoveTask();
+
+        // Процесс убиваем не мгновенно: даём ActivityTaskManager обработать удаление задачи,
+        // иначе он не успевает убрать snapshot и карточка остаётся в Recents.
+        _ = Task.Delay(400).ContinueWith(
+            static _ => Process.KillProcess(Process.MyPid()),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     /// <summary>Каталог логов: видимые файлы приложения на внешнем носителе.</summary>
