@@ -40,6 +40,22 @@ public sealed class RoomDiscoveryProtocolTests
     }
 
     [Fact]
+    public void Версия_Игрового_Протокола_Не_Ломает_Обнаружение()
+    {
+        // Регрессия v0.2.129: комната объявляла версию игрового протокола (2), а наблюдатель
+        // ждал версию пакета обнаружения (1) и отбрасывал все комнаты — в одной Wi-Fi было пусто.
+        var room = new RoomAnnouncement("042317", 1, 42, 9, 47810, protocolVersion: 2);
+
+        var payload = RoomDiscoveryProtocol.Encode(room);
+        var decoded = RoomDiscoveryProtocol.TryDecode(payload, out var restored);
+
+        Assert.True(decoded);
+        Assert.NotNull(restored);
+        Assert.Equal(RoomDiscoveryProtocol.ProtocolVersion, restored.ProtocolVersion);
+        Assert.Equal("042317", restored.GameId);
+    }
+
+    [Fact]
     public void Некорректный_Размер_Доски_Отклонён()
     {
         var room = new RoomAnnouncement(

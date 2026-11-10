@@ -17,7 +17,11 @@ internal static class RoomDiscoveryProtocol
         var packet = new RoomPacket
         {
             Magic = Magic,
-            ProtocolVersion = room.ProtocolVersion,
+
+            // Версия пакета обнаружения — отдельная от версии игрового протокола. Раньше сюда
+            // попадала версия игры; после повышения игрового протокола до 2 объявления перестали
+            // приниматься собственным наблюдателем (он ждёт v=1) — комнаты исчезли из списка.
+            ProtocolVersion = RoomDiscoveryProtocol.ProtocolVersion,
             GameId = room.GameId,
             HostAvatarId = room.HostAvatarId,
             RoomNumber = room.RoomNumber,
