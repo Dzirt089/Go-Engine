@@ -63,6 +63,7 @@ public sealed class UiThemeContrastTests
     [InlineData("AppWinTextColor", "AppWinSoftColor", 4.5)]
     [InlineData("AppLoseTextColor", "AppLoseSoftColor", 4.5)]
     [InlineData("AppDrawTextColor", "AppDrawSoftColor", 4.5)]
+    [InlineData("AppOnAccentMutedColor", "AppAccentColor", 4.5)]
     public void Контраст_Пар_Не_Ниже_Нормы(string foreground, string background, double minimum)
     {
         foreach (var (name, values) in Themes)

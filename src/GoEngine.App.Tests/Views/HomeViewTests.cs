@@ -44,6 +44,11 @@ public sealed class HomeViewTests
         Assert.NotNull(home.FindControl<Button>("LessonCard"));
         Assert.NotNull(home.FindControl<Button>("MenuButton"));
         Assert.Null(home.FindControl<Button>("ProblemCard"));
+
+        // Локальные on-accent-цвета читаются с главной карточки: сами цвета проверяются
+        // в HomeViewStyleTests и UiThemeContrastTests (R-003).
+        Assert.NotNull(home.FindControl<TextBlock>("GameTitle"));
+        Assert.NotNull(home.FindControl<TextBlock>("GameCaption"));
     }
 
     [Fact]

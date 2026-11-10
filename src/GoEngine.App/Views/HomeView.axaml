@@ -75,14 +75,10 @@
       <Setter Property="BorderBrush" Value="{DynamicResource AppOnAccentBrush}" />
     </Style>
 
-    <Style Selector="Button.home-card.primary TextBlock.home-card-title">
-      <Setter Property="Foreground" Value="{DynamicResource AppOnAccentBrush}" />
-    </Style>
+    <!-- Цвета «на акценте» задаются локально на TextBlock основной карточки (ниже, в разметке),
+         а не стилем: стиль того же уровня проигрывает объявленному позже общему правилу
+         home-card-title/caption, и подпись становилась невидимой (R-003, D-125). -->
 
-    <Style Selector="Button.home-card.primary TextBlock.home-card-caption">
-      <Setter Property="Foreground" Value="{DynamicResource AppOnAccentBrush}" />
-      <Setter Property="Opacity" Value="0.85" />
-    </Style>
 
     <!-- Значок режима: мягкая подложка акцента. Значки нарисованы векторами —
          значкового шрифта в проекте нет. -->
@@ -256,8 +252,16 @@
                         Margin="16,0,0,0"
                         Spacing="3"
                         VerticalAlignment="Center">
-              <TextBlock Classes="home-card-title" Text="Партия с ИИ" />
-              <TextBlock Classes="home-card-caption" Text="Сыграйте с компьютером" />
+              <!-- Локальные значения важнее любых стилей: подпись обязана читаться на акценте
+                   в обеих темах (R-003; контраст проверяет UiThemeContrastTests). -->
+              <TextBlock x:Name="GameTitle"
+                         Classes="home-card-title"
+                         Foreground="{DynamicResource AppOnAccentBrush}"
+                         Text="Партия с ИИ" />
+              <TextBlock x:Name="GameCaption"
+                         Classes="home-card-caption"
+                         Foreground="{DynamicResource AppOnAccentMutedBrush}"
+                         Text="Сыграйте с компьютером" />
             </StackPanel>
           </Grid>
         </Button>

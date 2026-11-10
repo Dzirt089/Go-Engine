@@ -60,6 +60,10 @@
       <SolidColorBrush x:Key="AppAccentHoverBrush" Color="{StaticResource AppAccentHoverColor}" />
       <SolidColorBrush x:Key="AppAccentPressedBrush" Color="{StaticResource AppAccentPressedColor}" />
       <SolidColorBrush x:Key="AppOnAccentBrush" Color="#FFFFFF" />
+      <!-- Приглушённый текст на акценте: не полупрозрачность, а отдельный цвет с контрастом
+           не ниже 4.5:1 к AppAccentColor (R-003). -->
+      <Color x:Key="AppOnAccentMutedColor">#E9EFF9</Color>
+      <SolidColorBrush x:Key="AppOnAccentMutedBrush" Color="{StaticResource AppOnAccentMutedColor}" />
 
       <!-- Состояния: завершённая партия и предупреждение. Опасность — глубокий красный:
            на белой карточке он читается и как цвет, и как текст. -->
@@ -194,6 +198,9 @@
       <SolidColorBrush x:Key="AppAccentHoverBrush" Color="{StaticResource AppAccentHoverColor}" />
       <SolidColorBrush x:Key="AppAccentPressedBrush" Color="{StaticResource AppAccentPressedColor}" />
       <SolidColorBrush x:Key="AppOnAccentBrush" Color="#0B0F19" />
+      <!-- На светлом акценте тёмной темы приглушённый текст остаётся тёмным: 7.63:1 (R-003). -->
+      <Color x:Key="AppOnAccentMutedColor">#152030</Color>
+      <SolidColorBrush x:Key="AppOnAccentMutedBrush" Color="{StaticResource AppOnAccentMutedColor}" />
 
       <!-- Состояния -->
       <SolidColorBrush x:Key="AppDangerBrush" Color="#FF8A80" />
