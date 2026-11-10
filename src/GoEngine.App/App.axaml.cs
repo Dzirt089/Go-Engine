@@ -278,9 +278,24 @@ public sealed partial class App : Application
     /// <returns>Задача, завершающаяся после показа оболочки.</returns>
     private static async Task OpenShellViewAsync(ISingleViewApplicationLifetime mobile, LoadingView loading)
     {
-        await PrepareAsync(loading).ConfigureAwait(true);
+        try
+        {
+            await PrepareAsync(loading).ConfigureAwait(true);
 
-        mobile.MainView = new ShellView();
+            loading.Show("Открываю игру…");
+
+            // Создание оболочки вынесено в try: задача запускается через `_ =`, и любое
+            // исключение здесь раньше терялось — игрок навсегда оставался на экране загрузки
+            // (регресс 0.2.124). Теперь причина попадает в лог, а экран говорит, что случилось.
+            var shell = new ShellView();
+
+            mobile.MainView = shell;
+        }
+        catch (Exception exception)
+        {
+            CrashReporter.Report(exception, "App.OpenShellView");
+            loading.Show("Не удалось открыть игру. Подробности — в логе.");
+        }
     }
 
     /// <summary>Выполняет подготовку головы в фоне, показывая её ход на экране загрузки.</summary>

@@ -40,12 +40,13 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
         // ещё лежит в ContentPresenter старой, и повторное добавление в дерево падает
         // с «already has a visual parent». Отвязываем вид до base.OnCreate — там Avalonia
         // создаёт новый AvaloniaView и кладёт в него lifetime.MainView.
-        var recreated = global::Avalonia.Application.Current is not null;
         var released = global::GoEngine.App.Views.MainViewHost.Release();
 
-        if (recreated)
+        if (released)
         {
-            // Только диагностика: пересоздание активности в живом процессе — не первый запуск.
+            // Отвязка сработала — значит, процесс уже жил и у главного вида был прежний родитель.
+            // На холодном старте MainView ещё нет, поэтому лишнего обращения к Avalonia до
+            // base.OnCreate не делаем (единственное — сам Release, без которого фикс невозможен).
             global::GoEngine.App.Services.Logging.AppLogMessages.ActivityRecreated(
                 global::GoEngine.App.Services.Logging.AppLog.For<MainActivity>(),
                 savedInstanceState is not null,
