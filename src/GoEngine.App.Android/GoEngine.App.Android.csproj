@@ -9,11 +9,6 @@
   <PropertyGroup>
     <TargetFramework>net8.0-android34.0</TargetFramework>
 
-    <!-- Android runtime pack фиксируем на проверенной версии: при обновлении workload-манифеста
-         CI перешёл на pack 8.0.34, и на Android перестало возобновляться продолжение после
-         await в UI-контексте (v0.2.124/125 зависали на экране загрузки). 8.0.33 — рантайм
-         рабочей v0.2.123. App-код дополнительно не полагается на SynchronizationContext. -->
-    <RuntimeFrameworkVersion>8.0.33</RuntimeFrameworkVersion>
     <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
