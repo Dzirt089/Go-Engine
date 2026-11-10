@@ -185,6 +185,13 @@ public sealed partial class ShellView : UserControl
             MenuArea.ExitRequested += OnExitRequested;
         }
 
+        if (GameArea is not null)
+        {
+            // Терминальный сетевой обрыв и «В меню» на карточке: сеть уже закрыта, игрок уходит
+            // на главный экран. Навигацию решает оболочка, модель партии про разделы не знает.
+            GameArea.NetworkReturnHomeRequested += OnNetworkReturnHomeRequested;
+        }
+
         if (LessonArea is not null)
         {
             // Словарь терминов — отдельный экран раздела «Обучение»: его показывает оболочка,
@@ -483,6 +490,16 @@ public sealed partial class ShellView : UserControl
         GameArea?.CloseMenu();
         global::GoEngine.App.App.KeepScreenOn = false;
         Shell.ShowHome();
+    }
+
+    /// <summary>Вид партии вышел из сети и просит вернуть игрока на главный экран.</summary>
+    /// <param name="sender">Вид партии.</param>
+    /// <param name="e">Признак запроса.</param>
+    private void OnNetworkReturnHomeRequested(object? sender, EventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        ReturnToHome();
     }
 
     /// <summary>Открывает «О программе» из раздела «Меню».</summary>

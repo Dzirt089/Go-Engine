@@ -18,6 +18,17 @@
        представления и чистые функции GameStatusLines, а вид только подставляет их. Правило
        записано после жалобы 2026-09-30: одна и та же мысль стояла в трёх местах сразу. -->
 
+  <UserControl.Styles>
+    <!-- Последние 10 секунд на ход: мягкий акцент, без красного (M2 ревью P4). -->
+    <Style Selector="Border.network-urgent">
+      <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppOnAccentBrush}" />
+    </Style>
+    <Style Selector="Border.network-urgent TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource AppOnAccentBrush}" />
+    </Style>
+  </UserControl.Styles>
+
   <Panel x:Name="Root">
 
     <!-- Настольная раскладка. Панель справа прокручивается и содержит то, что не поместилось:
@@ -153,6 +164,23 @@
                        TextWrapping="Wrap"
                        IsVisible="False"
                        Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+
+            <!-- Короткое сетевое сообщение на настольной панели. На телефоне та же плашка
+                 живёт в строке доски (ниже), чтобы не перекрывать нижнюю шторку (M3 ревью P4). -->
+            <Border x:Name="NetworkNoticePill"
+                    IsVisible="False"
+                    IsHitTestVisible="False"
+                    Margin="0,2,0,0"
+                    Padding="10,6"
+                    CornerRadius="10"
+                    Background="{DynamicResource AppAccentSoftBrush}"
+                    BorderBrush="{DynamicResource AppAccentBrush}"
+                    BorderThickness="1">
+              <TextBlock x:Name="NetworkNoticeText"
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap"
+                         Foreground="{DynamicResource AppAccentBrush}" />
+            </Border>
 
             <!-- Подробности свёрнуты по умолчанию: соперник, ход, коми, разбор счёта и подсказка
                  об уровнях — то, что нужно не каждый ход. Содержимое обязано быть: кнопка,
@@ -389,6 +417,28 @@
                        Classes="app-label"
                        TextAlignment="Center"
                        TextWrapping="Wrap" />
+          </Border>
+
+          <!-- Сетевое сообщение (передача хода, авто-пас): плашка в строке доски над панелью
+               действий. Раньше она один раз лежала в корне поверх шторки и закрывала строку
+               состояния с 30-й секунды (M3 ревью P4). -->
+          <Border x:Name="MobileNetworkNoticePill"
+                  VerticalAlignment="Bottom"
+                  HorizontalAlignment="Center"
+                  Margin="8,8,8,50"
+                  MaxWidth="420"
+                  Padding="12,6"
+                  CornerRadius="12"
+                  IsVisible="False"
+                  IsHitTestVisible="False"
+                  Background="{DynamicResource AppAccentSoftBrush}"
+                  BorderBrush="{DynamicResource AppAccentBrush}"
+                  BorderThickness="1">
+            <TextBlock x:Name="MobileNetworkNoticeText"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       Foreground="{DynamicResource AppAccentBrush}" />
           </Border>
         </Panel>
 
@@ -922,6 +972,46 @@
                между подразделами и кнопками «Сохранить»/«Отмена». -->
           <views:SettingsView x:Name="SettingsArea" Grid.Row="1" />
         </Grid>
+      </Border>
+    </Border>
+
+    <!-- Обрыв и терминальный итог: заметный слой с причиной и действием. Затемнение
+         закрывает доску: в этих состояниях ходить нельзя, и кнопки не должны выглядеть живыми. -->
+    <Border x:Name="NetworkStateOverlay"
+            IsVisible="False"
+            Classes="app-overlay">
+      <Border Classes="app-banner app-overlay-card"
+              MaxWidth="420"
+              Padding="16"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <StackPanel Spacing="10">
+          <TextBlock x:Name="NetworkStateTitle"
+                     Classes="app-subtitle"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center"
+                     HorizontalAlignment="Center" />
+          <TextBlock x:Name="NetworkStateText"
+                     Classes="app-label"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+          <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
+            <Button x:Name="NetworkStateWaitButton"
+                    Grid.Column="0"
+                    Content="Остаться"
+                    Classes="app-action"
+                    Margin="0,0,4,0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" />
+            <Button x:Name="NetworkStateLeaveButton"
+                    Grid.Column="1"
+                    Content="Выйти"
+                    Classes="app-action danger"
+                    Margin="4,0,0,0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" />
+          </Grid>
+        </StackPanel>
       </Border>
     </Border>
 

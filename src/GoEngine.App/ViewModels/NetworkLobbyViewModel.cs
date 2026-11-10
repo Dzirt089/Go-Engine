@@ -227,6 +227,7 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
         try
         {
             host.GuestJoinRequested += OnGuestJoinRequested;
+            host.GuestJoinCancelled += OnGuestJoinCancelled;
             host.GuestConnected += OnGuestConnected;
             host.Failed += OnHostFailed;
             var result = await host.StartHostingAsync(
@@ -237,6 +238,7 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
             if (!result.IsSuccess)
             {
                 host.GuestJoinRequested -= OnGuestJoinRequested;
+                host.GuestJoinCancelled -= OnGuestJoinCancelled;
                 host.GuestConnected -= OnGuestConnected;
                 host.Failed -= OnHostFailed;
                 await host.DisposeAsync().ConfigureAwait(true);
@@ -334,6 +336,7 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
         SetStatus(_roomsView.Count > 0 ? "Комната отменена. Выбери комнату друга." : "Комната отменена. Можно создать новую.");
 
         host.GuestJoinRequested -= OnGuestJoinRequested;
+        host.GuestJoinCancelled -= OnGuestJoinCancelled;
         host.GuestConnected -= OnGuestConnected;
         host.Failed -= OnHostFailed;
         await host.StopAsync().ConfigureAwait(true);
@@ -481,6 +484,7 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
         if (host is not null)
         {
             host.GuestJoinRequested -= OnGuestJoinRequested;
+            host.GuestJoinCancelled -= OnGuestJoinCancelled;
             host.GuestConnected -= OnGuestConnected;
             host.Failed -= OnHostFailed;
             await host.StopAsync().ConfigureAwait(true);
@@ -579,13 +583,36 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
             var hostIsBlack = RandomNumberGenerator.GetInt32(2) == 0;
             _hostColor = hostIsBlack ? StoneColor.Black : StoneColor.White;
             _guestColor = hostIsBlack ? StoneColor.White : StoneColor.Black;
-            _colorDrawText = $"Ты — {ColorName(_hostColor)}, {AvatarOf(e.GuestAvatarId).Name} — {ColorName(_guestColor)}";
-            _guestRequestText = $"{AvatarOf(e.GuestAvatarId).Name} хочет играть!";
+
+            // Имена-звери у обоих могут совпасть («два Лиса»): роли и цвета называем явно (R-010).
+            _colorDrawText = ColorDrawLabel(_hostColor, _guestColor);
+            _guestRequestText = GuestRequestLabel(AvatarOf(e.GuestAvatarId));
             _joinRequestVisible = true;
             SetStatus($"{_guestRequestText} Пустить?");
             OnPropertyChanged(nameof(IsJoinRequestVisible));
             OnPropertyChanged(nameof(GuestRequestText));
             OnPropertyChanged(nameof(ColorDrawText));
+        });
+
+    /// <summary>Заявка гостя снята до решения хозяина: карточка «хочет играть» убирается.</summary>
+    /// <param name="sender">Хозяин комнаты.</param>
+    /// <param name="e">Признак события; не используется.</param>
+    /// <remarks>Internal — чтобы поведение карточки проверялось без живого гостя.</remarks>
+    internal void OnGuestJoinCancelled(object? sender, EventArgs e) =>
+        Dispatch(() =>
+        {
+            if (!_hosting)
+            {
+                return;
+            }
+
+            // Гость закрыл соединение или не дождался решения: карточка «хочет играть» снимается,
+            // иначе хозяин видел бы заявку, на которую уже некому ответить (R-007).
+            _joinRequestVisible = false;
+            _colorDrawText = null;
+            OnPropertyChanged(nameof(IsJoinRequestVisible));
+            OnPropertyChanged(nameof(ColorDrawText));
+            SetStatus("Гость закрыл соединение. Ждём другого.");
         });
 
     private void OnGuestConnected(object? sender, EventArgs e) =>
@@ -632,6 +659,7 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
         }
 
         host.GuestJoinRequested -= OnGuestJoinRequested;
+        host.GuestJoinCancelled -= OnGuestJoinCancelled;
         host.GuestConnected -= OnGuestConnected;
         host.Failed -= OnHostFailed;
         _host = null;
@@ -694,6 +722,27 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
     {
         _error = error;
         OnPropertyChanged(nameof(ErrorText));
+    }
+
+    /// <summary>Текст розыгрыша цвета с явными ролями.</summary>
+    /// <param name="hostColor">Цвет хозяина.</param>
+    /// <param name="guestColor">Цвет гостя.</param>
+    /// <returns>«Ты — чёрные · соперник — белые».</returns>
+    /// <remarks>
+    /// Имена-звери у обоих игроков могут совпасть: роли названы явно, чтобы «два Лиса»
+    /// не запутали ребёнка (R-010).
+    /// </remarks>
+    internal static string ColorDrawLabel(StoneColor hostColor, StoneColor guestColor) =>
+        $"Ты — {ColorName(hostColor)} · соперник — {ColorName(guestColor)}";
+
+    /// <summary>Подпись заявки гостя с явной ролью.</summary>
+    /// <param name="guest">Выбранный гостем зверь.</param>
+    /// <returns>«Соперник 🦊 Лиса хочет играть!».</returns>
+    internal static string GuestRequestLabel(AvatarChoice guest)
+    {
+        ArgumentNullException.ThrowIfNull(guest);
+
+        return $"Соперник {guest} хочет играть!";
     }
 
     private static string ColorName(StoneColor color) =>

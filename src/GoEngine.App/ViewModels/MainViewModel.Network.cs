@@ -21,6 +21,21 @@ namespace GoEngine.App.ViewModels;
 /// </remarks>
 public sealed partial class MainViewModel : IDisposable
 {
+    /// <summary>Короткое сообщение о передаче хода.</summary>
+    private const string NoticeMyTurn = "Твой ход!";
+
+    /// <summary>Короткое сообщение о вынужденном пасе по таймеру.</summary>
+    private const string NoticeTimeIsUp = "Время вышло — пас";
+
+    /// <summary>Короткое сообщение о возвращении соперника.</summary>
+    private const string NoticeOpponentBack = "Соперник вернулся";
+
+    /// <summary>Подсказка перед вынужденным пасом.</summary>
+    private const string TimerWarning = "Походи, а то будет пас";
+
+    /// <summary>Сколько живёт короткое сетевое сообщение.</summary>
+    private static readonly TimeSpan NoticeLifetime = TimeSpan.FromSeconds(3);
+
     private readonly TimeProvider _timeProvider;
     private readonly MultiplayerOptions _networkOptions;
     private readonly List<AppliedMove> _networkHistory = [];
@@ -41,6 +56,14 @@ public sealed partial class MainViewModel : IDisposable
     private DateTimeOffset _networkRemainingAt;
     private int _networkConsecutiveAutoPasses;
     private string? _networkError;
+    private string? _networkNotice;
+    private DateTimeOffset _networkNoticeUntil;
+    private string? _networkTerminalMessage;
+    private DateTimeOffset _networkReconnectDeadline;
+    private bool _networkReconnectDeadlineSet;
+    private bool _networkBannerDismissed;
+    private int _networkWarningLevel;
+    private int _networkTurnCueMoveNumber = -1;
 
     /// <summary>Идёт сетевая партия.</summary>
     public bool IsNetworkGame => _networkMode;
@@ -91,6 +114,80 @@ public sealed partial class MainViewModel : IDisposable
         ? (_networkPlayerColor == StoneColor.Black ? "белые" : "чёрные")
         : string.Empty;
 
+    /// <summary>Показывать ли короткое сетевое сообщение: передача хода, авто-пас, возврат.</summary>
+    /// <remarks>
+    /// Сообщение живёт несколько секунд и гаснет по таймеру модели (вид зовёт
+    /// <see cref="TickClock"/> раз в секунду). Оно не заменяет строку статуса: та называет
+    /// очередь хода постоянно, а сообщение — заметный момент смены.
+    /// </remarks>
+    public bool IsNetworkNoticeVisible => _networkMode && _networkNotice is not null;
+
+    /// <summary>Текст короткого сетевого сообщения; пустая строка — сообщения нет.</summary>
+    public string NetworkNoticeText => _networkNotice ?? string.Empty;
+
+    /// <summary>Показывать ли подсказку перед вынужденным пасом.</summary>
+    /// <remarks>Показывается только тому, чей ход: пас делает он, а не зритель.</remarks>
+    public bool IsNetworkTimerWarningVisible => GetNetworkWarningLevel() > 0;
+
+    /// <summary>Текст подсказки перед вынужденным пасом.</summary>
+    public string NetworkTimerWarningText => IsNetworkTimerWarningVisible ? TimerWarning : string.Empty;
+
+    /// <summary>Последние 10 секунд на ход: мягкое выделение, без красного.</summary>
+    public bool IsNetworkTimerUrgent => GetNetworkWarningLevel() == 10;
+
+    /// <summary>Соперник потерял связь: идёт ожидание переподключения с обратным отсчётом.</summary>
+    /// <remarks>
+    /// Признак — именно запущенный отсчёт, а не «таймер на паузе»: пауза бывает и от
+    /// протокольной ошибки, которая ждать нечего (M1 ревью P4).
+    /// </remarks>
+    public bool IsNetworkDisconnected =>
+        _networkMode && _networkReconnectDeadlineSet && !_networkFinished && !IsNetworkTerminal;
+
+    /// <summary>Сколько секунд осталось сопернику на возвращение; 0 — ожидание не идёт.</summary>
+    public int NetworkReconnectSecondsLeft
+    {
+        get
+        {
+            if (!_networkReconnectDeadlineSet)
+            {
+                return 0;
+            }
+
+            var left = _networkReconnectDeadline - _timeProvider.GetUtcNow();
+
+            return left > TimeSpan.Zero ? (int)Math.Ceiling(left.TotalSeconds) : 0;
+        }
+    }
+
+    /// <summary>Партия прервана сетевой ошибкой: показывается итоговая карточка, а не строка.</summary>
+    public bool IsNetworkTerminal =>
+        _networkMode && _networkFinished && _networkTerminalMessage is not null;
+
+    /// <summary>Заголовок баннера сетевого состояния.</summary>
+    public string NetworkBannerTitle => IsNetworkTerminal ? "Партия прервана" : "Соперник потерял связь";
+
+    /// <summary>Текст баннера: причина обрыва и обратный отсчёт переподключения.</summary>
+    public string NetworkBannerText => IsNetworkTerminal
+        ? _networkTerminalMessage ?? string.Empty
+        : $"Ждём возвращения · {NetworkReconnectSecondsLeft} с";
+
+    /// <summary>Подпись действия, закрывающего баннер: до терминала — выход, после — «В меню».</summary>
+    public string NetworkBannerLeaveText => IsNetworkTerminal ? "В меню" : "Выйти";
+
+    /// <summary>Показывать ли баннер сетевого состояния.</summary>
+    public bool IsNetworkBannerVisible =>
+        _networkMode && (IsNetworkTerminal || (IsNetworkDisconnected && !_networkBannerDismissed));
+
+    /// <summary>Можно ли отложить баннер обрыва и продолжить ждать («Остаться»).</summary>
+    public bool IsNetworkBannerCanWait => IsNetworkDisconnected && !IsNetworkTerminal;
+
+    /// <summary>Откладывает баннер обрыва: игрок выбрал ждать соперника.</summary>
+    public void DismissNetworkBanner()
+    {
+        _networkBannerDismissed = true;
+        OnPropertyChanged(nameof(IsNetworkBannerVisible));
+    }
+
     /// <summary>Строка состояния сетевой партии.</summary>
     public string NetworkStatusText
     {
@@ -99,6 +196,12 @@ public sealed partial class MainViewModel : IDisposable
             if (!_networkMode)
             {
                 return string.Empty;
+            }
+
+            if (IsNetworkTerminal)
+            {
+                // Причина важнее ярлыка: строка статуса называет её так же, как карточка итога.
+                return _networkError ?? "Партия прервана";
             }
 
             if (!string.IsNullOrWhiteSpace(_networkError))
@@ -123,7 +226,7 @@ public sealed partial class MainViewModel : IDisposable
 
             return _game.ToMove == _networkPlayerColor
                 ? "Твой ход"
-                : $"Ход {NetworkAvatars.NameOf(_networkOpponentAvatarId)}";
+                : $"{NetworkAvatars.NameOf(_networkOpponentAvatarId)} думает";
         }
     }
 
@@ -187,6 +290,7 @@ public sealed partial class MainViewModel : IDisposable
         _networkTimerPaused = false;
         _networkConsecutiveAutoPasses = 0;
         _networkHistory.Clear();
+        ResetNetworkUiState();
         _networkDispatch = SynchronizationContext.Current is { } context
             ? action => context.Post(static state => ((Action)state!)(), action)
             : null;
@@ -200,7 +304,7 @@ public sealed partial class MainViewModel : IDisposable
             _settings.ToScoringRule(),
             _settings.SoundEnabled);
         BeginGame(_settings);
-        MarkStarted();
+        MarkNetworkStarted();
         _networkRemainingMs = (int)_networkOptions.MoveTimeout.TotalMilliseconds;
         _networkRemainingAt = _timeProvider.GetUtcNow();
         _networkTurnTimer?.Dispose();
@@ -208,6 +312,7 @@ public sealed partial class MainViewModel : IDisposable
         _networkTurnTimer.Expired += OnNetworkTurnExpired;
         StartNetworkTimer();
         NotifyAll();
+        NotifyNetworkTurnCue();
 
         var sent = await host.SendTurnStateAsync(_networkRemainingMs, paused: false, cancellationToken).ConfigureAwait(true);
         if (!sent.IsSuccess)
@@ -243,6 +348,7 @@ public sealed partial class MainViewModel : IDisposable
         _networkTimerPaused = false;
         _networkConsecutiveAutoPasses = 0;
         _networkHistory.Clear();
+        ResetNetworkUiState();
         _networkDispatch = SynchronizationContext.Current is { } context
             ? action => context.Post(static state => ((Action)state!)(), action)
             : null;
@@ -256,10 +362,11 @@ public sealed partial class MainViewModel : IDisposable
             _settings.ToScoringRule(),
             _settings.SoundEnabled);
         BeginGame(_settings);
-        MarkStarted();
+        MarkNetworkStarted();
         _networkRemainingMs = started.RemainingMs;
         _networkRemainingAt = _timeProvider.GetUtcNow();
         NotifyAll();
+        NotifyNetworkTurnCue();
 
         return Result.Ok();
     }
@@ -280,6 +387,7 @@ public sealed partial class MainViewModel : IDisposable
         _networkTimerPaused = false;
         _networkError = null;
         _networkOpponentAvatarId = -1;
+        ResetNetworkUiState();
 
         // После выхода из сети доска не должна оставаться доской сетевой партии с идущими
         // часами: это выглядело как «ИИ · Ход» посреди чужого поля. Начинаем чистую партию
@@ -378,6 +486,9 @@ public sealed partial class MainViewModel : IDisposable
             _networkTurnTimer?.Stop();
             _networkFinished = true;
             _networkTimerPaused = false;
+            _networkTerminalMessage = null;
+            StopReconnectCountdown();
+            MarkHostFinished();
             remaining = 0;
         }
 
@@ -388,6 +499,7 @@ public sealed partial class MainViewModel : IDisposable
         }
 
         NotifyAll();
+        NotifyNetworkTurnCue(autoPass);
     }
 
     private void StartNetworkTimer()
@@ -397,6 +509,7 @@ public sealed partial class MainViewModel : IDisposable
         _networkRemainingMs = (int)_networkOptions.MoveTimeout.TotalMilliseconds;
         _networkRemainingAt = _timeProvider.GetUtcNow();
         _networkTimerPaused = false;
+        _networkWarningLevel = 0;
     }
 
     private void OnNetworkTurnExpired(object? sender, EventArgs e) =>
@@ -558,6 +671,7 @@ public sealed partial class MainViewModel : IDisposable
         _networkReconnectTimeout?.Cancel();
         _networkReconnectTimeout?.Dispose();
         _networkReconnectTimeout = new CancellationTokenSource();
+        StartReconnectCountdown();
         NotifyAll();
         _ = RunNetworkTaskAsync(() => WaitReconnectTimeoutAsync(_networkReconnectTimeout.Token));
     }
@@ -588,6 +702,8 @@ public sealed partial class MainViewModel : IDisposable
 
         _networkReconnectTimeout?.Cancel();
         _networkTimerPaused = false;
+        StopReconnectCountdown();
+        ShowNetworkNotice(NoticeOpponentBack);
         _networkTurnTimer?.Resume();
         await SendHostStateSyncAsync().ConfigureAwait(true);
         if (_networkHost is not null)
@@ -647,12 +763,16 @@ public sealed partial class MainViewModel : IDisposable
         _networkRemainingMs = Math.Max(0, applied.RemainingMs);
         _networkRemainingAt = _timeProvider.GetUtcNow();
         _networkTimerPaused = false;
+        _networkWarningLevel = 0;
         if (_game.Status != GameStatus.InProgress)
         {
             _networkFinished = true;
+            _networkTerminalMessage = null;
+            StopReconnectCountdown();
         }
 
         NotifyAll();
+        NotifyNetworkTurnCue(applied.AutoPass);
         await Task.CompletedTask.ConfigureAwait(true);
     }
 
@@ -704,8 +824,13 @@ public sealed partial class MainViewModel : IDisposable
         _networkError = null;
         _networkAwaitingConfirmation = false;
         _networkFinished = _game.Status != GameStatus.InProgress;
+        _networkWarningLevel = 0;
+        _networkTurnCueMoveNumber = -1;
+        _networkTerminalMessage = null;
+        StopReconnectCountdown();
         StopClockIfFinished();
         NotifyAll();
+        NotifyNetworkTurnCue();
     }
 
     private void OnGuestDisconnected(object? sender, EventArgs e) =>
@@ -718,6 +843,7 @@ public sealed partial class MainViewModel : IDisposable
 
             _networkRemainingMs = (int)GetNetworkRemaining().TotalMilliseconds;
             _networkTimerPaused = true;
+            StartReconnectCountdown();
             NotifyAll();
         });
 
@@ -730,6 +856,8 @@ public sealed partial class MainViewModel : IDisposable
             }
 
             _networkTimerPaused = false;
+            StopReconnectCountdown();
+            ShowNetworkNotice(NoticeOpponentBack);
             NotifyAll();
         });
 
@@ -743,36 +871,47 @@ public sealed partial class MainViewModel : IDisposable
             return;
         }
 
-        AppLogMessages.NetworkError(_log, error.Code, error.Message);
-        _networkError = error.Message;
         if (error.Code == LanErrorCodes.MoveRejected)
         {
             // Отклонённый ход — не потеря связи: гость остаётся в партии и может сходить снова.
+            AppLogMessages.NetworkError(_log, error.Code, error.Message);
             _networkAwaitingConfirmation = false;
             NotifyAll();
             return;
         }
 
-        if (error.Code is LanErrorCodes.HostLeft or LanErrorCodes.Stalled or LanErrorCodes.ReconnectTimeout)
+        if (_networkFinished && _game.Status != GameStatus.InProgress)
         {
-            // Партия прервана окончательно: иначе гость навсегда остаётся в «Связь потеряна»
-            // и не видит итога. Часы останавливаем, ходы закрываем.
-            _networkFinished = true;
-            _networkAwaitingConfirmation = false;
-            _networkTimerPaused = true;
-            _clock.Stop();
-            NotifyAll();
+            // Поздняя транспортная ошибка по уже доигранной партии: настоящий итог важнее (B1).
+            _ = RunNetworkTaskAsync(async () =>
+            {
+                await StopNetworkSessionsAsync().ConfigureAwait(true);
+                NotifyAll();
+            });
             return;
         }
 
+        // Любая другая сетевая ошибка не имеет осмысленного «продолжить ждать»: таймер
+        // остался бы замершим навсегда, а баннер показывал «0 с» (M1 ревью P4).
+        AppLogMessages.NetworkError(_log, error.Code, error.Message);
+        _networkError = error.Message;
+        _networkFinished = true;
+        _networkAwaitingConfirmation = false;
         _networkTimerPaused = true;
+        _networkTerminalMessage = error.Message;
+        StopReconnectCountdown();
+        _clock.Stop();
+        MarkHostFinished();
         NotifyAll();
     }
 
     private async Task EndNetworkGameAsync(string message)
     {
+        // Партия уже окончена по правилам — поздний обрыв (гость вышел после итога, истёк
+        // 60-секундный срок) не должен превращать настоящий итог в «Партия прервана» (B1).
+        var alreadyFinished = _game.Status != GameStatus.InProgress || HasOutcome;
         var host = _networkHost;
-        if (host is not null)
+        if (host is not null && !alreadyFinished)
         {
             _ = await host.SendErrorAsync(LanErrorCodes.Stalled, message, CancellationToken.None).ConfigureAwait(true);
         }
@@ -780,11 +919,185 @@ public sealed partial class MainViewModel : IDisposable
         await StopNetworkSessionsAsync().ConfigureAwait(true);
         _networkFinished = true;
         _networkAwaitingConfirmation = false;
-        _networkError = message;
         _networkTimerPaused = true;
+        StopReconnectCountdown();
+
+        if (alreadyFinished || _networkTerminalMessage is not null)
+        {
+            // Итог уже показан (или партия доиграна): тихо закрываем сессию, экран не трогаем.
+            NotifyAll();
+            return;
+        }
+
+        _networkError = message;
+        _networkTerminalMessage = message;
         _clock.Stop();
         AppLogMessages.NetworkError(_log, LanErrorCodes.Stalled, message);
         NotifyAll();
+    }
+
+    /// <summary>Сбрасывает сетевое состояние интерфейса при старте, выходе и восстановлении.</summary>
+    private void ResetNetworkUiState()
+    {
+        _networkNotice = null;
+        _networkNoticeUntil = default;
+        _networkTerminalMessage = null;
+        _networkReconnectDeadlineSet = false;
+        _networkReconnectDeadline = default;
+        _networkBannerDismissed = false;
+        _networkWarningLevel = 0;
+        _networkTurnCueMoveNumber = -1;
+    }
+
+    /// <summary>Сообщает хозяину, что партия окончена: переподключение её не оживит.</summary>
+    /// <remarks>
+    /// Хозяин в модели представления объявлен интерфейсом, а флаг «окончена» нужен только
+    /// реальной комнате: подставные хозяева в проверках состояния партии не ведут.
+    /// </remarks>
+    private void MarkHostFinished()
+    {
+        if (_networkHost is LanGameHost host)
+        {
+            host.MarkFinished();
+        }
+    }
+
+    /// <summary>Показывает короткое сетевое сообщение на несколько секунд.</summary>
+    /// <param name="text">Текст сообщения.</param>
+    private void ShowNetworkNotice(string text)
+    {
+        _networkNotice = text;
+        _networkNoticeUntil = _timeProvider.GetUtcNow() + NoticeLifetime;
+        OnPropertyChanged(nameof(NetworkNoticeText));
+        OnPropertyChanged(nameof(IsNetworkNoticeVisible));
+    }
+
+    /// <summary>Убирает истёкшее сообщение.</summary>
+    private void ClearExpiredNotice()
+    {
+        if (_networkNotice is null || _timeProvider.GetUtcNow() < _networkNoticeUntil)
+        {
+            return;
+        }
+
+        _networkNotice = null;
+        OnPropertyChanged(nameof(NetworkNoticeText));
+        OnPropertyChanged(nameof(IsNetworkNoticeVisible));
+    }
+
+    /// <summary>Сообщает, что ход перешёл к игроку (или что его время вышло).</summary>
+    /// <param name="autoPass">Ход перешёл вынужденным пасом: сообщение об этом важнее cue.</param>
+    private void NotifyNetworkTurnCue(bool autoPass = false)
+    {
+        if (!_networkMode || _networkFinished || _networkTimerPaused)
+        {
+            return;
+        }
+
+        var mine = _game.Status == GameStatus.InProgress && _game.ToMove == _networkPlayerColor;
+
+        if (autoPass)
+        {
+            // Один текст на оба события: ребёнок видит и причину смены, и что ходить ему.
+            ShowNetworkNotice(mine ? $"{NoticeTimeIsUp}. {NoticeMyTurn}" : NoticeTimeIsUp);
+            _networkTurnCueMoveNumber = _game.MoveNumber;
+
+            return;
+        }
+
+        if (mine && _networkTurnCueMoveNumber != _game.MoveNumber)
+        {
+            _networkTurnCueMoveNumber = _game.MoveNumber;
+            ShowNetworkNotice(NoticeMyTurn);
+        }
+    }
+
+    /// <summary>Уровень подсказки о таймере: 0 — рано, 30 — тридцать секунд, 10 — десять.</summary>
+    /// <returns>0, 30 или 10.</returns>
+    private int GetNetworkWarningLevel()
+    {
+        if (!_networkMode
+            || _networkFinished
+            || _networkTimerPaused
+            || !_gameStarted
+            || _game.Status != GameStatus.InProgress
+            || _game.ToMove != _networkPlayerColor)
+        {
+            return 0;
+        }
+
+        var seconds = GetNetworkRemaining().TotalSeconds;
+
+        if (seconds <= 10)
+        {
+            return 10;
+        }
+
+        return seconds <= 30 ? 30 : 0;
+    }
+
+    /// <summary>Обновляет подсказки таймера и мягкое выделение последних секунд.</summary>
+    private void UpdateNetworkTimerWarning()
+    {
+        var level = GetNetworkWarningLevel();
+
+        if (level > _networkWarningLevel && level > 0)
+        {
+            // Порог пересечён впервые за этот ход: короткое сообщение поверх плашки.
+            ShowNetworkNotice(TimerWarning);
+        }
+
+        if (level == _networkWarningLevel)
+        {
+            return;
+        }
+
+        _networkWarningLevel = level;
+
+        OnPropertyChanged(nameof(IsNetworkTimerWarningVisible));
+        OnPropertyChanged(nameof(NetworkTimerWarningText));
+        OnPropertyChanged(nameof(IsNetworkTimerUrgent));
+    }
+
+    /// <summary>Запоминает дедлайн возвращения соперника и показывает баннер обрыва.</summary>
+    private void StartReconnectCountdown()
+    {
+        _networkReconnectDeadline = _timeProvider.GetUtcNow() + _networkOptions.ReconnectTimeout;
+        _networkReconnectDeadlineSet = true;
+        _networkBannerDismissed = false;
+
+        OnPropertyChanged(nameof(NetworkReconnectSecondsLeft));
+        OnPropertyChanged(nameof(IsNetworkDisconnected));
+        OnPropertyChanged(nameof(IsNetworkBannerVisible));
+        OnPropertyChanged(nameof(NetworkBannerTitle));
+        OnPropertyChanged(nameof(NetworkBannerText));
+        OnPropertyChanged(nameof(NetworkBannerLeaveText));
+        OnPropertyChanged(nameof(IsNetworkBannerCanWait));
+    }
+
+    /// <summary>Снимает ожидание возвращения: соперник вернулся или партия окончена.</summary>
+    private void StopReconnectCountdown()
+    {
+        _networkReconnectDeadlineSet = false;
+        _networkBannerDismissed = false;
+
+        OnPropertyChanged(nameof(NetworkReconnectSecondsLeft));
+        OnPropertyChanged(nameof(IsNetworkDisconnected));
+        OnPropertyChanged(nameof(IsNetworkBannerVisible));
+        OnPropertyChanged(nameof(IsNetworkBannerCanWait));
+        OnPropertyChanged(nameof(NetworkBannerText));
+    }
+
+    /// <summary>Отмечает сетевую партию начатой без часов ИИ.</summary>
+    /// <remarks>
+    /// В сетевой партии время партии не считается: единственный таймер — ход в 90 секунд,
+    /// и второй (AI) таймер на экране только путал игрока (находка tester, R-010).
+    /// </remarks>
+    private void MarkNetworkStarted()
+    {
+        _gameStarted = true;
+        _clock.Reset();
+        StopClockIfFinished();
     }
 
     private TimeSpan GetNetworkRemaining()
@@ -811,8 +1124,26 @@ public sealed partial class MainViewModel : IDisposable
             return;
         }
 
+        ClearExpiredNotice();
+        UpdateNetworkTimerWarning();
+        NotifyReconnectCountdown();
+
         OnPropertyChanged(nameof(NetworkTurnText));
         OnPropertyChanged(nameof(NetworkStatusText));
+    }
+
+    /// <summary>Обновляет обратный отсчёт возвращения соперника раз в секунду.</summary>
+    private void NotifyReconnectCountdown()
+    {
+        if (!_networkReconnectDeadlineSet)
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(NetworkReconnectSecondsLeft));
+        OnPropertyChanged(nameof(NetworkBannerText));
+        OnPropertyChanged(nameof(IsNetworkBannerVisible));
+        OnPropertyChanged(nameof(IsNetworkDisconnected));
     }
 
     private void PostToUi(Action action)

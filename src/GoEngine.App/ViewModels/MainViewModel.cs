@@ -2090,7 +2090,20 @@ public sealed partial class MainViewModel : INotifyPropertyChanged
             nameof(NetworkOpponentAvatarId),
             nameof(NetworkPlayerColorText),
             nameof(NetworkOpponentColorText),
-            nameof(CanLeaveNetwork)
+            nameof(CanLeaveNetwork),
+            nameof(IsNetworkNoticeVisible),
+            nameof(NetworkNoticeText),
+            nameof(IsNetworkTimerWarningVisible),
+            nameof(NetworkTimerWarningText),
+            nameof(IsNetworkTimerUrgent),
+            nameof(IsNetworkDisconnected),
+            nameof(NetworkReconnectSecondsLeft),
+            nameof(IsNetworkTerminal),
+            nameof(NetworkBannerTitle),
+            nameof(NetworkBannerText),
+            nameof(NetworkBannerLeaveText),
+            nameof(IsNetworkBannerVisible),
+            nameof(IsNetworkBannerCanWait)
         })
         {
             OnPropertyChanged(name);

@@ -200,6 +200,31 @@ public sealed partial class BoardView : UserControl
     /// </remarks>
     private readonly GameResultBanner? _resultBanner;
 
+    /// <summary>Плашка короткого сетевого сообщения на настольной панели.</summary>
+    private readonly Border? _networkNoticePill;
+
+    /// <summary>Текст короткого сетевого сообщения на настольной панели.</summary>
+    private readonly TextBlock? _networkNoticeText;
+
+    /// <summary>Плашка сетевого сообщения в строке доски на телефоне.</summary>
+    private readonly Border? _mobileNetworkNoticePill;
+
+    /// <summary>Текст плашки на телефоне.</summary>
+    private readonly TextBlock? _mobileNetworkNoticeText;
+
+    /// <summary>Слой сетевого состояния: обрыв с отсчётом и терминальный итог.</summary>
+    private readonly Border? _networkStateOverlay;
+
+    private readonly TextBlock? _networkStateTitle;
+
+    private readonly TextBlock? _networkStateText;
+
+    /// <summary>Кнопка «Остаться»: отложить баннер обрыва и продолжать ждать.</summary>
+    private readonly Button? _networkStateWait;
+
+    /// <summary>Кнопка «Выйти/В меню»: закрыть сеть и уйти.</summary>
+    private readonly Button? _networkStateLeave;
+
     /// <summary>Таймер, по которому исчезает подсказка.</summary>
     private DispatcherTimer? _hintTimer;
 
@@ -327,6 +352,15 @@ public sealed partial class BoardView : UserControl
         _mobileClock = this.FindControl<TextBlock>("MobileClockText");
         _desktopPause = this.FindControl<Button>("DesktopPauseButton");
         _resultBanner = this.FindControl<GameResultBanner>("ResultBanner");
+        _networkNoticePill = this.FindControl<Border>("NetworkNoticePill");
+        _networkNoticeText = this.FindControl<TextBlock>("NetworkNoticeText");
+        _mobileNetworkNoticePill = this.FindControl<Border>("MobileNetworkNoticePill");
+        _mobileNetworkNoticeText = this.FindControl<TextBlock>("MobileNetworkNoticeText");
+        _networkStateOverlay = this.FindControl<Border>("NetworkStateOverlay");
+        _networkStateTitle = this.FindControl<TextBlock>("NetworkStateTitle");
+        _networkStateText = this.FindControl<TextBlock>("NetworkStateText");
+        _networkStateWait = this.FindControl<Button>("NetworkStateWaitButton");
+        _networkStateLeave = this.FindControl<Button>("NetworkStateLeaveButton");
 
         // Баннер создаёт разметка без модели: подключаем его к партии здесь, иначе итог партии
         // не доходит до экрана, а кнопки карточки мертвы (D-065 §6).
@@ -385,6 +419,8 @@ public sealed partial class BoardView : UserControl
         WireButton("SheetToggleButton", OnSheetToggleClick);
         WireButton("MobilePostGameNewGameButton", OnNewGameClick);
         WireButton("MobilePostGameLeaveButton", OnMenuLeaveNetworkClick);
+        WireButton("NetworkStateWaitButton", OnNetworkStateWaitClick);
+        WireButton("NetworkStateLeaveButton", OnNetworkStateLeaveClick);
 
         // Шапка партии: меню партии (☰) и «Настройка партии» (шестерёнка). Обе кнопки —
         // мобильные: на настольной раскладке те же действия даёт меню-бар окна.
@@ -475,6 +511,13 @@ public sealed partial class BoardView : UserControl
     /// <summary>Запрошены настройки: окно, если оно есть, показывает диалог.</summary>
     /// <remarks>Без подписчика (мобильный вид) настройки показываются поверх доски.</remarks>
     public event EventHandler? SettingsRequested;
+
+    /// <summary>Игрок вышел из сетевой партии и хочет вернуться на главный экран.</summary>
+    /// <remarks>
+    /// Терминальный обрыв и «В меню» на карточке ведут сюда: сама модель партии не знает
+    /// про разделы оболочки, поэтому навигацию решает оболочка, подписанная на событие.
+    /// </remarks>
+    public event EventHandler? NetworkReturnHomeRequested;
 
     /// <summary>Модель представления партии.</summary>
     public MainViewModel ViewModel { get; }
@@ -1377,6 +1420,7 @@ public sealed partial class BoardView : UserControl
     private void RefreshSummary()
     {
         ApplyNetworkLayout();
+        UpdateNetworkUi();
 
         // Строку о пленных собирает модель представления: она знает и счётчики партии,
         // и пометки мёртвых камней, которые тоже идут в пленные (правила, пп. 1.10 и 1.12).
@@ -1452,7 +1496,8 @@ public sealed partial class BoardView : UserControl
 
         if (_mobileClock is not null)
         {
-            _mobileClock.IsVisible = !finished;
+            // В сетевой партии часы ИИ не идут: единственный таймер — ход соперника.
+            _mobileClock.IsVisible = !finished && !network;
         }
 
         if (_mobileMoveText is not null)
@@ -1460,8 +1505,9 @@ public sealed partial class BoardView : UserControl
             // Время партии идёт рядом с ходом: строка состояния — то место, куда игрок смотрит
             // за партией, и времени там самое место (на узком экране строка обрезается редко:
             // она последняя и без переноса).
+            // В сети таймер хода уже стоит в шапке: второй строкой он только дублировался бы.
             _mobileMoveText.Text = ViewModel.IsNetworkGame
-                ? (string.IsNullOrEmpty(second) ? "Сетевая партия" : $"{second} на ход")
+                ? "Сетевая партия"
                 : ViewModel.IsGameStarted ? $"{second} · {ViewModel.ClockShortDisplay}" : second;
         }
 
@@ -1837,6 +1883,14 @@ public sealed partial class BoardView : UserControl
             return;
         }
 
+        // Сетевые сообщения, баннер обрыва и терминальный итог: обновляются сразу, не дожидаясь
+        // полной пересборки панели (сообщение живёт пару секунд).
+        if (IsPanelProperty(e.PropertyName, NetworkUiProperties))
+        {
+            RefreshSummary();
+            return;
+        }
+
         // Состояние, счёт, очередь хода и подписи кнопок: всё это показывает одной панелью
         // RefreshSummary, поэтому список один — раньше он был разбит на два и один и тот же
         // вызов стоял в двух ветках.
@@ -1862,6 +1916,18 @@ public sealed partial class BoardView : UserControl
         nameof(MainViewModel.NetworkStatusText), nameof(MainViewModel.NetworkTurnText),
         nameof(MainViewModel.NetworkOpponentAvatarId), nameof(MainViewModel.CanStartNewGame),
         nameof(MainViewModel.CanChangeGameSettings)
+    ];
+
+    /// <summary>Свойства сетевых сообщений и баннеров: показываются сразу, без пересборки панели.</summary>
+    internal static readonly string[] NetworkUiProperties =
+    [
+        nameof(MainViewModel.IsNetworkNoticeVisible), nameof(MainViewModel.NetworkNoticeText),
+        nameof(MainViewModel.IsNetworkTimerWarningVisible), nameof(MainViewModel.NetworkTimerWarningText),
+        nameof(MainViewModel.IsNetworkTimerUrgent), nameof(MainViewModel.IsNetworkDisconnected),
+        nameof(MainViewModel.NetworkReconnectSecondsLeft), nameof(MainViewModel.IsNetworkTerminal),
+        nameof(MainViewModel.NetworkBannerTitle), nameof(MainViewModel.NetworkBannerText),
+        nameof(MainViewModel.NetworkBannerLeaveText), nameof(MainViewModel.IsNetworkBannerVisible),
+        nameof(MainViewModel.IsNetworkBannerCanWait)
     ];
 
     /// <summary>Свойства, после которых панель пересобирается и списки выбора синхронизируются.</summary>
@@ -2238,6 +2304,118 @@ public sealed partial class BoardView : UserControl
     {
         CloseMenu();
         OnAbortGameClick(sender, e);
+    }
+
+    /// <summary>Показывает сетевые сообщения, баннер обрыва и терминальный итог.</summary>
+    /// <remarks>
+    /// Всё живёт оверлеями поверх вида: шапка и панель на 360 dp не меняют высоту и не наезжают
+    /// друг на друга, а доска в терминальном состоянии закрыта затемнением и не выглядит живой.
+    /// </remarks>
+    private void UpdateNetworkUi()
+    {
+        var network = ViewModel.IsNetworkGame;
+        var warning = network && ViewModel.IsNetworkTimerWarningVisible;
+        var notice = network && ViewModel.IsNetworkNoticeVisible;
+
+        if (_desktopClock is not null)
+        {
+            // В сети время партии не считается: на экране один таймер — ход соперника (R-010).
+            _desktopClock.IsVisible = !network;
+        }
+
+        var noticeText = warning ? ViewModel.NetworkTimerWarningText : ViewModel.NetworkNoticeText;
+        var urgent = network && ViewModel.IsNetworkTimerUrgent;
+
+        foreach (var pill in new[] { _networkNoticePill, _mobileNetworkNoticePill })
+        {
+            if (pill is null)
+            {
+                continue;
+            }
+
+            pill.IsVisible = warning || notice;
+            pill.Classes.Set("network-urgent", urgent);
+        }
+
+        if (_networkNoticeText is not null)
+        {
+            _networkNoticeText.Text = noticeText;
+        }
+
+        if (_mobileNetworkNoticeText is not null)
+        {
+            _mobileNetworkNoticeText.Text = noticeText;
+        }
+
+        if (_networkStateOverlay is not null)
+        {
+            _networkStateOverlay.IsVisible = network && ViewModel.IsNetworkBannerVisible;
+
+            if (_networkStateOverlay.IsVisible)
+            {
+                if (_networkStateTitle is not null)
+                {
+                    _networkStateTitle.Text = ViewModel.NetworkBannerTitle;
+                }
+
+                if (_networkStateText is not null)
+                {
+                    _networkStateText.Text = ViewModel.NetworkBannerText;
+                }
+
+                if (_networkStateLeave is not null)
+                {
+                    _networkStateLeave.Content = ViewModel.NetworkBannerLeaveText;
+                }
+
+                if (_networkStateWait is not null)
+                {
+                    _networkStateWait.IsVisible = ViewModel.IsNetworkBannerCanWait;
+                }
+            }
+        }
+    }
+
+    /// <summary>«Остаться»: отложить баннер обрыва и продолжать ждать соперника.</summary>
+    private void OnNetworkStateWaitClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        ViewModel.DismissNetworkBanner();
+    }
+
+    /// <summary>«Выйти/В меню»: закрыть сетевую партию и, если итог терминальный, уйти на главную.</summary>
+    private void OnNetworkStateLeaveClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        var returnHome = ViewModel.IsNetworkTerminal;
+        _ = LeaveNetworkAsync(returnHome);
+    }
+
+    /// <summary>Выходит из сети; после терминального итога возвращает на главный экран.</summary>
+    private async Task LeaveNetworkAsync(bool returnHome)
+    {
+        try
+        {
+            await ViewModel.LeaveNetworkGameAsync().ConfigureAwait(true);
+        }
+        catch (Exception exception)
+        {
+            // Выход из сети не должен оставлять игрока на терминальном экране: ошибку в лог,
+            // а на главную уходим всё равно (m1 ревью P4 — тот же класс, что висящий старт).
+            AppLogMessages.NetworkError(
+                AppLog.For<BoardView>(),
+                GoEngine.Multiplayer.LanErrorCodes.Stalled,
+                $"Не удалось выйти из сетевой игры: {exception.Message}");
+        }
+        finally
+        {
+            if (returnHome)
+            {
+                NetworkReturnHomeRequested?.Invoke(this, EventArgs.Empty);
+            }
+        }
     }
 
     /// <summary>Меню: выходит из сетевой партии, закрывая соединение.</summary>

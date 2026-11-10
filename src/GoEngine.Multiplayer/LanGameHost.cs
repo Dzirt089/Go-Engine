@@ -44,6 +44,7 @@ public sealed class LanGameHost : INetworkGameHost
     private DateTimeOffset _lastReceivedAt;
     private PendingJoin? _pendingJoin;
     private TaskCompletionSource<JoinDecision>? _pendingDecision;
+    private bool _finished;
 
     /// <summary>Создаёт хозяина комнаты.</summary>
     /// <param name="options">Настройки сети; <c>null</c> — значения по умолчанию.</param>
@@ -72,6 +73,13 @@ public sealed class LanGameHost : INetworkGameHost
 
     /// <summary>Гость корректно вышел из партии.</summary>
     public event EventHandler? GuestLeft;
+
+    /// <summary>Заявка гостя снята до решения хозяина: гость закрыл соединение или истёк таймаут.</summary>
+    /// <remarks>
+    /// Отдельное событие, а не <see cref="Failed"/>: это не ошибка сети, а конец ожидания —
+    /// лобби должно убрать карточку «хочет играть» и ждать следующего гостя.
+    /// </remarks>
+    public event EventHandler? GuestJoinCancelled;
 
     /// <summary>Сетевая ошибка, которую нужно показать игроку.</summary>
     public event EventHandler<LanErrorEventArgs>? Failed;
@@ -109,6 +117,20 @@ public sealed class LanGameHost : INetworkGameHost
             {
                 return _connection is not null;
             }
+        }
+    }
+
+    /// <summary>Отмечает партию оконченной: переподключение больше не оживляет её.</summary>
+    /// <remarks>
+    /// Вызывается моделью представления, когда партия завершилась по правилам или сдачей.
+    /// Соединение при этом не рвётся сразу: гость получает итоговый ход и итог, а попытка
+    /// resume после конца получает отказ (R-007).
+    /// </remarks>
+    public void MarkFinished()
+    {
+        lock (_sync)
+        {
+            _finished = true;
         }
     }
 
@@ -205,6 +227,7 @@ public sealed class LanGameHost : INetworkGameHost
             _hostAvatarId = hostAvatarId;
             _roomNumber = roomNumber;
             _room = room;
+            _finished = false;
             _acceptLoop = Task.Run(() => AcceptLoopAsync(listener, lifetime.Token), CancellationToken.None);
         }
 
@@ -615,7 +638,9 @@ public sealed class LanGameHost : INetworkGameHost
 
         lock (_sync)
         {
-            if (_inGame || _connection is not null)
+            // Заявка на рассмотрении — комната тоже занята: второй гость не должен
+            // перезаписывать ожидающее решение хозяина (R-007).
+            if (_inGame || _connection is not null || _pendingDecision is not null)
             {
                 _ = TrySendJoinResultAsync(connection, accepted: false, LanErrorCodes.RoomBusy, "Комната уже занята.", cancellationToken);
                 return false;
@@ -630,21 +655,68 @@ public sealed class LanGameHost : INetworkGameHost
         }
 
         RaiseJoinRequested(message.AvatarId.Value, connection.RemoteAddress ?? string.Empty);
+
+        // Хозяин не должен ждать вечно: истёк срок решения или гость закрыл соединение —
+        // заявка снимается, лобби убирает карточку и ждёт следующего гостя (R-007).
+        using var decisionLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        decisionLifetime.CancelAfter(_options.JoinDecisionTimeout);
+        var watch = WatchPendingJoinAsync(connection, decisionLifetime.Token);
+
         JoinDecision answer;
         try
         {
-            answer = await decision.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            answer = await decision.Task.WaitAsync(decisionLifetime.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
+            decisionLifetime.Cancel();
+            await WaitQuietlyAsync(watch).ConfigureAwait(false);
             ClearPending();
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            RaiseJoinCancelled();
+            await TrySendJoinResultAsync(connection, accepted: false, LanErrorCodes.JoinTimeout, "Хозяин не ответил вовремя.", cancellationToken).ConfigureAwait(false);
             return false;
         }
 
+        decisionLifetime.Cancel();
+        await WaitQuietlyAsync(watch).ConfigureAwait(false);
         ClearPending();
+
         if (!answer.Accepted)
         {
             await TrySendJoinResultAsync(connection, accepted: false, LanErrorCodes.JoinRejected, answer.Reason ?? "Хозяин не пустил в комнату.", cancellationToken).ConfigureAwait(false);
+            return false;
+        }
+
+        // Сначала сообщаем гостю решение: пока JoinResult не ушёл, партия не началась.
+        // Раньше _inGame ставился до отправки, и неудачная отправка оставляла комнату
+        // «занятой» без гостя (R-007).
+        var guestColor = answer.GuestColor;
+        var komi = answer.Komi;
+        try
+        {
+            await connection.SendAsync(new LanMessage
+            {
+                Type = LanMessageTypes.JoinResult,
+                ProtocolVersion = _options.ProtocolVersion,
+                GameId = _gameId,
+                Accepted = true,
+                BoardSize = _boardSize,
+                Komi = komi,
+                GuestColor = guestColor.Name,
+                AvatarId = _hostAvatarId,
+                Token = _sessionToken,
+                RemainingMs = (int)_options.MoveTimeout.TotalMilliseconds
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is IOException or SocketException or AuthenticationException or LanProtocolException or LanConnectionClosedException or ObjectDisposedException)
+        {
+            RaiseFailed(LanErrorCodes.ConnectionLost, $"Гость не получил ответ: {exception.Message}");
             return false;
         }
 
@@ -652,8 +724,8 @@ public sealed class LanGameHost : INetworkGameHost
         {
             _connection = connection;
             _inGame = true;
-            _guestColor = answer.GuestColor;
-            _komi = answer.Komi;
+            _guestColor = guestColor;
+            _komi = komi;
             _lastReceivedAt = _options.TimeProvider.GetUtcNow();
         }
 
@@ -669,23 +741,60 @@ public sealed class LanGameHost : INetworkGameHost
             await announcer.DisposeAsync().ConfigureAwait(false);
         }
 
-        await connection.SendAsync(new LanMessage
-        {
-            Type = LanMessageTypes.JoinResult,
-            ProtocolVersion = _options.ProtocolVersion,
-            GameId = _gameId,
-            Accepted = true,
-            BoardSize = _boardSize,
-            Komi = _komi,
-            GuestColor = _guestColor.Name,
-            AvatarId = _hostAvatarId,
-            Token = _sessionToken,
-            RemainingMs = (int)_options.MoveTimeout.TotalMilliseconds
-        }, cancellationToken).ConfigureAwait(false);
-
         StartConnectionLoops(connection);
         GuestConnected?.Invoke(this, EventArgs.Empty);
         return true;
+    }
+
+    /// <summary>Следит за соединением, пока хозяин не решил по заявке.</summary>
+    /// <param name="connection">Соединение с гостем.</param>
+    /// <param name="cancellationToken">Отмена: решение принято, срок истёк или хозяин остановлен.</param>
+    /// <remarks>
+    /// До ответа гость по протоколу ничего не присылает, поэтому чтение здесь — только ожидание:
+    /// закрытие соединения даёт исключение, и заявка снимается, не дожидаясь двух минут.
+    /// </remarks>
+    private async Task WatchPendingJoinAsync(LanTlsConnection connection, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (true)
+            {
+                var message = await connection.ReceiveAsync(cancellationToken).ConfigureAwait(false);
+
+                if (message.Type != LanMessageTypes.Bye)
+                {
+                    // До ответа хозяина гость не должен присылать ничего, кроме «до свидания»:
+                    // прочие сообщения игнорируем, заявка остаётся.
+                    continue;
+                }
+
+                CancelPendingJoin("Гость вышел до ответа хозяина.");
+
+                return;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Срок истёк или хозяин уже решил: заявку снимет основной путь.
+        }
+        catch (Exception exception) when (exception is IOException or SocketException or AuthenticationException or LanProtocolException or LanConnectionClosedException or ObjectDisposedException)
+        {
+            CancelPendingJoin("Гость закрыл соединение.");
+        }
+    }
+
+    /// <summary>Дожидается фонового наблюдателя, не превращая его отмену в ошибку.</summary>
+    /// <param name="task">Задача наблюдателя.</param>
+    private static async Task WaitQuietlyAsync(Task task)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Отмена наблюдателя — ожидаемый исход.
+        }
     }
 
     private async Task<bool> HandleResumeAsync(LanTlsConnection connection, LanMessage message, CancellationToken cancellationToken)
@@ -702,6 +811,13 @@ public sealed class LanGameHost : INetworkGameHost
         LanTlsConnection? previous;
         lock (_sync)
         {
+            if (_finished)
+            {
+                // Оконченную партию не оживляем: иначе гость вернулся бы в завершённую игру (R-007).
+                _ = TrySendJoinResultAsync(connection, accepted: false, LanErrorCodes.GameNotFound, "Партия уже окончена.", cancellationToken);
+                return false;
+            }
+
             if (!_inGame)
             {
                 _ = TrySendJoinResultAsync(connection, accepted: false, LanErrorCodes.GameNotFound, "Партия ещё не началась.", cancellationToken);
@@ -950,6 +1066,25 @@ public sealed class LanGameHost : INetworkGameHost
 
     private void RaiseJoinRequested(int avatarId, string address) =>
         GuestJoinRequested?.Invoke(this, new GuestJoinRequestEventArgs(avatarId, address));
+
+    private void RaiseJoinCancelled() => GuestJoinCancelled?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>Снимает ожидающую заявку гостя с причиной и сообщает лобби.</summary>
+    /// <param name="reason">Почему заявка снята; уходит гостю в отказе.</param>
+    private void CancelPendingJoin(string reason)
+    {
+        TaskCompletionSource<JoinDecision>? decision;
+        lock (_sync)
+        {
+            decision = _pendingDecision;
+        }
+
+        if (decision is not null
+            && decision.TrySetResult(new JoinDecision(false, StoneColor.White, 0, reason)))
+        {
+            RaiseJoinCancelled();
+        }
+    }
 
     private void RaiseFailed(string code, string message) =>
         Failed?.Invoke(this, new LanErrorEventArgs(code, message));

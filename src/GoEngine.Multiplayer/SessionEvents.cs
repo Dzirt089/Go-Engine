@@ -34,6 +34,9 @@ public static class LanErrorCodes
 
     /// <summary>Партия прервана: оба игрока не делают ходы.</summary>
     public const string Stalled = "lan.stalled";
+
+    /// <summary>Хозяин не ответил на заявку гостя за отведённое время.</summary>
+    public const string JoinTimeout = "lan.join_timeout";
 }
 
 /// <summary>Ошибка сетевого режима.</summary>

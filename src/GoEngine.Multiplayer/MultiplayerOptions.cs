@@ -23,11 +23,17 @@ public sealed record MultiplayerOptions
     /// <summary>Таймаут TLS-рукопожатия и первого сообщения при подключении.</summary>
     public TimeSpan HandshakeTimeout { get; init; } = TimeSpan.FromSeconds(15);
 
-    /// <summary>Сколько гость ждёт решения хозяина «Пустить», 2 минуты.</summary>
+    /// <summary>Сколько ждём решения хозяина по заявке гостя, 2 минуты.</summary>
     /// <remarks>
+    /// <para>
     /// Это не сетевой таймаут, а время человека: ребёнок-хозяин может отвлечься, прежде чем
     /// нажать большую кнопку. Короткий <see cref="HandshakeTimeout"/> здесь обрывал бы ожидание
     /// раньше, чем хозяин успевал прочитать запрос.
+    /// </para>
+    /// <para>
+    /// Тот же срок действует и у хозяина: если он так и не решил, зависшая заявка снимается,
+    /// и лобби снова ждёт гостя (R-007).
+    /// </para>
     /// </remarks>
     public TimeSpan JoinDecisionTimeout { get; init; } = TimeSpan.FromMinutes(2);
 

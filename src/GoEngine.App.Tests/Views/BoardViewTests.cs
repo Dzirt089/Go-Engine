@@ -9,6 +9,7 @@ using GoEngine.App.Services;
 using GoEngine.App.ViewModels;
 using GoEngine.App.Views;
 using GoEngine.Core;
+using Microsoft.Extensions.Time.Testing;
 
 namespace GoEngine.App.Tests;
 
@@ -1273,6 +1274,142 @@ public sealed class BoardViewTests
         // и сам пас, и строку меню, которая подводит итог.
         Assert.Contains("пропустили", BoardView.PassHint, StringComparison.Ordinal);
         Assert.Contains("Закончить партию", BoardView.PassHint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void В_Сетевой_Партии_Часы_ИИ_Не_Показаны()
+    {
+        // R-010: в сетевой партии единственный таймер — ход; часы партии ИИ только путали.
+        var (view, model) = Create();
+        _ = StartNetworkGuest(model, StoneColor.White);
+
+        Assert.False(view.FindControl<TextBlock>("DesktopClockText")!.IsVisible);
+        Assert.False(view.FindControl<TextBlock>("MobileClockText")!.IsVisible);
+    }
+
+    [Fact]
+    public void Сетевое_Сообщение_О_Передаче_Хода_Видно()
+    {
+        var (view, model) = Create();
+        _ = StartNetworkGuest(model, StoneColor.Black);
+
+        var pill = view.FindControl<Border>("NetworkNoticePill")!;
+        var text = view.FindControl<TextBlock>("NetworkNoticeText")!;
+
+        Assert.True(pill.IsVisible);
+        Assert.Contains("Твой ход", text.Text ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Сообщение_Об_Авто_Пасе_Видно_В_Плашке()
+    {
+        var (view, model) = Create();
+        var client = StartNetworkGuest(model, StoneColor.White);
+
+        client.RaiseMoveApplied(new GoEngine.Multiplayer.MoveAppliedEventArgs(
+            1, Move.Pass(StoneColor.Black), autoPass: true, remainingMs: 90_000));
+
+        var pill = view.FindControl<Border>("NetworkNoticePill")!;
+        var text = view.FindControl<TextBlock>("NetworkNoticeText")!;
+
+        Assert.True(pill.IsVisible);
+        Assert.Contains("Время вышло", text.Text ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Обрыв_Показывает_Баннер_С_Отсчётом()
+    {
+        var (view, model) = Create();
+        var client = StartNetworkGuest(model, StoneColor.Black);
+
+        client.RaiseDisconnected();
+
+        var overlay = view.FindControl<Border>("NetworkStateOverlay")!;
+
+        Assert.True(overlay.IsVisible);
+        Assert.Equal("Соперник потерял связь", view.FindControl<TextBlock>("NetworkStateTitle")!.Text);
+        Assert.Contains("Ждём возвращения", view.FindControl<TextBlock>("NetworkStateText")!.Text ?? string.Empty, StringComparison.Ordinal);
+        Assert.True(view.FindControl<Button>("NetworkStateWaitButton")!.IsVisible);
+    }
+
+    [Fact]
+    public void Терминальный_Обрыв_Показывает_Выход_В_Меню()
+    {
+        var (view, model) = Create();
+        var client = StartNetworkGuest(model, StoneColor.Black);
+
+        client.RaiseFailed(new GoEngine.Multiplayer.LanErrorEventArgs(
+            GoEngine.Multiplayer.LanErrorCodes.ReconnectTimeout,
+            "Не удалось вернуться в партию за отведённое время."));
+
+        var overlay = view.FindControl<Border>("NetworkStateOverlay")!;
+        var leave = view.FindControl<Button>("NetworkStateLeaveButton")!;
+
+        Assert.True(overlay.IsVisible);
+        Assert.Equal("Партия прервана", view.FindControl<TextBlock>("NetworkStateTitle")!.Text);
+        Assert.Equal("В меню", leave.Content);
+        Assert.False(view.FindControl<Button>("NetworkStateWaitButton")!.IsVisible);
+    }
+
+    [Fact]
+    public void Выход_Из_Терминального_Обрыва_Возвращает_На_Главную()
+    {
+        var (view, model) = Create();
+        var client = StartNetworkGuest(model, StoneColor.Black);
+        client.RaiseFailed(new GoEngine.Multiplayer.LanErrorEventArgs(
+            GoEngine.Multiplayer.LanErrorCodes.Stalled,
+            "Соперник не вернулся в игру."));
+        var requested = false;
+        view.NetworkReturnHomeRequested += (_, _) => requested = true;
+
+        Click(view.FindControl<Button>("NetworkStateLeaveButton")!);
+
+        Assert.False(model.IsNetworkGame);
+        Assert.True(requested);
+    }
+
+    [Fact]
+    public void Терминальный_Обрыв_Не_Перекрывает_Итог_Партии()
+    {
+        // B1 ревью P4: после обычного итога поздний выход соперника не показывает терминал.
+        var (view, model) = Create();
+        var client = StartNetworkGuest(model, StoneColor.White);
+        client.RaiseMoveApplied(new GoEngine.Multiplayer.MoveAppliedEventArgs(
+            1, Move.Pass(StoneColor.Black), autoPass: false, remainingMs: 90_000));
+        client.RaiseMoveApplied(new GoEngine.Multiplayer.MoveAppliedEventArgs(
+            2, Move.Pass(StoneColor.White), autoPass: false, remainingMs: 90_000));
+        Assert.True(model.HasOutcome);
+
+        client.RaiseFailed(new GoEngine.Multiplayer.LanErrorEventArgs(
+            GoEngine.Multiplayer.LanErrorCodes.HostLeft,
+            "Хозяин вышел из игры."));
+
+        Assert.False(view.FindControl<Border>("NetworkStateOverlay")!.IsVisible);
+        Assert.True(model.HasOutcome);
+    }
+
+    [Fact]
+    public void Последние_Секунды_Подсвечивают_Плашку_В_Строке_Доски()
+    {
+        // M2+M3 ревью P4: последние 10 с — мягкое акцентирование, плашка в строке доски,
+        // а не поверх нижней шторки.
+        var time = new FakeTimeProvider();
+        var settings = AppSettings.From(BoardSize.Size9, DifficultyLevel.Kyu20, StoneColor.Black, Komi.For9x9);
+        var model = new MainViewModel(settings, new Random(TestViewModel.Seed), time: time);
+        var view = new BoardView(settings, null, model);
+        var client = StartNetworkGuest(model, StoneColor.White);
+        client.RaiseMoveApplied(new GoEngine.Multiplayer.MoveAppliedEventArgs(
+            1, Move.Play(new Point(2, 2), StoneColor.Black), autoPass: false, remainingMs: 90_000));
+
+        time.Advance(TimeSpan.FromSeconds(80));
+        model.TickClock();
+
+        var pill = view.FindControl<Border>("MobileNetworkNoticePill")!;
+        var row = view.FindControl<Panel>("MobileBoardRow")!;
+
+        Assert.True(pill.IsVisible);
+        Assert.Contains("network-urgent", pill.Classes);
+        Assert.Contains(pill, row.Children);
     }
 
     /// <summary>Создаёт вид партии 9×9 вместе с его моделью представления.</summary>
