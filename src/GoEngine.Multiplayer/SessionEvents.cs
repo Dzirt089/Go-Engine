@@ -213,3 +213,73 @@ public sealed class GuestSessionStarted
     /// <summary>Сколько миллисекунд осталось на первый ход.</summary>
     public int RemainingMs { get; }
 }
+
+/// <summary>Хозяин предлагает нигири: присылает обязательство, число камней скрыто.</summary>
+public sealed class ColorDrawOfferEventArgs : EventArgs
+{
+    internal ColorDrawOfferEventArgs(string commitment, int timeoutMs)
+    {
+        Commitment = commitment;
+        TimeoutMs = timeoutMs;
+    }
+
+    /// <summary>Хеш `{count}|{nonce}`: по нему проверяется раскрытие.</summary>
+    public string Commitment { get; }
+
+    /// <summary>Сколько миллисекунд даётся на ответ.</summary>
+    public int TimeoutMs { get; }
+}
+
+/// <summary>Гость угадал чёт/нечет.</summary>
+public sealed class ColorDrawGuessEventArgs : EventArgs
+{
+    internal ColorDrawGuessEventArgs(string parity) => Parity = parity;
+
+    /// <summary>Ответ гостя: `odd` или `even`.</summary>
+    public string Parity { get; }
+}
+
+/// <summary>Хозяин раскрыл горсть и назвал победителя.</summary>
+public sealed class ColorDrawRevealEventArgs : EventArgs
+{
+    internal ColorDrawRevealEventArgs(int count, string nonce, bool winnerIsGuest)
+    {
+        Count = count;
+        Nonce = nonce;
+        WinnerIsGuest = winnerIsGuest;
+    }
+
+    /// <summary>Сколько камней было в горсти.</summary>
+    public int Count { get; }
+
+    /// <summary>Соль раскрытия.</summary>
+    public string Nonce { get; }
+
+    /// <summary>Победитель — гость (он угадал).</summary>
+    public bool WinnerIsGuest { get; }
+}
+
+/// <summary>Гость выбрал цвет после победы.</summary>
+public sealed class ColorDrawChoiceEventArgs : EventArgs
+{
+    internal ColorDrawChoiceEventArgs(StoneColor color) => Color = color;
+
+    /// <summary>Выбранный гостем цвет.</summary>
+    public StoneColor Color { get; }
+}
+
+/// <summary>Розыгрыш завершён: оба игрока получили цвета.</summary>
+public sealed class ColorDrawDoneEventArgs : EventArgs
+{
+    internal ColorDrawDoneEventArgs(StoneColor hostColor, StoneColor guestColor)
+    {
+        HostColor = hostColor;
+        GuestColor = guestColor;
+    }
+
+    /// <summary>Цвет хозяина.</summary>
+    public StoneColor HostColor { get; }
+
+    /// <summary>Цвет гостя.</summary>
+    public StoneColor GuestColor { get; }
+}

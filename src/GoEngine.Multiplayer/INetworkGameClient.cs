@@ -23,6 +23,15 @@ public interface INetworkGameClient : IAsyncDisposable
     /// <summary>Ошибка, после которой партия не может продолжаться.</summary>
     event EventHandler<LanErrorEventArgs>? Failed;
 
+    /// <summary>Хозяин предложил нигири: пришло обязательство и срок ответа.</summary>
+    event EventHandler<ColorDrawOfferEventArgs>? ColorDrawOfferReceived;
+
+    /// <summary>Хозяин раскрыл горсть и назвал победителя.</summary>
+    event EventHandler<ColorDrawRevealEventArgs>? ColorDrawRevealReceived;
+
+    /// <summary>Розыгрыш завершён: хозяин назвал итоговые цвета.</summary>
+    event EventHandler<ColorDrawDoneEventArgs>? ColorDrawDoneReceived;
+
     /// <summary>Есть активное соединение.</summary>
     bool IsConnected { get; }
 
@@ -34,6 +43,12 @@ public interface INetworkGameClient : IAsyncDisposable
 
     /// <summary>Попросить полное состояние партии.</summary>
     Task<Result> RequestStateSyncAsync(CancellationToken cancellationToken);
+
+    /// <summary>Ответить на нигири: чёт или нечет.</summary>
+    Task<Result> SendColorDrawGuessAsync(string parity, CancellationToken cancellationToken);
+
+    /// <summary>Выбрать цвет после победы в нигири.</summary>
+    Task<Result> SendColorDrawChoiceAsync(StoneColor color, CancellationToken cancellationToken);
 
     /// <summary>Выйти из партии.</summary>
     Task LeaveAsync();

@@ -29,6 +29,12 @@ public interface INetworkGameHost : IAsyncDisposable
     /// <summary>Сетевая ошибка.</summary>
     event EventHandler<LanErrorEventArgs>? Failed;
 
+    /// <summary>Гость ответил на нигири: чёт или нечет.</summary>
+    event EventHandler<ColorDrawGuessEventArgs>? ColorDrawGuessReceived;
+
+    /// <summary>Гость выбрал цвет после победы в нигири.</summary>
+    event EventHandler<ColorDrawChoiceEventArgs>? ColorDrawChoiceReceived;
+
     /// <summary>Комната, пока хозяин её ждёт.</summary>
     RoomInfo? Room { get; }
 
@@ -65,6 +71,15 @@ public interface INetworkGameHost : IAsyncDisposable
     /// <param name="cancellationToken">Отмена отправки.</param>
     /// <returns>Успех или причина отказа.</returns>
     Task<Result> SendMoveRejectedAsync(string code, string message, CancellationToken cancellationToken);
+
+    /// <summary>Предложить гостю нигири: прислать обязательство и срок ответа.</summary>
+    Task<Result> SendColorDrawOfferAsync(string commitment, int timeoutMs, CancellationToken cancellationToken);
+
+    /// <summary>Раскрыть горсть и назвать победителя.</summary>
+    Task<Result> SendColorDrawRevealAsync(int count, string nonce, bool winnerIsGuest, CancellationToken cancellationToken);
+
+    /// <summary>Сообщить итоговые цвета: розыгрыш завершён.</summary>
+    Task<Result> SendColorDrawDoneAsync(StoneColor hostColor, StoneColor guestColor, CancellationToken cancellationToken);
 
     /// <summary>Остановить комнату.</summary>
     Task StopAsync();

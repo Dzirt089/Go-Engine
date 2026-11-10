@@ -945,6 +945,72 @@
       </Border>
     </Border>
 
+    <!-- Нигири-розыгрыш цвета: хозяин прячет камни, гость угадывает чёт/нечет,
+         победитель выбирает цвет. Карточка по центру, крупные кнопки: на 360 dp
+         ничего не наезжает, доска под затемнением и до конца розыгрыша неактивна. -->
+    <Border x:Name="ColorDrawOverlay"
+            IsVisible="False"
+            Classes="app-overlay">
+      <Border Classes="app-banner app-overlay-card"
+              MaxWidth="420"
+              Padding="16"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <StackPanel Spacing="12">
+          <TextBlock x:Name="ColorDrawTitle"
+                     Classes="app-subtitle"
+                     Text="Розыгрыш цвета"
+                     HorizontalAlignment="Center"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+          <TextBlock x:Name="ColorDrawState"
+                     Classes="app-label"
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+          <TextBlock x:Name="ColorDrawSeconds"
+                     Classes="app-clock"
+                     HorizontalAlignment="Center"
+                     IsVisible="False" />
+          <Grid x:Name="ColorDrawGuessRow" ColumnDefinitions="*,*" IsVisible="False">
+            <Button x:Name="ColorDrawOddButton"
+                    Grid.Column="0"
+                    Content="Нечет"
+                    Classes="app-action"
+                    MinHeight="64"
+                    Margin="0,0,4,0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" />
+            <Button x:Name="ColorDrawEvenButton"
+                    Grid.Column="1"
+                    Content="Чёт"
+                    Classes="app-action"
+                    MinHeight="64"
+                    Margin="4,0,0,0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" />
+          </Grid>
+          <Grid x:Name="ColorDrawChoiceRow" ColumnDefinitions="*,*" IsVisible="False">
+            <Button x:Name="ColorDrawBlackButton"
+                    Grid.Column="0"
+                    Content="Чёрные"
+                    Classes="app-action"
+                    MinHeight="64"
+                    Margin="0,0,4,0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" />
+            <Button x:Name="ColorDrawWhiteButton"
+                    Grid.Column="1"
+                    Content="Белые"
+                    Classes="app-action"
+                    MinHeight="64"
+                    Margin="4,0,0,0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" />
+          </Grid>
+        </StackPanel>
+      </Border>
+    </Border>
+
     <!-- Настройки — полноценный экран во всю высоту вида, а не карточка: подразделов три,
          и в карточке 460×640 они не помещались (жалоба пользователя 2026-10-03). Сверху заголовок,
          внизу — «Сохранить» и «Отмена» из самого вида настроек. На настольной раскладке те же

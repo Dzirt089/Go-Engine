@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using GoEngine.App.Services.Logging;
-using System.Security.Cryptography;
 using GoEngine.Core;
 using GoEngine.Multiplayer;
 
@@ -579,13 +578,11 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
         {
             _guestAvatarId = e.GuestAvatarId;
 
-            // Цвета разыгрываются случайно, как в турнире; оба игрока видят результат до «Пустить».
-            var hostIsBlack = RandomNumberGenerator.GetInt32(2) == 0;
-            _hostColor = hostIsBlack ? StoneColor.Black : StoneColor.White;
-            _guestColor = hostIsBlack ? StoneColor.White : StoneColor.Black;
-
-            // Имена-звери у обоих могут совпасть («два Лиса»): роли и цвета называем явно (R-010).
-            _colorDrawText = ColorDrawLabel(_hostColor, _guestColor);
+            // Цвета не назначаются при заявке: их разыграют нигири в начале партии (R-004).
+            // Здесь временные значения — их заменит color_draw_done.
+            _hostColor = StoneColor.Black;
+            _guestColor = StoneColor.White;
+            _colorDrawText = "Цвета разыграете в начале партии: нигири.";
             _guestRequestText = GuestRequestLabel(AvatarOf(e.GuestAvatarId));
             _joinRequestVisible = true;
             SetStatus($"{_guestRequestText} Пустить?");
@@ -667,6 +664,23 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
         OnPropertyChanged(nameof(IsHosting));
         StopWatcher();
         Close();
+
+        // Розыгрыш цвета идёт уже на экране партии: лобби закрыто, оверлей розыгрыша виден.
+        _ = BeginColorDrawSafelyAsync();
+    }
+
+    /// <summary>Запускает нигири и не даёт исключению уйти в никуда.</summary>
+    /// <returns>Задача розыгрыша.</returns>
+    private async Task BeginColorDrawSafelyAsync()
+    {
+        try
+        {
+            await _game.BeginColorDrawAsync(CancellationToken.None).ConfigureAwait(true);
+        }
+        catch (Exception exception)
+        {
+            AppLogMessages.NetworkError(Log, "network.color_draw", $"Розыгрыш цвета: {exception.Message}");
+        }
     }
 
     private void Close()

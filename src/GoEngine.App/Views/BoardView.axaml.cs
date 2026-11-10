@@ -212,6 +212,19 @@ public sealed partial class BoardView : UserControl
     /// <summary>Текст плашки на телефоне.</summary>
     private readonly TextBlock? _mobileNetworkNoticeText;
 
+    /// <summary>Слой нигири-розыгрыша цвета в начале сетевой партии.</summary>
+    private readonly Border? _colorDrawOverlay;
+
+    private readonly TextBlock? _colorDrawTitle;
+
+    private readonly TextBlock? _colorDrawState;
+
+    private readonly TextBlock? _colorDrawSeconds;
+
+    private readonly Grid? _colorDrawGuessRow;
+
+    private readonly Grid? _colorDrawChoiceRow;
+
     /// <summary>Слой сетевого состояния: обрыв с отсчётом и терминальный итог.</summary>
     private readonly Border? _networkStateOverlay;
 
@@ -356,6 +369,12 @@ public sealed partial class BoardView : UserControl
         _networkNoticeText = this.FindControl<TextBlock>("NetworkNoticeText");
         _mobileNetworkNoticePill = this.FindControl<Border>("MobileNetworkNoticePill");
         _mobileNetworkNoticeText = this.FindControl<TextBlock>("MobileNetworkNoticeText");
+        _colorDrawOverlay = this.FindControl<Border>("ColorDrawOverlay");
+        _colorDrawTitle = this.FindControl<TextBlock>("ColorDrawTitle");
+        _colorDrawState = this.FindControl<TextBlock>("ColorDrawState");
+        _colorDrawSeconds = this.FindControl<TextBlock>("ColorDrawSeconds");
+        _colorDrawGuessRow = this.FindControl<Grid>("ColorDrawGuessRow");
+        _colorDrawChoiceRow = this.FindControl<Grid>("ColorDrawChoiceRow");
         _networkStateOverlay = this.FindControl<Border>("NetworkStateOverlay");
         _networkStateTitle = this.FindControl<TextBlock>("NetworkStateTitle");
         _networkStateText = this.FindControl<TextBlock>("NetworkStateText");
@@ -421,6 +440,10 @@ public sealed partial class BoardView : UserControl
         WireButton("MobilePostGameLeaveButton", OnMenuLeaveNetworkClick);
         WireButton("NetworkStateWaitButton", OnNetworkStateWaitClick);
         WireButton("NetworkStateLeaveButton", OnNetworkStateLeaveClick);
+        WireButton("ColorDrawOddButton", OnColorDrawOddClick);
+        WireButton("ColorDrawEvenButton", OnColorDrawEvenClick);
+        WireButton("ColorDrawBlackButton", OnColorDrawBlackClick);
+        WireButton("ColorDrawWhiteButton", OnColorDrawWhiteClick);
 
         // Шапка партии: меню партии (☰) и «Настройка партии» (шестерёнка). Обе кнопки —
         // мобильные: на настольной раскладке те же действия даёт меню-бар окна.
@@ -1421,6 +1444,7 @@ public sealed partial class BoardView : UserControl
     {
         ApplyNetworkLayout();
         UpdateNetworkUi();
+        UpdateColorDrawUi();
 
         // Строку о пленных собирает модель представления: она знает и счётчики партии,
         // и пометки мёртвых камней, которые тоже идут в пленные (правила, пп. 1.10 и 1.12).
@@ -1927,7 +1951,10 @@ public sealed partial class BoardView : UserControl
         nameof(MainViewModel.NetworkReconnectSecondsLeft), nameof(MainViewModel.IsNetworkTerminal),
         nameof(MainViewModel.NetworkBannerTitle), nameof(MainViewModel.NetworkBannerText),
         nameof(MainViewModel.NetworkBannerLeaveText), nameof(MainViewModel.IsNetworkBannerVisible),
-        nameof(MainViewModel.IsNetworkBannerCanWait)
+        nameof(MainViewModel.IsNetworkBannerCanWait),
+        nameof(MainViewModel.IsColorDrawActive), nameof(MainViewModel.ColorDrawStateText),
+        nameof(MainViewModel.ColorDrawSecondsLeft), nameof(MainViewModel.ColorDrawShowGuess),
+        nameof(MainViewModel.ColorDrawShowChoice), nameof(MainViewModel.ColorDrawTitle)
     ];
 
     /// <summary>Свойства, после которых панель пересобирается и списки выбора синхронизируются.</summary>
@@ -2304,6 +2331,82 @@ public sealed partial class BoardView : UserControl
     {
         CloseMenu();
         OnAbortGameClick(sender, e);
+    }
+
+    /// <summary>Показывает нигири-розыгрыш: вопрос гостю, результат и выбор цвета победителем.</summary>
+    private void UpdateColorDrawUi()
+    {
+        if (_colorDrawOverlay is null)
+        {
+            return;
+        }
+
+        var active = ViewModel.IsColorDrawActive;
+        _colorDrawOverlay.IsVisible = active;
+
+        if (!active)
+        {
+            return;
+        }
+
+        if (_colorDrawTitle is not null)
+        {
+            _colorDrawTitle.Text = ViewModel.ColorDrawTitle;
+        }
+
+        if (_colorDrawState is not null)
+        {
+            _colorDrawState.Text = ViewModel.ColorDrawStateText;
+        }
+
+        if (_colorDrawSeconds is not null)
+        {
+            var seconds = ViewModel.ColorDrawSecondsLeft;
+            _colorDrawSeconds.IsVisible = seconds > 0;
+            _colorDrawSeconds.Text = seconds > 0 ? $"{seconds} с" : string.Empty;
+        }
+
+        if (_colorDrawGuessRow is not null)
+        {
+            _colorDrawGuessRow.IsVisible = ViewModel.ColorDrawShowGuess;
+        }
+
+        if (_colorDrawChoiceRow is not null)
+        {
+            _colorDrawChoiceRow.IsVisible = ViewModel.ColorDrawShowChoice;
+        }
+    }
+
+    /// <summary>Гость выбрал «Нечет».</summary>
+    private void OnColorDrawOddClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        _ = ViewModel.GuessColorDrawAsync(odd: true);
+    }
+
+    /// <summary>Гость выбрал «Чёт».</summary>
+    private void OnColorDrawEvenClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        _ = ViewModel.GuessColorDrawAsync(odd: false);
+    }
+
+    /// <summary>Победитель выбрал чёрные.</summary>
+    private void OnColorDrawBlackClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        _ = ViewModel.ChooseColorDrawColorAsync(GoEngine.Core.StoneColor.Black);
+    }
+
+    /// <summary>Победитель выбрал белые.</summary>
+    private void OnColorDrawWhiteClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        _ = ViewModel.ChooseColorDrawColorAsync(GoEngine.Core.StoneColor.White);
     }
 
     /// <summary>Показывает сетевые сообщения, баннер обрыва и терминальный итог.</summary>

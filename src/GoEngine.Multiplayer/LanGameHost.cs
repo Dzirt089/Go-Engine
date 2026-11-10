@@ -84,6 +84,12 @@ public sealed class LanGameHost : INetworkGameHost
     /// <summary>Сетевая ошибка, которую нужно показать игроку.</summary>
     public event EventHandler<LanErrorEventArgs>? Failed;
 
+    /// <summary>Гость ответил на нигири: чёт или нечет.</summary>
+    public event EventHandler<ColorDrawGuessEventArgs>? ColorDrawGuessReceived;
+
+    /// <summary>Гость выбрал цвет после победы в нигири.</summary>
+    public event EventHandler<ColorDrawChoiceEventArgs>? ColorDrawChoiceReceived;
+
     /// <summary>Комната, пока хозяин её ждёт; <c>null</c> до запуска.</summary>
     public RoomInfo? Room
     {
@@ -427,6 +433,62 @@ public sealed class LanGameHost : INetworkGameHost
         }, cancellationToken);
     }
 
+    /// <summary>Предложить гостю нигири: обязательство и срок ответа.</summary>
+    /// <param name="commitment">Хеш числа камней и соли.</param>
+    /// <param name="timeoutMs">Сколько миллисекунд даётся гостю на ответ.</param>
+    /// <param name="cancellationToken">Отмена отправки.</param>
+    /// <returns>Успех или причина отказа.</returns>
+    public Task<Result> SendColorDrawOfferAsync(string commitment, int timeoutMs, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(commitment);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(timeoutMs);
+
+        return SendAsync(new LanMessage
+        {
+            Type = LanMessageTypes.ColorDrawOffer,
+            ProtocolVersion = _options.ProtocolVersion,
+            GameId = _gameId,
+            Commitment = commitment,
+            TimeoutMs = timeoutMs
+        }, cancellationToken);
+    }
+
+    /// <summary>Раскрыть горсть: число камней, соль и победитель.</summary>
+    /// <param name="count">Число камней 1…9.</param>
+    /// <param name="nonce">Соль раскрытия.</param>
+    /// <param name="winnerIsGuest">Победил гость (угадал).</param>
+    /// <param name="cancellationToken">Отмена отправки.</param>
+    /// <returns>Успех или причина отказа.</returns>
+    public Task<Result> SendColorDrawRevealAsync(int count, string nonce, bool winnerIsGuest, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nonce);
+
+        return SendAsync(new LanMessage
+        {
+            Type = LanMessageTypes.ColorDrawReveal,
+            ProtocolVersion = _options.ProtocolVersion,
+            GameId = _gameId,
+            Count = count,
+            Nonce = nonce,
+            WinnerIsGuest = winnerIsGuest
+        }, cancellationToken);
+    }
+
+    /// <summary>Сообщить итоговые цвета: розыгрыш завершён.</summary>
+    /// <param name="hostColor">Цвет хозяина.</param>
+    /// <param name="guestColor">Цвет гостя.</param>
+    /// <param name="cancellationToken">Отмена отправки.</param>
+    /// <returns>Успех или причина отказа.</returns>
+    public Task<Result> SendColorDrawDoneAsync(StoneColor hostColor, StoneColor guestColor, CancellationToken cancellationToken) =>
+        SendAsync(new LanMessage
+        {
+            Type = LanMessageTypes.ColorDrawDone,
+            ProtocolVersion = _options.ProtocolVersion,
+            GameId = _gameId,
+            HostColor = hostColor.Name,
+            GuestColor = guestColor.Name
+        }, cancellationToken);
+
     /// <summary>Останавливает комнату, соединение и объявления.</summary>
     /// <returns>Задача остановки.</returns>
     public async Task StopAsync()
@@ -624,9 +686,15 @@ public sealed class LanGameHost : INetworkGameHost
 
     private async Task<bool> HandleJoinAsync(LanTlsConnection connection, LanMessage message, CancellationToken cancellationToken)
     {
-        if (message.ProtocolVersion != _options.ProtocolVersion || message.GameId != _gameId)
+        if (message.ProtocolVersion != _options.ProtocolVersion)
         {
-            await TrySendJoinResultAsync(connection, accepted: false, LanErrorCodes.GameNotFound, "Комната не найдена или версия игры не совпадает.", cancellationToken).ConfigureAwait(false);
+            await TrySendJoinResultAsync(connection, accepted: false, LanErrorCodes.ProtocolMismatch, "Версия игры не совпадает: обновите приложение на обоих устройствах.", cancellationToken).ConfigureAwait(false);
+            return false;
+        }
+
+        if (message.GameId != _gameId)
+        {
+            await TrySendJoinResultAsync(connection, accepted: false, LanErrorCodes.GameNotFound, "Комната не найдена или код не совпадает.", cancellationToken).ConfigureAwait(false);
             return false;
         }
 
@@ -900,6 +968,29 @@ public sealed class LanGameHost : INetworkGameHost
 
                     case LanMessageTypes.StateSyncRequest:
                         GuestStateSyncRequested?.Invoke(this, new GuestStateSyncRequestedEventArgs());
+                        break;
+
+                    case LanMessageTypes.ColorDrawGuess:
+                        // Хозяин — арбитр: принимаем только «чёт»/«нечет» (F2).
+                        if (message.Parity is not (ColorDraw.GuessOdd or ColorDraw.GuessEven))
+                        {
+                            RaiseFailed(LanErrorCodes.ProtocolError, "Хозяин получил некорректный ответ нигири.");
+                            break;
+                        }
+
+                        ColorDrawGuessReceived?.Invoke(this, new ColorDrawGuessEventArgs(message.Parity));
+                        break;
+
+                    case LanMessageTypes.ColorDrawChoice:
+                        // Только чёрные или белые: Empty/мусор не должны попасть в настройки партии (F2).
+                        var choice = Enumeration.TryFromName<StoneColor>(message.Color);
+                        if (choice is null || (choice != StoneColor.Black && choice != StoneColor.White))
+                        {
+                            RaiseFailed(LanErrorCodes.ProtocolError, "Хозяин получил некорректный выбор цвета нигири.");
+                            break;
+                        }
+
+                        ColorDrawChoiceReceived?.Invoke(this, new ColorDrawChoiceEventArgs(choice));
                         break;
 
                     case LanMessageTypes.Bye:

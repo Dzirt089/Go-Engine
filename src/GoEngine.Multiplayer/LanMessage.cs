@@ -21,6 +21,11 @@ internal static class LanMessageTypes
     internal const string Pong = "pong";
     internal const string Bye = "bye";
     internal const string Error = "error";
+    internal const string ColorDrawOffer = "color_draw_offer";
+    internal const string ColorDrawGuess = "color_draw_guess";
+    internal const string ColorDrawReveal = "color_draw_reveal";
+    internal const string ColorDrawChoice = "color_draw_choice";
+    internal const string ColorDrawDone = "color_draw_done";
 }
 
 /// <summary>Один ход в сетевом сообщении.</summary>
@@ -94,6 +99,27 @@ internal sealed record LanMessage
 
     [JsonPropertyName("moves")]
     public IReadOnlyList<LanMoveDto>? Moves { get; init; }
+
+    [JsonPropertyName("commitment")]
+    public string? Commitment { get; init; }
+
+    [JsonPropertyName("nonce")]
+    public string? Nonce { get; init; }
+
+    [JsonPropertyName("count")]
+    public int? Count { get; init; }
+
+    [JsonPropertyName("parity")]
+    public string? Parity { get; init; }
+
+    [JsonPropertyName("winnerIsGuest")]
+    public bool? WinnerIsGuest { get; init; }
+
+    [JsonPropertyName("hostColor")]
+    public string? HostColor { get; init; }
+
+    [JsonPropertyName("timeoutMs")]
+    public int? TimeoutMs { get; init; }
 }
 
 /// <summary>Кодирование и разбор сетевых сообщений.</summary>
@@ -116,7 +142,12 @@ internal static class LanMessageCodec
         LanMessageTypes.Ping,
         LanMessageTypes.Pong,
         LanMessageTypes.Bye,
-        LanMessageTypes.Error
+        LanMessageTypes.Error,
+        LanMessageTypes.ColorDrawOffer,
+        LanMessageTypes.ColorDrawGuess,
+        LanMessageTypes.ColorDrawReveal,
+        LanMessageTypes.ColorDrawChoice,
+        LanMessageTypes.ColorDrawDone
     };
 
     internal static byte[] Encode(LanMessage message)

@@ -1412,6 +1412,61 @@ public sealed class BoardViewTests
         Assert.Contains(pill, row.Children);
     }
 
+    [Fact]
+    public void Розыгрыш_Цвета_Показывает_Вопрос_Гостю()
+    {
+        // R-004: гость видит крупные кнопки «Чёт/Нечет», пока хозяин прячет камни.
+        var (view, model) = Create();
+        var client = StartNetworkGuest(model, StoneColor.White);
+        var random = new Random(3);
+        var nonce = GoEngine.Multiplayer.ColorDraw.CreateNonce(random);
+        var commitment = GoEngine.Multiplayer.ColorDraw.Commitment(7, nonce);
+
+        client.RaiseColorDrawOffer(commitment, 15_000);
+
+        Assert.True(view.FindControl<Border>("ColorDrawOverlay")!.IsVisible);
+        Assert.True(view.FindControl<Grid>("ColorDrawGuessRow")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("ColorDrawChoiceRow")!.IsVisible);
+        Assert.Equal("Чёт", view.FindControl<Button>("ColorDrawEvenButton")!.Content);
+        Assert.Equal("Нечет", view.FindControl<Button>("ColorDrawOddButton")!.Content);
+    }
+
+    [Fact]
+    public async Task Розыгрыш_Цвета_Показывает_Выбор_Победителю()
+    {
+        var (view, model) = Create();
+        var client = StartNetworkGuest(model, StoneColor.White);
+        var random = new Random(4);
+        var nonce = GoEngine.Multiplayer.ColorDraw.CreateNonce(random);
+        var commitment = GoEngine.Multiplayer.ColorDraw.Commitment(7, nonce);
+        client.RaiseColorDrawOffer(commitment, 15_000);
+
+        // Гость сам проверяет победителя по своему ответу (F1): 7 — нечет, отвечаем «нечет».
+        await model.GuessColorDrawAsync(odd: true);
+        client.RaiseColorDrawReveal(7, nonce, winnerIsGuest: true);
+
+        Assert.True(view.FindControl<Grid>("ColorDrawChoiceRow")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("ColorDrawGuessRow")!.IsVisible);
+        Assert.Contains("Чёрные", view.FindControl<Button>("ColorDrawBlackButton")!.Content?.ToString() ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Розыгрыш_Цвета_Скрывается_После_Итоговых_Цветов()
+    {
+        var (view, model) = Create();
+        var client = StartNetworkGuest(model, StoneColor.White);
+        var random = new Random(6);
+        var nonce = GoEngine.Multiplayer.ColorDraw.CreateNonce(random);
+        var commitment = GoEngine.Multiplayer.ColorDraw.Commitment(7, nonce);
+        client.RaiseColorDrawOffer(commitment, 15_000);
+        client.RaiseColorDrawReveal(7, nonce, winnerIsGuest: true);
+
+        client.RaiseColorDrawDone(StoneColor.Black, StoneColor.White);
+
+        Assert.False(view.FindControl<Border>("ColorDrawOverlay")!.IsVisible);
+        Assert.Equal("белые", model.NetworkPlayerColorText);
+    }
+
     /// <summary>Создаёт вид партии 9×9 вместе с его моделью представления.</summary>
     /// <returns>Вид и модель, которой он показывает партию.</returns>
     /// <remarks>

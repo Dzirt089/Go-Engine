@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net.Sockets;
 using GoEngine.App.Services;
 using GoEngine.App.Services.Logging;
 using GoEngine.Core;
@@ -64,6 +65,19 @@ public sealed partial class MainViewModel : IDisposable
     private bool _networkBannerDismissed;
     private int _networkWarningLevel;
     private int _networkTurnCueMoveNumber = -1;
+    private bool _colorDrawActive;
+    private bool _colorDrawShowGuess;
+    private bool _colorDrawShowChoice;
+    private bool _colorDrawGuestWins;
+    private string? _colorDrawCommitment;
+    private string _colorDrawStateText = string.Empty;
+    private int _colorDrawCount;
+    private string? _colorDrawNonce;
+    private DateTimeOffset _colorDrawDeadline;
+    private bool _colorDrawDeadlineSet;
+    private TaskCompletionSource<string>? _colorDrawGuessSource;
+    private TaskCompletionSource<StoneColor>? _colorDrawChoiceSource;
+    private string? _colorDrawGuess;
 
     /// <summary>Идёт сетевая партия.</summary>
     public bool IsNetworkGame => _networkMode;
@@ -212,6 +226,11 @@ public sealed partial class MainViewModel : IDisposable
             if (_networkFinished || _game.Status != GameStatus.InProgress)
             {
                 return "Партия окончена";
+            }
+
+            if (_colorDrawActive)
+            {
+                return "Розыгрыш цвета";
             }
 
             if (_networkTimerPaused)
@@ -590,6 +609,8 @@ public sealed partial class MainViewModel : IDisposable
         host.GuestReconnected += OnHostReconnected;
         host.GuestLeft += OnHostGuestLeft;
         host.Failed += OnHostFailed;
+        host.ColorDrawGuessReceived += OnHostColorDrawGuess;
+        host.ColorDrawChoiceReceived += OnHostColorDrawChoice;
     }
 
     private void UnsubscribeHost()
@@ -606,6 +627,8 @@ public sealed partial class MainViewModel : IDisposable
         _networkHost.GuestReconnected -= OnHostReconnected;
         _networkHost.GuestLeft -= OnHostGuestLeft;
         _networkHost.Failed -= OnHostFailed;
+        _networkHost.ColorDrawGuessReceived -= OnHostColorDrawGuess;
+        _networkHost.ColorDrawChoiceReceived -= OnHostColorDrawChoice;
     }
 
     private void SubscribeClient(INetworkGameClient client)
@@ -622,6 +645,9 @@ public sealed partial class MainViewModel : IDisposable
         client.Disconnected += OnGuestDisconnected;
         client.Reconnected += OnGuestReconnected;
         client.Failed += OnGuestFailed;
+        client.ColorDrawOfferReceived += OnGuestColorDrawOffer;
+        client.ColorDrawRevealReceived += OnGuestColorDrawReveal;
+        client.ColorDrawDoneReceived += OnGuestColorDrawDone;
     }
 
     private void UnsubscribeClient()
@@ -638,6 +664,9 @@ public sealed partial class MainViewModel : IDisposable
         _networkClient.Disconnected -= OnGuestDisconnected;
         _networkClient.Reconnected -= OnGuestReconnected;
         _networkClient.Failed -= OnGuestFailed;
+        _networkClient.ColorDrawOfferReceived -= OnGuestColorDrawOffer;
+        _networkClient.ColorDrawRevealReceived -= OnGuestColorDrawReveal;
+        _networkClient.ColorDrawDoneReceived -= OnGuestColorDrawDone;
     }
 
     private void OnHostMoveRequested(object? sender, GuestMoveRequestEventArgs e) =>
@@ -647,6 +676,25 @@ public sealed partial class MainViewModel : IDisposable
         PostToUi(() => _ = RunNetworkTaskAsync(SendHostStateSyncAsync));
 
     private void OnHostDisconnected(object? sender, EventArgs e) =>
+        PostToUi(() =>
+        {
+            if (!_networkMode)
+            {
+                return;
+            }
+
+            if (_colorDrawActive)
+            {
+                // Цвета ещё не разыграны: без розыгрыша партию не начать, а ждать возврата
+                // с неопределёнными цветами — тупик. Закрываем терминалом (R-004).
+                AbortColorDraw("Розыгрыш цвета прерван: связь потеряна.");
+                return;
+            }
+
+            HandleHostDisconnectedCore();
+        });
+
+    private void HandleHostDisconnectedCore() =>
         PostToUi(HandleHostDisconnected);
 
     private void OnHostReconnected(object? sender, EventArgs e) =>
@@ -841,6 +889,13 @@ public sealed partial class MainViewModel : IDisposable
                 return;
             }
 
+            if (_colorDrawActive)
+            {
+                // Цвета ещё не разыграны: ждать возврата без них нельзя, закрываем терминалом.
+                AbortColorDraw("Розыгрыш цвета прерван: связь потеряна.");
+                return;
+            }
+
             _networkRemainingMs = (int)GetNetworkRemaining().TotalMilliseconds;
             _networkTimerPaused = true;
             StartReconnectCountdown();
@@ -870,6 +925,10 @@ public sealed partial class MainViewModel : IDisposable
         {
             return;
         }
+
+        // Обрыв во время розыгрыша: ожидания цвета больше не нужны, оверлей закрывается,
+        // а терминальное сообщение остаётся тем, что пришло первым (F3).
+        CancelColorDraw();
 
         if (error.Code == LanErrorCodes.MoveRejected)
         {
@@ -909,6 +968,8 @@ public sealed partial class MainViewModel : IDisposable
     {
         // Партия уже окончена по правилам — поздний обрыв (гость вышел после итога, истёк
         // 60-секундный срок) не должен превращать настоящий итог в «Партия прервана» (B1).
+        // Розыгрыш цвета в этот момент уже не нужен: отменяем ожидания (F3).
+        CancelColorDraw();
         var alreadyFinished = _game.Status != GameStatus.InProgress || HasOutcome;
         var host = _networkHost;
         if (host is not null && !alreadyFinished)
@@ -936,6 +997,486 @@ public sealed partial class MainViewModel : IDisposable
         NotifyAll();
     }
 
+    /// <summary>Идёт нигири-розыгрыш цвета в начале сетевой партии.</summary>
+    public bool IsColorDrawActive => _colorDrawActive;
+
+    /// <summary>Заголовок оверлея розыгрыша.</summary>
+    public string ColorDrawTitle => "Розыгрыш цвета";
+
+    /// <summary>Что происходит в розыгрыше: короткая фраза для ребёнка.</summary>
+    public string ColorDrawStateText => _colorDrawStateText;
+
+    /// <summary>Сколько секунд осталось на ответ в розыгрыше; 0 — ответ не ждём.</summary>
+    public int ColorDrawSecondsLeft
+    {
+        get
+        {
+            if (!_colorDrawDeadlineSet)
+            {
+                return 0;
+            }
+
+            var left = _colorDrawDeadline - _timeProvider.GetUtcNow();
+
+            return left > TimeSpan.Zero ? (int)Math.Ceiling(left.TotalSeconds) : 0;
+        }
+    }
+
+    /// <summary>Гость должен выбрать «Чёт/Нечет»: показываем крупные кнопки.</summary>
+    public bool ColorDrawShowGuess => _colorDrawActive && _colorDrawShowGuess;
+
+    /// <summary>Победитель розыгрыша выбирает цвет: показываем «Чёрные/Белые».</summary>
+    public bool ColorDrawShowChoice => _colorDrawActive && _colorDrawShowChoice;
+
+    /// <summary>Начинает розыгрыш цвета на стороне хозяина (нигири, commit-reveal).</summary>
+    /// <param name="cancellationToken">Отмена розыгрыша.</param>
+    /// <returns>Задача розыгрыша; завершается, когда оба игрока получили цвета.</returns>
+    /// <remarks>
+    /// Хозяин — арбитр: он прячет камни, ждёт ответ гостя, раскрывает горсть и ждёт выбор
+    /// победителя. Таймеры хода на время розыгрыша стоят: первый ход начинается только после
+    /// @@color_draw_done@@. Таймауты закрываются случайным ответом, чтобы партия не зависла.
+    /// </remarks>
+    public async Task BeginColorDrawAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_networkMode || _networkHost is not { } host || _colorDrawActive)
+        {
+            return;
+        }
+
+        try
+        {
+            _colorDrawActive = true;
+            _networkTimerPaused = true;
+            _networkTurnTimer?.Pause();
+            _networkWarningLevel = 0;
+            _colorDrawShowGuess = false;
+            _colorDrawShowChoice = false;
+            _colorDrawGuestWins = false;
+            _colorDrawCount = ColorDraw.CreateCount(_random);
+            _colorDrawNonce = ColorDraw.CreateNonce(_random);
+            _colorDrawCommitment = ColorDraw.Commitment(_colorDrawCount, _colorDrawNonce);
+            _colorDrawStateText = "Прячем камни. Друг угадывает: чёт или нечет?";
+            StartColorDrawDeadline(_networkOptions.ColorDrawTimeout);
+            _colorDrawGuessSource = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            NotifyColorDraw();
+
+            var offer = await host.SendColorDrawOfferAsync(
+                _colorDrawCommitment,
+                (int)_networkOptions.ColorDrawTimeout.TotalMilliseconds,
+                cancellationToken).ConfigureAwait(true);
+            if (!offer.IsSuccess)
+            {
+                AbortColorDraw(offer.Error);
+                return;
+            }
+
+            var guess = await WaitColorDrawGuessAsync(cancellationToken).ConfigureAwait(true);
+            if (!_colorDrawActive)
+            {
+                return;
+            }
+
+            if (guess is null)
+            {
+                // Гость не ответил: хозяин угадывает сам, как в живом нигири при опоздании.
+                guess = _random.Next(2) == 0 ? ColorDraw.GuessOdd : ColorDraw.GuessEven;
+            }
+
+            _colorDrawGuestWins = ColorDraw.IsGuessCorrect(_colorDrawCount, guess);
+            _colorDrawStateText = ColorDrawResultText(_colorDrawCount, _colorDrawGuestWins);
+            _colorDrawShowChoice = !_colorDrawGuestWins;
+            StartColorDrawDeadline(_networkOptions.ColorDrawTimeout);
+            NotifyColorDraw();
+
+            var reveal = await host.SendColorDrawRevealAsync(
+                _colorDrawCount,
+                _colorDrawNonce!,
+                _colorDrawGuestWins,
+                cancellationToken).ConfigureAwait(true);
+            if (!reveal.IsSuccess)
+            {
+                AbortColorDraw(reveal.Error);
+                return;
+            }
+
+            StoneColor chosen;
+            if (_colorDrawGuestWins)
+            {
+                _colorDrawStateText = "Друг выбирает цвет…";
+                _colorDrawDeadlineSet = false;
+                _colorDrawChoiceSource = new TaskCompletionSource<StoneColor>(TaskCreationOptions.RunContinuationsAsynchronously);
+                NotifyColorDraw();
+                var choice = await WaitColorDrawChoiceAsync(cancellationToken).ConfigureAwait(true);
+                if (!_colorDrawActive)
+                {
+                    return;
+                }
+
+                chosen = choice ?? RandomColor();
+            }
+            else
+            {
+                _colorDrawStateText = "Ты угадал! Выбери цвет.";
+                _colorDrawShowChoice = true;
+                StartColorDrawDeadline(_networkOptions.ColorDrawTimeout);
+                _colorDrawChoiceSource = new TaskCompletionSource<StoneColor>(TaskCreationOptions.RunContinuationsAsynchronously);
+                NotifyColorDraw();
+                var choice = await WaitColorDrawChoiceAsync(cancellationToken).ConfigureAwait(true);
+                if (!_colorDrawActive)
+                {
+                    return;
+                }
+
+                chosen = choice ?? RandomColor();
+            }
+
+            var guestColor = ColorDraw.Opposite(chosen);
+            var done = await host.SendColorDrawDoneAsync(chosen, guestColor, cancellationToken).ConfigureAwait(true);
+            if (!done.IsSuccess)
+            {
+                AbortColorDraw(done.Error);
+                return;
+            }
+
+            CompleteColorDraw(chosen);
+        }
+        catch (OperationCanceledException)
+        {
+            // Отмена (выход из партии): состояние сбросит ResetNetworkUiState.
+        }
+        catch (Exception exception) when (exception is IOException or SocketException or ObjectDisposedException or InvalidOperationException)
+        {
+            AbortColorDraw($"Розыгрыш цвета прерван: {exception.Message}");
+        }
+        finally
+        {
+            _colorDrawGuessSource = null;
+            _colorDrawChoiceSource = null;
+        }
+    }
+
+    /// <summary>Гость отвечает на нигири: «Чёт» или «Нечет».</summary>
+    /// <param name="odd"><c>true</c> — нечет, <c>false</c> — чёт.</param>
+    /// <returns>Задача отправки.</returns>
+    public async Task GuessColorDrawAsync(bool odd)
+    {
+        if (!_colorDrawActive || _networkClient is not { } client || !_colorDrawShowGuess)
+        {
+            return;
+        }
+
+        _colorDrawShowGuess = false;
+        _colorDrawGuess = odd ? ColorDraw.GuessOdd : ColorDraw.GuessEven;
+        _colorDrawStateText = "Ответ отправлен. Хозяин раскрывает камни…";
+
+        // Ждём раскрытия не бесконечно: если хозяин пропал, гость сам закроет розыгрыш.
+        StartColorDrawDeadline(_networkOptions.ColorDrawTimeout);
+        NotifyColorDraw();
+
+        var sent = await client.SendColorDrawGuessAsync(
+            _colorDrawGuess,
+            CancellationToken.None).ConfigureAwait(true);
+        if (!sent.IsSuccess)
+        {
+            AbortColorDraw(sent.Error);
+        }
+    }
+
+    /// <summary>Победитель розыгрыша выбирает свой цвет.</summary>
+    /// <param name="color">Чёрные или белые.</param>
+    /// <returns>Задача выбора.</returns>
+    public async Task ChooseColorDrawColorAsync(StoneColor color)
+    {
+        if (!_colorDrawActive || color is null || color == StoneColor.Empty)
+        {
+            return;
+        }
+
+        if (_networkClient is { } client)
+        {
+            if (!_colorDrawGuestWins || !_colorDrawShowChoice)
+            {
+                return;
+            }
+
+            _colorDrawShowChoice = false;
+            _colorDrawStateText = "Цвет выбран. Начинаем…";
+
+            // Ждём итоговые цвета не бесконечно: пропавший хозяин не оставит оверлей навсегда.
+            StartColorDrawDeadline(_networkOptions.ColorDrawTimeout);
+            NotifyColorDraw();
+
+            var sent = await client.SendColorDrawChoiceAsync(color, CancellationToken.None).ConfigureAwait(true);
+            if (!sent.IsSuccess)
+            {
+                AbortColorDraw(sent.Error);
+            }
+
+            return;
+        }
+
+        // Хозяин-победитель: выбор идёт в его же модели, без сети.
+        _colorDrawChoiceSource?.TrySetResult(color);
+    }
+
+    /// <summary>Ждёт ответ гостя на нигири; по таймауту возвращает <c>null</c>.</summary>
+    private async Task<string?> WaitColorDrawGuessAsync(CancellationToken cancellationToken)
+    {
+        // Локальная ссылка: при выходе из партии ResetNetworkUiState обнуляет поле,
+        // и сравнение «кто завершился» по полю дало бы NullReferenceException.
+        var source = _colorDrawGuessSource ??= new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var delay = Task.Delay(_networkOptions.ColorDrawTimeout, _timeProvider, linked.Token);
+        var completed = await Task.WhenAny(source.Task, delay).ConfigureAwait(true);
+        await linked.CancelAsync().ConfigureAwait(true);
+
+        return completed == source.Task ? await source.Task.ConfigureAwait(true) : null;
+    }
+
+    /// <summary>Ждёт выбора цвета победителем; по таймауту возвращает <c>null</c>.</summary>
+    private async Task<StoneColor?> WaitColorDrawChoiceAsync(CancellationToken cancellationToken)
+    {
+        var source = _colorDrawChoiceSource ??= new TaskCompletionSource<StoneColor>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var delay = Task.Delay(_networkOptions.ColorDrawTimeout, _timeProvider, linked.Token);
+        var completed = await Task.WhenAny(source.Task, delay).ConfigureAwait(true);
+        await linked.CancelAsync().ConfigureAwait(true);
+
+        if (completed != source.Task)
+        {
+            return null;
+        }
+
+        return await source.Task.ConfigureAwait(true);
+    }
+
+    /// <summary>Гость получил предложение нигири: показывает «Чёт/Нечет».</summary>
+    private void OnGuestColorDrawOffer(object? sender, ColorDrawOfferEventArgs e) =>
+        PostToUi(() =>
+        {
+            if (!_networkMode || _networkClient is null)
+            {
+                return;
+            }
+
+            _colorDrawActive = true;
+            _networkTimerPaused = true;
+            _colorDrawCommitment = e.Commitment;
+            _colorDrawShowGuess = true;
+            _colorDrawShowChoice = false;
+            _colorDrawGuestWins = false;
+            _colorDrawStateText = "Сколько камней у хозяина? Чёт или нечет?";
+            StartColorDrawDeadline(TimeSpan.FromMilliseconds(Math.Max(1000, e.TimeoutMs)));
+            NotifyColorDraw();
+        });
+
+    /// <summary>Гость увидел раскрытие: проверяет обязательство и показывает результат.</summary>
+    private void OnGuestColorDrawReveal(object? sender, ColorDrawRevealEventArgs e) =>
+        PostToUi(() =>
+        {
+            if (!_networkMode)
+            {
+                return;
+            }
+
+            if (!ColorDraw.Verify(e.Count, e.Nonce, _colorDrawCommitment ?? string.Empty))
+            {
+                AbortColorDraw("Хозяин прислал неверное раскрытие нигири.");
+                return;
+            }
+
+            // Победителя считаем сами по своему ответу: хеш защищает число, но не флаг
+            // winnerIsGuest. Расхождение — хозяин прислал противоречивый результат (F1).
+            var expectedWinner = ColorDraw.IsGuessCorrect(e.Count, _colorDrawGuess ?? string.Empty);
+            if (expectedWinner != e.WinnerIsGuest)
+            {
+                AbortColorDraw("Хозяин прислал противоречивый результат нигири.");
+                return;
+            }
+
+            _colorDrawShowGuess = false;
+            _colorDrawGuestWins = expectedWinner;
+            _colorDrawShowChoice = expectedWinner;
+            _colorDrawStateText = ColorDrawResultText(e.Count, expectedWinner)
+                + (expectedWinner ? " Ты выбираешь цвет." : " Ждём выбора хозяина.");
+            StartColorDrawDeadline(_networkOptions.ColorDrawTimeout);
+            NotifyColorDraw();
+        });
+
+    /// <summary>Гость получил итоговые цвета: розыгрыш завершён.</summary>
+    private void OnGuestColorDrawDone(object? sender, ColorDrawDoneEventArgs e) =>
+        PostToUi(() =>
+        {
+            if (!_networkMode || !_colorDrawActive)
+            {
+                return;
+            }
+
+            // Цвета — только чёрные/белые и обязательно разные: иначе партия несогласована (F2).
+            if ((e.HostColor != StoneColor.Black && e.HostColor != StoneColor.White)
+                || (e.GuestColor != StoneColor.Black && e.GuestColor != StoneColor.White)
+                || e.HostColor == e.GuestColor)
+            {
+                AbortColorDraw("Хозяин прислал некорректные цвета нигири.");
+                return;
+            }
+
+            CompleteColorDraw(e.GuestColor);
+        });
+
+    /// <summary>Хозяин получил ответ гостя на нигири.</summary>
+    private void OnHostColorDrawGuess(object? sender, ColorDrawGuessEventArgs e) =>
+        PostToUi(() =>
+        {
+            // Хозяин — арбитр: принимаем только «чёт»/«нечет», остальное игнорируем (F2).
+            if (e.Parity is ColorDraw.GuessOdd or ColorDraw.GuessEven)
+            {
+                _colorDrawGuessSource?.TrySetResult(e.Parity);
+            }
+        });
+
+    /// <summary>Хозяин получил выбор цвета гостя-победителя.</summary>
+    private void OnHostColorDrawChoice(object? sender, ColorDrawChoiceEventArgs e) =>
+        PostToUi(() =>
+        {
+            // Только чёрные или белые: Empty/мусор в настройки не попадает (F2).
+            if (e.Color == StoneColor.Black || e.Color == StoneColor.White)
+            {
+                _colorDrawChoiceSource?.TrySetResult(e.Color);
+            }
+        });
+
+    /// <summary>Завершает розыгрыш: применяет цвет, запускает таймер хода и первый ход.</summary>
+    private void CompleteColorDraw(StoneColor playerColor)
+    {
+        _colorDrawActive = false;
+        _colorDrawShowGuess = false;
+        _colorDrawShowChoice = false;
+        _colorDrawDeadlineSet = false;
+        _colorDrawStateText = string.Empty;
+        _colorDrawCommitment = null;
+        _colorDrawNonce = null;
+        _networkPlayerColor = playerColor;
+        _settings = _settings with { PlayerColor = playerColor.Name };
+        _networkTimerPaused = false;
+
+        if (_networkHost is not null)
+        {
+            StartNetworkTimer();
+        }
+
+        NotifyColorDraw();
+        NotifyAll();
+        NotifyNetworkTurnCue();
+
+        if (_networkHost is not null)
+        {
+            _ = RunNetworkTaskAsync(SendHostTurnStateAsync);
+        }
+    }
+
+    /// <summary>Сбрасывает состояние розыгрыша и отменяет ожидания, не ставя терминал.</summary>
+    private void CancelColorDraw()
+    {
+        var wasActive = _colorDrawActive;
+        _colorDrawActive = false;
+        _colorDrawShowGuess = false;
+        _colorDrawShowChoice = false;
+        _colorDrawDeadlineSet = false;
+        _colorDrawStateText = string.Empty;
+        _colorDrawGuess = null;
+        _colorDrawGuessSource?.TrySetCanceled();
+        _colorDrawChoiceSource?.TrySetCanceled();
+        _colorDrawGuessSource = null;
+        _colorDrawChoiceSource = null;
+
+        if (wasActive)
+        {
+            NotifyColorDraw();
+        }
+    }
+
+    /// <summary>Прерывает розыгрыш до начала партии: причина уходит в терминальное состояние.</summary>
+    private void AbortColorDraw(string? message)
+    {
+        CancelColorDraw();
+
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        // Гость не должен остаться с оверлеем без объяснения: шлём ему ту же причину (F4).
+        if (_networkHost is { } host)
+        {
+            _ = RunNetworkTaskAsync(async () =>
+            {
+                await host.SendErrorAsync(LanErrorCodes.ProtocolError, message, CancellationToken.None).ConfigureAwait(true);
+            });
+        }
+
+        // Прерывание розыгрыша — терминальное состояние: партию без цветов не начать.
+        AppLogMessages.NetworkError(_log, LanErrorCodes.ProtocolError, message);
+        _networkError = message;
+        _networkFinished = true;
+        _networkAwaitingConfirmation = false;
+        _networkTimerPaused = true;
+        _networkTerminalMessage = message;
+        StopReconnectCountdown();
+        _clock.Stop();
+        MarkHostFinished();
+        NotifyAll();
+    }
+
+    /// <summary>Ставит дедлайн ответа и сообщает виду, что пошёл отсчёт.</summary>
+    private void StartColorDrawDeadline(TimeSpan timeout)
+    {
+        _colorDrawDeadline = _timeProvider.GetUtcNow() + timeout;
+        _colorDrawDeadlineSet = true;
+    }
+
+    /// <summary>Текст результата раскрытия: число, чётность и кто угадал.</summary>
+    private static string ColorDrawResultText(int count, bool guestWon)
+    {
+        var word = count % 2 == 1 ? "нечет" : "чёт";
+
+        return $"В горсти {count} — {word}. {(guestWon ? "Друг угадал!" : "Друг не угадал.")}";
+    }
+
+    /// <summary>Случайный цвет на случай, если победитель не успел выбрать.</summary>
+    private StoneColor RandomColor() => _random.Next(2) == 0 ? StoneColor.Black : StoneColor.White;
+
+    /// <summary>Сообщает виду о состоянии розыгрыша.</summary>
+    private void NotifyColorDraw()
+    {
+        OnPropertyChanged(nameof(IsColorDrawActive));
+        OnPropertyChanged(nameof(ColorDrawStateText));
+        OnPropertyChanged(nameof(ColorDrawSecondsLeft));
+        OnPropertyChanged(nameof(ColorDrawShowGuess));
+        OnPropertyChanged(nameof(ColorDrawShowChoice));
+        OnPropertyChanged(nameof(ColorDrawTitle));
+    }
+
+    /// <summary>Отправляет гостю состояние таймера после розыгрыша.</summary>
+    private async Task SendHostTurnStateAsync()
+    {
+        var host = _networkHost;
+        if (host is null)
+        {
+            return;
+        }
+
+        var sent = await host.SendTurnStateAsync(
+            (int)GetNetworkRemaining().TotalMilliseconds,
+            paused: false,
+            CancellationToken.None).ConfigureAwait(true);
+        if (!sent.IsSuccess)
+        {
+            _networkError = sent.Error;
+            NotifyAll();
+        }
+    }
+
     /// <summary>Сбрасывает сетевое состояние интерфейса при старте, выходе и восстановлении.</summary>
     private void ResetNetworkUiState()
     {
@@ -947,6 +1488,20 @@ public sealed partial class MainViewModel : IDisposable
         _networkBannerDismissed = false;
         _networkWarningLevel = 0;
         _networkTurnCueMoveNumber = -1;
+        _colorDrawActive = false;
+        _colorDrawShowGuess = false;
+        _colorDrawShowChoice = false;
+        _colorDrawGuestWins = false;
+        _colorDrawDeadlineSet = false;
+        _colorDrawStateText = string.Empty;
+        _colorDrawCommitment = null;
+        _colorDrawNonce = null;
+        _colorDrawGuess = null;
+        _colorDrawGuessSource?.TrySetCanceled();
+        _colorDrawChoiceSource?.TrySetCanceled();
+        _colorDrawGuessSource = null;
+        _colorDrawChoiceSource = null;
+        NotifyColorDraw();
     }
 
     /// <summary>Сообщает хозяину, что партия окончена: переподключение её не оживит.</summary>
@@ -1130,6 +1685,22 @@ public sealed partial class MainViewModel : IDisposable
 
         OnPropertyChanged(nameof(NetworkTurnText));
         OnPropertyChanged(nameof(NetworkStatusText));
+
+        if (_colorDrawActive)
+        {
+            OnPropertyChanged(nameof(ColorDrawSecondsLeft));
+
+            // Гость ждёт хозяина; если дедлайн истёк и ввода от гостя не ждём — розыгрыш
+            // не завершился, закрываем терминалом, а не висим оверлеем (F4).
+            if (_networkClient is not null
+                && _colorDrawDeadlineSet
+                && ColorDrawSecondsLeft == 0
+                && !_colorDrawShowGuess
+                && !_colorDrawShowChoice)
+            {
+                AbortColorDraw("Розыгрыш цвета не завершился: хозяин не прислал результат.");
+            }
+        }
     }
 
     /// <summary>Обновляет обратный отсчёт возвращения соперника раз в секунду.</summary>

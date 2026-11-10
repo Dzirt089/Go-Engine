@@ -9,7 +9,12 @@ namespace GoEngine.Multiplayer;
 public sealed record MultiplayerOptions
 {
     /// <summary>Версия сетевого протокола; несовпадение отклоняется до обмена ходами.</summary>
-    public int ProtocolVersion { get; init; } = 1;
+    /// <remarks>Версия 2 добавила нигири-розыгрыш цвета (commit-reveal).</remarks>
+    public int ProtocolVersion { get; init; } = 2;
+
+    /// <summary>Сколько ждём ответа в нигири: угадывание и выбор цвета.</summary>
+    /// <remarks>15 секунд — ребёнок успевает прочитать крупную кнопку и нажать.</remarks>
+    public TimeSpan ColorDrawTimeout { get; init; } = TimeSpan.FromSeconds(15);
 
     /// <summary>Сколько времени даётся на один ход до вынужденного паса.</summary>
     public TimeSpan MoveTimeout { get; init; } = TimeSpan.FromSeconds(90);

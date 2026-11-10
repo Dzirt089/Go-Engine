@@ -111,8 +111,17 @@ public sealed class LanSessionLoopbackTests
 
         await guest.DisposeAsync();
 
-        await cancelled.Task.WaitAsync(timeout.Token);
-        _ = join;
+        var completed = await Task.WhenAny(cancelled.Task, Task.Delay(TimeSpan.FromSeconds(5), timeout.Token));
+        Assert.True(completed == cancelled.Task, "хозяин не снял заявку после закрытия гостя");
+
+        try
+        {
+            _ = await join;
+        }
+        catch (OperationCanceledException)
+        {
+            // Гость закрыл соединение в ожидании решения: отмена ожидаема.
+        }
     }
 
     [TlsFact]
@@ -163,6 +172,7 @@ public sealed class LanSessionLoopbackTests
             {
                 Type = LanMessageTypes.Join,
                 ProtocolVersion = options.ProtocolVersion,
+                GameId = room.GameId,
                 AvatarId = 1
             }, timeout.Token);
             var accepted = await first.ReceiveAsync(timeout.Token);
@@ -195,6 +205,138 @@ public sealed class LanSessionLoopbackTests
         finally
         {
             await resume.DisposeAsync();
+        }
+    }
+
+    [TlsFact]
+    public async Task Нигири_Проходит_Через_Сеть_От_Предложения_До_Цветов()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var options = new MultiplayerOptions { PreferredTcpPort = 0 };
+        await using var host = new LanGameHost(options);
+        var hostRoom = await host.StartHostingAsync(hostAvatarId: 0, roomNumber: 47, boardSize: 9, timeout.Token);
+        Assert.True(hostRoom.IsSuccess, hostRoom.Error);
+        host.GuestJoinRequested += (_, _) => _ = host.AcceptGuestAsync(StoneColor.White, 5.5, timeout.Token);
+
+        await using var guest = new LanGameClient(options);
+        var started = await guest.JoinAsync(hostRoom.Value!, avatarId: 1, timeout.Token);
+        Assert.True(started.IsSuccess, started.Error);
+
+        var random = new Random(7);
+        var count = ColorDraw.CreateCount(random);
+        var nonce = ColorDraw.CreateNonce(random);
+        var commitment = ColorDraw.Commitment(count, nonce);
+        var offer = new TaskCompletionSource<ColorDrawOfferEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reveal = new TaskCompletionSource<ColorDrawRevealEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var done = new TaskCompletionSource<ColorDrawDoneEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var guess = new TaskCompletionSource<ColorDrawGuessEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var choice = new TaskCompletionSource<ColorDrawChoiceEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+        guest.ColorDrawOfferReceived += (_, args) => offer.TrySetResult(args);
+        guest.ColorDrawRevealReceived += (_, args) => reveal.TrySetResult(args);
+        guest.ColorDrawDoneReceived += (_, args) => done.TrySetResult(args);
+        host.ColorDrawGuessReceived += (_, args) => guess.TrySetResult(args);
+        host.ColorDrawChoiceReceived += (_, args) => choice.TrySetResult(args);
+
+        Assert.True((await host.SendColorDrawOfferAsync(commitment, 15_000, timeout.Token)).IsSuccess);
+        var offerArgs = await offer.Task.WaitAsync(timeout.Token);
+        Assert.Equal(commitment, offerArgs.Commitment);
+
+        Assert.True((await guest.SendColorDrawGuessAsync(ColorDraw.GuessOdd, timeout.Token)).IsSuccess);
+        var guessArgs = await guess.Task.WaitAsync(timeout.Token);
+        Assert.Equal(ColorDraw.GuessOdd, guessArgs.Parity);
+
+        var winnerIsGuest = ColorDraw.IsGuessCorrect(count, guessArgs.Parity);
+        Assert.True((await host.SendColorDrawRevealAsync(count, nonce, winnerIsGuest, timeout.Token)).IsSuccess);
+        var revealArgs = await reveal.Task.WaitAsync(timeout.Token);
+        Assert.True(ColorDraw.Verify(revealArgs.Count, revealArgs.Nonce, commitment));
+        Assert.Equal(winnerIsGuest, revealArgs.WinnerIsGuest);
+
+        Assert.True((await guest.SendColorDrawChoiceAsync(StoneColor.White, timeout.Token)).IsSuccess);
+        var choiceArgs = await choice.Task.WaitAsync(timeout.Token);
+        Assert.Equal(StoneColor.White, choiceArgs.Color);
+
+        Assert.True((await host.SendColorDrawDoneAsync(StoneColor.Black, StoneColor.White, timeout.Token)).IsSuccess);
+        var doneArgs = await done.Task.WaitAsync(timeout.Token);
+        Assert.Equal(StoneColor.Black, doneArgs.HostColor);
+        Assert.Equal(StoneColor.White, doneArgs.GuestColor);
+    }
+
+    [TlsFact]
+    public async Task Старый_Клиент_Получает_Понятную_Ошибку_Версии()
+    {
+        // Версия 2 добавила нигири: клиент версии 1 должен получить отказ с объяснением.
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var options = new MultiplayerOptions { PreferredTcpPort = 0 };
+        await using var host = new LanGameHost(options);
+        var hostRoom = await host.StartHostingAsync(hostAvatarId: 0, roomNumber: 48, boardSize: 9, timeout.Token);
+        Assert.True(hostRoom.IsSuccess, hostRoom.Error);
+        var room = hostRoom.Value!;
+
+        var connection = await LanTlsConnection.ConnectAsync(room.HostAddress, room.TcpPort, options.TimeProvider, timeout.Token);
+        try
+        {
+            await connection.SendAsync(new LanMessage
+            {
+                Type = LanMessageTypes.Join,
+                ProtocolVersion = 1,
+                GameId = room.GameId,
+                AvatarId = 1
+            }, timeout.Token);
+            var rejected = await connection.ReceiveAsync(timeout.Token);
+
+            Assert.False(rejected.Accepted);
+            Assert.Equal(LanErrorCodes.ProtocolMismatch, rejected.Code);
+            Assert.Contains("версия", rejected.Message ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            await connection.DisposeAsync();
+        }
+    }
+
+    [TlsFact]
+    public async Task Хозяин_Отклоняет_Некорректный_Выбор_Цвета()
+    {
+        // F2: choice «Empty» не должен приниматься хозяином-арбитром.
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var options = new MultiplayerOptions { PreferredTcpPort = 0 };
+        await using var host = new LanGameHost(options);
+        var hostRoom = await host.StartHostingAsync(hostAvatarId: 0, roomNumber: 49, boardSize: 9, timeout.Token);
+        Assert.True(hostRoom.IsSuccess, hostRoom.Error);
+        host.GuestJoinRequested += (_, _) => _ = host.AcceptGuestAsync(StoneColor.White, 5.5, timeout.Token);
+        var room = hostRoom.Value!;
+
+        var failed = new TaskCompletionSource<LanErrorEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.Failed += (_, args) => failed.TrySetResult(args);
+
+        var connection = await LanTlsConnection.ConnectAsync(room.HostAddress, room.TcpPort, options.TimeProvider, timeout.Token);
+        try
+        {
+            await connection.SendAsync(new LanMessage
+            {
+                Type = LanMessageTypes.Join,
+                ProtocolVersion = options.ProtocolVersion,
+                GameId = room.GameId,
+                AvatarId = 1
+            }, timeout.Token);
+            var accepted = await connection.ReceiveAsync(timeout.Token);
+            Assert.True(accepted.Accepted);
+
+            await connection.SendAsync(new LanMessage
+            {
+                Type = LanMessageTypes.ColorDrawChoice,
+                ProtocolVersion = options.ProtocolVersion,
+                GameId = room.GameId,
+                Color = "Empty"
+            }, timeout.Token);
+
+            var error = await failed.Task.WaitAsync(timeout.Token);
+            Assert.Equal(LanErrorCodes.ProtocolError, error.Code);
+            Assert.Contains("цвет", error.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            await connection.DisposeAsync();
         }
     }
 }

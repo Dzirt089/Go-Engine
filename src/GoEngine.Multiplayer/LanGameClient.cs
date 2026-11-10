@@ -29,6 +29,8 @@ public sealed class LanGameClient : INetworkGameClient
     private int _hostAvatarId;
     private bool _started;
     private bool _disposed;
+    private CancellationTokenSource? _joinLifetime;
+    private LanTlsConnection? _joinConnection;
     private bool _reconnecting;
     private DateTimeOffset _lastServerActivity;
     private int _remainingMs;
@@ -57,6 +59,15 @@ public sealed class LanGameClient : INetworkGameClient
 
     /// <summary>Ошибка, после которой партия не может продолжаться.</summary>
     public event EventHandler<LanErrorEventArgs>? Failed;
+
+    /// <summary>Хозяин предложил нигири: обязательство и срок ответа.</summary>
+    public event EventHandler<ColorDrawOfferEventArgs>? ColorDrawOfferReceived;
+
+    /// <summary>Хозяин раскрыл горсть и назвал победителя.</summary>
+    public event EventHandler<ColorDrawRevealEventArgs>? ColorDrawRevealReceived;
+
+    /// <summary>Розыгрыш завершён: хозяин назвал итоговые цвета.</summary>
+    public event EventHandler<ColorDrawDoneEventArgs>? ColorDrawDoneReceived;
 
     /// <summary>Есть активное соединение с хозяином.</summary>
     public bool IsConnected
@@ -100,6 +111,13 @@ public sealed class LanGameClient : INetworkGameClient
         }
 
         var lifetime = new CancellationTokenSource();
+        lock (_sync)
+        {
+            // Пока хозяин думает, LeaveAsync/DisposeAsync должны уметь отменить ожидание
+            // и закрыть уже открытое соединение — иначе заявка висит до двух минут.
+            _joinLifetime = lifetime;
+        }
+
         LanTlsConnection? connection = null;
         try
         {
@@ -110,6 +128,11 @@ public sealed class LanGameClient : INetworkGameClient
                 room.TcpPort,
                 _options.TimeProvider,
                 handshake.Token).ConfigureAwait(false);
+
+            lock (_sync)
+            {
+                _joinConnection = connection;
+            }
 
             await connection.SendAsync(new LanMessage
             {
@@ -188,6 +211,12 @@ public sealed class LanGameClient : INetworkGameClient
         }
         finally
         {
+            lock (_sync)
+            {
+                _joinLifetime = null;
+                _joinConnection = null;
+            }
+
             if (connection is not null)
             {
                 await connection.DisposeAsync().ConfigureAwait(false);
@@ -223,6 +252,36 @@ public sealed class LanGameClient : INetworkGameClient
         }, cancellationToken);
     }
 
+    /// <summary>Ответить на нигири: чёт или нечет.</summary>
+    /// <param name="parity"><c>odd</c> или <c>even</c>.</param>
+    /// <param name="cancellationToken">Отмена отправки.</param>
+    /// <returns>Успех или причина отказа.</returns>
+    public Task<Result> SendColorDrawGuessAsync(string parity, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(parity);
+
+        return SendAsync(new LanMessage
+        {
+            Type = LanMessageTypes.ColorDrawGuess,
+            ProtocolVersion = _options.ProtocolVersion,
+            GameId = _gameId,
+            Parity = parity
+        }, cancellationToken);
+    }
+
+    /// <summary>Выбрать цвет после победы в нигири.</summary>
+    /// <param name="color">Выбранный цвет.</param>
+    /// <param name="cancellationToken">Отмена отправки.</param>
+    /// <returns>Успех или причина отказа.</returns>
+    public Task<Result> SendColorDrawChoiceAsync(StoneColor color, CancellationToken cancellationToken) =>
+        SendAsync(new LanMessage
+        {
+            Type = LanMessageTypes.ColorDrawChoice,
+            ProtocolVersion = _options.ProtocolVersion,
+            GameId = _gameId,
+            Color = color.Name
+        }, cancellationToken);
+
     /// <summary>Попросить полное состояние партии после переподключения.</summary>
     /// <param name="cancellationToken">Отмена отправки.</param>
     /// <returns>Успех или причина отказа.</returns>
@@ -240,6 +299,8 @@ public sealed class LanGameClient : INetworkGameClient
     {
         CancellationTokenSource? lifetime;
         LanTlsConnection? connection;
+        CancellationTokenSource? joinLifetime;
+        LanTlsConnection? pendingJoin;
         lock (_sync)
         {
             if (_disposed)
@@ -252,6 +313,27 @@ public sealed class LanGameClient : INetworkGameClient
             connection = _connection;
             _lifetime = null;
             _connection = null;
+
+            // Ожидание решения хозяина — тоже ресурс: отменяем его вместе с клиентом.
+            joinLifetime = _joinLifetime;
+            pendingJoin = _joinConnection;
+            _joinLifetime = null;
+            _joinConnection = null;
+        }
+
+        joinLifetime?.Cancel();
+        joinLifetime?.Dispose();
+
+        if (pendingJoin is not null)
+        {
+            try
+            {
+                await pendingJoin.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is IOException or SocketException or LanConnectionClosedException or ObjectDisposedException)
+            {
+                // Соединение уже мог закрыть сам JoinAsync.
+            }
         }
 
         lifetime?.Cancel();
@@ -316,6 +398,28 @@ public sealed class LanGameClient : INetworkGameClient
 
                     case LanMessageTypes.StateSync:
                         HandleStateSync(message);
+                        break;
+
+                    case LanMessageTypes.ColorDrawOffer:
+                        ColorDrawOfferReceived?.Invoke(this, new ColorDrawOfferEventArgs(
+                            message.Commitment ?? string.Empty,
+                            message.TimeoutMs ?? 0));
+                        break;
+
+                    case LanMessageTypes.ColorDrawReveal:
+                        ColorDrawRevealReceived?.Invoke(this, new ColorDrawRevealEventArgs(
+                            message.Count ?? 0,
+                            message.Nonce ?? string.Empty,
+                            message.WinnerIsGuest ?? false));
+                        break;
+
+                    case LanMessageTypes.ColorDrawDone:
+                        if (Enumeration.TryFromName<StoneColor>(message.HostColor) is { } hostColor
+                            && Enumeration.TryFromName<StoneColor>(message.GuestColor) is { } guestColor)
+                        {
+                            ColorDrawDoneReceived?.Invoke(this, new ColorDrawDoneEventArgs(hostColor, guestColor));
+                        }
+
                         break;
 
                     case LanMessageTypes.Ping:

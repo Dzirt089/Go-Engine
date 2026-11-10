@@ -24,6 +24,10 @@ internal sealed class FakeNetworkHost : INetworkGameHost
 
     public event EventHandler<LanErrorEventArgs>? Failed;
 
+    public event EventHandler<ColorDrawGuessEventArgs>? ColorDrawGuessReceived;
+
+    public event EventHandler<ColorDrawChoiceEventArgs>? ColorDrawChoiceReceived;
+
     public RoomInfo? Room => null;
 
     public bool IsInGame { get; set; } = true;
@@ -82,9 +86,33 @@ internal sealed class FakeNetworkHost : INetworkGameHost
         return Task.FromResult(Result.Ok());
     }
 
+    public List<(string Commitment, int TimeoutMs)> ColorDrawOffers { get; } = [];
+
+    public List<(int Count, string Nonce, bool WinnerIsGuest)> ColorDrawReveals { get; } = [];
+
+    public List<(StoneColor Host, StoneColor Guest)> ColorDrawDones { get; } = [];
+
     public (string Code, string Message)? LastMoveRejection { get; private set; }
 
     public (string Code, string Message)? LastError { get; private set; }
+
+    public Task<Result> SendColorDrawOfferAsync(string commitment, int timeoutMs, CancellationToken cancellationToken)
+    {
+        ColorDrawOffers.Add((commitment, timeoutMs));
+        return Task.FromResult(Result.Ok());
+    }
+
+    public Task<Result> SendColorDrawRevealAsync(int count, string nonce, bool winnerIsGuest, CancellationToken cancellationToken)
+    {
+        ColorDrawReveals.Add((count, nonce, winnerIsGuest));
+        return Task.FromResult(Result.Ok());
+    }
+
+    public Task<Result> SendColorDrawDoneAsync(StoneColor hostColor, StoneColor guestColor, CancellationToken cancellationToken)
+    {
+        ColorDrawDones.Add((hostColor, guestColor));
+        return Task.FromResult(Result.Ok());
+    }
 
     public Task StopAsync()
     {
@@ -110,6 +138,12 @@ internal sealed class FakeNetworkHost : INetworkGameHost
 
     public void RaiseGuestLeft() => GuestLeft?.Invoke(this, EventArgs.Empty);
 
+    public void RaiseColorDrawGuess(string parity) =>
+        ColorDrawGuessReceived?.Invoke(this, new ColorDrawGuessEventArgs(parity));
+
+    public void RaiseColorDrawChoice(StoneColor color) =>
+        ColorDrawChoiceReceived?.Invoke(this, new ColorDrawChoiceEventArgs(color));
+
     internal sealed record SentMove(Move Move, bool AutoPass, int MoveNumber, int RemainingMs);
 }
 
@@ -128,6 +162,12 @@ internal sealed class FakeNetworkClient : INetworkGameClient
 
     public event EventHandler<LanErrorEventArgs>? Failed;
 
+    public event EventHandler<ColorDrawOfferEventArgs>? ColorDrawOfferReceived;
+
+    public event EventHandler<ColorDrawRevealEventArgs>? ColorDrawRevealReceived;
+
+    public event EventHandler<ColorDrawDoneEventArgs>? ColorDrawDoneReceived;
+
     public bool IsConnected { get; set; } = true;
 
     public List<(Move Move, int MoveNumber)> Requests { get; } = [];
@@ -140,6 +180,22 @@ internal sealed class FakeNetworkClient : INetworkGameClient
     public Task<Result> RequestMoveAsync(Move move, int moveNumber, CancellationToken cancellationToken)
     {
         Requests.Add((move, moveNumber));
+        return Task.FromResult(Result.Ok());
+    }
+
+    public List<string> ColorDrawGuesses { get; } = [];
+
+    public List<StoneColor> ColorDrawChoices { get; } = [];
+
+    public Task<Result> SendColorDrawGuessAsync(string parity, CancellationToken cancellationToken)
+    {
+        ColorDrawGuesses.Add(parity);
+        return Task.FromResult(Result.Ok());
+    }
+
+    public Task<Result> SendColorDrawChoiceAsync(StoneColor color, CancellationToken cancellationToken)
+    {
+        ColorDrawChoices.Add(color);
         return Task.FromResult(Result.Ok());
     }
 
@@ -164,4 +220,13 @@ internal sealed class FakeNetworkClient : INetworkGameClient
     public void RaiseReconnected() => Reconnected?.Invoke(this, EventArgs.Empty);
 
     public void RaiseFailed(LanErrorEventArgs args) => Failed?.Invoke(this, args);
+
+    public void RaiseColorDrawOffer(string commitment, int timeoutMs) =>
+        ColorDrawOfferReceived?.Invoke(this, new ColorDrawOfferEventArgs(commitment, timeoutMs));
+
+    public void RaiseColorDrawReveal(int count, string nonce, bool winnerIsGuest) =>
+        ColorDrawRevealReceived?.Invoke(this, new ColorDrawRevealEventArgs(count, nonce, winnerIsGuest));
+
+    public void RaiseColorDrawDone(StoneColor hostColor, StoneColor guestColor) =>
+        ColorDrawDoneReceived?.Invoke(this, new ColorDrawDoneEventArgs(hostColor, guestColor));
 }
