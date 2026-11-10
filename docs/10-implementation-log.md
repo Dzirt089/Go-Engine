@@ -14,3 +14,6 @@
 - Одна строка на завершённый шаг/коммит.
 - Обязательно: что изменено, чем проверено (тесты/живые прогоны/ревью), кто делал.
 - Не закрывать пункт без ссылки на REQUIREMENTS-номер и проверку.
+| 2026-11-10 | 36c4def, 168cf2f | P1/P2 выпущены v0.2.124; на Android регресс: вечный экран «Готовлю нейросеть…» (continuation после await не возобновлялся, runtime pack 8.0.34) | cold start на CTR-LX1/AVD15: зависание; Desktop работает | Lead, tester |
+| 2026-11-10 | 4cc5cb3 | Диагностика OpenShellViewAsync (try/catch+сообщение на экране), пин SDK 8.0.427; runtime pack остался 8.0.34 | v0.2.125: зависание без [CRT], UI-поток idle | Lead, tester, reviewer |
+| 2026-11-10 | 77c7d13, eadc12e | Обход: PrepareAsync ConfigureAwait(false) + Dispatcher.UIThread.Post; MainActivity не трогает Avalonia на cold start; неудачный RuntimeFrameworkVersion убран | **v0.2.127: cold start до Home на CTR-LX1/AVD15**, logcat без FATAL/[CRT] | Lead, tester |
