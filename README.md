@@ -23,6 +23,8 @@ dotnet run --project src/GoEngine.App.Desktop
 - [AGENTS.md](AGENTS.md) — Style Bible (обязательна для кода).
 - [GO_RULES.md](GO_RULES.md) — правила го и их понимание в продукте.
 - [DECISIONS.md](DECISIONS.md) — архитектурные решения.
+- [REQUIREMENTS.md](REQUIREMENTS.md) — реестр требований: что просили, статус, критерий приёмки.
+- [docs/10-implementation-log.md](docs/10-implementation-log.md) — хронология реализации.
 
 ## Выпуск
 
