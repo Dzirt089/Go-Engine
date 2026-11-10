@@ -338,5 +338,44 @@
       </Border>
     </Border>
 
+    <!-- Подтверждение выхода из сетевой партии: выход обрывает игру для друга, поэтому
+         спрашиваем — случайное нажатие «Назад» не должно обрывать чужую партию. Затемнение
+         и карточка те же, что у подтверждения выхода из приложения. -->
+    <Border x:Name="NetworkLeaveConfirmOverlay"
+            Grid.Row="0"
+            Grid.RowSpan="3"
+            IsVisible="False"
+            Classes="app-overlay">
+      <Border Classes="app-banner app-overlay-card"
+              MaxWidth="420"
+              Padding="16"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <StackPanel Spacing="10">
+          <TextBlock Classes="app-subtitle"
+                     Text="Выйти из сетевой игры?"
+                     HorizontalAlignment="Center" />
+          <TextBlock Classes="app-label"
+                     Text="Друг увидит, что вы вышли, и партия прервётся."
+                     TextWrapping="Wrap"
+                     TextAlignment="Center" />
+          <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
+            <Button x:Name="NetworkLeaveCancelButton"
+                    Grid.Column="0"
+                    Content="Остаться"
+                    Classes="app-action"
+                    Margin="0,0,4,0"
+                    HorizontalAlignment="Stretch" />
+            <Button x:Name="NetworkLeaveConfirmButton"
+                    Grid.Column="1"
+                    Content="Выйти"
+                    Classes="app-action danger"
+                    Margin="4,0,0,0"
+                    HorizontalAlignment="Stretch" />
+          </Grid>
+        </StackPanel>
+      </Border>
+    </Border>
+
   </Grid>
 </UserControl>

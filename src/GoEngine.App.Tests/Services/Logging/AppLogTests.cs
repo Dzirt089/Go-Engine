@@ -131,6 +131,84 @@ public sealed class AppLogTests : IDisposable
         }
     }
 
+    [Fact]
+    public void Повторная_Инициализация_Не_Дублирует_Строку_Запуска()
+    {
+        // Android пересоздаёт активность несколько раз за жизнь процесса: повторный
+        // Initialize с тем же каталогом не должен открывать второй файл и дублировать запуск.
+        AppLog.Initialize(_directory, Clock());
+        var file = AppLog.CurrentFile;
+
+        try
+        {
+            AppLog.Initialize(_directory, Clock());
+
+            Assert.Equal(file, AppLog.CurrentFile);
+            Assert.Equal(1, Count(LogFile.Text(file!), "Запуск приложения"));
+        }
+        finally
+        {
+            AppLog.Shutdown();
+        }
+    }
+
+    [Fact]
+    public void Смена_Каталога_Переносит_Запись()
+    {
+        var second = Path.Combine(Path.GetTempPath(), "goengine-tests", Guid.NewGuid().ToString("N"));
+        AppLog.Initialize(_directory, Clock());
+
+        try
+        {
+            AppLogMessages.ModelsUnavailable(AppLog.For("First"), "первая запись");
+            AppLog.Initialize(second, Clock());
+
+            AppLogMessages.ModelsUnavailable(AppLog.For("Second"), "вторая запись");
+
+            Assert.Equal(second, AppLog.Directory);
+            Assert.Contains("Запуск приложения", LogFile.Text(AppLog.CurrentFile!), StringComparison.Ordinal);
+            Assert.Contains("вторая запись", LogFile.Text(AppLog.CurrentFile!), StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "вторая запись",
+                LogFile.Text(Path.Combine(_directory, "goengine-20260929.log")),
+                StringComparison.Ordinal);
+        }
+        finally
+        {
+            AppLog.Shutdown();
+
+            try
+            {
+                if (Directory.Exists(second))
+                {
+                    Directory.Delete(second, recursive: true);
+                }
+            }
+            catch
+            {
+                // Временный каталог мог остаться занятым: уборка теста не влияет на результат.
+            }
+        }
+    }
+
+    /// <summary>Считает вхождения подстроки в текст.</summary>
+    /// <param name="text">Текст.</param>
+    /// <param name="value">Искомая подстрока.</param>
+    /// <returns>Число вхождений.</returns>
+    private static int Count(string text, string value)
+    {
+        var count = 0;
+        var index = 0;
+
+        while ((index = text.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += value.Length;
+        }
+
+        return count;
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {

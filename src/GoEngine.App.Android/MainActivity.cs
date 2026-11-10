@@ -31,9 +31,26 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         // Логи и обработчики падений — раньше остальных: падение на старте тоже обязано
-        // оставить файл, который игрок сможет прислать.
+        // оставить файл, который игрок сможет прислать. Повторный вызов Initialize ничего
+        // не делает: Android пересоздаёт активность несколько раз за жизнь процесса.
         global::GoEngine.App.Services.Logging.AppLog.Initialize(LogsDirectory());
         global::GoEngine.App.Services.Logging.CrashReporter.Install();
+
+        // Android вправе создать новую активность раньше, чем уничтожит прежнюю: главный вид
+        // ещё лежит в ContentPresenter старой, и повторное добавление в дерево падает
+        // с «already has a visual parent». Отвязываем вид до base.OnCreate — там Avalonia
+        // создаёт новый AvaloniaView и кладёт в него lifetime.MainView.
+        var recreated = global::Avalonia.Application.Current is not null;
+        var released = global::GoEngine.App.Views.MainViewHost.Release();
+
+        if (recreated)
+        {
+            // Только диагностика: пересоздание активности в живом процессе — не первый запуск.
+            global::GoEngine.App.Services.Logging.AppLogMessages.ActivityRecreated(
+                global::GoEngine.App.Services.Logging.AppLog.For<MainActivity>(),
+                savedInstanceState is not null,
+                released);
+        }
 
         // Копирование моделей из пакета и загрузка нейросети переехали в фоновую подготовку:
         // раньше они шли до создания интерфейса, и первые секунды после запуска телефон показывал
@@ -45,10 +62,13 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
         global::GoEngine.App.App.Prepare = () => AndroidModelStartup.Prepare(activity);
         global::GoEngine.App.App.Sound = new AndroidSoundPlayer(this);
         global::GoEngine.App.App.ExitRequested = ExitGame;
-        global::GoEngine.App.App.KeepScreenOnChanged += OnKeepScreenOnChanged;
         ConfigureUpdates();
 
         base.OnCreate(savedInstanceState);
+
+        // Подписка — после успешного создания активности: если base.OnCreate упадёт,
+        // обработчик не останется висеть в статическом событии и не будет держать активность.
+        global::GoEngine.App.App.KeepScreenOnChanged += OnKeepScreenOnChanged;
     }
 
     /// <summary>Включает/выключает «экран не гаснет» из модели партии.</summary>

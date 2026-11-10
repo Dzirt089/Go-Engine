@@ -9,6 +9,7 @@ using GoEngine.App.Services;
 using GoEngine.App.ViewModels;
 using GoEngine.App.Views;
 using GoEngine.Core;
+using GoEngine.Multiplayer;
 
 namespace GoEngine.App.Tests;
 
@@ -704,24 +705,260 @@ public sealed class ShellStartTests
     }
 
     [Fact]
-    public void Назад_На_Главном_Экране_Ничего_Не_Закрывает()
+    public void Назад_На_Главной_Показывает_Подтверждение_Выхода()
     {
-        // Закрывать нечего — событие остаётся системе: она решает, выходить ли из приложения.
+        // На главной закрывать нечего, но и молча выходить нельзя: случайное нажатие
+        // не должно закрывать программу (R-002).
         var (view, _) = Start();
         OnPhone(view);
 
-        Assert.False(view.HandleBack());
+        var handled = view.HandleBack();
+
+        Assert.True(handled);
+        Assert.True(view.IsExitConfirmShown);
     }
 
     [Fact]
-    public void Назад_В_Партии_Ничего_Не_Закрывает()
+    public void Назад_Из_Партии_Возвращает_На_Главную()
     {
+        // Раньше системная «Назад» из раздела закрывала приложение: игрок терял партию,
+        // а следующий запуск мог упасть на пересоздании активности (R-001/R-002).
+        var (view, shell) = Start();
+        OnPhone(view);
+        Click(view.FindControl<Button>("NavGameButton")!);
+        view.GameArea!.CloseMenu();
+
+        var handled = view.HandleBack();
+
+        Assert.True(handled);
+        Assert.True(shell.IsHomeSection);
+    }
+
+    [Fact]
+    public void Назад_Из_Обучения_Возвращает_На_Главную()
+    {
+        var (view, shell) = Start();
+        OnPhone(view);
+        Click(view.FindControl<Button>("NavLessonButton")!);
+
+        var handled = view.HandleBack();
+
+        Assert.True(handled);
+        Assert.True(shell.IsHomeSection);
+    }
+
+    [Fact]
+    public void Назад_Не_Открывает_Подтверждение_Выхода_Из_Сети_Без_Сети()
+    {
+        // Подтверждение сети — только для сетевой партии: в партии с ИИ его быть не должно.
         var (view, _) = Start();
         OnPhone(view);
         Click(view.FindControl<Button>("NavGameButton")!);
         view.GameArea!.CloseMenu();
 
-        Assert.False(view.HandleBack());
+        view.HandleBack();
+
+        Assert.False(view.IsNetworkLeaveConfirmShown);
+    }
+
+    [Fact]
+    public void Назад_В_Сетевой_Партии_Показывает_Подтверждение_Выхода()
+    {
+        // Выход из сети обрывает партию у друга, поэтому «Назад» спрашивает, а не выходит.
+        var (view, shell) = Start();
+        OnPhone(view);
+        _ = StartNetworkGame(shell);
+        Click(view.FindControl<Button>("NavGameButton")!);
+
+        var handled = view.HandleBack();
+
+        Assert.True(handled);
+        Assert.True(view.IsNetworkLeaveConfirmShown);
+        Assert.True(shell.Game.IsNetworkGame);
+    }
+
+    [Fact]
+    public void Назад_В_Сетевой_Партии_Остаться_Оставляет_Партию()
+    {
+        var (view, shell) = Start();
+        OnPhone(view);
+        _ = StartNetworkGame(shell);
+        Click(view.FindControl<Button>("NavGameButton")!);
+        view.HandleBack();
+
+        Click(view.FindControl<Button>("NetworkLeaveCancelButton")!);
+
+        Assert.False(view.IsNetworkLeaveConfirmShown);
+        Assert.True(shell.Game.IsNetworkGame);
+    }
+
+    [Fact]
+    public void Назад_Закрывает_Подтверждение_Выхода_Из_Сети()
+    {
+        var (view, shell) = Start();
+        OnPhone(view);
+        _ = StartNetworkGame(shell);
+        Click(view.FindControl<Button>("NavGameButton")!);
+        view.HandleBack();
+
+        view.HandleBack();
+
+        Assert.False(view.IsNetworkLeaveConfirmShown);
+        Assert.True(shell.Game.IsNetworkGame);
+    }
+
+    [Fact]
+    public async Task Выход_Из_Сетевой_Партии_Отключает_Сеть_И_Возвращает_На_Главную()
+    {
+        var (view, shell) = Start();
+        OnPhone(view);
+        var client = StartNetworkGame(shell);
+        Click(view.FindControl<Button>("NavGameButton")!);
+        view.HandleBack();
+
+        await view.LeaveNetworkAndReturnHomeAsync();
+
+        Assert.False(shell.Game.IsNetworkGame);
+        Assert.True(shell.IsHomeSection);
+        Assert.True(client.Left);
+        Assert.False(view.IsNetworkLeaveConfirmShown);
+    }
+
+    [Fact]
+    public void Уход_На_Главную_Снимает_Флаг_Экран_Не_Гаснет()
+    {
+        // Держать экран обязан только экран партии: на главной телефон снова гаснет по таймауту.
+        var (view, _) = Start();
+        OnPhone(view);
+        Click(view.FindControl<Button>("NavGameButton")!);
+        global::GoEngine.App.App.KeepScreenOn = true;
+
+        view.HandleBack();
+
+        Assert.False(global::GoEngine.App.App.KeepScreenOn);
+    }
+
+    [Fact]
+    public void Назад_Закрывает_Сетевое_Лобби()
+    {
+        var (view, _) = Start();
+        OnPhone(view);
+        view.ShowNetworkLobby();
+        Assert.True(view.FindControl<Border>("NetworkOverlay")!.IsVisible);
+
+        var handled = view.HandleBack();
+
+        Assert.True(handled);
+        Assert.False(view.FindControl<Border>("NetworkOverlay")!.IsVisible);
+    }
+
+    [Fact]
+    public void Назад_Из_Обучения_Во_Время_Сетевой_Партии_Возвращает_На_Главную()
+    {
+        // Сеть идёт в фоне, но игрок сейчас в обучении: «Назад» — шаг вверх по иерархии,
+        // а не вопрос о выходе из партии (F2 ревью P1).
+        var (view, shell) = Start();
+        OnPhone(view);
+        _ = StartNetworkGame(shell);
+        Click(view.FindControl<Button>("NavLessonButton")!);
+        Assert.True(shell.IsLessonSection);
+        Assert.True(shell.Game.IsNetworkGame);
+
+        var handled = view.HandleBack();
+
+        Assert.True(handled);
+        Assert.True(shell.IsHomeSection);
+        Assert.True(shell.Game.IsNetworkGame);
+        Assert.False(view.IsNetworkLeaveConfirmShown);
+    }
+
+    [Fact]
+    public void Назад_На_Главной_Во_Время_Сетевой_Партии_Спрашивает_Выход_Из_Приложения()
+    {
+        // На главной шаг иерархии уже сделан: «Назад» — вопрос о выходе из приложения,
+        // а не о выходе из сети (F2 ревью P1).
+        var (view, shell) = Start();
+        OnPhone(view);
+        _ = StartNetworkGame(shell);
+        Click(view.FindControl<Button>("NavMenuButton")!);
+        Click(view.MenuArea!.FindControl<Button>("HomeRow")!);
+        Assert.True(shell.IsHomeSection);
+        Assert.True(shell.Game.IsNetworkGame);
+
+        var handled = view.HandleBack();
+
+        Assert.True(handled);
+        Assert.True(view.IsExitConfirmShown);
+        Assert.False(view.IsNetworkLeaveConfirmShown);
+    }
+
+    [Fact]
+    public async Task Оверлей_Выхода_Из_Сети_Скрывается_Когда_Партия_Закончилась()
+    {
+        // Партию можно завершить не через оверлей (сдача, меню партии): подтверждение
+        // не должно висеть поверх экрана (F4 ревью P1).
+        var (view, shell) = Start();
+        OnPhone(view);
+        _ = StartNetworkGame(shell);
+        Click(view.FindControl<Button>("NavGameButton")!);
+        view.HandleBack();
+        Assert.True(view.IsNetworkLeaveConfirmShown);
+
+        await shell.Game.LeaveNetworkGameAsync();
+
+        Assert.False(view.IsNetworkLeaveConfirmShown);
+    }
+
+    [Fact]
+    public void Партия_Сохраняется_После_Возврата_На_Главную()
+    {
+        // R-001: уход из раздела и «Назад» не пересоздают модель партии — она живёт,
+        // пока живо приложение.
+        var (view, shell) = Start();
+        OnPhone(view);
+        Click(view.FindControl<Button>("NavGameButton")!);
+        view.GameArea!.CloseMenu();
+        shell.Game.StartGame();
+        var model = shell.Game;
+        var moves = shell.Game.MoveNumber;
+
+        view.HandleBack();
+
+        Assert.True(shell.IsHomeSection);
+        Assert.Same(model, shell.Game);
+        Assert.True(shell.Game.IsGameStarted);
+        Assert.Equal(moves, shell.Game.MoveNumber);
+
+        shell.ShowGame();
+
+        Assert.True(shell.IsGameSection);
+        Assert.True(shell.Game.IsGameStarted);
+    }
+
+    [Fact]
+    public void Выйти_Из_Игры_Вызывает_Запрос_Выхода()
+    {
+        // Подтверждение выхода не только показывается, но и действительно закрывает
+        // программу — через платформенный шов App.ExitRequested (R-002).
+        var (view, _) = Start();
+        OnPhone(view);
+        var requested = false;
+        var previous = global::GoEngine.App.App.ExitRequested;
+        global::GoEngine.App.App.ExitRequested = () => requested = true;
+
+        try
+        {
+            view.HandleBack();
+            Assert.True(view.IsExitConfirmShown);
+
+            Click(view.FindControl<Button>("ExitConfirmButton")!);
+
+            Assert.True(requested);
+        }
+        finally
+        {
+            global::GoEngine.App.App.ExitRequested = previous;
+        }
     }
 
     // --- Меню партии ----------------------------------------------------------------
@@ -808,6 +1045,21 @@ public sealed class ShellStartTests
         var shell = new ShellViewModel(settings, game, new ProblemViewModel());
 
         return (new ShellView(shell), shell);
+    }
+
+    /// <summary>Начинает сетевую партию гостем: сеть подменена, реального соединения нет.</summary>
+    /// <param name="shell">Модель оболочки.</param>
+    /// <returns>Подставной клиент: по нему проверяется, что выход закрыл соединение.</returns>
+    private static FakeNetworkClient StartNetworkGame(ShellViewModel shell)
+    {
+        var client = new FakeNetworkClient();
+        var started = shell.Game.StartNetworkGuest(
+            client,
+            new GuestSessionStarted("0123456789abcdef0123456789abcdef", 9, 5.5, StoneColor.White, 1, 90_000));
+
+        Assert.True(started.IsSuccess, started.Error);
+
+        return client;
     }
 
     /// <summary>Ставит оболочку в размер телефона: узкая раскладка.</summary>

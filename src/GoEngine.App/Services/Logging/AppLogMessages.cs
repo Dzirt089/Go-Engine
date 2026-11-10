@@ -18,6 +18,15 @@ public static partial class AppLogMessages
     [LoggerMessage(EventId = 1001, Level = LogLevel.Information, Message = "Приложение завершено, код возврата {ExitCode}")]
     public static partial void AppFinished(ILogger logger, int exitCode);
 
+    /// <summary>Пересоздание активности Android в живом процессе.</summary>
+    /// <remarks>
+    /// Android может создать новую активность раньше, чем уничтожит прежнюю. Запись нужна,
+    /// чтобы в логе устройства было видно: это не первый запуск и главный вид отвязывали
+    /// от прежнего родителя (иначе приложение падало бы с «already has a visual parent»).
+    /// </remarks>
+    [LoggerMessage(EventId = 1002, Level = LogLevel.Information, Message = "Пересоздание Activity в живом процессе: сохранённое состояние {HasSavedState}, главный вид отвязан {Released}")]
+    public static partial void ActivityRecreated(ILogger logger, bool hasSavedState, bool released);
+
     /// <summary>Найдена запись о сбое прошлого запуска.</summary>
     [LoggerMessage(EventId = 1003, Level = LogLevel.Warning, Message = "Прошлый запуск завершился сбоем {Moment}: {Reason}; лог: {CrashFile}")]
     public static partial void PreviousCrashFound(ILogger logger, string moment, string reason, string crashFile);

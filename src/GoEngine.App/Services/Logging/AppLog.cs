@@ -62,15 +62,37 @@ public static class AppLog
     /// <param name="time">Источник времени; <c>null</c> — системные часы.</param>
     /// <param name="minimum">Наименьший уровень, попадающий в файл.</param>
     /// <remarks>
+    /// <para>
     /// Никогда не бросает: недоступный каталог, отсутствие прав или сломанный диск оставляют
     /// приложение без файла лога, но рабочим. Сбой прошлого запуска читается здесь же — до того,
     /// как интерфейс спросит о нём, — и файл-признак после этого удаляется, чтобы сообщение
     /// не показывалось вечно (сама копия лога остаётся на диске).
+    /// </para>
+    /// <para>
+    /// Повторный вызов с тем же каталогом — no-op: Android пересоздаёт активность несколько раз
+    /// за жизнь процесса, и второй файловый дескриптор поверх первого оставил бы старый писатель
+    /// открытым, а строку «Запуск приложения» — продублированной. При таком вызове параметры
+    /// берутся из первого (смена <paramref name="time"/> и <paramref name="minimum"/> игнорируется),
+    /// и повторной попытки открыть файл нет, даже если первая запись оказалась недоступна
+    /// (<see cref="IsFileLogging"/> = <c>false</c>).
+    /// </para>
     /// </remarks>
     public static void Initialize(string? directory = null, TimeProvider? time = null, LogLevel minimum = LogLevel.Information)
     {
         var target = directory ?? LogPaths.DefaultDirectory;
         var clock = time ?? TimeProvider.System;
+
+        // Тот же каталог уже открыт — второй раз писатель не создаётся (см. remarks).
+        lock (Gate)
+        {
+            if (_writer is not null && string.Equals(Directory, target, StringComparison.Ordinal))
+            {
+                return;
+            }
+        }
+
+        FileLoggerProvider? replacedProvider = null;
+        FileLogWriter? replacedWriter = null;
 
         try
         {
@@ -96,6 +118,8 @@ public static class AppLog
 
             lock (Gate)
             {
+                replacedProvider = _provider;
+                replacedWriter = _writer;
                 _writer = writer;
                 _provider = provider;
                 _factory = factory;
@@ -103,15 +127,24 @@ public static class AppLog
                 Directory = target;
                 IsFileLogging = available;
             }
+
+            // Прежний писатель закрывается после подмены: лог уже продолжается в новом месте,
+            // а старый дескриптор не остаётся открытым.
+            replacedProvider?.Dispose();
+            replacedWriter?.Dispose();
         }
         catch
         {
             // Каталог логов недоступен — игра продолжается без файла: сообщить об этом некуда,
-            // кроме экрана настроек, который читает IsFileLogging.
+            // кроме экрана настроек, который читает IsFileLogging. Если лог уже работал
+            // в прежнем каталоге, он остаётся: отказ повторной настройки не гасит запись.
             lock (Gate)
             {
-                Directory = target;
-                IsFileLogging = false;
+                if (_writer is null)
+                {
+                    Directory = target;
+                    IsFileLogging = false;
+                }
             }
         }
 

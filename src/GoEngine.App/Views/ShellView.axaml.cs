@@ -54,6 +54,7 @@ public sealed partial class ShellView : UserControl
     private StudyPart? _networkReturnStudy;
     private readonly Panel? _networkHostPanel;
     private readonly Border? _exitOverlay;
+    private readonly Border? _networkLeaveConfirmOverlay;
     private readonly AboutView? _aboutArea;
     private readonly UpdateBanner? _updateBanner;
 
@@ -102,6 +103,7 @@ public sealed partial class ShellView : UserControl
         _networkOverlay = this.FindControl<Border>("NetworkOverlay");
         _networkHostPanel = this.FindControl<Panel>("NetworkHost");
         _exitOverlay = this.FindControl<Border>("ExitOverlay");
+        _networkLeaveConfirmOverlay = this.FindControl<Border>("NetworkLeaveConfirmOverlay");
         _aboutArea = this.FindControl<AboutView>("AboutArea");
 
         if (this.FindControl<Panel>("HomeHost") is { } homeHost)
@@ -160,6 +162,8 @@ public sealed partial class ShellView : UserControl
         WireButton("NetworkBackButton", OnNetworkBackClick);
         WireButton("ExitCancelButton", OnExitCancelClick);
         WireButton("ExitConfirmButton", OnExitConfirmClick);
+        WireButton("NetworkLeaveCancelButton", OnNetworkLeaveCancelClick);
+        WireButton("NetworkLeaveConfirmButton", OnNetworkLeaveConfirmClick);
 
         if (HomeArea is not null)
         {
@@ -244,6 +248,9 @@ public sealed partial class ShellView : UserControl
     /// <summary>Показано ли подтверждение выхода.</summary>
     public bool IsExitConfirmShown => _exitOverlay?.IsVisible == true;
 
+    /// <summary>Показано ли подтверждение выхода из сетевой партии.</summary>
+    public bool IsNetworkLeaveConfirmShown => _networkLeaveConfirmOverlay?.IsVisible == true;
+
     /// <summary>Показан ли словарь терминов.</summary>
     public bool IsGlossaryShown => _glossaryOverlay?.IsVisible == true;
 
@@ -322,6 +329,24 @@ public sealed partial class ShellView : UserControl
         if (_exitOverlay is not null)
         {
             _exitOverlay.IsVisible = false;
+        }
+    }
+
+    /// <summary>Показывает подтверждение выхода из сетевой партии.</summary>
+    public void ShowNetworkLeaveConfirm()
+    {
+        if (_networkLeaveConfirmOverlay is not null)
+        {
+            _networkLeaveConfirmOverlay.IsVisible = true;
+        }
+    }
+
+    /// <summary>Закрывает подтверждение выхода из сети: партия продолжается.</summary>
+    public void HideNetworkLeaveConfirm()
+    {
+        if (_networkLeaveConfirmOverlay is not null)
+        {
+            _networkLeaveConfirmOverlay.IsVisible = false;
         }
     }
 
@@ -439,12 +464,20 @@ public sealed partial class ShellView : UserControl
     /// Перед показом главного экрана закрывается всё, что могло быть открыто поверх: лобби,
     /// «О программе», словарь и шторка меню партии. Так главный экран всегда открывается чистым.
     /// </remarks>
-    private void OnHomeRequested(object? sender, EventArgs e)
+    private void OnHomeRequested(object? sender, EventArgs e) => ReturnToHome();
+
+    /// <summary>Возвращает игрока на главный экран, закрывая всё открытое поверх.</summary>
+    /// <remarks>
+    /// Один путь для кнопки «Главная», для «Назад» из раздела и для выхода из сетевой партии:
+    /// иначе очистка слоёв и флага «экран не гаснет» разъехалась бы в трёх местах.
+    /// </remarks>
+    private void ReturnToHome()
     {
         CloseNetworkLobby();
         HideAbout();
         HideGlossary();
         HideExitConfirm();
+        HideNetworkLeaveConfirm();
         GameArea?.HideAbortConfirm();
         GameArea?.CloseSettingsScreen();
         GameArea?.CloseMenu();
@@ -490,6 +523,46 @@ public sealed partial class ShellView : UserControl
     /// сообщений, у Android — завершение задачи приложения (<see cref="global::GoEngine.App.App.RequestExit"/>).
     /// </remarks>
     private void OnExitConfirmClick(object? sender, RoutedEventArgs e) => global::GoEngine.App.App.RequestExit();
+
+    /// <summary>Игрок остался в сетевой партии: подтверждение закрывается.</summary>
+    private void OnNetworkLeaveCancelClick(object? sender, RoutedEventArgs e) => HideNetworkLeaveConfirm();
+
+    /// <summary>Игрок подтвердил выход из сетевой партии.</summary>
+    /// <remarks>
+    /// Выход ждёт закрытия сети, поэтому обработчик не блокирует интерфейс: он запускает
+    /// задачу и сразу возвращается. Ошибки выхода не роняют экран — их видит модель партии.
+    /// </remarks>
+    private void OnNetworkLeaveConfirmClick(object? sender, RoutedEventArgs e) =>
+        _ = LeaveNetworkAndReturnHomeAsync();
+
+    /// <summary>Выходит из сетевой партии и возвращает игрока на главный экран.</summary>
+    /// <returns>Задача выхода.</returns>
+    /// <remarks>
+    /// Отдельным методом, а не телом обработчика: проверка без окна ждёт именно его,
+    /// а обработчик только запускает задачу.
+    /// </remarks>
+    internal async Task LeaveNetworkAndReturnHomeAsync()
+    {
+        HideNetworkLeaveConfirm();
+
+        try
+        {
+            await Shell.Game.LeaveNetworkGameAsync().ConfigureAwait(true);
+        }
+        catch (Exception exception)
+        {
+            // Выход из сети — не повод оставить игрока на экране партии с уже закрытым диалогом:
+            // ошибку пишем в лог, а на главную уводим всё равно (finally).
+            AppLogMessages.NetworkError(
+                AppLog.For<ShellView>(),
+                GoEngine.Multiplayer.LanErrorCodes.Stalled,
+                $"Не удалось выйти из сетевой игры: {exception.Message}");
+        }
+        finally
+        {
+            ReturnToHome();
+        }
+    }
 
     /// <summary>Применяет выбранное оформление и запоминает выбор.</summary>
     /// <param name="sender">Модель оболочки.</param>
@@ -701,10 +774,14 @@ public sealed partial class ShellView : UserControl
     /// <returns><c>true</c> — «Назад» обработан видом; <c>false</c> — закрывать нечего.</returns>
     /// <remarks>
     /// <para>
-    /// Порядок обратный открытию: сетевое лобби, подтверждение выхода, словарь, «О программе»,
-    /// подтверждение отмены партии, шторка меню партии, «Настройка партии», выпадающий список
-    /// и только потом раздел «Меню» уступает текущему экрану. На главном экране закрывать нечего:
-    /// событие остаётся системе, и она решает, выходить ли из приложения.
+    /// Порядок обратный открытию: сетевое лобби, подтверждения (выход из игры, выход из сети,
+    /// отмена партии, конец партии), словарь, «О программе», шторка меню партии,
+    /// «Настройка партии», выпадающий список и только потом раздел «Меню» уступает текущему
+    /// экрану. Дальше «Назад» идёт вверх по иерархии экранов, а не закрывает приложение:
+    /// из раздела — на главный экран, с экрана сетевой партии — вопрос «Выйти из сетевой игры?»,
+    /// на главном — подтверждение выхода из игры. Сеть, идущая в фоне с другого раздела,
+    /// иерархию не перебивает. Раньше из раздела кнопка завершала активность Android: игрок
+    /// терял партию, а следующий запуск мог упасть на пересоздании активности.
     /// </para>
     /// <para>
     /// Отдельным методом, а не телом обработчика: оконной платформы в тестах нет, верхнего уровня
@@ -733,6 +810,13 @@ public sealed partial class ShellView : UserControl
         if (IsExitConfirmShown)
         {
             HideExitConfirm();
+
+            return true;
+        }
+
+        if (IsNetworkLeaveConfirmShown)
+        {
+            HideNetworkLeaveConfirm();
 
             return true;
         }
@@ -799,7 +883,30 @@ public sealed partial class ShellView : UserControl
             return true;
         }
 
-        return false;
+        // «Назад» — шаг вверх по иерархии экранов, а не выход из приложения: раньше из партии
+        // и обучения кнопка закрывала программу, и игрок терял партию (даже не начатую).
+        // Подтверждение выхода из сети показывается только на экране самой сетевой партии:
+        // на «Обучении» и главной «Назад» идёт по иерархии, а сеть продолжает идти в фоне.
+        if (Shell.IsGameSection && Shell.Game.IsNetworkGame)
+        {
+            // Сетевую партию нельзя бросить молча с её экрана: друг ждал бы её до минуты.
+            ShowNetworkLeaveConfirm();
+
+            return true;
+        }
+
+        if (!Shell.IsHomeSection)
+        {
+            ReturnToHome();
+
+            return true;
+        }
+
+        // На главном экране закрывать нечего: выход из приложения спрашиваем, чтобы случайное
+        // нажатие не закрывало программу (и не приводило к пересозданию активности).
+        ShowExitConfirm();
+
+        return true;
     }
 
     /// <summary>Подписывает кнопку на обработчик нажатия.</summary>
@@ -951,6 +1058,13 @@ public sealed partial class ShellView : UserControl
     {
         if (e.PropertyName is nameof(MainViewModel.IsNetworkGame))
         {
+            if (!Shell.Game.IsNetworkGame)
+            {
+                // Из сети вышли другим путём (меню/Desktop/итог): подтверждение выхода
+                // больше не актуально и не должно висеть поверх экрана.
+                HideNetworkLeaveConfirm();
+            }
+
             SyncModeButtons();
         }
 
