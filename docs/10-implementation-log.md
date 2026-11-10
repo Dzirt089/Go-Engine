@@ -19,3 +19,4 @@
 | 2026-11-10 | 77c7d13, eadc12e | Обход: PrepareAsync ConfigureAwait(false) + Dispatcher.UIThread.Post; MainActivity не трогает Avalonia на cold start; неудачный RuntimeFrameworkVersion убран | **v0.2.127: cold start до Home на CTR-LX1/AVD15**, logcat без FATAL/[CRT] | Lead, tester |
 | 2026-11-11 | P3 | Нигири-розыгрыш цвета (протокол v2, commit-reveal, таймауты, выбор цвета, hardening F1–F4, cancel-pending-join) | App 1090/1090, Engine 1261+11 skip; ревью без блокеров | coder, reviewer, lead |
 | 2026-11-11 | discovery fix | v0.2.129 не видела комнаты в одной сети: UDP-объявление содержало версию игры (2) вместо версии пакета обнаружения (1) | discovery-тесты 5/5, добавлен регресс; релиз v0.2.130 | lead, coder |
+| 2026-11-11 | color fix | Приёмка v0.2.130: инверсия цвета при выигрыше гостя в нигири; фикс раскладки host/guest + тест ориентации | App 1090/1090, ColorDraw 9/9; релиз v0.2.131 | lead, tester |
