@@ -1059,7 +1059,7 @@ public sealed partial class MainViewModel : IDisposable
             // видны только ему, гость увидит их лишь после раскрытия.
             var parity = ColorDraw.ParityOf(_colorDrawCount) == ColorDraw.GuessOdd ? "нечёт" : "чёт";
             _colorDrawStateText =
-                $"В твоей горсти {_colorDrawCount} камней ({parity}). Друг не видит число — пусть угадывает.";
+                $"В твоей горсти {_colorDrawCount} {ColorDraw.StonesWord(_colorDrawCount)} ({parity}). Друг не видит число — пусть угадывает.";
             StartColorDrawDeadline(_networkOptions.ColorDrawTimeout);
             _colorDrawGuessSource = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             NotifyColorDraw();
@@ -1448,7 +1448,7 @@ public sealed partial class MainViewModel : IDisposable
     {
         var word = count % 2 == 1 ? "нечет" : "чёт";
 
-        return $"В горсти было {count} камней — {word}. {(guestWon ? "Друг угадал!" : "Друг не угадал.")}";
+        return $"В горсти было {count} {ColorDraw.StonesWord(count)} — {word}. {(guestWon ? "Друг угадал!" : "Друг не угадал.")}";
     }
 
     /// <summary>Случайный цвет на случай, если победитель не успел выбрать.</summary>

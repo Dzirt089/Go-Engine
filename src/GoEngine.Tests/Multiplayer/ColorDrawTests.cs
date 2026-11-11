@@ -47,4 +47,13 @@ public sealed class ColorDrawTests
         Assert.Equal(StoneColor.White, ColorDraw.Opposite(StoneColor.Black));
         Assert.Equal(StoneColor.Black, ColorDraw.Opposite(StoneColor.White));
     }
+
+    [Theory]
+    [InlineData(1, "камень")]
+    [InlineData(2, "камня")]
+    [InlineData(4, "камня")]
+    [InlineData(5, "камней")]
+    [InlineData(9, "камней")]
+    public void Слово_Камень_Согласуется_С_Числом(int count, string expected) =>
+        Assert.Equal(expected, ColorDraw.StonesWord(count));
 }

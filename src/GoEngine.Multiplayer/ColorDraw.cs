@@ -114,6 +114,16 @@ public static class ColorDraw
         return (count % 2 == 1) == odd;
     }
 
+    /// <summary>Слово «камень» в нужной форме для числа камней.</summary>
+    /// <param name="count">Число камней 1…9.</param>
+    /// <returns>«камень», «камня» или «камней».</returns>
+    public static string StonesWord(int count) => count switch
+    {
+        1 => "камень",
+        >= 2 and <= 4 => "камня",
+        _ => "камней"
+    };
+
     /// <summary>Противоположный цвет.</summary>
     /// <param name="color">Цвет.</param>
     /// <returns>Другой цвет: у чёрных — белый, у белых — чёрный.</returns>
