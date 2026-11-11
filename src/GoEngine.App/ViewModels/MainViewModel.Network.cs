@@ -1080,13 +1080,21 @@ public sealed partial class MainViewModel : IDisposable
                 return;
             }
 
-            if (guess is null)
+            // Гость не ответил: засчитываем как «не угадал» и оставляем выбор хозяину.
+            // Случайный ответ раньше мог совпасть с горстью, и гость получал противоречивый
+            // результат — терминал вместо партии. Отсутствие ответа не делает гостя победителем.
+            var guestTimedOut = guess is null;
+            if (guestTimedOut)
             {
-                // Гость не ответил: хозяин угадывает сам, как в живом нигири при опоздании.
-                guess = _random.Next(2) == 0 ? ColorDraw.GuessOdd : ColorDraw.GuessEven;
+                guess = ColorDraw.ParityOf(_colorDrawCount) == ColorDraw.GuessOdd
+                    ? ColorDraw.GuessEven
+                    : ColorDraw.GuessOdd;
             }
 
-            _colorDrawGuestWins = ColorDraw.IsGuessCorrect(_colorDrawCount, guess);
+            var actualGuess = guess ?? (ColorDraw.ParityOf(_colorDrawCount) == ColorDraw.GuessOdd
+                ? ColorDraw.GuessEven
+                : ColorDraw.GuessOdd);
+            _colorDrawGuestWins = ColorDraw.IsGuessCorrect(_colorDrawCount, actualGuess);
             _colorDrawStateText = ColorDrawResultText(_colorDrawCount, _colorDrawGuestWins);
             _colorDrawShowChoice = !_colorDrawGuestWins;
             StartColorDrawDeadline(_networkOptions.ColorDrawTimeout);
@@ -1120,7 +1128,9 @@ public sealed partial class MainViewModel : IDisposable
             }
             else
             {
-                _colorDrawStateText = "Ты угадал! Выбери цвет.";
+                _colorDrawStateText = guestTimedOut
+                    ? "Друг не ответил. Ты выбираешь цвет."
+                    : "Друг не угадал. Ты выбираешь цвет.";
                 _colorDrawShowChoice = true;
                 StartColorDrawDeadline(_networkOptions.ColorDrawTimeout);
                 _colorDrawChoiceSource = new TaskCompletionSource<StoneColor>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1295,8 +1305,13 @@ public sealed partial class MainViewModel : IDisposable
 
             // Победителя считаем сами по своему ответу: хеш защищает число, но не флаг
             // winnerIsGuest. Расхождение — хозяин прислал противоречивый результат (F1).
-            var expectedWinner = ColorDraw.IsGuessCorrect(e.Count, _colorDrawGuess ?? string.Empty);
-            if (expectedWinner != e.WinnerIsGuest)
+            // Если гостя не успел ответить (дедлайн 15 с), спорить не с чем: хозяин закрыл
+            // розыгрыш сам, и его итог — единственный источник правды, иначе ребёнок получал
+            // терминал «противоречивый результат» вместо партии.
+            var expectedWinner = _colorDrawGuess is null
+                ? e.WinnerIsGuest
+                : ColorDraw.IsGuessCorrect(e.Count, _colorDrawGuess);
+            if (_colorDrawGuess is not null && expectedWinner != e.WinnerIsGuest)
             {
                 AbortColorDraw("Хозяин прислал противоречивый результат нигири.");
                 return;

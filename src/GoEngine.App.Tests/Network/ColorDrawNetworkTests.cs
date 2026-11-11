@@ -167,6 +167,31 @@ public sealed class ColorDrawNetworkTests
     }
 
     [Fact]
+    public async Task Гость_Принимает_Итог_Если_Не_Успел_Угадать()
+    {
+        // Регресс R-014: при таймауте хозяин закрывает розыгрыш сам; гость не должен
+        // получать терминал «противоречивый результат» и терять партию.
+        var time = new FakeTimeProvider();
+        using var model = CreateModel(time);
+        var client = new FakeNetworkClient();
+        _ = model.StartNetworkGuest(client, Session(StoneColor.White));
+        var random = new Random(17);
+        var nonce = ColorDraw.CreateNonce(random);
+        client.RaiseColorDrawOffer(ColorDraw.Commitment(7, nonce), 15_000);
+        client.RaiseColorDrawReveal(7, nonce, winnerIsGuest: false);
+
+        Assert.False(model.IsNetworkTerminal);
+        Assert.True(model.IsColorDrawActive);
+        Assert.Contains("не угадал", model.ColorDrawStateText, StringComparison.OrdinalIgnoreCase);
+
+        client.RaiseColorDrawDone(StoneColor.Black, StoneColor.White);
+
+        Assert.False(model.IsNetworkTerminal);
+        Assert.False(model.IsColorDrawActive);
+        Assert.True(model.IsGameStarted);
+    }
+
+    [Fact]
     public async Task Нигири_По_Таймауту_Всё_Равно_Завершается()
     {
         var time = new FakeTimeProvider();
@@ -176,21 +201,13 @@ public sealed class ColorDrawNetworkTests
         var draw = model.BeginColorDrawAsync(Cancel);
         await WaitUntilAsync(() => host.ColorDrawOffers.Count == 1, "нет предложения");
 
-        // Гость не ответил: хозяин угадывает сам.
+        // Гость не ответил: отсутствие ответа не делает его победителем, хозяин выбирает цвет.
         time.Advance(TimeSpan.FromSeconds(15));
         await WaitUntilAsync(() => host.ColorDrawReveals.Count == 1, "нет раскрытия по таймауту");
-        var guestWon = host.ColorDrawReveals[0].WinnerIsGuest;
-
-        if (guestWon)
-        {
-            await WaitUntilAsync(() => model.ColorDrawStateText.Contains("выбирает", StringComparison.Ordinal), "нет ожидания выбора");
-            time.Advance(TimeSpan.FromSeconds(15));
-        }
-        else
-        {
-            await WaitUntilAsync(() => model.ColorDrawShowChoice, "нет выбора хозяина");
-            await model.ChooseColorDrawColorAsync(StoneColor.Black);
-        }
+        Assert.False(host.ColorDrawReveals[0].WinnerIsGuest);
+        await WaitUntilAsync(() => model.ColorDrawShowChoice, "нет выбора хозяина");
+        Assert.Contains("не ответил", model.ColorDrawStateText, StringComparison.Ordinal);
+        await model.ChooseColorDrawColorAsync(StoneColor.Black);
 
         await draw.WaitAsync(TimeSpan.FromSeconds(3));
 
