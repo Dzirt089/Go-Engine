@@ -174,11 +174,13 @@ internal static class LanNetwork
         ArgumentNullException.ThrowIfNull(address);
         var bytes = address.GetAddressBytes();
 
-        return
+        IPAddress[] candidates =
         [
             new IPAddress([bytes[0], bytes[1], bytes[2], 255]),
             new IPAddress([bytes[0], bytes[1], 255, 255])
         ];
+
+        return candidates.Distinct().ToArray();
     }
 
     private static bool IsPrivate(IPAddress address)

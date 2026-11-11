@@ -7,6 +7,9 @@
        на более старых версиях разрешение не запрашивается. -->
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+  <!-- Приём широковещательных объявлений комнат (RoomWatcher): часть Wi-Fi-чипов
+       фильтрует broadcast без MulticastLock (планшет Huawei в приёмке v0.2.132). -->
+  <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
   <!-- Установка скачанного APK: без этого разрешения система отклоняет установку обновления. -->
   <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />

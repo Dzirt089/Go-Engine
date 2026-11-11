@@ -1,5 +1,7 @@
 using Android.App;
+using Android.Content;
 using Android.Content.PM;
+using Android.Net.Wifi;
 using Android.OS;
 using Avalonia;
 using Avalonia.Android;
@@ -35,6 +37,10 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
     /// </remarks>
     private static bool _activityCreated;
 
+    /// <summary>Блокировка multicast/broadcast на Wi-Fi: без неё часть устройств (планшеты Huawei)
+    /// в энергосбережении отбрасывает входящие объявления комнат, хотя сама отправляет их.</summary>
+    private WifiManager.MulticastLock? _multicastLock;
+
     /// <inheritdoc />
     protected override void OnCreate(Bundle? savedInstanceState)
     {
@@ -43,6 +49,11 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
         // не делает: Android пересоздаёт активность несколько раз за жизнь процесса.
         global::GoEngine.App.Services.Logging.AppLog.Initialize(LogsDirectory());
         global::GoEngine.App.Services.Logging.CrashReporter.Install();
+
+        // Некоторые Wi-Fi-чипы (наблюдалось на планшете Huawei) в энергосбережении фильтруют
+        // входящий broadcast/UDP: устройство объявляет свою комнату, но чужих не видит.
+        // MulticastLock — стандартное разрешение Android для приёма широковещательных пакетов.
+        AcquireMulticastLock();
 
         // Android вправе создать новую активность раньше, чем уничтожит прежнюю: главный вид
         // ещё лежит в ContentPresenter старой, и повторное добавление в дерево падает
@@ -112,10 +123,40 @@ public sealed class MainActivity : AvaloniaMainActivity<global::GoEngine.App.App
         ApplyKeepScreenOn(global::GoEngine.App.App.KeepScreenOn);
     }
 
+    /// <summary>Держит Wi-Fi multicast/broadcast включённым на время жизни активности.</summary>
+    private void AcquireMulticastLock()
+    {
+        try
+        {
+            var wifi = (WifiManager?)GetSystemService(WifiService);
+            _multicastLock = wifi?.CreateMulticastLock("goengine-lan");
+            _multicastLock?.SetReferenceCounted(false);
+            _multicastLock?.Acquire();
+        }
+        catch (Exception exception)
+        {
+            // Без блокировки игра работает; отказ не должен мешать запуску.
+            global::GoEngine.App.Services.Logging.CrashReporter.Report(exception, "MainActivity.MulticastLock");
+        }
+    }
+
     /// <inheritdoc />
     protected override void OnDestroy()
     {
         global::GoEngine.App.App.KeepScreenOnChanged -= OnKeepScreenOnChanged;
+
+        try
+        {
+            _multicastLock?.Release();
+        }
+        catch (Exception)
+        {
+            // Блокировка уже могла быть освобождена системой.
+        }
+
+        _multicastLock?.Dispose();
+        _multicastLock = null;
+
         base.OnDestroy();
     }
 

@@ -58,21 +58,15 @@ internal sealed class RoomAnnouncer : IAsyncDisposable
 
     private async Task AnnounceLoopAsync(CancellationToken cancellationToken)
     {
-        var endpoints = LanNetwork.GetBroadcastEndpoints()
-            .Select(static endpoint => endpoint)
-            .ToArray();
-        if (endpoints.Length == 0)
-        {
-            return;
-        }
-
         using var timer = new PeriodicTimer(_options.DiscoveryInterval, _options.TimeProvider);
         try
         {
-            Send(endpoints);
+            // Адреса пересчитываем на каждом шаге: Wi-Fi/подсеть/VPN могли смениться после
+            // создания комнаты, и тогда старый directed broadcast указывал бы в никуда.
+            Send(LanNetwork.GetBroadcastEndpoints());
             while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
             {
-                Send(endpoints);
+                Send(LanNetwork.GetBroadcastEndpoints());
             }
         }
         catch (OperationCanceledException)
