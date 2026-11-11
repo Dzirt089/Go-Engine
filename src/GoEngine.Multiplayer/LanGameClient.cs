@@ -61,13 +61,65 @@ public sealed class LanGameClient : INetworkGameClient
     public event EventHandler<LanErrorEventArgs>? Failed;
 
     /// <summary>Хозяин предложил нигири: обязательство и срок ответа.</summary>
-    public event EventHandler<ColorDrawOfferEventArgs>? ColorDrawOfferReceived;
+    /// <remarks>
+    /// Предложение может прийти раньше, чем модель представления подпишется (хозяин стартует
+    /// розыгрыш сразу после старта партии). Поэтому первое предложение буферизуется и отдаётся
+    /// первому подписчику — иначе гость терял обязательство и получал «неверное раскрытие».
+    /// </remarks>
+    public event EventHandler<ColorDrawOfferEventArgs>? ColorDrawOfferReceived
+    {
+        add
+        {
+            ColorDrawOfferEventArgs? pending;
+            lock (_colorDrawOfferSync)
+            {
+                _colorDrawOfferHandler += value;
+                pending = _pendingColorDrawOffer;
+                _pendingColorDrawOffer = null;
+            }
+
+            if (pending is not null)
+            {
+                value?.Invoke(this, pending);
+            }
+        }
+
+        remove
+        {
+            lock (_colorDrawOfferSync)
+            {
+                _colorDrawOfferHandler -= value;
+            }
+        }
+    }
+
+    private readonly object _colorDrawOfferSync = new();
+    private EventHandler<ColorDrawOfferEventArgs>? _colorDrawOfferHandler;
+    private ColorDrawOfferEventArgs? _pendingColorDrawOffer;
 
     /// <summary>Хозяин раскрыл горсть и назвал победителя.</summary>
     public event EventHandler<ColorDrawRevealEventArgs>? ColorDrawRevealReceived;
 
     /// <summary>Розыгрыш завершён: хозяин назвал итоговые цвета.</summary>
     public event EventHandler<ColorDrawDoneEventArgs>? ColorDrawDoneReceived;
+
+    /// <summary>Отдаёт предложение нигири подписчику или буферизует до подписки.</summary>
+    /// <param name="args">Обязательство и срок ответа.</param>
+    internal void DispatchColorDrawOffer(ColorDrawOfferEventArgs args)
+    {
+        EventHandler<ColorDrawOfferEventArgs>? handler;
+        lock (_colorDrawOfferSync)
+        {
+            handler = _colorDrawOfferHandler;
+            if (handler is null)
+            {
+                _pendingColorDrawOffer = args;
+                return;
+            }
+        }
+
+        handler(this, args);
+    }
 
     /// <summary>Есть активное соединение с хозяином.</summary>
     public bool IsConnected
@@ -401,7 +453,7 @@ public sealed class LanGameClient : INetworkGameClient
                         break;
 
                     case LanMessageTypes.ColorDrawOffer:
-                        ColorDrawOfferReceived?.Invoke(this, new ColorDrawOfferEventArgs(
+                        DispatchColorDrawOffer(new ColorDrawOfferEventArgs(
                             message.Commitment ?? string.Empty,
                             message.TimeoutMs ?? 0));
                         break;

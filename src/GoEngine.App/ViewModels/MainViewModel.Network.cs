@@ -1055,7 +1055,11 @@ public sealed partial class MainViewModel : IDisposable
             _colorDrawCount = ColorDraw.CreateCount(_random);
             _colorDrawNonce = ColorDraw.CreateNonce(_random);
             _colorDrawCommitment = ColorDraw.Commitment(_colorDrawCount, _colorDrawNonce);
-            _colorDrawStateText = "Прячем камни. Друг угадывает: чёт или нечет?";
+            // Ребёнок-хозяин должен понимать, что он «держит в горсти»: число и чётность
+            // видны только ему, гость увидит их лишь после раскрытия.
+            var parity = ColorDraw.ParityOf(_colorDrawCount) == ColorDraw.GuessOdd ? "нечёт" : "чёт";
+            _colorDrawStateText =
+                $"В твоей горсти {_colorDrawCount} камней ({parity}). Друг не видит число — пусть угадывает.";
             StartColorDrawDeadline(_networkOptions.ColorDrawTimeout);
             _colorDrawGuessSource = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             NotifyColorDraw();
@@ -1269,7 +1273,7 @@ public sealed partial class MainViewModel : IDisposable
             _colorDrawShowGuess = true;
             _colorDrawShowChoice = false;
             _colorDrawGuestWins = false;
-            _colorDrawStateText = "Сколько камней у хозяина? Чёт или нечет?";
+            _colorDrawStateText = "Друг спрятал камни в горсть. Как думаешь, сколько их — чёт или нечёт?";
             StartColorDrawDeadline(TimeSpan.FromMilliseconds(Math.Max(1000, e.TimeoutMs)));
             NotifyColorDraw();
         });
@@ -1444,7 +1448,7 @@ public sealed partial class MainViewModel : IDisposable
     {
         var word = count % 2 == 1 ? "нечет" : "чёт";
 
-        return $"В горсти {count} — {word}. {(guestWon ? "Друг угадал!" : "Друг не угадал.")}";
+        return $"В горсти было {count} камней — {word}. {(guestWon ? "Друг угадал!" : "Друг не угадал.")}";
     }
 
     /// <summary>Случайный цвет на случай, если победитель не успел выбрать.</summary>

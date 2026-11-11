@@ -46,6 +46,31 @@ public sealed class ColorDrawNetworkTests
     }
 
     [Fact]
+    public async Task Хозяин_Видит_Свою_Горсть_При_Розыгрыше()
+    {
+        // R-013/UX: ребёнок-хозяин должен понимать, что он «держит» в горсти, иначе нигири — ступор.
+        var time = new FakeTimeProvider();
+        using var model = CreateModel(time);
+        var host = new FakeNetworkHost();
+        _ = await model.StartNetworkHostAsync(host, 9, 5.5, StoneColor.Black, 1, Cancel);
+        var draw = model.BeginColorDrawAsync(Cancel);
+
+        try
+        {
+            await WaitUntilAsync(() => host.ColorDrawOffers.Count == 1, "нет предложения");
+
+            Assert.Contains("В твоей горсти", model.ColorDrawStateText, StringComparison.Ordinal);
+            Assert.Contains("камней", model.ColorDrawStateText, StringComparison.Ordinal);
+            Assert.Contains("не видит число", model.ColorDrawStateText, StringComparison.Ordinal);
+        }
+        finally
+        {
+            await model.LeaveNetworkGameAsync();
+            await draw.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
     public async Task Нигири_Завершается_И_Цвета_Совпадают()
     {
         var time = new FakeTimeProvider();
