@@ -67,6 +67,7 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
     private static readonly Microsoft.Extensions.Logging.ILogger Log = AppLog.For<NetworkLobbyViewModel>();
     private readonly MainViewModel _game;
     private readonly MultiplayerOptions _options;
+    private readonly Random _random;
     private readonly Action<Action>? _dispatch;
     private List<RoomCard> _rooms = [];
     private IReadOnlyList<RoomCard> _roomsView = [];
@@ -92,11 +93,25 @@ public sealed class NetworkLobbyViewModel : INotifyPropertyChanged, IAsyncDispos
     /// <summary>Создаёт лобби для модели партии.</summary>
     /// <param name="game">Модель партии, которой после подключения передаются сессии.</param>
     /// <param name="options">Настройки сети; <c>null</c> — значения по умолчанию.</param>
-    public NetworkLobbyViewModel(MainViewModel game, MultiplayerOptions? options = null)
+    /// <param name="random">
+    /// Источник случайности для зверя по умолчанию; <c>null</c> — общий генератор.
+    /// Шов для проверок: с фиксированным зерном выбор зверя детерминирован.
+    /// </param>
+    /// <remarks>
+    /// Зверь по умолчанию выбирается случайно при каждом открытии лобби: раньше все заходили
+    /// «Лисой», и в комнате встречались два одинаковых аватара. Ручной выбор игрока
+    /// по-прежнему главнее и сохраняется, пока лобби открыто.
+    /// </remarks>
+    public NetworkLobbyViewModel(MainViewModel game, MultiplayerOptions? options = null, Random? random = null)
     {
         ArgumentNullException.ThrowIfNull(game);
         _game = game;
         _options = options ?? new MultiplayerOptions();
+        _random = random ?? Random.Shared;
+
+        // Новое открытие лобби — новый зверь; дальше его можно сменить вручную.
+        _selectedAvatarId = NetworkAvatars.All[_random.Next(NetworkAvatars.All.Count)].Id;
+
         _dispatch = SynchronizationContext.Current is { } context
             ? action => context.Post(static state => ((Action)state!)(), action)
             : null;
