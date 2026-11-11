@@ -1066,6 +1066,7 @@
                     Grid.Column="0"
                     Content="Остаться"
                     Classes="app-action"
+                    MinHeight="64"
                     Margin="0,0,4,0"
                     HorizontalAlignment="Stretch"
                     HorizontalContentAlignment="Center" />
@@ -1073,6 +1074,7 @@
                     Grid.Column="1"
                     Content="Выйти"
                     Classes="app-action danger"
+                    MinHeight="64"
                     Margin="4,0,0,0"
                     HorizontalAlignment="Stretch"
                     HorizontalContentAlignment="Center" />

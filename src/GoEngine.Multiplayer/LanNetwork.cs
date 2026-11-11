@@ -73,8 +73,21 @@ internal static class LanNetwork
 
         if (OperatingSystem.IsAndroid())
         {
-            // Глобальный broadcast работает через активную Wi-Fi-сеть; перечисление
-            // интерфейсов на Android недоступно.
+            // Глобальный broadcast (255.255.255.255) на телефонах уходит через маршрут
+            // по умолчанию и легко теряется: VPN, несколько интерфейсов, фильтрация Wi-Fi.
+            // Дополнительно шлём направленный broadcast подсети, вычисленный по адресу
+            // активного маршрута (/24 и /16 — типовые домашние сети). Перечисление
+            // интерфейсов на Android по-прежнему недоступно (PlatformNotSupported).
+            if (GetRouteLocalAddress() is { } local
+                && IPAddress.TryParse(local, out var address)
+                && IsPrivate(address))
+            {
+                foreach (var directed in DirectedBroadcasts(address))
+                {
+                    Add(endpoints, new IPEndPoint(directed, 0));
+                }
+            }
+
             return endpoints;
         }
 
@@ -145,6 +158,27 @@ internal static class LanNetwork
         }
 
         return null;
+    }
+
+    /// <summary>Направленные broadcast-адреса подсети для частного IPv4-адреса.</summary>
+    /// <param name="address">Локальный адрес активного маршрута.</param>
+    /// <returns>Адреса /24 и /16 broadcast.</returns>
+    /// <remarks>
+    /// Маску на Android взять неоткуда, но типовые домашние и офисные сети — /24 (реже /16).
+    /// Направленный broadcast уходит через конкретный Wi-Fi-интерфейс, а не через маршрут
+    /// по умолчанию, поэтому объявления комнат не теряются при активном VPN или нескольких
+    /// интерфейсах (жалоба «комнаты не видны» после 0.2.131).
+    /// </remarks>
+    internal static IReadOnlyList<IPAddress> DirectedBroadcasts(IPAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        var bytes = address.GetAddressBytes();
+
+        return
+        [
+            new IPAddress([bytes[0], bytes[1], bytes[2], 255]),
+            new IPAddress([bytes[0], bytes[1], 255, 255])
+        ];
     }
 
     private static bool IsPrivate(IPAddress address)
