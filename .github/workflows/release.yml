@@ -1,9 +1,9 @@
 # Версионированный релиз: самодостаточные сборки под Windows, Linux, macOS и APK для Android.
 #
-# Запуск — по тегу (v1.0.0) или вручную из вкладки Actions. Перед публикацией обязательно
+# Запуск — по тегу (v0.2.138) или вручную из вкладки Actions. Перед публикацией обязательно
 # проходит проверка проекта (check.sh): релиз не собирается из красного коммита.
 # Сами сборки делает общий workflow build.yml — тот же, что наполняет плавающий релиз latest,
-# поэтому шаги сборки описаны в одном месте. Здесь остаётся проверка и публикация вехи.
+# поэтому шаги сборки описаны в одном месте. Здесь остаются версия, проверка и публикация вехи.
 name: Release
 
 on:
@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Тег релиза, например v0.2.0. Существующий релиз обновляется, новый создаётся'
+        description: 'Тег релиза в формате vX.Y.N, например v0.2.138: из него берутся версия и versionCode'
         required: true
       draft:
         description: 'Оставить черновиком (файлы не будут видны для скачивания до публикации)'
@@ -24,11 +24,55 @@ permissions:
 
 env:
   DOTNET_VERSION: '8.0.427'
+  # Тег вехи: при запуске вручную он приходит из inputs, при push тега — из ref_name.
   TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
+  # Версию вехи задаёт тег, а не номер прогона (как в плавающем latest). Версия и versionCode
+  # вычисляются один раз здесь и уходят в build.yml. Без этого сборка получила бы версию проекта
+  # по умолчанию («1.0.0» в приложении и установщике, «1.0»/1 в APK): приложение не смогло бы
+  # сравнить себя с выпуском, а Android не поставил бы обновление поверх установленного.
+  version:
+    name: Версия релиза
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+      code: ${{ steps.v.outputs.code }}
+    steps:
+      - name: Версия из тега
+        id: v
+        run: |
+          # Формат вехи — vX.Y.N: версия X.Y.N, versionCode N. Только целые числа без ведущих
+          # нулей: по версии приложение сравнивает себя с выпуском, а versionCode обязан быть
+          # положительным и расти от выпуска к выпуску, иначе Android откажется ставить пакет.
+          if [[ ! "${TAG}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Тег должен быть в формате vX.Y.N (например v0.2.138), получен: '${TAG}'." >&2
+            echo "Для ручного запуска укажите тег в поле tag: пустое поле подставляет имя ветки." >&2
+            exit 1
+          fi
+          version="${TAG#v}"
+          code="${BASH_REMATCH[3]}"
+          if [ "${code}" = "0" ]; then
+            echo "versionCode должен быть положительным: тег ${TAG} даёт 0. Возьмите тег с номером выпуска, например v0.2.138." >&2
+            exit 1
+          fi
+          if [ "${code}" -gt 2147483647 ]; then
+            echo "versionCode не помещается в int Android (максимум 2147483647): тег ${TAG}." >&2
+            exit 1
+          fi
+          {
+            echo "version=${version}"
+            echo "tag=${TAG}"
+            echo "code=${code}"
+          } >> "$GITHUB_OUTPUT"
+          echo "выпуск: ${TAG} → version=${version}, versionCode=${code}"
+
+  # Проверка идёт после разбора тега: на неверном теге не нужно тратить сорок минут на check.sh.
   verify:
     name: Проверка перед релизом
+    needs: [version]
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -43,26 +87,37 @@ jobs:
 
   build:
     name: Сборки
-    needs: verify
+    needs: [verify, version]
     uses: ./.github/workflows/build.yml
     # Секреты обязаны передаваться явно: в переиспользуемом workflow контекст secrets пуст.
     secrets: inherit
     with:
-      # Имя архива с версией: go-engine-win-x64-v0.1.0.zip
-      suffix: -${{ inputs.tag || github.ref_name }}
+      # Имя архива с версией: go-engine-win-x64-v0.2.138.zip
+      suffix: -${{ needs.version.outputs.tag }}
+      # Версия и versionCode вехи: попадают в приложение, установщик и APK.
+      version: ${{ needs.version.outputs.version }}
+      version_code: ${{ needs.version.outputs.code }}
 
   publish:
     name: Публикация релиза
     needs: [build]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
+      # gh определяет репозиторий по git-каталогу: без checkout команды релиза падают
+      # с «not a git repository», хотя файлы уже скачаны (то же сделано в latest.yml).
+      - uses: actions/checkout@v5
       - name: Сбор файлов релиза
         uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
       - name: Список файлов
-        run: find dist -type f | sort
+        run: |
+          # Неподписанный APK Android не поставит: в релиз идёт только подписанный,
+          # как и в плавающем latest. Иначе игрок может скачать неработающий файл.
+          find dist -name '*.apk' ! -name '*-Signed.apk' -delete
+          find dist -type f | sort
       - name: Создание или обновление релиза
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -75,11 +130,19 @@ jobs:
           printf 'файлов в релизе: %s\n' "${#files[@]}"
           if gh release view "${TAG}" >/dev/null 2>&1; then
             # Релиз для этого тега уже есть: обновляем файлы, а не падаем с «already exists».
-            # Так повторный запуск на существующем теге безопасен и перезапускаем.
-            gh release upload "${TAG}" "${files[@]}" --clobber
+            # Ассеты удаляем явно: --clobber на существующем релизе отдаёт
+            # «ReleaseAsset.name already exists» и роняет публикацию (проверено на latest,
+            # тот же цикл стоит в latest.yml). Тогда повторный запуск на теге безопасен.
+            for path in "${files[@]}"; do
+              gh release delete-asset "${TAG}" "$(basename "$path")" --yes >/dev/null 2>&1 || true
+            done
+            gh release upload "${TAG}" "${files[@]}"
           else
+            # latest=false: «самым свежим» релизом GitHub остаётся плавающий latest,
+            # у вехи своя жизнь (так же помечает свои выпуски latest.yml).
             gh release create "${TAG}" "${files[@]}" \
               --title "Go Engine ${TAG}" \
               --generate-notes \
+              --latest=false \
               $flags
           fi
