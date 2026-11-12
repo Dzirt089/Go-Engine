@@ -4,31 +4,23 @@ using GoEngine.App.Views;
 
 namespace GoEngine.App.Tests;
 
-/// <summary>Тесты списков свойств, по которым вид пересобирает панель партии.</summary>
+/// <summary>Тесты списка свойств, по которым вид пересобирает панель партии.</summary>
 /// <remarks>
-/// Списки живут в <see cref="BoardView"/> и сверяются с моделью представления: имя свойства
-/// в списке обязано существовать (опечатка молча отключила бы обновление), а сами списки —
-/// не пересекаться (свойство, попавшее в оба, пересобирало бы панель дважды).
-/// Так регрессия «панель показывает старое» ловится тестом, а не глазами на экране.
+/// Список живёт в <see cref="BoardView"/> и сверяется с моделью представления: имя свойства
+/// в списке обязано существовать (опечатка молча отключила бы обновление). Так регрессия
+/// «панель показывает старое» ловится тестом, а не глазами на экране. Отдельного списка
+/// для выбора доски и уровня больше нет: самих списков выбора на панели нет — их даёт
+/// меню окна «Партия» (замечание владельца 2026-11-12).
 /// </remarks>
 public sealed class PanelPropertyListTests
 {
     [Fact]
     public void Список_Свойств_Панели_Называет_Только_Существующие_Свойства()
     {
-        foreach (var name in AllNames())
+        foreach (var name in BoardView.PanelProperties)
         {
             Assert.NotNull(typeof(MainViewModel).GetProperty(name, BindingFlags.Public | BindingFlags.Instance));
         }
-    }
-
-    [Fact]
-    public void Списки_Свойств_Не_Пересекаются()
-    {
-        var panel = BoardView.PanelProperties;
-        var combos = BoardView.ComboProperties;
-
-        Assert.Empty(panel.Intersect(combos, StringComparer.Ordinal));
     }
 
     [Fact]
@@ -47,24 +39,19 @@ public sealed class PanelPropertyListTests
     }
 
     [Fact]
-    public void Список_Списков_Выбора_Содержит_Подписи_И_Выбранные_Значения()
+    public void Список_Панели_Содержит_Подсказку_Об_Уровне()
     {
-        var combos = BoardView.ComboProperties;
+        // Строки о силе соперника живут в «Подробностях» и пересобираются вместе с панелью:
+        // один список свойств вместо прежнего списка выбора доски и уровня.
+        var panel = BoardView.PanelProperties;
 
-        Assert.Contains(nameof(MainViewModel.LevelLabels), combos);
-        Assert.Contains(nameof(MainViewModel.SelectedLevelIndex), combos);
-        Assert.Contains(nameof(MainViewModel.SelectedSizeIndex), combos);
+        Assert.Contains(nameof(MainViewModel.LevelDescription), panel);
+        Assert.Contains(nameof(MainViewModel.HasLevelHint), panel);
     }
 
     [Fact]
-    public void Оба_Списка_Не_Пусты()
+    public void Список_Панели_Не_Пуст()
     {
         Assert.NotEmpty(BoardView.PanelProperties);
-        Assert.NotEmpty(BoardView.ComboProperties);
     }
-
-    /// <summary>Все имена из обоих списков: по ним проверяется, что свойства существуют.</summary>
-    /// <returns>Имена свойств модели представления.</returns>
-    private static IEnumerable<string> AllNames() =>
-        BoardView.PanelProperties.Concat(BoardView.ComboProperties);
 }

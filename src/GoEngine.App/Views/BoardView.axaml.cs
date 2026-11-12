@@ -25,7 +25,8 @@ namespace GoEngine.App.Views;
 /// <remarks>
 /// Вид связывает доску с моделью представления: щелчок по доске превращается в ход игрока,
 /// после которого отвечает AI. Здесь же всё, что нужно и без окна: пас, отмена, возврат, новая
-/// партия, выбор доски и уровня, сохранение и загрузка партии, настройки.
+/// партия, часы, сохранение и загрузка партии, настройки. На настольной раскладке файлы и
+/// настройки даёт меню окна («Партия»), а на панели они не дублируются: игрок идёт в одно место.
 /// Раскладок две, выбор — чистая функция <see cref="BoardLayoutRules.DecideLayout"/> по ширине вида.
 /// Шире 760 точек — прежний настольный вид: доска слева, панель управления справа. Уже — мобильный:
 /// доска занимает экран, действия стоят компактной панелью поверх доски, состояние и подробности
@@ -258,12 +259,6 @@ public sealed partial class BoardView : UserControl
     /// </remarks>
     private AppSettings _settingsOnOpen = AppSettings.Default;
 
-    /// <summary>Состояние списка размеров: программное обновление не считается выбором игрока.</summary>
-    private readonly ComboState _sizeCombo = new();
-
-    /// <summary>Состояние списка уровней: программное обновление не считается выбором игрока.</summary>
-    private readonly ComboState _levelCombo = new();
-
     /// <summary>Текущая раскладка: <c>null</c> — ещё не выбрана.</summary>
     private LayoutMode? _layoutMode;
 
@@ -409,9 +404,6 @@ public sealed partial class BoardView : UserControl
         WireButton("UndoButton", OnUndoClick);
         WireButton("RedoButton", OnRedoClick);
         WireButton("NewGameButton", OnNewGameClick);
-        WireButton("SettingsButton", OnSettingsClick);
-        WireButton("SaveButton", OnSaveClick);
-        WireButton("LoadButton", OnLoadClick);
 
         // Часы партии: «Пауза» / «Дальше» — одна кнопка на два состояния в каждой раскладке,
         // а «Отменить партию» прекращает партию целиком.
@@ -450,8 +442,8 @@ public sealed partial class BoardView : UserControl
         WireButton("MobileMenuButton", OnMobileMenuClick);
         WireButton("MobileSettingsButton", OnSettingsClick);
 
-        // Меню партии на телефоне: те же действия, что у кнопок настольной панели, — своих
-        // обработчиков у пунктов меню нет, они лишь закрывают шторку перед действием.
+        // Меню партии: те же действия, что у пунктов меню окна на настольной раскладке, —
+        // своих обработчиков у пунктов меню нет, они лишь закрывают шторку перед действием.
         WireButton("MenuNewGameButton", OnMenuNewGameClick);
         WireButton("MenuPauseButton", OnMenuPauseResumeClick);
         WireButton("MenuAbortButton", OnMenuAbortClick);
@@ -481,16 +473,6 @@ public sealed partial class BoardView : UserControl
         if (_desktopDetailsButton is not null)
         {
             _desktopDetailsButton.Click += OnDetailsToggleClick;
-        }
-
-        if (this.FindControl<ComboBox>("SizeBox") is { } sizeBox)
-        {
-            sizeBox.SelectionChanged += OnSizeChanged;
-        }
-
-        if (this.FindControl<ComboBox>("LevelBox") is { } levelBox)
-        {
-            levelBox.SelectionChanged += OnLevelChanged;
         }
 
         SizeChanged += OnViewSizeChanged;
@@ -526,7 +508,6 @@ public sealed partial class BoardView : UserControl
             _sheet.SizeChanged += OnMobilePartSizeChanged;
         }
 
-        SyncCombos();
         RefreshSummary();
         ApplyLayout(Bounds.Width, Bounds.Height);
     }
@@ -620,7 +601,7 @@ public sealed partial class BoardView : UserControl
     /// Меню открывает кнопка ☰ в шапке партии: на телефоне это единственный вход к «Начать
     /// партию», отмене партии, файлам и «Настройке партии» — в ряду действий под доской они
     /// не помещались (замечания пользователя 2026-10-03 и 2026-10-06). Действия меню те же,
-    /// что у кнопок настольной панели.
+    /// что у пунктов меню окна на настольной раскладке, — второго пути к ним нет.
     /// </remarks>
     public void ShowMenu()
     {
@@ -1342,8 +1323,7 @@ public sealed partial class BoardView : UserControl
 
         foreach (var name in new[]
         {
-            "SizePanel", "LevelPanel",
-            "AiFilesRow", "DesktopPauseButton", "DesktopAbortButton",
+            "DesktopPauseButton", "DesktopAbortButton",
             "MobileSaveButton", "MobileLoadButton", "MobileStatsText",
             "MobileFilesPanel",
             "MenuPauseButton", "MenuFinishButton", "MenuAbortButton",
@@ -1899,14 +1879,6 @@ public sealed partial class BoardView : UserControl
             return;
         }
 
-        // Партия пересоздана (смена доски, уровня, настроек) — списки выбора должны это показать.
-        if (IsPanelProperty(e.PropertyName, ComboProperties))
-        {
-            SyncCombos();
-            RefreshSummary();
-            return;
-        }
-
         // Сетевые сообщения, баннер обрыва и терминальный итог: обновляются сразу, не дожидаясь
         // полной пересборки панели (сообщение живёт пару секунд).
         if (IsPanelProperty(e.PropertyName, NetworkUiProperties))
@@ -1939,7 +1911,8 @@ public sealed partial class BoardView : UserControl
         nameof(MainViewModel.IsNetworkMyTurn), nameof(MainViewModel.IsNetworkConnected), nameof(MainViewModel.CanLeaveNetwork),
         nameof(MainViewModel.NetworkStatusText), nameof(MainViewModel.NetworkTurnText),
         nameof(MainViewModel.NetworkOpponentAvatarId), nameof(MainViewModel.CanStartNewGame),
-        nameof(MainViewModel.CanChangeGameSettings)
+        nameof(MainViewModel.CanChangeGameSettings), nameof(MainViewModel.LevelDescription),
+        nameof(MainViewModel.HasLevelHint)
     ];
 
     /// <summary>Свойства сетевых сообщений и баннеров: показываются сразу, без пересборки панели.</summary>
@@ -1957,14 +1930,6 @@ public sealed partial class BoardView : UserControl
         nameof(MainViewModel.ColorDrawShowChoice), nameof(MainViewModel.ColorDrawTitle)
     ];
 
-    /// <summary>Свойства, после которых панель пересобирается и списки выбора синхронизируются.</summary>
-    internal static readonly string[] ComboProperties =
-    [
-        nameof(MainViewModel.LevelLabels), nameof(MainViewModel.SelectedLevelIndex),
-        nameof(MainViewModel.SelectedSizeIndex), nameof(MainViewModel.LevelDescription),
-        nameof(MainViewModel.HasLevelHint)
-    ];
-
     /// <summary>Входит ли изменившееся свойство в список.</summary>
     /// <param name="propertyName">Имя свойства из уведомления; <c>null</c> — уведомление обо всех.</param>
     /// <param name="names">Список имён.</param>
@@ -1975,75 +1940,6 @@ public sealed partial class BoardView : UserControl
     /// </remarks>
     private static bool IsPanelProperty(string? propertyName, string[] names) =>
         propertyName is null || Array.IndexOf(names, propertyName) >= 0;
-
-    /// <summary>Показывает в списках выбора то, чем играет партия сейчас.</summary>
-    private void SyncCombos()
-    {
-        Sync(_sizeCombo, "SizeBox", ViewModel.SizeLabels, ViewModel.SelectedSizeIndex);
-        Sync(_levelCombo, "LevelBox", ViewModel.LevelLabels, ViewModel.SelectedLevelIndex);
-    }
-
-    /// <summary>Показывает в одном списке то, что показывает модель представления.</summary>
-    /// <param name="state">Состояние списка.</param>
-    /// <param name="name">Имя списка в разметке.</param>
-    /// <param name="labels">Подписи из модели представления.</param>
-    /// <param name="index">Выбранный индекс.</param>
-    /// <remarks>
-    /// На время обновления изменения списка игнорируются: он сообщает о сбросе индекса, а не
-    /// о выборе игрока. Подписи присваиваются только новым экземпляром: подмена того же самого
-    /// списка сбрасывала бы выбранный уровень.
-    /// </remarks>
-    private void Sync(ComboState state, string name, IReadOnlyList<string> labels, int index)
-    {
-        var replace = state.BeginUpdate(labels, index);
-
-        try
-        {
-            if (this.FindControl<ComboBox>(name) is not { } box)
-            {
-                return;
-            }
-
-            if (replace)
-            {
-                box.ItemsSource = labels;
-            }
-
-            box.SelectedIndex = index;
-        }
-        finally
-        {
-            state.EndUpdate();
-        }
-    }
-
-    /// <summary>Применяет выбранный размер доски.</summary>
-    /// <param name="sender">Список размеров.</param>
-    /// <param name="e">Событие смены выбора.</param>
-    private void OnSizeChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (sender is not ComboBox box || !_sizeCombo.TryAccept(box.SelectedIndex))
-        {
-            return;
-        }
-
-        ViewModel.SelectedSizeIndex = box.SelectedIndex;
-        SyncCombos();
-    }
-
-    /// <summary>Применяет выбранный уровень.</summary>
-    /// <param name="sender">Список уровней.</param>
-    /// <param name="e">Событие смены выбора.</param>
-    private void OnLevelChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (sender is not ComboBox box || !_levelCombo.TryAccept(box.SelectedIndex))
-        {
-            return;
-        }
-
-        ViewModel.SelectedLevelIndex = box.SelectedIndex;
-        SyncCombos();
-    }
 
     /// <summary>Подписывает кнопку на обработчик.</summary>
     /// <param name="name">Имя кнопки.</param>
@@ -2301,8 +2197,8 @@ public sealed partial class BoardView : UserControl
         _ = e;
     }
 
-    /// <summary>Показывает настройки.</summary>
-    /// <param name="sender">Кнопка «Настройки».</param>
+    /// <summary>Показывает настройки: окно на настольной раскладке или экран на телефоне.</summary>
+    /// <param name="sender">Пункт меню или кнопка, открывшая настройки.</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnSettingsClick(object? sender, RoutedEventArgs e) => ShowSettings();
 
@@ -2543,7 +2439,7 @@ public sealed partial class BoardView : UserControl
         _ = ViewModel.ResignNetworkAsync();
     }
 
-    /// <summary>Меню: сохраняет партию тем же путём, что кнопка панели.</summary>
+    /// <summary>Меню: сохраняет партию тем же путём, что меню окна на настольной раскладке.</summary>
     /// <param name="sender">Кнопка «Сохранить партию» в меню.</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnMenuSaveClick(object? sender, RoutedEventArgs e)
@@ -2552,7 +2448,7 @@ public sealed partial class BoardView : UserControl
         OnSaveClick(sender, e);
     }
 
-    /// <summary>Меню: загружает партию тем же путём, что кнопка панели.</summary>
+    /// <summary>Меню: загружает партию тем же путём, что меню окна на настольной раскладке.</summary>
     /// <param name="sender">Кнопка «Загрузить партию» в меню.</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnMenuLoadClick(object? sender, RoutedEventArgs e)
@@ -2561,8 +2457,8 @@ public sealed partial class BoardView : UserControl
         OnLoadClick(sender, e);
     }
 
-    /// <summary>Меню: открывает настройки тем же путём, что кнопка панели.</summary>
-    /// <param name="sender">Кнопка «Настройки» в меню.</param>
+    /// <summary>Меню: открывает настройки тем же путём, что меню окна на настольной раскладке.</summary>
+    /// <param name="sender">Строка «Настройка партии» в меню.</param>
     /// <param name="e">Событие нажатия.</param>
     private void OnMenuSettingsClick(object? sender, RoutedEventArgs e)
     {

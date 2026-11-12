@@ -149,8 +149,33 @@ public sealed class BoardViewTests
             "Партия с ИИ",
             view.FindControl<TextBlock>("DesktopStatusText")!.Text,
             StringComparison.Ordinal);
-        Assert.True(view.FindControl<Grid>("LevelPanel")!.IsVisible);
         Assert.False(view.FindControl<Button>("NewGameButton")!.IsVisible);
+
+        // Выбор доски и уровня живёт в меню окна «Партия», а не на панели: панель без дублей.
+        Assert.Null(view.FindControl<Grid>("LevelPanel"));
+    }
+
+    [Fact]
+    public void Настольная_Панель_Не_Дублирует_Меню_Партии()
+    {
+        // Жалоба владельца 2026-11-12: выбор доски и уровня, «Настройки…», «Сохранить»
+        // и «Загрузить» стояли и на панели, и в меню окна «Партия». У действия должно быть
+        // одно место: на настольной раскладке — меню окна, на телефоне — меню партии.
+        var (view, _) = Create();
+
+        foreach (var name in new[] { "SizePanel", "LevelPanel", "AiFilesRow", "SettingsButton", "SaveButton", "LoadButton" })
+        {
+            Assert.Null(view.FindControl<Control>(name));
+        }
+
+        // Остальные входы те же и не пострадали: меню партии и файлы в шторке телефона.
+        var menu = MenuOverlay(view);
+
+        Assert.NotNull(menu.FindControl<Button>("MenuSaveButton"));
+        Assert.NotNull(menu.FindControl<Button>("MenuLoadButton"));
+        Assert.NotNull(menu.FindControl<Button>("MenuSettingsButton"));
+        Assert.NotNull(view.FindControl<Button>("MobileSaveButton"));
+        Assert.NotNull(view.FindControl<Button>("MobileLoadButton"));
     }
 
     [Fact]
@@ -185,7 +210,6 @@ public sealed class BoardViewTests
         Assert.True(started.IsSuccess, started.Error);
         Assert.Contains("Партия с другом", view.FindControl<TextBlock>("DesktopStatusText")!.Text, StringComparison.Ordinal);
         Assert.False(view.FindControl<Button>("NewGameButton")!.IsVisible);
-        Assert.False(view.FindControl<Grid>("LevelPanel")!.IsVisible);
         Assert.False(view.FindControl<Button>("UndoButton")!.IsVisible);
         Assert.False(view.FindControl<Button>("RedoButton")!.IsVisible);
         Assert.Equal(2, view.FindControl<Grid>("DesktopActionRow")!.ColumnDefinitions.Count);

@@ -32,7 +32,8 @@
   <Panel x:Name="Root">
 
     <!-- Настольная раскладка. Панель справа прокручивается и содержит то, что не поместилось:
-         состояние, счёт, выбор доски и уровня, сохранение и загрузка, настройки. -->
+         состояние, счёт, подробности и действия партии. Выбор доски и уровня, файлы и настройки
+         здесь не дублируются: их даёт меню окна «Партия» (MainWindow.axaml). -->
     <Grid x:Name="Layout" ColumnDefinitions="*,320">
 
       <!-- Доска одна на обе раскладки: при переключении она переносится в другое место
@@ -133,29 +134,6 @@
                             ToolTip.Tip="Предпросмотр: показать, кому принадлежат пустые точки. Правила и счёт не меняются."
                             IsEnabled="{Binding CanToggleTerritory}"
                             IsChecked="{Binding ShowTerritory}" />
-            </Grid>
-
-            <!-- Списки доски и уровня: ими игрок выбирает, с чем играть, поэтому они видны
-                 всегда. Списки заполняет код вида (BoardView.axaml.cs), а не привязка: список
-                 выбора сбрасывает индекс при подмене ItemsSource и вернул бы его в модель
-                 представления, из-за чего партия начиналась не с выбранным уровнем. -->
-            <Grid x:Name="SizePanel" ColumnDefinitions="Auto,*">
-              <TextBlock Text="Доска" VerticalAlignment="Center" />
-              <ComboBox x:Name="SizeBox"
-                        Grid.Column="1"
-                        Margin="8,0,0,0"
-                        MinHeight="40"
-                        HorizontalAlignment="Stretch" />
-            </Grid>
-
-            <Grid x:Name="LevelPanel" ColumnDefinitions="Auto,*">
-              <TextBlock Text="Уровень" VerticalAlignment="Center" />
-              <ComboBox x:Name="LevelBox"
-                        Grid.Column="1"
-                        Margin="8,0,0,0"
-                        MinHeight="40"
-                        HorizontalAlignment="Stretch"
-                        ToolTip.Tip="Кю и дан — сила соперника: 30 кю — самый слабый, чем меньше кю, тем сильнее; дан сильнее любого кю. «Нейросеть» — оценка позиции обученной сетью." />
             </Grid>
 
             <!-- Сообщения о сохранении, загрузке и отказах: на телефоне системных диалогов нет.
@@ -275,33 +253,6 @@
                     Margin="0,2,0,0"
                     IsVisible="False"
                     HorizontalAlignment="Stretch" />
-            <Grid x:Name="AiFilesRow" ColumnDefinitions="*,*,*">
-              <Button x:Name="SettingsButton"
-                    IsEnabled="{Binding CanChangeGameSettings}"
-                      Content="Настройки…"
-                      MinHeight="40"
-                      Margin="0,0,3,0"
-                      ToolTip.Tip="Размер доски, уровень AI, цвет игрока и коми"
-                      HorizontalAlignment="Stretch"
-                      HorizontalContentAlignment="Center" />
-              <Button x:Name="SaveButton"
-                      Grid.Column="1"
-                      Content="Сохранить"
-                      MinHeight="40"
-                      Margin="3,0,3,0"
-                      ToolTip.Tip="Сохранить партию в файл SGF"
-                      HorizontalAlignment="Stretch"
-                      HorizontalContentAlignment="Center" />
-              <Button x:Name="LoadButton"
-                      Grid.Column="2"
-                      Content="Загрузить"
-                      MinHeight="40"
-                      Margin="3,0,0,0"
-                      ToolTip.Tip="Загрузить партию из файла SGF"
-                      HorizontalAlignment="Stretch"
-                      HorizontalContentAlignment="Center" />
-            </Grid>
-
           </StackPanel>
         </ScrollViewer>
       </Border>
